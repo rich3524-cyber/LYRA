@@ -74,34 +74,9 @@ jobs:
           AWS_SECRET_ACCESS_KEY:     placeholder
           AWS_S3_BUCKET:             placeholder
 
-  migrate:
-    name: Run DB migrations
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Generate Prisma client
-        run: npx prisma generate
-
-      - name: Push schema to database
-        run: npx prisma db push --accept-data-loss
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          DIRECT_URL:   ${{ secrets.DIRECT_URL }}
-
   deploy-app:
     name: Deploy to Netlify
-    needs: migrate
+    needs: build
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
