@@ -1,20 +1,11 @@
-import { auth0 } from './lib/auth0'
-
-export function proxy(request: Request) {
-  const { pathname } = new URL(request.url)
-  // Auth routes are handled by app/auth/[auth0]/route.ts in Node.js runtime
-  if (pathname.startsWith('/auth/') || pathname.startsWith('/api/auth/')) return
-  return auth0.middleware(request)
+// Auth is handled server-side in app/(dashboard)/layout.tsx and app/auth/[auth0]/route.ts
+// No edge processing needed — pass all requests through to the Next.js server handler
+export function proxy(_request: Request) {
+  return
 }
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for:
-     * - _next/static (static files)
-     * - _next/image (image optimization)
-     * - favicon.ico, sitemap.xml, robots.txt (metadata)
-     */
     '/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)',
   ],
 }
