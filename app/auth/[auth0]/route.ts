@@ -1,10 +1,11 @@
 import { auth0 } from '@/lib/auth0'
+import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export async function GET(request: NextRequest) {
-  return auth0.middleware(request)
+  return (await auth0.middleware(request)) ?? NextResponse.next()
 }
 
 export async function POST(request: NextRequest) {
-  return auth0.middleware(request)
+  return (await auth0.middleware(request)) ?? NextResponse.next()
 }
