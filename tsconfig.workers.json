@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir":        "dist",
+    "noEmit":        false,
+    "module":        "commonjs",
+    "target":        "es2022",
+    "esModuleInterop": true
+  },
+  "include": ["workers/**/*.ts", "services/**/*.ts", "lib/**/*.ts"],
+  "exclude": ["node_modules", ".next"]
+}

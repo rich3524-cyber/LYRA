@@ -1,0 +1,306 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  auth0Id     String   @unique
+  email       String   @unique
+  name        String?
+  avatarUrl   String?
+  role        UserRole @default(SMB_OWNER)
+  agencyId    String?
+  agency      Agency?  @relation(fields: [agencyId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspaceAccess WorkspaceAccess[]
+  posts           Post[]
+  approvals       PostApproval[]
+}
+
+enum UserRole {
+  PLATFORM_OWNER
+  AGENCY_ADMIN
+  AGENCY_MEMBER
+  CLIENT_VIEW
+  CLIENT_APPROVE
+  SMB_OWNER
+}
+
+model Agency {
+  id               String   @id @default(cuid())
+  name             String
+  plan             Plan     @default(AGENCY)
+  stripeCustomerId String?  @unique
+  stripeSubId      String?  @unique
+  maxWorkspaces    Int      @default(-1)
+  maxAutonomy      Autonomy @default(FULL)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  members    User[]
+  workspaces Workspace[]
+}
+
+model Workspace {
+  id               String       @id @default(cuid())
+  name             String
+  industry         String?
+  websiteUrl       String?
+  agencyId         String?
+  agency           Agency?      @relation(fields: [agencyId], references: [id])
+  ownerId          String?
+  plan             Plan         @default(STARTER)
+  stripeCustomerId String?      @unique
+  clientAccessLevel ClientAccess @default(NONE)
+  aiResponseMode   Autonomy     @default(OFF)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  access          WorkspaceAccess[]
+  socialAccounts  SocialAccount[]
+  posts           Post[]
+  brandProfile    BrandProfile?
+  guardrails      Guardrail[]
+  onboardingToken OnboardingToken?
+}
+
+enum Plan {
+  STARTER
+  PRO
+  AGENCY
+}
+
+enum ClientAccess {
+  NONE
+  VIEW
+  APPROVE
+}
+
+enum Autonomy {
+  OFF
+  DRAFT_APPROVE
+  FULL
+}
+
+model WorkspaceAccess {
+  id          String   @id @default(cuid())
+  userId      String
+  workspaceId String
+  role        UserRole
+  user        User      @relation(fields: [userId], references: [id])
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@unique([userId, workspaceId])
+}
+
+model SocialAccount {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  workspace    Workspace @relation(fields: [workspaceId], references: [id])
+  platform     Platform
+  platformId   String
+  handle       String
+  name         String
+  avatarUrl    String?
+  accessToken  String
+  refreshToken String?
+  tokenExpiry  DateTime?
+  webhookId    String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  posts    Post[]
+  comments Comment[]
+
+  @@unique([workspaceId, platform, platformId])
+}
+
+enum Platform {
+  FACEBOOK
+  INSTAGRAM
+  LINKEDIN
+  TIKTOK
+  TWITTER
+  GOOGLE_BUSINESS
+  YOUTUBE
+  PINTEREST
+  THREADS
+  BLUESKY
+}
+
+model Post {
+  id              String        @id @default(cuid())
+  workspaceId     String
+  workspace       Workspace     @relation(fields: [workspaceId], references: [id])
+  socialAccountId String
+  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id])
+  authorId        String
+  author          User          @relation(fields: [authorId], references: [id])
+  content         String
+  mediaUrls       String[]
+  status          PostStatus    @default(DRAFT)
+  scheduledAt     DateTime?
+  publishedAt     DateTime?
+  platformPostId  String?
+  aiGenerated     Boolean       @default(false)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  approval PostApproval?
+  metrics  PostMetrics?
+  comments Comment[]
+}
+
+enum PostStatus {
+  DRAFT
+  PENDING_APPROVAL
+  APPROVED
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+  CANCELLED
+}
+
+model PostApproval {
+  id         String         @id @default(cuid())
+  postId     String         @unique
+  post       Post           @relation(fields: [postId], references: [id])
+  reviewerId String?
+  reviewer   User?          @relation(fields: [reviewerId], references: [id])
+  status     ApprovalStatus @default(PENDING)
+  notes      String?
+  reviewedAt DateTime?
+  createdAt  DateTime       @default(now())
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+}
+
+model Comment {
+  id                String        @id @default(cuid())
+  workspaceId       String
+  socialAccountId   String
+  socialAccount     SocialAccount @relation(fields: [socialAccountId], references: [id])
+  postId            String?
+  post              Post?         @relation(fields: [postId], references: [id])
+  platformCommentId String
+  authorName        String
+  authorHandle      String?
+  content           String
+  sentiment         Sentiment?
+  requiresResponse  Boolean       @default(false)
+  isEscalated       Boolean       @default(false)
+  escalationReason  String?
+  status            CommentStatus @default(PENDING)
+  aiDraftResponse   String?
+  finalResponse     String?
+  respondedAt       DateTime?
+  platformCreatedAt DateTime
+  createdAt         DateTime      @default(now())
+
+  responses CommentResponse[]
+}
+
+enum Sentiment {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+  URGENT
+}
+
+enum CommentStatus {
+  PENDING
+  AI_DRAFTED
+  AWAITING_APPROVAL
+  APPROVED
+  RESPONDED
+  ESCALATED
+  IGNORED
+}
+
+model CommentResponse {
+  id          String    @id @default(cuid())
+  commentId   String
+  comment     Comment   @relation(fields: [commentId], references: [id])
+  content     String
+  aiGenerated Boolean   @default(true)
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+model BrandProfile {
+  id               String    @id @default(cuid())
+  workspaceId      String    @unique
+  workspace        Workspace @relation(fields: [workspaceId], references: [id])
+  voiceSummary     String?
+  toneAttributes   String[]
+  contentThemes    String[]
+  audienceProfile  Json?
+  postingPatterns  Json?
+  guidelineUrls    String[]
+  websiteData      Json?
+  socialData       Json?
+  lastScrapedAt    DateTime?
+  lastSocialSyncAt DateTime?
+  lastUpdatedAt    DateTime?
+  vectorEmbedding  Bytes?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model Guardrail {
+  id          String        @id @default(cuid())
+  workspaceId String
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id])
+  type        GuardrailType
+  value       String
+  createdAt   DateTime      @default(now())
+}
+
+enum GuardrailType {
+  NEVER_DISCUSS
+  NEVER_USE_WORD
+  ALWAYS_ESCALATE
+  APPROVED_ANSWER
+}
+
+model PostMetrics {
+  id           String    @id @default(cuid())
+  postId       String    @unique
+  post         Post      @relation(fields: [postId], references: [id])
+  likes        Int       @default(0)
+  comments     Int       @default(0)
+  shares       Int       @default(0)
+  reach        Int       @default(0)
+  impressions  Int       @default(0)
+  clicks       Int       @default(0)
+  saves        Int       @default(0)
+  lastSyncedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model OnboardingToken {
+  id          String    @id @default(cuid())
+  workspaceId String    @unique
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  token       String    @unique @default(cuid())
+  expiresAt   DateTime
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+}

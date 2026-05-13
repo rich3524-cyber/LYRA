@@ -1,0 +1,141 @@
+name: Deploy LYRA
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  NODE_VERSION: '20'
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & type-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
+
+  build:
+    name: Build
+    needs: lint-and-typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Build Next.js app
+        run: npm run build
+        env:
+          # Provide placeholder env vars so the build completes without real secrets
+          DATABASE_URL:              postgresql://placeholder/lyra
+          DIRECT_URL:                postgresql://placeholder/lyra
+          REDIS_URL:                 redis://localhost:6379
+          AUTH0_SECRET:              placeholder-secret-32-chars-minimum
+          AUTH0_ISSUER_BASE_URL:     https://placeholder.auth0.com
+          AUTH0_CLIENT_ID:           placeholder
+          AUTH0_CLIENT_SECRET:       placeholder
+          APP_BASE_URL:              https://placeholder.lyraonline.ai
+          ANTHROPIC_API_KEY:         sk-ant-placeholder
+          STRIPE_SECRET_KEY:         sk_test_placeholder
+          STRIPE_WEBHOOK_SECRET:     whsec_placeholder
+          STRIPE_STARTER_PRICE_ID:   price_placeholder
+          STRIPE_PRO_PRICE_ID:       price_placeholder
+          STRIPE_AGENCY_PRICE_ID:    price_placeholder
+          AWS_REGION:                ap-southeast-2
+          AWS_ACCESS_KEY_ID:         placeholder
+          AWS_SECRET_ACCESS_KEY:     placeholder
+          AWS_S3_BUCKET:             placeholder
+
+  migrate:
+    name: Run DB migrations
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Push schema to database
+        run: npx prisma db push --accept-data-loss
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DIRECT_URL:   ${{ secrets.DIRECT_URL }}
+
+  deploy-app:
+    name: Deploy to Netlify
+    needs: migrate
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Deploy to Netlify
+        run: npx netlify-cli deploy --build --prod
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID:    ${{ secrets.NETLIFY_SITE_ID }}
+
+  deploy-workers:
+    name: Deploy workers to Railway
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy worker service
+        run: railway up --service lyra-workers --detach
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
