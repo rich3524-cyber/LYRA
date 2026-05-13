@@ -50,15 +50,16 @@ function StatCard({ icon: Icon, label, value, sub }: { icon: React.ElementType; 
 
 export function PerformanceDashboard({ workspaceId }: { workspaceId: string }) {
   const [data, setData]     = useState<AnalyticsData | null>(null)
-  const [loading, setLoad]  = useState(true)
   const [period, setPeriod] = useState(30)
+  const loading = data === null
 
   useEffect(() => {
-    setLoad(true)
+    let active = true
     fetch(`/api/analytics?workspaceId=${workspaceId}&period=${period}`)
       .then(r => r.json())
-      .then((d: AnalyticsData) => { setData(d); setLoad(false) })
-      .catch(() => setLoad(false))
+      .then((d: AnalyticsData) => { if (active) setData(d) })
+      .catch(() => { if (active) setData({} as AnalyticsData) })
+    return () => { active = false }
   }, [workspaceId, period])
 
   return (

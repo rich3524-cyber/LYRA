@@ -25,7 +25,7 @@ export function BillingClient({ currentPlan, hasStripeAccount, plans }: Props) {
       })
       const data = await res.json() as { url?: string; error?: string }
       if (data.url) {
-        window.location.href = data.url
+        window.location.assign(data.url)
       } else {
         toast.error(data.error ?? 'Could not start checkout')
       }
@@ -42,7 +42,7 @@ export function BillingClient({ currentPlan, hasStripeAccount, plans }: Props) {
       const res  = await fetch('/api/stripe/create-checkout')
       const data = await res.json() as { url?: string; error?: string }
       if (data.url) {
-        window.location.href = data.url
+        window.location.assign(data.url)
       } else {
         toast.error(data.error ?? 'Could not open billing portal')
       }
