@@ -3,8 +3,8 @@ import { stripe } from '@/lib/stripe'
 import { prisma } from '@/lib/prisma'
 import type { Plan } from '@prisma/client'
 
-// Stripe sends raw bodies — disable Next.js body parsing
-export const config = { api: { bodyParser: false } }
+// Stripe sends raw bodies — must read as text/buffer, not parsed JSON
+export const dynamic = 'force-dynamic'
 
 const VALID_PLANS: Plan[] = ['STARTER', 'PRO', 'AGENCY']
 
