@@ -1,7 +1,10 @@
 import { auth0 } from './lib/auth0'
 
-export async function proxy(request: Request) {
-  return await auth0.middleware(request)
+export function proxy(request: Request) {
+  const { pathname } = new URL(request.url)
+  // Auth routes are handled by app/api/auth/[auth0]/route.ts in Node.js runtime
+  if (pathname.startsWith('/api/auth/')) return
+  return auth0.middleware(request)
 }
 
 export const config = {
