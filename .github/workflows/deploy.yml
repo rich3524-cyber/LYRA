@@ -74,31 +74,8 @@ jobs:
           AWS_SECRET_ACCESS_KEY:     placeholder
           AWS_S3_BUCKET:             placeholder
 
-  deploy-app:
-    name: Deploy to Netlify
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Generate Prisma client
-        run: npx prisma generate
-
-      - name: Deploy to Netlify
-        run: npx netlify-cli deploy --build --prod
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID:    ${{ secrets.NETLIFY_SITE_ID }}
-          DATABASE_URL:       ${{ secrets.DATABASE_URL }}
+  # Netlify deploys automatically via its GitHub integration (connected in Netlify dashboard).
+  # No deploy step needed here — Netlify triggers on push to main with its own build servers.
 
   deploy-workers:
     name: Deploy workers to Railway
