@@ -98,6 +98,7 @@ jobs:
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           NETLIFY_SITE_ID:    ${{ secrets.NETLIFY_SITE_ID }}
+          DATABASE_URL:       ${{ secrets.DATABASE_URL }}
 
   deploy-workers:
     name: Deploy workers to Railway
