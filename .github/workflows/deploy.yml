@@ -128,6 +128,7 @@ jobs:
     name: Deploy workers to Railway
     needs: build
     runs-on: ubuntu-latest
+    continue-on-error: true
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
