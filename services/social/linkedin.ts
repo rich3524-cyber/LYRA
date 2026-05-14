@@ -6,6 +6,7 @@ const SCOPES = [
   'openid',
   'profile',
   'email',
+  'w_member_social',
 ].join(' ')
 
 export interface LinkedInOrg {
