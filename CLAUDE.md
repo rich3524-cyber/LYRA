@@ -35,7 +35,7 @@ LYRA (lyraonline.ai) is a premium AI-powered social media intelligence SaaS plat
 | Auth | Auth0 (@auth0/nextjs-auth0) | Multi-role, OAuth social connections |
 | Payments | Stripe | Subscription billing |
 | Storage | AWS S3 | Brand guidelines docs, media assets |
-| Deployment | Vercel (app) + Railway (workers) | Sydney region (syd1) |
+| Deployment | Netlify (app) + Railway (workers) | Netlify Functions; workers on Railway |
 | Scraping | Cheerio + native fetch | Brand intelligence website crawler |
 | Encryption | Node.js crypto (AES-256-GCM) | Always encrypt social tokens before DB |
 
@@ -74,13 +74,54 @@ status-info:     #60a5fa
 ### Typography
 
 ```
-font-display:  "Instrument Serif" — Display headings ONLY (page titles, marketing)
-font-sans:     "DM Sans"          — ALL UI text (labels, buttons, body, navigation)
-font-mono:     "Geist Mono"       — ALL data values (counts, metrics, IDs, code)
+font-display:  "Instrument Serif" — Display headings ONLY (page titles, marketing). Weight 400 only.
+font-sans:     "DM Sans"          — ALL UI text (labels, buttons, body, navigation). Weights 300/400/500 only.
+font-mono:     "Geist Mono"       — ALL data values (counts, metrics, IDs, code). Weight 400 only.
 ```
 
 **NEVER use Inter, Arial, Roboto, system-ui, or any other font.**
 **NEVER use font-sans for headings. NEVER use font-display for UI text.**
+**NEVER use font-weight 700 (bold) anywhere — DM Sans 500 (Medium) is the maximum.**
+
+### Type Scale
+
+| Name | Size | Font | Weight | Line Height | Use |
+|---|---|---|---|---|---|
+| Display | 32–48px | Instrument Serif | 400 | 1.2 | Page titles, hero headings — at most one per page |
+| Heading 1 | 24px | DM Sans | 500 | 1.3 | Section headings |
+| Heading 2 | 18px | DM Sans | 500 | 1.4 | Sub-section headings |
+| Heading 3 | 14px | DM Sans | 500 | 1.4 | Card titles, labels |
+| Body | 14px | DM Sans | 400 | 1.6 | All body copy |
+| Small | 12px | DM Sans | 400 | 1.5 | Captions, hints — 12px minimum |
+| Label | 11px | DM Sans | 500 | 1.2 | UI labels — UPPERCASE + letter-spacing 0.1em |
+| Metric | 20–32px | Geist Mono | 400 | 1.2 | Data values, counters — always Geist Mono |
+| Code | 13px | Geist Mono | 400 | 1.5 | Code, IDs, tokens |
+
+### Spacing System
+
+Base unit is **4px**. Only multiples of 4 are permitted.
+
+```
+p-1  =  4px  — Micro: icon-to-label, tag padding
+p-2  =  8px  — Tight: related elements
+p-3  = 12px  — Compact: dense data tables
+p-4  = 16px  — Standard: default internal component padding
+p-5  = 20px  — Comfortable: card padding
+p-6  = 24px  — Generous: section spacing
+p-8  = 32px  — Spacious: major section breaks
+p-12 = 48px  — Hero: large section dividers
+p-16 = 64px  — Maximum: page-level breathing room
+```
+
+### Border Radius
+
+```
+rounded-md   =  6px  — Badges, tags, chips, inline code
+rounded-lg   = 10px  — Input fields, small cards, tooltips
+rounded-xl   = 14px  — Cards, panels, dropdowns
+rounded-2xl  = 20px  — Modal dialogs, sheets, large containers
+rounded-full        — Pills, avatar images, toggle switches
+```
 
 ### Animation Standards
 
@@ -96,25 +137,74 @@ Skeletons: shimmer keyframe on data-loading states
 **Always respect prefers-reduced-motion.**
 **Never use CSS transitions on width/height directly — use max-height or Framer Motion.**
 
+### Icons
+
+**Lucide React only. No other icon library. No emoji as icons under any circumstances.**
+
+```
+strokeWidth default:  1.5
+strokeWidth active:   2
+Size — standard UI:   16px
+Size — empty state:   24px
+Size — marketing:     48px max
+Icon-only buttons:    MUST have aria-label
+```
+
 ### Logo
 
-The LYRA wordmark is: framed L initial + "YRA" in ultralight tracking.
-- Favicon / app icon: framed L alone (square border, platinum on near-black)
-- Full wordmark: LYRA in ultralight, wide letter-spacing, near-black background
-- Never display LYRA on a white or light background in the authenticated app
+The LYRA mark is a platinum square-bordered L + "YRA" in DM Sans Light, weight 200, tracking +250.
+- **Primary:** platinum `#aaaaaa` border + `#e2e2e2` L on `#080808` — always this in the app
+- **Favicon / app icon:** framed L alone, no wordmark
+- **Never** recolour, rotate, skew, add effects, or place on busy/light backgrounds
+- **Never** remove the square frame from the L — it is integral
+- **Never** use the wordmark without the framed L (except favicon)
+
+### Voice & Tone
+
+LYRA is precise, intelligent, and quietly confident. It is not friendly, casual, or playful.
+
+**Writing rules:**
+- Lead with the outcome, not the feature
+- One idea per sentence — split anything with two clauses
+- Active voice only: "The AI drafted three responses." not "Three responses were drafted."
+- No exclamation marks in product copy, tooltips, or error messages
+- Numbers over words: "Manage 15 clients" not "Manage many clients"
+- Never apologise for limitations — state them confidently: "This feature launches in Phase 2."
+- Six words, not twelve. Assume intelligence. Never over-explain.
+
+**Copy patterns:**
+```
+Buttons:     "Schedule post"          NOT "Click here to schedule your post"
+Errors:      "Instagram connection expired. Reconnect to continue posting."
+             NOT "Oops! Something went wrong with your Instagram!"
+Empty state: "No posts scheduled yet."  NOT "Looks like nothing here yet!"
+Loading:     "LYRA is building your brand profile. This takes about 2 minutes."
+```
 
 ### Pre-Delivery UI Checklist
 
 Before any UI PR is merged, verify:
-- [ ] No emoji as icons — Lucide only
+
+**Visual**
+- [ ] No emoji as icons — Lucide only, strokeWidth 1.5
 - [ ] No hardcoded hex values — tokens only
-- [ ] Near-black background on all authenticated pages
-- [ ] DM Sans for UI, Instrument Serif for display only, Geist Mono for data
+- [ ] Near-black `#080808` background on all authenticated pages
+- [ ] Correct text hierarchy: primary `#e2e2e2`, secondary `#888`, muted `#555`
+- [ ] Border radius uses token values (rounded-xl for cards, rounded-2xl for modals)
+- [ ] Subtle `#222` borders on all cards and panels
+
+**Typography**
+- [ ] DM Sans for all UI text (weights 300/400/500 only — never 700)
+- [ ] Instrument Serif for display headings only — at most one per page
+- [ ] Geist Mono for all data values and metrics
+- [ ] No font sizes below 12px
+
+**Interaction**
+- [ ] Skeleton loaders on all data-dependent content — never spinners
 - [ ] All async buttons show disabled + spinner during operation
-- [ ] Skeleton loaders on all data-dependent content
-- [ ] Focus rings visible (2px platinum outline-offset-2)
-- [ ] ARIA labels on all icon-only buttons
+- [ ] Focus rings visible (2px `#888` outline, offset 2px)
 - [ ] Touch targets 44×44px minimum
+- [ ] ARIA labels on all icon-only buttons
 - [ ] Contrast ratio 4.5:1 minimum for body text
 
 ---
@@ -507,3 +597,5 @@ When building any feature, ask: does this feel like Bloomberg Terminal or Apple?
 - **Near-black is the canvas** — platinum is the signal
 
 If a screen looks like it could be any SaaS product, it is not ready.
+
+> **The Final Rule:** When in doubt — subtract. The LYRA brand is defined as much by what is absent as by what is present. Remove before you add.
