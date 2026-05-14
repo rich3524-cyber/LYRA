@@ -376,7 +376,7 @@ import { prisma } from '@/lib/prisma'
 import { anthropic } from '@/lib/anthropic'
 
 const response = await anthropic.messages.create({
-  model:      'claude-sonnet-4-20250514',  // ALWAYS this model
+  model:      'claude-sonnet-4-6',  // ALWAYS this model
   max_tokens: 1000,                         // Minimum — adjust up as needed
   messages:   [{ role: 'user', content: prompt }]
 })

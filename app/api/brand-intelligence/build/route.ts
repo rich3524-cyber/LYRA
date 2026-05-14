@@ -69,8 +69,7 @@ export async function POST(req: Request) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    const msg = error instanceof Error ? error.message : String(error)
-    console.error('POST /api/brand-intelligence/build error:', msg)
-    return NextResponse.json({ error: msg }, { status: 500 })
+    console.error('POST /api/brand-intelligence/build error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
