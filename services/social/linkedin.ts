@@ -3,10 +3,10 @@ const TOKEN_URL = 'https://www.linkedin.com/oauth/v2/accessToken'
 const API_URL = 'https://api.linkedin.com/v2'
 
 const SCOPES = [
-  'r_liteprofile',
-  'r_emailaddress',
+  'openid',
+  'profile',
+  'email',
   'w_member_social',
-  'rw_organization_admin',
 ].join(' ')
 
 export interface LinkedInOrg {
@@ -45,13 +45,13 @@ export async function exchangeCode(code: string): Promise<{ accessToken: string;
 }
 
 export async function getProfile(accessToken: string): Promise<{ id: string; name: string }> {
-  const res = await fetch(`${API_URL}/me?projection=(id,localizedFirstName,localizedLastName)`, {
+  const res = await fetch('https://api.linkedin.com/v2/userinfo', {
     headers: { Authorization: `Bearer ${accessToken}` },
   })
   const data = await res.json()
   return {
-    id: data.id as string,
-    name: `${data.localizedFirstName} ${data.localizedLastName}`,
+    id: data.sub as string,
+    name: (data.name ?? `${data.given_name ?? ''} ${data.family_name ?? ''}`.trim()) as string,
   }
 }
 
