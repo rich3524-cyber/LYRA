@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -47,9 +48,14 @@ export function Sidebar({ workspaceId }: { workspaceId: string }) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="font-display text-xl tracking-[0.25em] text-accent-platinum font-light"
             >
-              LYRA
+              <Image
+                src="/brand/lyra-logo-primary.svg"
+                alt="LYRA"
+                width={96}
+                height={30}
+                priority
+              />
             </motion.div>
           ) : (
             <motion.div
@@ -57,9 +63,14 @@ export function Sidebar({ workspaceId }: { workspaceId: string }) {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="w-8 h-8 border border-text-secondary flex items-center justify-center"
             >
-              <span className="font-display text-sm text-accent-platinum font-light">L</span>
+              <Image
+                src="/brand/lyra-icon-mark.svg"
+                alt="LYRA"
+                width={32}
+                height={32}
+                priority
+              />
             </motion.div>
           )}
         </AnimatePresence>

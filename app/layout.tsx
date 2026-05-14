@@ -28,6 +28,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'LYRA — AI Social Media Intelligence',
   description: 'Schedule content, generate AI captions, and respond to comments autonomously.',
+  icons: { icon: '/brand/lyra-favicon.svg' },
 }
 
 export default function RootLayout({
