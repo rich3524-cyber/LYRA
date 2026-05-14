@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400" role="img">
+  <title>LYRA — Social media avatar</title>
+  <desc>LYRA circular social media avatar: framed L letterform in platinum on near-black circle, sized for LinkedIn, Twitter/X, Instagram, Facebook, and TikTok profile pictures</desc>
+
+  <!-- Circular clip -->
+  <defs>
+    <clipPath id="circle-clip">
+      <circle cx="200" cy="200" r="200"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background circle -->
+  <circle cx="200" cy="200" r="200" fill="#080808"/>
+
+  <!-- Subtle inner ring -->
+  <circle cx="200" cy="200" r="198" fill="none" stroke="#141414" stroke-width="2"/>
+
+  <!-- Framed L mark — centred in circle -->
+  <rect x="118" y="118" width="164" height="164" rx="0" fill="#080808" stroke="#aaaaaa" stroke-width="6"/>
+
+  <!-- L letterform — optically centred inside frame -->
+  <line x1="158" y1="154" x2="158" y2="256" stroke="#d8d8d8" stroke-width="12" stroke-linecap="round"/>
+  <line x1="158" y1="256" x2="244" y2="256" stroke="#d8d8d8" stroke-width="12" stroke-linecap="round"/>
+</svg>

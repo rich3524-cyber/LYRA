@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 80" width="480" height="80" role="img">
+  <title>LYRA — Full horizontal lockup with descriptor</title>
+  <desc>LYRA full brand lockup: framed L initial mark, YRA wordmark, vertical rule divider, and the descriptor text Social Intelligence Platform set in wide-tracked light weight on near-black</desc>
+
+  <!-- Background -->
+  <rect width="480" height="80" rx="6" fill="#080808"/>
+
+  <!-- Framed L mark -->
+  <rect x="24" y="18" width="44" height="44" rx="0" fill="#080808" stroke="#888888" stroke-width="1.2"/>
+  <!-- L letterform -->
+  <line x1="38" y1="28" x2="38" y2="52" stroke="#d8d8d8" stroke-width="2" stroke-linecap="round"/>
+  <line x1="38" y1="52" x2="56" y2="52" stroke="#d8d8d8" stroke-width="2" stroke-linecap="round"/>
+
+  <!-- YRA wordmark -->
+  <text x="82" y="47"
+    font-family="'DM Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+    font-size="22"
+    font-weight="200"
+    fill="#d8d8d8"
+    letter-spacing="9">YRA</text>
+
+  <!-- Vertical rule divider -->
+  <line x1="194" y1="22" x2="194" y2="58" stroke="#2a2a2a" stroke-width="0.8"/>
+
+  <!-- Descriptor — two lines, wide tracking -->
+  <text x="210" y="38"
+    font-family="'DM Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+    font-size="9"
+    font-weight="300"
+    fill="#555555"
+    letter-spacing="3">SOCIAL INTELLIGENCE</text>
+  <text x="210" y="53"
+    font-family="'DM Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+    font-size="9"
+    font-weight="300"
+    fill="#444444"
+    letter-spacing="3">PLATFORM</text>
+</svg>
