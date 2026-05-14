@@ -122,7 +122,7 @@ export function Sidebar({ workspaceId }: { workspaceId: string }) {
       {/* Bottom nav */}
       <div className="border-t border-background-border p-2 space-y-0.5">
         <Link
-          href="/agency/settings"
+          href={`${base}/settings`}
           className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-text-secondary hover:text-text-primary hover:bg-background-hover transition-all duration-150"
           aria-label={collapsed ? 'Settings' : undefined}
         >
