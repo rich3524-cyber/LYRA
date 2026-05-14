@@ -132,9 +132,8 @@ export default function NewWorkspacePage() {
             </SelectTrigger>
             <SelectContent className="bg-background-tertiary border-background-border">
               <SelectItem value="NONE" className="text-text-secondary focus:text-text-primary focus:bg-background-hover">No access</SelectItem>
-              <SelectItem value="VIEW_ONLY" className="text-text-secondary focus:text-text-primary focus:bg-background-hover">View only</SelectItem>
-              <SelectItem value="APPROVE_POSTS" className="text-text-secondary focus:text-text-primary focus:bg-background-hover">Approve posts</SelectItem>
-              <SelectItem value="FULL" className="text-text-secondary focus:text-text-primary focus:bg-background-hover">Full access</SelectItem>
+              <SelectItem value="VIEW" className="text-text-secondary focus:text-text-primary focus:bg-background-hover">View only</SelectItem>
+              <SelectItem value="APPROVE" className="text-text-secondary focus:text-text-primary focus:bg-background-hover">Approve posts</SelectItem>
             </SelectContent>
           </Select>
           <p className="text-xs text-text-tertiary">Controls what the client can see and do in their portal.</p>
