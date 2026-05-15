@@ -65,12 +65,15 @@ model Workspace {
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
-  access          WorkspaceAccess[]
-  socialAccounts  SocialAccount[]
-  posts           Post[]
-  brandProfile    BrandProfile?
-  guardrails      Guardrail[]
-  onboardingToken OnboardingToken?
+  access            WorkspaceAccess[]
+  socialAccounts    SocialAccount[]
+  posts             Post[]
+  brandProfile      BrandProfile?
+  guardrails        Guardrail[]
+  onboardingToken   OnboardingToken?
+  seoConnection     SeoConnection?
+  seoPages          SeoPage[]
+  searchConsoleData SearchConsoleData[]
 }
 
 enum Plan {
@@ -304,4 +307,63 @@ model OnboardingToken {
   expiresAt   DateTime
   completedAt DateTime?
   createdAt   DateTime  @default(now())
+}
+
+model SeoConnection {
+  id           String    @id @default(cuid())
+  workspaceId  String    @unique
+  workspace    Workspace @relation(fields: [workspaceId], references: [id])
+  accessToken  String
+  refreshToken String
+  propertyUrl  String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+enum SeoContentType {
+  META_TITLE
+  META_DESC
+  H1
+  INTRO
+}
+
+model SeoPage {
+  id             String       @id @default(cuid())
+  workspaceId    String
+  workspace      Workspace    @relation(fields: [workspaceId], references: [id])
+  url            String
+  seoScore       Int?
+  lastAnalysedAt DateTime?
+  content        SeoContent[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([workspaceId, url])
+}
+
+model SeoContent {
+  id          String         @id @default(cuid())
+  seoPageId   String
+  seoPage     SeoPage        @relation(fields: [seoPageId], references: [id], onDelete: Cascade)
+  type        SeoContentType
+  content     String
+  aiGenerated Boolean        @default(false)
+  approvedAt  DateTime?
+  createdAt   DateTime       @default(now())
+}
+
+model SearchConsoleData {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  date        DateTime
+  query       String
+  page        String
+  clicks      Int       @default(0)
+  impressions Int       @default(0)
+  ctr         Float     @default(0)
+  position    Float     @default(0)
+  createdAt   DateTime  @default(now())
+
+  @@unique([workspaceId, date, query, page])
 }
