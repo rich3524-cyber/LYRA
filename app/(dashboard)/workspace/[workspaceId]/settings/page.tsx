@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { CheckCircle, Link2, Link2Off } from 'lucide-react'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { DeleteWorkspaceButton } from '@/components/lyra/settings/delete-workspace-button'
 
 interface Props {
   params: Promise<{ workspaceId: string }>
@@ -188,6 +189,22 @@ export default async function SettingsPage({ params, searchParams }: Props) {
               </div>
             )
           })}
+        </div>
+      </section>
+
+      {/* Danger zone */}
+      <section className="space-y-3 pt-4 border-t border-background-border">
+        <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
+          Danger Zone
+        </p>
+        <div className="p-5 rounded-xl bg-background-secondary border border-background-border space-y-3">
+          <div className="space-y-0.5">
+            <p className="font-sans text-sm font-medium text-text-primary">Delete this workspace</p>
+            <p className="font-sans text-xs text-text-tertiary leading-relaxed">
+              Permanently removes the workspace, all social accounts, posts, and brand profile.
+            </p>
+          </div>
+          <DeleteWorkspaceButton workspaceId={workspace.id} workspaceName={workspace.name} />
         </div>
       </section>
     </div>

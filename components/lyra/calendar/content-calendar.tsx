@@ -21,7 +21,7 @@ import {
 import { useDroppable } from '@dnd-kit/core'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { PostPreviewCard, CalendarPost } from './post-preview-card'
+import { PostPreviewCard, CalendarPost, PLATFORM_COLORS, PLATFORM_LABELS } from './post-preview-card'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -36,6 +36,11 @@ function DayCell({
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: day.toISOString() })
 
+  // Unique platforms scheduled this day — for the quick-reference dot strip
+  const platforms = Array.from(
+    new Set(posts.map((p) => p.socialAccount.platform))
+  )
+
   return (
     <div
       ref={setNodeRef}
@@ -45,14 +50,34 @@ function DayCell({
         isOver && 'bg-background-hover'
       )}
     >
-      <span
-        className={cn(
-          'text-xs block',
-          isCurrentDay ? 'text-accent-platinum font-medium' : 'text-text-tertiary'
+      {/* Date row with platform dot strip */}
+      <div className="flex items-center justify-between gap-1 mb-1">
+        <span
+          className={cn(
+            'text-xs',
+            isCurrentDay ? 'text-accent-platinum font-medium' : 'text-text-tertiary'
+          )}
+        >
+          {format(day, 'd')}
+        </span>
+        {platforms.length > 0 && (
+          <div className="flex items-center gap-0.5" aria-label={`Platforms: ${platforms.map((p) => PLATFORM_LABELS[p] ?? p).join(', ')}`}>
+            {platforms.map((platform) => (
+              <span
+                key={platform}
+                className="rounded-full shrink-0"
+                style={{
+                  width: 6,
+                  height: 6,
+                  backgroundColor: PLATFORM_COLORS[platform] ?? '#555555',
+                }}
+                title={PLATFORM_LABELS[platform] ?? platform}
+                aria-hidden="true"
+              />
+            ))}
+          </div>
         )}
-      >
-        {format(day, 'd')}
-      </span>
+      </div>
       {posts.map((post) => (
         <PostPreviewCard key={post.id} post={post} />
       ))}
