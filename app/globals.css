@@ -208,6 +208,16 @@
     background-size: 200px 200px;
   }
 
+  /* Radial glow — distant light source at top-centre, adds depth and dimension */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse 100% 50% at 50% -10%, rgba(255, 255, 255, 0.10) 0%, transparent 100%);
+  }
+
   ::selection {
     background: rgba(216, 216, 216, 0.15);
     color: #f4f4f2;
