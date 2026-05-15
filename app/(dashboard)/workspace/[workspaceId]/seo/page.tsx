@@ -19,19 +19,35 @@ export default async function SeoWorkspacePage({ params, searchParams }: Props) 
   const { workspaceId } = await params
   const { connected, error } = await searchParams
 
-  const workspace = await prisma.workspace.findFirst({
-    where: { id: workspaceId, access: { some: { userId: user.id } } },
-    select: {
-      id: true,
-      name: true,
-      websiteUrl: true,
-      seoConnection: { select: { propertyUrl: true } },
-      seoPages: {
-        include: { content: { orderBy: { createdAt: 'desc' } } },
-        orderBy: { updatedAt: 'desc' },
+  let workspace
+  try {
+    workspace = await prisma.workspace.findFirst({
+      where: { id: workspaceId, access: { some: { userId: user.id } } },
+      select: {
+        id: true,
+        name: true,
+        websiteUrl: true,
+        seoConnection: { select: { propertyUrl: true } },
+        seoPages: {
+          include: { content: { orderBy: { createdAt: 'desc' } } },
+          orderBy: { updatedAt: 'desc' },
+        },
       },
-    },
-  })
+    })
+  } catch (e) {
+    console.error('[SEO page] DB error:', e)
+    return (
+      <div className="space-y-2 max-w-xl">
+        <h1 className="font-display text-4xl text-text-primary">SEO</h1>
+        <p className="font-sans text-sm text-status-error">
+          Database error — the SEO tables may not exist yet. Run{' '}
+          <code className="font-mono text-xs bg-background-tertiary px-1 py-0.5 rounded">prisma db push</code>{' '}
+          against your production database, then redeploy.
+        </p>
+        <p className="font-mono text-xs text-text-tertiary">{String(e)}</p>
+      </div>
+    )
+  }
   if (!workspace) notFound()
 
   if (!workspace.seoConnection) {
