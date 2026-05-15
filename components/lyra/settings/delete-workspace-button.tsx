@@ -5,14 +5,13 @@ import { useRouter } from 'next/navigation'
 import { Trash2 } from 'lucide-react'
 import {
   AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
+  AlertDialogCancel,
 } from '@/components/ui/alert-dialog'
 
 interface Props {
@@ -22,12 +21,14 @@ interface Props {
 
 export function DeleteWorkspaceButton({ workspaceId, workspaceName }: Props) {
   const router = useRouter()
+  const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
   async function handleDelete() {
     setLoading(true)
     try {
       await fetch(`/api/workspaces/${workspaceId}`, { method: 'DELETE' })
+      setOpen(false)
       router.push('/')
     } catch {
       setLoading(false)
@@ -35,15 +36,10 @@ export function DeleteWorkspaceButton({ workspaceId, workspaceName }: Props) {
   }
 
   return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <button
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-status-error text-status-error font-sans text-sm hover:bg-status-error hover:text-background-primary transition-all duration-150"
-          aria-label="Delete workspace"
-        >
-          <Trash2 size={14} strokeWidth={1.5} />
-          Delete workspace
-        </button>
+    <AlertDialog open={open} onOpenChange={setOpen}>
+      <AlertDialogTrigger className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-status-error text-status-error font-sans text-sm hover:bg-status-error hover:text-background-primary transition-all duration-150">
+        <Trash2 size={14} strokeWidth={1.5} />
+        Delete workspace
       </AlertDialogTrigger>
 
       <AlertDialogContent className="bg-background-secondary border border-background-border-mid rounded-2xl">
@@ -57,16 +53,16 @@ export function DeleteWorkspaceButton({ workspaceId, workspaceName }: Props) {
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel className="font-sans text-sm bg-background-tertiary border-background-border-mid text-text-secondary hover:text-text-primary">
+          <AlertDialogCancel className="font-sans text-sm">
             Cancel
           </AlertDialogCancel>
-          <AlertDialogAction
+          <button
             onClick={handleDelete}
             disabled={loading}
-            className="font-sans text-sm bg-status-error text-background-primary hover:opacity-90 disabled:opacity-50"
+            className="inline-flex items-center justify-center px-4 py-2 rounded-lg font-sans text-sm bg-status-error text-background-primary hover:opacity-90 disabled:opacity-50 transition-opacity"
           >
             {loading ? 'Deleting…' : 'Delete workspace'}
-          </AlertDialogAction>
+          </button>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
