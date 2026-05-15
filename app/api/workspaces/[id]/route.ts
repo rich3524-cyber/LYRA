@@ -88,7 +88,27 @@ export async function DELETE(
       return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
     }
 
-    await prisma.workspace.delete({ where: { id } })
+    // Delete in dependency order — schema has no cascade rules
+    await prisma.$transaction([
+      // CommentResponse → Comment
+      prisma.commentResponse.deleteMany({
+        where: { comment: { workspaceId: id } },
+      }),
+      // Comment depends on SocialAccount + Post
+      prisma.comment.deleteMany({ where: { workspaceId: id } }),
+      // PostMetrics + PostApproval depend on Post
+      prisma.postMetrics.deleteMany({ where: { post: { workspaceId: id } } }),
+      prisma.postApproval.deleteMany({ where: { post: { workspaceId: id } } }),
+      // Posts depend on SocialAccount + Workspace
+      prisma.post.deleteMany({ where: { workspaceId: id } }),
+      // Remaining workspace children
+      prisma.socialAccount.deleteMany({ where: { workspaceId: id } }),
+      prisma.brandProfile.deleteMany({ where: { workspaceId: id } }),
+      prisma.guardrail.deleteMany({ where: { workspaceId: id } }),
+      prisma.onboardingToken.deleteMany({ where: { workspaceId: id } }),
+      prisma.workspaceAccess.deleteMany({ where: { workspaceId: id } }),
+      prisma.workspace.delete({ where: { id } }),
+    ])
 
     return new NextResponse(null, { status: 204 })
   } catch (error) {

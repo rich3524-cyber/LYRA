@@ -27,10 +27,12 @@ export function DeleteWorkspaceButton({ workspaceId, workspaceName }: Props) {
   async function handleDelete() {
     setLoading(true)
     try {
-      await fetch(`/api/workspaces/${workspaceId}`, { method: 'DELETE' })
+      const res = await fetch(`/api/workspaces/${workspaceId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(`Server returned ${res.status}`)
       setOpen(false)
       router.push('/')
-    } catch {
+    } catch (err) {
+      console.error('Delete workspace failed:', err)
       setLoading(false)
     }
   }
