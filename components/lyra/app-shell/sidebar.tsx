@@ -16,6 +16,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Lock,
+  Search,
 } from 'lucide-react'
 import { WorkspaceSwitcher } from './workspace-switcher'
 import { cn } from '@/lib/utils'
@@ -27,6 +28,7 @@ const navItems = [
   { href: '/inbox',     label: 'Inbox',     icon: MessageSquare },
   { href: '/brand',     label: 'Brand AI',  icon: Zap         },
   { href: '/analytics', label: 'Analytics', icon: BarChart3   },
+  { href: '/seo',       label: 'SEO',       icon: Search      },
 ]
 
 export function Sidebar({ workspaceId, brandReady }: { workspaceId: string; brandReady: boolean }) {
