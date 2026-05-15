@@ -1,5 +1,6 @@
 import { redirect, notFound } from 'next/navigation'
-import { Zap } from 'lucide-react'
+import { Zap, Globe, Share2, Lock } from 'lucide-react'
+import Link from 'next/link'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { BrandBuildButton } from '@/components/lyra/brand/brand-build-button'
@@ -42,10 +43,14 @@ export default async function BrandPage({ params }: Props) {
       name: true,
       websiteUrl: true,
       brandProfile: true,
+      _count: { select: { socialAccounts: { where: { isActive: true } } } },
     },
   })
   if (!workspace) notFound()
 
+  const hasWebsite = !!workspace.websiteUrl
+  const hasSocial = (workspace._count?.socialAccounts ?? 0) > 0
+  const brandReady = hasWebsite && hasSocial
   const profile = workspace.brandProfile
   const audience = profile?.audienceProfile as AudienceProfile | null
   const patterns = profile?.postingPatterns as PostingPatterns | null
@@ -67,16 +72,59 @@ export default async function BrandPage({ params }: Props) {
         </div>
       </div>
 
-      {!profile ? (
-        /* Empty state */
+      {!brandReady ? (
+        /* Setup gate */
+        <div className="py-16 space-y-6">
+          <div className="space-y-3">
+            <Lock size={24} strokeWidth={1.5} className="text-text-tertiary" />
+            <div className="space-y-1">
+              <p className="font-sans text-sm text-text-secondary">Brand AI is not yet available.</p>
+              <p className="font-sans text-sm text-text-tertiary max-w-sm leading-relaxed">
+                Complete the steps below in Settings, then return here to build your brand profile.
+              </p>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${hasWebsite ? 'border-status-success bg-status-success' : 'border-background-border-mid'}`}>
+                {hasWebsite && (
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                    <path d="M2 5l2 2 4-4" stroke="#080808" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </div>
+              <Globe size={14} strokeWidth={1.5} className="text-text-tertiary" />
+              <span className="font-sans text-sm text-text-tertiary">Website URL added</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${hasSocial ? 'border-status-success bg-status-success' : 'border-background-border-mid'}`}>
+                {hasSocial && (
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                    <path d="M2 5l2 2 4-4" stroke="#080808" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </div>
+              <Share2 size={14} strokeWidth={1.5} className="text-text-tertiary" />
+              <span className="font-sans text-sm text-text-tertiary">At least one social account connected</span>
+            </div>
+          </div>
+          <Link
+            href={`/workspace/${workspaceId}/settings`}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-accent-platinum text-background-primary font-sans text-sm font-medium hover:bg-accent-white transition-colors duration-150"
+          >
+            Go to Settings
+          </Link>
+        </div>
+      ) : !profile ? (
+        /* Ready but no profile built yet */
         <div className="py-16 space-y-6">
           <div className="space-y-3">
             <Zap size={24} strokeWidth={1.5} className="text-text-tertiary" />
             <div className="space-y-1">
               <p className="font-sans text-sm text-text-secondary">No brand profile built yet.</p>
               <p className="font-sans text-sm text-text-tertiary max-w-sm leading-relaxed">
-                LYRA will scrape {workspace.websiteUrl ?? 'your website'} and analyze your brand
-                voice, tone, and themes to power AI captions and comment responses.
+                LYRA will scrape {workspace.websiteUrl} and analyse your connected social accounts
+                to build your brand voice profile. The more accounts connected, the sharper the result.
               </p>
             </div>
           </div>

@@ -15,6 +15,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  Lock,
 } from 'lucide-react'
 import { WorkspaceSwitcher } from './workspace-switcher'
 import { cn } from '@/lib/utils'
@@ -28,7 +29,7 @@ const navItems = [
   { href: '/analytics', label: 'Analytics', icon: BarChart3   },
 ]
 
-export function Sidebar({ workspaceId }: { workspaceId: string }) {
+export function Sidebar({ workspaceId, brandReady }: { workspaceId: string; brandReady: boolean }) {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
   const base = `/workspace/${workspaceId}`
@@ -86,6 +87,35 @@ export function Sidebar({ workspaceId }: { workspaceId: string }) {
       {/* Navigation */}
       <nav className="flex-1 py-4 px-2 space-y-0.5 overflow-y-auto">
         {navItems.map(({ href, label, icon: Icon }) => {
+          const isBrandAI = href === '/brand'
+          const locked = isBrandAI && !brandReady
+
+          if (locked) {
+            return (
+              <Link
+                key={label}
+                href={`${base}/settings`}
+                title="Connect your website and a social account to unlock Brand AI"
+                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-text-tertiary hover:bg-background-hover transition-all duration-150"
+                aria-label={collapsed ? 'Brand AI (locked)' : undefined}
+              >
+                <Lock size={16} className="shrink-0" strokeWidth={1.5} />
+                <AnimatePresence>
+                  {!collapsed && (
+                    <motion.span
+                      initial={{ opacity: 0, width: 0 }}
+                      animate={{ opacity: 1, width: 'auto' }}
+                      exit={{ opacity: 0, width: 0 }}
+                      className="overflow-hidden whitespace-nowrap tracking-wide"
+                    >
+                      Brand AI
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </Link>
+            )
+          }
+
           const fullHref = `${base}${href}`
           const isActive =
             pathname === fullHref || (href !== '' && pathname.startsWith(fullHref))
