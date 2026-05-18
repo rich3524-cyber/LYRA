@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { MessageSquare, AlertTriangle, CheckCheck, EyeOff, Sparkles, Loader2 } from 'lucide-react'
+import { AlertTriangle, CheckCheck, EyeOff, Sparkles, Loader2 } from 'lucide-react'
 
 interface CommentData {
   id:              string
@@ -21,15 +21,15 @@ const PLATFORM_LABELS: Record<string, string> = {
 }
 
 const SENTIMENT_COLOURS: Record<string, string> = {
-  POSITIVE: 'text-emerald-400',
-  NEUTRAL:  'text-[#888]',
-  NEGATIVE: 'text-red-400',
-  URGENT:   'text-amber-400',
+  POSITIVE: 'text-status-success',
+  NEUTRAL:  'text-text-secondary',
+  NEGATIVE: 'text-status-error',
+  URGENT:   'text-status-warning',
 }
 
 export function CommentCard({ comment, onUpdate }: { comment: CommentData; onUpdate: () => void }) {
-  const [draft, setDraft]       = useState(comment.aiDraftResponse ?? '')
-  const [generating, setGen]    = useState(false)
+  const [draft, setDraft]         = useState(comment.aiDraftResponse ?? '')
+  const [generating, setGen]      = useState(false)
   const [approving, setApproving] = useState(false)
 
   async function handleGenerate() {
@@ -92,20 +92,22 @@ export function CommentCard({ comment, onUpdate }: { comment: CommentData; onUpd
     onUpdate()
   }
 
-  const sentimentClass = comment.sentiment ? (SENTIMENT_COLOURS[comment.sentiment] ?? 'text-[#888]') : 'text-[#888]'
+  const sentimentClass = comment.sentiment
+    ? (SENTIMENT_COLOURS[comment.sentiment] ?? 'text-text-secondary')
+    : 'text-text-secondary'
 
   return (
-    <div className="rounded-xl border border-[#222] bg-[#0f0f0f] p-4 space-y-3">
+    <div className="rounded-xl border border-background-border bg-background-secondary p-4 space-y-3">
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
-          <div className="h-8 w-8 rounded-full bg-[#1a1a1a] border border-[#333] flex items-center justify-center text-xs font-medium text-[#e2e2e2] shrink-0">
+          <div className="h-8 w-8 rounded-full bg-background-hover border border-background-border-mid flex items-center justify-center text-xs font-medium text-text-primary shrink-0">
             {comment.authorName.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-medium text-[#e2e2e2] truncate">{comment.authorName}</p>
+            <p className="text-sm font-medium text-text-primary truncate">{comment.authorName}</p>
             {comment.authorHandle && (
-              <p className="text-xs text-[#555] truncate">{comment.authorHandle}</p>
+              <p className="text-xs text-text-tertiary truncate">{comment.authorHandle}</p>
             )}
           </div>
         </div>
@@ -113,30 +115,30 @@ export function CommentCard({ comment, onUpdate }: { comment: CommentData; onUpd
           {comment.sentiment && (
             <span className={`text-xs font-medium ${sentimentClass}`}>{comment.sentiment}</span>
           )}
-          <span className="text-xs px-1.5 py-0.5 rounded bg-[#1a1a1a] border border-[#333] text-[#888] font-mono">
+          <span className="text-xs px-1.5 py-0.5 rounded bg-background-hover border border-background-border-mid text-text-secondary font-mono">
             {PLATFORM_LABELS[comment.socialAccount.platform] ?? comment.socialAccount.platform}
           </span>
         </div>
       </div>
 
       {/* Comment content */}
-      <p className="text-sm text-[#ccc] leading-relaxed">{comment.content}</p>
+      <p className="text-sm text-text-primary leading-relaxed">{comment.content}</p>
 
       {/* AI draft */}
       {comment.status !== 'ESCALATED' && comment.status !== 'IGNORED' && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-[#555] flex items-center gap-1">
-              <Sparkles size={11} /> AI draft
+            <span className="text-xs text-text-tertiary flex items-center gap-1">
+              <Sparkles size={11} strokeWidth={1.5} /> AI draft
             </span>
-            <span className="text-xs text-[#555]">{draft.length}/280</span>
+            <span className="text-xs text-text-tertiary">{draft.length}/280</span>
           </div>
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             rows={3}
-            placeholder="Generate or write a response…"
-            className="w-full rounded-lg bg-[#1a1a1a] border border-[#333] px-3 py-2 text-sm text-[#e2e2e2] placeholder:text-[#444] resize-none focus:outline-none focus:border-[#555] transition-colors"
+            placeholder="Generate or write a response."
+            className="w-full rounded-lg bg-background-hover border border-background-border-mid px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary resize-none focus:outline-none focus:border-text-tertiary transition-colors"
           />
         </div>
       )}
@@ -144,57 +146,47 @@ export function CommentCard({ comment, onUpdate }: { comment: CommentData; onUpd
       {/* Actions */}
       {comment.status !== 'ESCALATED' && comment.status !== 'IGNORED' && comment.status !== 'RESPONDED' && (
         <div className="flex items-center gap-2 flex-wrap">
-          {!draft && (
-            <button
-              onClick={handleGenerate}
-              disabled={generating}
-              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#1a1a1a] border border-[#333] text-[#e2e2e2] hover:border-[#555] transition-colors disabled:opacity-50"
-            >
-              {generating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
-              Generate
-            </button>
-          )}
           {draft && (
             <button
               onClick={handleApprove}
               disabled={approving}
-              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20 transition-colors disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-status-success/10 border border-status-success/30 text-status-success hover:bg-status-success/20 transition-colors disabled:opacity-50"
             >
-              {approving ? <Loader2 size={12} className="animate-spin" /> : <CheckCheck size={12} />}
+              {approving ? <Loader2 size={12} className="animate-spin" /> : <CheckCheck size={12} strokeWidth={1.5} />}
               Approve &amp; send
             </button>
           )}
-          {!draft && generating && null}
           <button
             onClick={handleGenerate}
             disabled={generating}
-            className={`inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#1a1a1a] border border-[#333] text-[#888] hover:text-[#e2e2e2] hover:border-[#555] transition-colors disabled:opacity-50 ${!draft ? 'hidden' : ''}`}
+            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-background-hover border border-background-border-mid text-text-secondary hover:text-text-primary hover:border-text-tertiary transition-colors disabled:opacity-50"
           >
-            <MessageSquare size={12} /> Re-generate
+            {generating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} strokeWidth={1.5} />}
+            {draft ? 'Re-generate' : 'Generate'}
           </button>
           <button
             onClick={handleEscalate}
-            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#1a1a1a] border border-[#333] text-amber-400 hover:bg-amber-500/10 transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-background-hover border border-background-border-mid text-status-warning hover:bg-status-warning/10 transition-colors"
           >
-            <AlertTriangle size={12} /> Escalate
+            <AlertTriangle size={12} strokeWidth={1.5} /> Escalate
           </button>
           <button
             onClick={handleIgnore}
-            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#1a1a1a] border border-[#333] text-[#555] hover:text-[#888] transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-background-hover border border-background-border-mid text-text-tertiary hover:text-text-secondary transition-colors"
           >
-            <EyeOff size={12} /> Ignore
+            <EyeOff size={12} strokeWidth={1.5} /> Ignore
           </button>
         </div>
       )}
 
       {comment.status === 'ESCALATED' && (
-        <p className="text-xs text-amber-400 flex items-center gap-1.5">
-          <AlertTriangle size={12} /> Escalated to team
+        <p className="text-xs text-status-warning flex items-center gap-1.5">
+          <AlertTriangle size={12} strokeWidth={1.5} /> Escalated to team
         </p>
       )}
       {comment.status === 'RESPONDED' && (
-        <p className="text-xs text-emerald-400 flex items-center gap-1.5">
-          <CheckCheck size={12} /> Response sent
+        <p className="text-xs text-status-success flex items-center gap-1.5">
+          <CheckCheck size={12} strokeWidth={1.5} /> Response sent
         </p>
       )}
     </div>
