@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { scrapeWebsite } from '@/services/brand-intelligence/scraper'
+import { scrapeMultiplePages } from '@/services/brand-intelligence/scraper'
 import { buildBrandProfile } from '@/services/brand-intelligence/profile-builder'
 import { parseWorkspaceGuidelines } from '@/services/brand-intelligence/document-parser'
 import { analyzeSocialPosts } from '@/services/brand-intelligence/social-analyzer'
@@ -17,11 +17,11 @@ export async function POST(req: Request) {
     })
     if (!workspace) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    // Scrape website
+    // Scrape website (homepage + /about + /services)
     let websiteData = { title: '', description: '', bodyText: '', headings: [] as string[], metaKeywords: [] as string[] }
     if (workspace.websiteUrl) {
       try {
-        websiteData = await scrapeWebsite(workspace.websiteUrl)
+        websiteData = await scrapeMultiplePages(workspace.websiteUrl)
       } catch {
         console.warn(`Failed to scrape ${workspace.websiteUrl}`)
       }
@@ -32,15 +32,23 @@ export async function POST(req: Request) {
       ? await parseWorkspaceGuidelines(workspace.brandProfile.guidelineUrls)
       : ''
 
-    // TODO: Fetch real social posts from connected platform APIs
-    const socialPosts: string[] = []
-    const insights = analyzeSocialPosts(socialPosts)
+    // Use published/scheduled posts from DB as social content signal
+    const recentPosts = await prisma.post.findMany({
+      where: {
+        workspaceId,
+        status: { in: ['PUBLISHED', 'SCHEDULED', 'APPROVED'] },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 40,
+      select: { content: true },
+    })
+    const socialPosts = recentPosts.map((p) => p.content)
+    const insights    = analyzeSocialPosts(socialPosts)
 
     const profileData = await buildBrandProfile(websiteData, guidelinesText, socialPosts)
 
-    // Map to schema fields — postingGuidelines → postingPatterns JSON
     await prisma.brandProfile.upsert({
-      where: { workspaceId },
+      where:  { workspaceId },
       create: {
         workspaceId,
         voiceSummary:    profileData.voiceSummary,
