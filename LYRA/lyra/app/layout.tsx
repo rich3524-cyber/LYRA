@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { DM_Sans, Instrument_Serif, Geist_Mono } from 'next/font/google'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from 'sonner'
+import { NavigationLoader } from '@/components/lyra/app-shell/navigation-loader'
 import './globals.css'
 
 const dmSans = DM_Sans({
@@ -40,6 +41,7 @@ export default function RootLayout({
       className={`${dmSans.variable} ${instrumentSerif.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background-primary text-text-primary">
+        <NavigationLoader />
         <TooltipProvider>{children}</TooltipProvider>
         <Toaster theme="dark" position="bottom-right" />
       </body>
