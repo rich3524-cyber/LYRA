@@ -37,11 +37,11 @@ export function ResponseInbox({ workspaceId }: { workspaceId: string }) {
 
   return (
     <Tabs defaultValue="pending" className="space-y-4">
-      <TabsList className="bg-[#111] border border-[#222]">
+      <TabsList className="bg-background-secondary border border-background-border">
         <TabsTrigger value="pending" className="text-xs gap-2">
           Pending
           {pending.length > 0 && (
-            <Badge variant="secondary" className="text-xs px-1.5 py-0 bg-[#1a1a1a]">
+            <Badge variant="secondary" className="text-xs px-1.5 py-0 bg-background-hover">
               {pending.length}
             </Badge>
           )}
@@ -49,7 +49,7 @@ export function ResponseInbox({ workspaceId }: { workspaceId: string }) {
         <TabsTrigger value="escalated" className="text-xs gap-2">
           Escalated
           {escalated.length > 0 && (
-            <Badge variant="secondary" className="text-xs px-1.5 py-0 bg-amber-500/20 text-amber-400">
+            <Badge variant="secondary" className="text-xs px-1.5 py-0 bg-status-warning/20 text-status-warning">
               {escalated.length}
             </Badge>
           )}
@@ -60,10 +60,10 @@ export function ResponseInbox({ workspaceId }: { workspaceId: string }) {
       <TabsContent value="pending" className="space-y-3">
         {loading ? (
           Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-24 rounded-xl bg-[#111] border border-[#222] animate-pulse" />
+            <div key={i} className="h-24 rounded-xl bg-background-secondary border border-background-border animate-pulse" />
           ))
         ) : pending.length === 0 ? (
-          <p className="text-sm text-[#555] text-center py-12">All caught up ✓</p>
+          <p className="text-sm text-text-tertiary text-center py-12">All caught up.</p>
         ) : (
           pending.map(c => (
             <CommentCard
@@ -77,7 +77,7 @@ export function ResponseInbox({ workspaceId }: { workspaceId: string }) {
 
       <TabsContent value="escalated" className="space-y-3">
         {escalated.length === 0 ? (
-          <p className="text-sm text-[#555] text-center py-12">No escalated comments</p>
+          <p className="text-sm text-text-tertiary text-center py-12">No escalated comments.</p>
         ) : (
           escalated.map(c => (
             <CommentCard key={c.id} comment={c} onUpdate={() => {}} />
@@ -87,7 +87,7 @@ export function ResponseInbox({ workspaceId }: { workspaceId: string }) {
 
       <TabsContent value="responded" className="space-y-3">
         {responded.length === 0 ? (
-          <p className="text-sm text-[#555] text-center py-12">No responses sent yet</p>
+          <p className="text-sm text-text-tertiary text-center py-12">No responses sent yet.</p>
         ) : (
           responded.map(c => (
             <CommentCard key={c.id} comment={c} onUpdate={() => {}} />
