@@ -8,7 +8,6 @@ import {
   eachDayOfInterval,
   isSameDay,
   isToday,
-  setDate,
 } from 'date-fns'
 import {
   DndContext,
@@ -169,7 +168,13 @@ export function ContentCalendar({ workspaceId }: { workspaceId: string }) {
 
     const targetDay      = new Date(over.id as string)
     const originalDate   = post.scheduledAt ? new Date(post.scheduledAt) : new Date()
-    const newScheduledAt = setDate(originalDate, targetDay.getDate())
+    const newScheduledAt = new Date(
+      targetDay.getFullYear(),
+      targetDay.getMonth(),
+      targetDay.getDate(),
+      originalDate.getHours(),
+      originalDate.getMinutes(),
+    )
 
     setPosts((prev) =>
       prev.map((p) =>
@@ -248,8 +253,9 @@ export function ContentCalendar({ workspaceId }: { workspaceId: string }) {
                   key={value}
                   type="button"
                   onClick={() => setActiveFilter(value)}
+                  aria-pressed={activeFilter === value}
                   className={cn(
-                    'inline-flex items-center gap-1.5 px-3 py-1 rounded-md font-sans text-xs transition-colors',
+                    'inline-flex items-center gap-1.5 px-3 py-2 rounded-md font-sans text-xs transition-colors',
                     activeFilter === value
                       ? 'bg-background-hover text-text-primary border border-background-border-mid'
                       : 'text-text-tertiary hover:text-text-secondary border border-transparent'
