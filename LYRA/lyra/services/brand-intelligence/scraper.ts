@@ -37,3 +37,37 @@ export async function scrapeWebsite(url: string): Promise<ScrapedWebsite> {
 
   return { title, description, bodyText, headings, metaKeywords }
 }
+
+/**
+ * Scrapes the homepage plus common subpages (/about, /services).
+ * Individual page failures are silently skipped.
+ * Body text from all pages is merged (capped at 8 000 chars total).
+ */
+export async function scrapeMultiplePages(baseUrl: string): Promise<ScrapedWebsite> {
+  const origin = new URL(baseUrl).origin
+  const pagesToTry = [
+    baseUrl,
+    `${origin}/about`,
+    `${origin}/services`,
+  ]
+
+  const results = await Promise.allSettled(
+    pagesToTry.map((url) => scrapeWebsite(url))
+  )
+
+  const successful = results
+    .filter((r): r is PromiseFulfilledResult<ScrapedWebsite> => r.status === 'fulfilled')
+    .map((r) => r.value)
+
+  if (successful.length === 0) {
+    return { title: '', description: '', bodyText: '', headings: [], metaKeywords: [] }
+  }
+
+  return {
+    title:        successful[0].title,
+    description:  successful[0].description,
+    bodyText:     successful.map((p) => p.bodyText).join('\n\n').slice(0, 8000),
+    headings:     Array.from(new Set(successful.flatMap((p) => p.headings))).slice(0, 30),
+    metaKeywords: Array.from(new Set(successful.flatMap((p) => p.metaKeywords))),
+  }
+}
