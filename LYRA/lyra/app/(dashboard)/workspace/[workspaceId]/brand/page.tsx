@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { BrandBuildButton } from '@/components/lyra/brand/brand-build-button'
+import { GuidelinesUploader } from '@/components/lyra/brand/guidelines-uploader'
 
 interface Props {
   params: Promise<{ workspaceId: string }>
@@ -48,12 +49,12 @@ export default async function BrandPage({ params }: Props) {
   })
   if (!workspace) notFound()
 
-  const hasWebsite = !!workspace.websiteUrl
-  const hasSocial = (workspace._count?.socialAccounts ?? 0) > 0
-  const brandReady = hasWebsite && hasSocial
-  const profile = workspace.brandProfile
-  const audience = profile?.audienceProfile as AudienceProfile | null
-  const patterns = profile?.postingPatterns as PostingPatterns | null
+  const hasWebsite  = !!workspace.websiteUrl
+  const hasSocial   = (workspace._count?.socialAccounts ?? 0) > 0
+  const brandReady  = hasWebsite && hasSocial
+  const profile     = workspace.brandProfile
+  const audience    = profile?.audienceProfile as AudienceProfile | null
+  const patterns    = profile?.postingPatterns as PostingPatterns | null
 
   return (
     <div className="space-y-8 max-w-3xl">
@@ -117,7 +118,7 @@ export default async function BrandPage({ params }: Props) {
         </div>
       ) : !profile ? (
         /* Ready but no profile built yet */
-        <div className="py-16 space-y-6">
+        <div className="py-8 space-y-6">
           <div className="space-y-3">
             <Zap size={24} strokeWidth={1.5} className="text-text-tertiary" />
             <div className="space-y-1">
@@ -127,6 +128,14 @@ export default async function BrandPage({ params }: Props) {
                 to build your brand voice profile. The more accounts connected, the sharper the result.
               </p>
             </div>
+          </div>
+
+          {/* Guidelines upload available before first build */}
+          <div className="space-y-2">
+            <p className="font-sans text-xs text-text-tertiary">
+              Optionally upload brand guidelines before building your profile.
+            </p>
+            <GuidelinesUploader workspaceId={workspaceId} guidelineUrls={[]} />
           </div>
         </div>
       ) : (
@@ -244,6 +253,20 @@ export default async function BrandPage({ params }: Props) {
               </p>
             </section>
           )}
+
+          {/* Brand guidelines documents */}
+          <section className="p-5 rounded-xl bg-background-secondary border border-background-border space-y-3">
+            <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
+              Brand guidelines
+            </p>
+            <p className="font-sans text-xs text-text-tertiary">
+              Upload PDF or DOCX brand guidelines. LYRA uses these documents when building your brand profile.
+            </p>
+            <GuidelinesUploader
+              workspaceId={workspaceId}
+              guidelineUrls={profile.guidelineUrls}
+            />
+          </section>
 
           {/* Metadata */}
           <div className="flex items-center gap-6 pt-2">
