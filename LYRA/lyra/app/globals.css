@@ -1,0 +1,248 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+/* ─────────────────────────────────────────────
+   LYRA Design Tokens — Tailwind v4 @theme
+   ───────────────────────────────────────────── */
+@theme inline {
+  /* shadcn semantic tokens */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+
+  /* Radius */
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* LYRA background palette */
+  --color-background-primary:    #080808;
+  --color-background-secondary:  #0f0f0f;
+  --color-background-tertiary:   #141414;
+  --color-background-hover:      #1a1a1a;
+  --color-background-border:     #222222;
+  --color-background-border-mid: #333333;
+
+  /* LYRA text palette */
+  --color-text-primary:   #e2e2e2;
+  --color-text-secondary: #888888;
+  --color-text-tertiary:  #555555;
+
+  /* LYRA accent palette */
+  --color-accent-platinum: #d8d8d8;
+  --color-accent-white:    #f4f4f2;
+  --color-accent-silver:   #aaaaaa;
+
+  /* LYRA status palette */
+  --color-status-success: #4ade80;
+  --color-status-warning: #fbbf24;
+  --color-status-error:   #f87171;
+  --color-status-info:    #60a5fa;
+
+  /* Typography — CSS vars injected by next/font/google in layout.tsx */
+  --font-display: var(--font-instrument-serif), "Playfair Display", Georgia, serif;
+  --font-sans:    var(--font-dm-sans), "DM Sans", system-ui, sans-serif;
+  --font-mono:    var(--font-geist-mono), "JetBrains Mono", monospace;
+
+  /* LYRA animation definitions */
+  --animate-fade-in:  fadeIn  200ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  --animate-slide-up: slideUp 200ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  --animate-scale-in: scaleIn 200ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  --animate-shimmer:  shimmer 2s ease-in-out infinite;
+}
+
+/* ─────────────────────────────────────────────
+   shadcn/ui CSS variables — always dark (LYRA)
+   ───────────────────────────────────────────── */
+:root {
+  /* Near-black background #080808 */
+  --background:           oklch(0.032 0 0);
+  --foreground:           oklch(0.89 0 0);   /* #e2e2e2 */
+
+  /* Card #0f0f0f */
+  --card:                 oklch(0.059 0 0);
+  --card-foreground:      oklch(0.89 0 0);
+
+  /* Popover #141414 */
+  --popover:              oklch(0.082 0 0);
+  --popover-foreground:   oklch(0.89 0 0);
+
+  /* Primary = platinum #d8d8d8 */
+  --primary:              oklch(0.85 0 0);
+  --primary-foreground:   oklch(0.032 0 0);
+
+  /* Secondary #1a1a1a */
+  --secondary:            oklch(0.105 0 0);
+  --secondary-foreground: oklch(0.89 0 0);
+
+  /* Muted #1a1a1a */
+  --muted:                oklch(0.105 0 0);
+  --muted-foreground:     oklch(0.54 0 0);   /* #888 */
+
+  /* Accent #1a1a1a */
+  --accent:               oklch(0.105 0 0);
+  --accent-foreground:    oklch(0.89 0 0);
+
+  /* Destructive #f87171 */
+  --destructive:          oklch(0.70 0.18 22.2);
+
+  /* Border #222222 */
+  --border:               oklch(0.137 0 0);
+
+  /* Input #0f0f0f */
+  --input:                oklch(0.059 0 0);
+
+  /* Ring #888888 */
+  --ring:                 oklch(0.54 0 0);
+
+  --radius: 0.625rem;
+
+  /* Charts */
+  --chart-1: oklch(0.76 0.12 142);   /* status-success */
+  --chart-2: oklch(0.70 0.18 22);    /* status-error */
+  --chart-3: oklch(0.80 0.15 77);    /* status-warning */
+  --chart-4: oklch(0.68 0.17 264);   /* status-info */
+  --chart-5: oklch(0.67 0 0);        /* silver */
+
+  /* Sidebar #0f0f0f */
+  --sidebar:                oklch(0.059 0 0);
+  --sidebar-foreground:     oklch(0.89 0 0);
+  --sidebar-primary:        oklch(0.85 0 0);
+  --sidebar-primary-foreground: oklch(0.032 0 0);
+  --sidebar-accent:         oklch(0.105 0 0);
+  --sidebar-accent-foreground: oklch(0.89 0 0);
+  --sidebar-border:         oklch(0.137 0 0);
+  --sidebar-ring:           oklch(0.54 0 0);
+}
+
+/* ─────────────────────────────────────────────
+   Keyframes
+   ───────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+/* ─────────────────────────────────────────────
+   LYRA Base Styles
+   ───────────────────────────────────────────── */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    box-sizing: border-box;
+  }
+
+  html {
+    @apply font-sans;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  body {
+    @apply bg-background-primary text-text-primary font-sans;
+    font-size: 14px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Subtle noise grain — makes the near-black feel like a material */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    opacity: 0.07;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 200px 200px;
+  }
+
+  /* Radial glow — distant light source at top-centre, adds depth and dimension */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse 100% 50% at 50% -10%, rgba(255, 255, 255, 0.22) 0%, transparent 100%);
+  }
+
+  ::selection {
+    background: rgba(216, 216, 216, 0.15);
+    color: #f4f4f2;
+  }
+
+  :focus-visible {
+    outline: 2px solid #888888;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Slim scrollbars */
+  ::-webkit-scrollbar            { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track      { background: #080808; }
+  ::-webkit-scrollbar-thumb      { background: #333333; border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: #444444; }
+}
+
+/* ─────────────────────────────────────────────
+   Reduced motion
+   ───────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

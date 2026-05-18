@@ -1,0 +1,9 @@
+{
+  "framework": "nextjs",
+  "regions": ["syd1"],
+  "crons": [
+    { "path": "/api/cron/sync-comments", "schedule": "*/5 * * * *" },
+    { "path": "/api/cron/sync-metrics",  "schedule": "0 * * * *"   },
+    { "path": "/api/cron/brand-refresh", "schedule": "0 2 * * 0"   }
+  ]
+}

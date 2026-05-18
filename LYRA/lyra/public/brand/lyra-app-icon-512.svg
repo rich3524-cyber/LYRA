@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img">
+  <title>LYRA — App icon</title>
+  <desc>LYRA app icon at 512x512: framed L letterform in platinum on near-black with rounded corners for iOS and Android app store submission</desc>
+
+  <!-- Rounded background — iOS compliant corner radius (approximately 22.5% of size) -->
+  <rect width="512" height="512" rx="115" fill="#080808"/>
+
+  <!-- Subtle inner vignette border -->
+  <rect x="1" y="1" width="510" height="510" rx="114" fill="none" stroke="#141414" stroke-width="2"/>
+
+  <!-- Framed L mark — large, centred, breathing room -->
+  <rect x="132" y="132" width="248" height="248" rx="0" fill="#080808" stroke="#aaaaaa" stroke-width="8"/>
+
+  <!-- L letterform — optically centred inside frame -->
+  <line x1="186" y1="186" x2="186" y2="338" stroke="#d8d8d8" stroke-width="18" stroke-linecap="round"/>
+  <line x1="186" y1="338" x2="310" y2="338" stroke="#d8d8d8" stroke-width="18" stroke-linecap="round"/>
+</svg>
