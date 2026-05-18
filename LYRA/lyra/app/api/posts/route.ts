@@ -7,13 +7,13 @@ export async function GET(req: Request) {
     const user = await requireAuth()
     const { searchParams } = new URL(req.url)
     const workspaceId = searchParams.get('workspaceId')
-    const month = searchParams.get('month') // 'yyyy-MM'
+    const month = searchParams.get('month')
+    const statusParam = searchParams.get('status')
 
     if (!workspaceId) {
       return NextResponse.json({ error: 'workspaceId required' }, { status: 400 })
     }
 
-    // Verify access
     const access = await prisma.workspaceAccess.findFirst({
       where: { workspaceId, userId: user.id },
     })
@@ -30,13 +30,12 @@ export async function GET(req: Request) {
       }
     }
 
-    const where = {
-      workspaceId,
-      ...(scheduledAtFilter ? { scheduledAt: scheduledAtFilter } : {}),
-    }
-
     const posts = await prisma.post.findMany({
-      where,
+      where: {
+        workspaceId,
+        ...(scheduledAtFilter ? { scheduledAt: scheduledAtFilter } : {}),
+        ...(statusParam ? { status: statusParam as any } : {}),
+      },
       select: {
         id: true,
         content: true,
@@ -45,9 +44,10 @@ export async function GET(req: Request) {
         publishedAt: true,
         mediaUrls: true,
         aiGenerated: true,
+        createdAt: true,
         socialAccount: { select: { platform: true, name: true } },
       },
-      orderBy: { scheduledAt: 'asc' },
+      orderBy: { createdAt: 'desc' },
     })
 
     return NextResponse.json(posts)
