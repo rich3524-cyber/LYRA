@@ -53,7 +53,7 @@ export const STATUS_COLORS: Record<string, string> = {
 
 interface PostPreviewCardProps {
   post: CalendarPost
-  onSelect?: (post: CalendarPost) => void
+  onSelect: (post: CalendarPost) => void
 }
 
 export function PostPreviewCard({ post, onSelect }: PostPreviewCardProps) {
@@ -66,7 +66,7 @@ export function PostPreviewCard({ post, onSelect }: PostPreviewCardProps) {
     ? { transform: CSS.Translate.toString(transform) }
     : undefined
 
-  const platformColor = PLATFORM_COLORS[post.socialAccount.platform] ?? '#555555'
+  const platformColor = PLATFORM_COLORS[post.socialAccount.platform] ?? PLATFORM_COLORS['TWITTER']
 
   return (
     <div
@@ -93,7 +93,7 @@ export function PostPreviewCard({ post, onSelect }: PostPreviewCardProps) {
       <button
         type="button"
         className="flex-1 min-w-0 text-left"
-        onClick={() => onSelect?.(post)}
+        onClick={() => onSelect(post)}
       >
         <div className="flex items-center justify-between gap-1 mb-1">
           <div className="flex items-center gap-1">

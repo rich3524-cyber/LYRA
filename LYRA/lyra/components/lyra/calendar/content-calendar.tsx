@@ -29,10 +29,12 @@ function DayCell({
   day,
   posts,
   isCurrentDay,
+  onSelectPost,
 }: {
   day: Date
   posts: CalendarPost[]
   isCurrentDay: boolean
+  onSelectPost: (post: CalendarPost) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: day.toISOString() })
 
@@ -69,7 +71,7 @@ function DayCell({
                 style={{
                   width: 6,
                   height: 6,
-                  backgroundColor: PLATFORM_COLORS[platform] ?? '#555555',
+                  backgroundColor: PLATFORM_COLORS[platform] ?? PLATFORM_COLORS['TWITTER'],
                 }}
                 title={PLATFORM_LABELS[platform] ?? platform}
                 aria-hidden="true"
@@ -79,7 +81,7 @@ function DayCell({
         )}
       </div>
       {posts.map((post) => (
-        <PostPreviewCard key={post.id} post={post} />
+        <PostPreviewCard key={post.id} post={post} onSelect={onSelectPost} />
       ))}
     </div>
   )
@@ -201,6 +203,7 @@ export function ContentCalendar({ workspaceId }: { workspaceId: string }) {
                 day={day}
                 posts={dayPosts}
                 isCurrentDay={isToday(day)}
+                onSelectPost={setActivePost}
               />
             )
           })}
@@ -210,7 +213,7 @@ export function ContentCalendar({ workspaceId }: { workspaceId: string }) {
       <DragOverlay>
         {activePost ? (
           <div className="opacity-90 rotate-1 scale-105">
-            <PostPreviewCard post={activePost} />
+            <PostPreviewCard post={activePost} onSelect={() => {}} />
           </div>
         ) : null}
       </DragOverlay>
