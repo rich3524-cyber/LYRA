@@ -94,6 +94,7 @@ export function PostPreviewCard({ post, onSelect }: PostPreviewCardProps) {
         type="button"
         className="flex-1 min-w-0 text-left"
         onClick={() => onSelect(post)}
+        aria-label={`Open post details — ${PLATFORM_LABELS[post.socialAccount.platform] ?? post.socialAccount.platform}, ${post.status.toLowerCase().replace(/_/g, ' ')}`}
       >
         <div className="flex items-center justify-between gap-1 mb-1">
           <div className="flex items-center gap-1">
@@ -108,15 +109,15 @@ export function PostPreviewCard({ post, onSelect }: PostPreviewCardProps) {
           </div>
           <span
             className={cn(
-              'font-sans text-[9px] px-1 rounded-full',
+              'font-sans text-[10px] uppercase tracking-wide px-1 rounded-full',
               STATUS_COLORS[post.status] ?? 'bg-background-border text-text-tertiary'
             )}
           >
-            {post.status.toLowerCase().replace('_', ' ')}
+            {post.status.toLowerCase().replace(/_/g, ' ')}
           </span>
         </div>
         <p className="font-sans text-[11px] text-text-secondary leading-tight line-clamp-2">
-          {post.content}
+          {post.content || <span className="text-text-tertiary italic">Media only</span>}
         </p>
       </button>
     </div>

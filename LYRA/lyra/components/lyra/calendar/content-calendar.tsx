@@ -91,6 +91,7 @@ export function ContentCalendar({ workspaceId }: { workspaceId: string }) {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [posts, setPosts] = useState<CalendarPost[]>([])
   const [activePost, setActivePost] = useState<CalendarPost | null>(null)
+  const [selectedPost, setSelectedPost] = useState<CalendarPost | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -203,7 +204,7 @@ export function ContentCalendar({ workspaceId }: { workspaceId: string }) {
                 day={day}
                 posts={dayPosts}
                 isCurrentDay={isToday(day)}
-                onSelectPost={setActivePost}
+                onSelectPost={setSelectedPost}
               />
             )
           })}
