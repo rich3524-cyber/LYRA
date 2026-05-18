@@ -81,6 +81,7 @@ export function PostComposer({ workspaceId, connectedPlatforms }: PostComposerPr
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ workspaceId, platforms: selectedPlatforms, topic: topic.trim() || undefined }),
       })
+      if (!res.ok) throw new Error('Failed to generate content')
       const data = await res.json()
       editor?.commands.setContent(data.content)
     } catch {
@@ -153,12 +154,12 @@ export function PostComposer({ workspaceId, connectedPlatforms }: PostComposerPr
       {mediaUrls.length > 0 && (
         <div className="px-5 pb-4">
           <div className="flex gap-2 flex-wrap">
-            {mediaUrls.map((url, i) => (
+            {mediaUrls.map((url) => (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                key={i}
+                key={url}
                 src={url}
-                alt=""
+                alt="Attached media preview"
                 className="h-16 w-16 object-cover rounded-md border border-background-border"
               />
             ))}
@@ -177,7 +178,7 @@ export function PostComposer({ workspaceId, connectedPlatforms }: PostComposerPr
             disabled={isGenerating}
             className="text-text-secondary hover:text-text-primary gap-2 text-xs"
           >
-            <Sparkles size={14} className={cn(isGenerating && 'animate-pulse')} />
+            <Sparkles size={14} strokeWidth={1.5} className={cn(isGenerating && 'animate-pulse')} />
             {isGenerating ? 'Generating…' : 'AI Generate'}
           </Button>
           <MediaUploader
@@ -203,7 +204,7 @@ export function PostComposer({ workspaceId, connectedPlatforms }: PostComposerPr
               className="inline-flex items-center gap-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors h-8 px-2 rounded-md hover:bg-background-hover bg-transparent border-0 cursor-pointer"
               aria-label="Set schedule time"
             >
-              <CalendarIcon size={14} />
+              <CalendarIcon size={14} strokeWidth={1.5} />
               {scheduleDate
                 ? `${format(scheduleDate, 'MMM d')} at ${scheduleTime}`
                 : 'Schedule'}
@@ -240,7 +241,7 @@ export function PostComposer({ workspaceId, connectedPlatforms }: PostComposerPr
             disabled={isSubmitting || !scheduleDate}
             className="bg-accent-platinum text-background-primary hover:bg-accent-white text-xs gap-2"
           >
-            <Send size={12} />
+            <Send size={12} strokeWidth={1.5} />
             {isSubmitting ? 'Scheduling…' : 'Schedule'}
           </Button>
         </div>
