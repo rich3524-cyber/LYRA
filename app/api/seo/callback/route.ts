@@ -72,7 +72,14 @@ export async function GET(req: Request) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    console.error('GET /api/seo/callback error:', error)
-    return NextResponse.redirect(`${BASE_URL}?error=gsc_oauth_failed`)
+    const msg = error instanceof Error ? error.message : String(error)
+    console.error('GET /api/seo/callback error:', msg)
+    const { searchParams: sp } = new URL(req.url)
+    const rawState = parseState(sp.get('state'))
+    const wid = rawState.workspaceId
+    const dest = wid
+      ? `${BASE_URL}/workspace/${wid}/seo?error=${encodeURIComponent(msg)}`
+      : `${BASE_URL}?error=${encodeURIComponent(msg)}`
+    return NextResponse.redirect(dest)
   }
 }

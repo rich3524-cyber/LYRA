@@ -14,10 +14,12 @@ export function SeoConnect({ workspaceId, workspaceName, error }: Props) {
         <p className="font-sans text-sm text-text-secondary">{workspaceName}</p>
       </div>
 
-      {error === 'no_gsc_properties' && (
+      {error && (
         <div className="px-4 py-3 rounded-lg bg-status-error/10 border border-status-error/20">
           <p className="font-sans text-sm text-status-error">
-            No Search Console properties found. Make sure the Google account you connect has at least one verified property in Search Console.
+            {error === 'no_gsc_properties'
+              ? 'No Search Console properties found. Make sure the Google account you connect has at least one verified property in Search Console.'
+              : error}
           </p>
         </div>
       )}
