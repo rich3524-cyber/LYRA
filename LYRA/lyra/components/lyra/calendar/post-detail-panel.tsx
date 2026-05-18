@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { X, Trash2, ExternalLink, CalendarIcon } from 'lucide-react'
+import { motion, AnimatePresence, useReducedMotion } from 'framer-motion'
+import { X, Trash2, ExternalLink, CalendarIcon, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
@@ -45,6 +45,7 @@ interface Props {
 export function PostDetailPanel({ post, workspaceId, onClose, onDeleted, onUpdated }: Props) {
   const [deleting, setDeleting]             = useState(false)
   const [updatingStatus, setUpdatingStatus] = useState(false)
+  const shouldReduceMotion                  = useReducedMotion()
 
   async function handleDelete() {
     if (!post) return
@@ -72,8 +73,9 @@ export function PostDetailPanel({ post, workspaceId, onClose, onDeleted, onUpdat
         body:    JSON.stringify({ status: newStatus }),
       })
       if (!res.ok) throw new Error('Update failed')
+      const updated = await res.json() as CalendarPost
       toast.success('Status updated')
-      onUpdated({ ...post, status: newStatus })
+      onUpdated(updated)
     } catch {
       toast.error('Failed to update status')
     } finally {
@@ -95,7 +97,7 @@ export function PostDetailPanel({ post, workspaceId, onClose, onDeleted, onUpdat
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
+            transition={shouldReduceMotion ? { duration: 0 } : { duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
             className="fixed inset-0 z-40 bg-background-primary/70 backdrop-blur-sm"
             onClick={onClose}
           />
@@ -103,10 +105,10 @@ export function PostDetailPanel({ post, workspaceId, onClose, onDeleted, onUpdat
           {/* Slide-in panel */}
           <motion.div
             key="panel"
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            initial={shouldReduceMotion ? { opacity: 0 } : { x: '100%' }}
+            animate={shouldReduceMotion ? { opacity: 1 } : { x: 0 }}
+            exit={shouldReduceMotion ? { opacity: 0 } : { x: '100%' }}
+            transition={shouldReduceMotion ? { duration: 0.15 } : { duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             className="fixed right-0 top-0 h-full w-full max-w-sm z-50 bg-background-secondary border-l border-background-border flex flex-col"
             role="dialog"
             aria-modal="true"
@@ -130,7 +132,7 @@ export function PostDetailPanel({ post, workspaceId, onClose, onDeleted, onUpdat
                 type="button"
                 onClick={onClose}
                 aria-label="Close panel"
-                className="text-text-tertiary hover:text-text-secondary transition-colors shrink-0 ml-3"
+                className="flex items-center justify-center min-h-[44px] min-w-[44px] text-text-tertiary hover:text-text-secondary transition-colors shrink-0 ml-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-background-secondary rounded-md"
               >
                 <X size={14} strokeWidth={1.5} />
               </button>
@@ -195,8 +197,9 @@ export function PostDetailPanel({ post, workspaceId, onClose, onDeleted, onUpdat
                       type="button"
                       onClick={() => handleStatusChange(value)}
                       disabled={updatingStatus}
-                      className="w-full text-left px-3 py-2.5 rounded-lg border border-background-border font-sans text-xs text-text-secondary hover:border-background-border-mid hover:text-text-primary transition-colors disabled:opacity-50"
+                      className="inline-flex items-center gap-2 w-full text-left px-3 py-2.5 rounded-lg border border-background-border font-sans text-xs text-text-secondary hover:border-background-border-mid hover:text-text-primary transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-background-secondary"
                     >
+                      {updatingStatus && <Loader2 size={10} strokeWidth={1.5} className="animate-spin shrink-0" />}
                       {label}
                     </button>
                   ))}
@@ -208,7 +211,7 @@ export function PostDetailPanel({ post, workspaceId, onClose, onDeleted, onUpdat
             <div className="px-5 py-4 border-t border-background-border flex items-center justify-between">
               <a
                 href={`/workspace/${workspaceId}/compose`}
-                className="inline-flex items-center gap-1.5 font-sans text-xs text-text-tertiary hover:text-text-primary transition-colors"
+                className="inline-flex items-center gap-1.5 min-h-[44px] font-sans text-xs text-text-tertiary hover:text-text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-background-secondary rounded-md px-1"
               >
                 <ExternalLink size={12} strokeWidth={1.5} />
                 Edit in Composer
@@ -217,9 +220,9 @@ export function PostDetailPanel({ post, workspaceId, onClose, onDeleted, onUpdat
                 type="button"
                 onClick={handleDelete}
                 disabled={deleting}
-                className="inline-flex items-center gap-1.5 font-sans text-xs text-status-error hover:opacity-80 transition-opacity disabled:opacity-40"
+                className="inline-flex items-center gap-1.5 min-h-[44px] font-sans text-xs text-status-error hover:opacity-80 transition-opacity disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-background-secondary rounded-md px-1"
               >
-                <Trash2 size={12} strokeWidth={1.5} />
+                {deleting ? <Loader2 size={12} strokeWidth={1.5} className="animate-spin" /> : <Trash2 size={12} strokeWidth={1.5} />}
                 {deleting ? 'Deleting…' : 'Delete post'}
               </button>
             </div>
