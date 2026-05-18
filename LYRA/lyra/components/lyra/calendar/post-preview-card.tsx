@@ -116,7 +116,7 @@ export function PostPreviewCard({ post, onSelect }: PostPreviewCardProps) {
             {post.status.toLowerCase().replace(/_/g, ' ')}
           </span>
         </div>
-        <p className="font-sans text-[11px] text-text-secondary leading-tight line-clamp-2">
+        <p className="font-sans text-[12px] text-text-secondary leading-tight line-clamp-2">
           {post.content || <span className="text-text-tertiary italic">Media only</span>}
         </p>
       </button>
