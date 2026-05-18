@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { PostStatus } from '@prisma/client'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
@@ -9,6 +10,9 @@ export async function GET(req: Request) {
     const workspaceId = searchParams.get('workspaceId')
     const month = searchParams.get('month')
     const statusParam = searchParams.get('status')
+    const status = statusParam && (Object.values(PostStatus) as string[]).includes(statusParam)
+      ? (statusParam as PostStatus)
+      : undefined
 
     if (!workspaceId) {
       return NextResponse.json({ error: 'workspaceId required' }, { status: 400 })
@@ -34,7 +38,7 @@ export async function GET(req: Request) {
       where: {
         workspaceId,
         ...(scheduledAtFilter ? { scheduledAt: scheduledAtFilter } : {}),
-        ...(statusParam ? { status: statusParam as any } : {}),
+        ...(status ? { status } : {}),
       },
       select: {
         id: true,
