@@ -1,6 +1,7 @@
 'use client'
 
-import { Bell, Search } from 'lucide-react'
+import { useState } from 'react'
+import { Bell, Search, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -10,28 +11,44 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { UpgradeModal } from '@/components/lyra/billing/upgrade-modal'
 
 interface HeaderProps {
   user: { name?: string | null; email: string; avatarUrl?: string | null }
   title: string
+  plan?: string
 }
 
-export function Header({ user, title }: HeaderProps) {
-  return (
-    <header className="h-16 flex items-center justify-between px-6 border-b border-background-border bg-background-secondary shrink-0">
-      <h1 className="text-sm font-medium text-text-secondary tracking-widest uppercase">
-        {title}
-      </h1>
+export function Header({ user, title, plan }: HeaderProps) {
+  const [upgradeOpen, setUpgradeOpen] = useState(false)
+  const showUpgrade = plan === 'STARTER' || plan === 'PRO'
 
-      <div className="flex items-center gap-3">
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-text-tertiary hover:text-text-primary"
-          aria-label="Search"
-        >
-          <Search size={16} />
-        </Button>
+  return (
+    <>
+      <header className="h-16 flex items-center justify-between px-6 border-b border-background-border bg-background-secondary shrink-0">
+        <h1 className="text-sm font-medium text-text-secondary tracking-widest uppercase">
+          {title}
+        </h1>
+
+        <div className="flex items-center gap-3">
+          {showUpgrade && (
+            <button
+              onClick={() => setUpgradeOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-accent-silver/40 font-sans text-xs font-medium text-accent-silver hover:border-accent-silver hover:text-text-primary transition-colors duration-150"
+            >
+              <Zap size={11} strokeWidth={2} />
+              Upgrade
+            </button>
+          )}
+
+          <Button
+            variant="ghost"
+            size="icon"
+            className="text-text-tertiary hover:text-text-primary"
+            aria-label="Search"
+          >
+            <Search size={16} />
+          </Button>
 
         <Button
           variant="ghost"
@@ -87,5 +104,14 @@ export function Header({ user, title }: HeaderProps) {
         </DropdownMenu>
       </div>
     </header>
+
+    {showUpgrade && (
+      <UpgradeModal
+        open={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+        currentPlan={plan!}
+      />
+    )}
+    </>
   )
 }

@@ -33,22 +33,25 @@ export default async function DashboardLayout({
 
   // Check whether Brand AI is unlocked for the active workspace
   let brandReady = false
+  let workspacePlan: string | undefined
   if (workspaceId) {
     const ws = await prisma.workspace.findFirst({
       where: { id: workspaceId },
       select: {
+        plan: true,
         websiteUrl: true,
         _count: { select: { socialAccounts: { where: { isActive: true } } } },
       },
     }).catch(() => null)
     brandReady = !!(ws?.websiteUrl && (ws._count?.socialAccounts ?? 0) > 0)
+    workspacePlan = ws?.plan ?? undefined
   }
 
   return (
     <div className="flex h-screen overflow-hidden bg-background-primary">
       <Sidebar workspaceId={workspaceId} brandReady={brandReady} />
       <div className="flex flex-col flex-1 overflow-hidden">
-        <Header user={user} title="" />
+        <Header user={user} title="" plan={workspacePlan} />
         <main className="flex-1 overflow-y-auto p-6 animate-fade-in">
           {children}
         </main>
