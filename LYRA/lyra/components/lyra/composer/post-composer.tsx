@@ -144,11 +144,13 @@ export function PostComposer({ workspaceId, connectedPlatforms }: PostComposerPr
         }),
       })
       if (!res.ok) throw new Error('Failed to post')
-      toast.success('Post published immediately')
+      toast.success('Post queued for immediate publishing')
       editor?.commands.clearContent()
       setSelectedPlatforms([])
       setMediaUrls([])
       setTopic('')
+      setScheduleDate(undefined)
+      setScheduleTime('09:00')
       window.dispatchEvent(new CustomEvent('draft-saved'))
     } catch {
       toast.error('Failed to post')
