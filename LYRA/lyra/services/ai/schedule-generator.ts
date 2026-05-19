@@ -67,13 +67,18 @@ Rules:
 - No two consecutive posts on the same platform may share the same topic
 - Do not repeat the exact same caption text for any two posts`
 
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 4096,
-    messages: [{ role: 'user', content: prompt }],
-  })
-
-  const text = response.content[0].type === 'text' ? response.content[0].text.trim() : '[]'
+  let text = '[]'
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 4096,
+      messages: [{ role: 'user', content: prompt }],
+    })
+    text = response.content[0].type === 'text' ? response.content[0].text.trim() : '[]'
+  } catch (err) {
+    console.error('schedule-generator: Claude request failed', err instanceof Error ? err.message : err)
+    return []
+  }
 
   try {
     return JSON.parse(text) as GeneratedPost[]
