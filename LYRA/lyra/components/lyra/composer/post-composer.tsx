@@ -11,7 +11,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { Sparkles, CalendarIcon, Send } from 'lucide-react'
+import { Sparkles, CalendarIcon, Send, Zap } from 'lucide-react'
 import { PlatformSelector } from './platform-selector'
 import { MediaUploader } from './media-uploader'
 import { format } from 'date-fns'
@@ -40,6 +40,7 @@ export function PostComposer({ workspaceId, connectedPlatforms }: PostComposerPr
   const [topic, setTopic]                           = useState('')
   const [isGenerating, setIsGenerating]             = useState(false)
   const [isSubmitting, setIsSubmitting]             = useState(false)
+  const [isPostingNow, setIsPostingNow]             = useState(false)
 
   // Combine date + time into a single Date for the API
   const scheduledAt = useMemo(() => {
@@ -119,6 +120,40 @@ export function PostComposer({ workspaceId, connectedPlatforms }: PostComposerPr
       toast.error('Failed to save post')
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const handlePostNow = async () => {
+    const content = editor?.getText()
+    if (!content?.trim()) { toast.error('Post content is required'); return }
+    if (selectedPlatforms.length === 0) { toast.error('Select at least one platform'); return }
+    if (overLimit) { toast.error(`Content exceeds the ${charLimit}-character limit`); return }
+
+    setIsPostingNow(true)
+    try {
+      const res = await fetch('/api/posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workspaceId,
+          content: content.trim(),
+          platforms: selectedPlatforms,
+          scheduledAt: new Date().toISOString(),
+          mediaUrls,
+          status: 'SCHEDULED',
+        }),
+      })
+      if (!res.ok) throw new Error('Failed to post')
+      toast.success('Post published immediately')
+      editor?.commands.clearContent()
+      setSelectedPlatforms([])
+      setMediaUrls([])
+      setTopic('')
+      window.dispatchEvent(new CustomEvent('draft-saved'))
+    } catch {
+      toast.error('Failed to post')
+    } finally {
+      setIsPostingNow(false)
     }
   }
 
@@ -228,7 +263,7 @@ export function PostComposer({ workspaceId, connectedPlatforms }: PostComposerPr
             size="sm"
             type="button"
             onClick={() => handleSubmit('DRAFT')}
-            disabled={isSubmitting}
+            disabled={isSubmitting || isPostingNow}
             className="text-text-tertiary hover:text-text-primary text-xs"
           >
             Save draft
@@ -237,8 +272,19 @@ export function PostComposer({ workspaceId, connectedPlatforms }: PostComposerPr
           <Button
             size="sm"
             type="button"
+            onClick={handlePostNow}
+            disabled={isPostingNow || isSubmitting}
+            className="bg-background-tertiary border border-background-border-mid text-text-secondary hover:text-text-primary hover:border-accent-silver text-xs gap-2 transition-all duration-150"
+          >
+            <Zap size={12} strokeWidth={1.5} />
+            {isPostingNow ? 'Posting…' : 'Post now'}
+          </Button>
+
+          <Button
+            size="sm"
+            type="button"
             onClick={() => handleSubmit('SCHEDULED')}
-            disabled={isSubmitting || !scheduleDate}
+            disabled={isSubmitting || isPostingNow || !scheduleDate}
             className="bg-accent-platinum text-background-primary hover:bg-accent-white text-xs gap-2"
           >
             <Send size={12} strokeWidth={1.5} />
