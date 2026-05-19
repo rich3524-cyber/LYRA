@@ -1,3 +1,6 @@
+export const dynamic = 'force-dynamic'
+export const maxDuration = 300
+
 import { NextRequest } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -16,6 +19,18 @@ export async function POST(req: NextRequest) {
 
     if (!workspaceId || !durationWeeks || !platforms) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), { status: 400 })
+    }
+    if (durationWeeks !== 3 && durationWeeks !== 6) {
+      return new Response(JSON.stringify({ error: 'durationWeeks must be 3 or 6' }), { status: 400 })
+    }
+    const platformEntries = Object.entries(platforms)
+    if (platformEntries.length === 0) {
+      return new Response(JSON.stringify({ error: 'At least one platform required' }), { status: 400 })
+    }
+    for (const [, count] of platformEntries) {
+      if (typeof count !== 'number' || !Number.isInteger(count) || count < 1 || count > 7) {
+        return new Response(JSON.stringify({ error: 'Platform post counts must be integers between 1 and 7' }), { status: 400 })
+      }
     }
 
     const workspace = await prisma.workspace.findFirst({
