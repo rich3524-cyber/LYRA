@@ -110,21 +110,27 @@ export function ScheduleGenerator({
           if (line.startsWith('event: ')) {
             eventType = line.slice(7).trim()
           } else if (line.startsWith('data: ')) {
-            const data = JSON.parse(line.slice(6))
+            let data: unknown
+            try {
+              data = JSON.parse(line.slice(6))
+            } catch {
+              continue
+            }
+            const parsed = data as Record<string, unknown>
             if (eventType === 'progress') {
-              setProgress(Math.round((data.week / data.total) * 100))
-              setProgressLabel(data.status)
+              setProgress(Math.round(((parsed.week as number) / (parsed.total as number)) * 100))
+              setProgressLabel(parsed.status as string)
             } else if (eventType === 'week_posts') {
-              const incoming: PostEntry[] = (data.posts as GeneratedPost[]).map(p => ({
+              const incoming: PostEntry[] = (parsed.posts as GeneratedPost[]).map(p => ({
                 ...p,
                 id: crypto.randomUUID(),
-                weekNum: data.week,
+                weekNum: parsed.week as number,
               }))
               setPosts(prev => [...prev, ...incoming])
             } else if (eventType === 'done') {
               setPhase('review')
             } else if (eventType === 'error') {
-              throw new Error(data.message)
+              throw new Error(parsed.message as string)
             }
           }
         }
@@ -153,21 +159,27 @@ export function ScheduleGenerator({
   const handleAddToCalendar = async () => {
     setIsSaving(true)
     try {
-      const results = await Promise.all(
-        posts.map(post =>
-          fetch('/api/posts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              workspaceId,
-              content: post.content,
-              platforms: [post.platform],
-              scheduledAt: post.scheduledAt,
-              status: 'DRAFT',
-            }),
-          })
+      const BATCH_SIZE = 10
+      const results: Response[] = []
+      for (let i = 0; i < posts.length; i += BATCH_SIZE) {
+        const batch = posts.slice(i, i + BATCH_SIZE)
+        const batchResults = await Promise.all(
+          batch.map(post =>
+            fetch('/api/posts', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                workspaceId,
+                content: post.content,
+                platforms: [post.platform],
+                scheduledAt: post.scheduledAt,
+                status: 'DRAFT',
+              }),
+            })
+          )
         )
-      )
+        results.push(...batchResults)
+      }
       const failed = results.filter(r => !r.ok).length
       if (failed > 0) {
         toast.error(`${failed} posts failed to save. The rest were added.`)
@@ -334,7 +346,12 @@ export function ScheduleGenerator({
           {/* ── REVIEW ── */}
           {phase === 'review' && (
             <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
-              {sortedWeeks.map(weekNum => (
+              {posts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-12 space-y-2">
+                  <p className="text-sm text-text-secondary">No posts were generated.</p>
+                  <p className="text-xs text-text-tertiary">Check your brand profile and try again.</p>
+                </div>
+              ) : sortedWeeks.map(weekNum => (
                 <div key={weekNum}>
                   <p className="text-xs font-medium text-text-secondary uppercase tracking-widest mb-3">
                     Week {weekNum}
