@@ -157,6 +157,7 @@ model Post {
   publishedAt     DateTime?
   platformPostId  String?
   aiGenerated     Boolean       @default(false)
+  topic           String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
