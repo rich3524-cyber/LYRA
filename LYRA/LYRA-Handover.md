@@ -8,6 +8,55 @@
 
 ## Changelog
 
+### May 2026 — Session 10
+
+**Post Boosting — built and fully deployed**
+
+All 7 implementation tasks completed and deployed to production. Pro and Agency workspace users can now boost published Facebook and Instagram posts directly from the Post Detail Panel in the content calendar.
+
+**New files:**
+- `lyra/services/social/meta-ads.ts` — `createBoost()` (Campaign → AdSet → Creative → Ad sequence with orphan-campaign rollback on failure), `cancelBoost()` (sets campaign status to DELETED, not PAUSED), `getBoostReach()` (queries campaign impressions via `Authorization: Bearer` header)
+- `lyra/app/api/posts/[id]/boost/route.ts` — POST creates a boost (validates plan, input bounds, post status, platform, adAccountId; deletes prior ENDED/CANCELLED records; returns sanitised errors not raw Meta messages); DELETE cancels active boost on Meta then marks CANCELLED in DB
+- `lyra/app/api/posts/[id]/boost/reach/route.ts` — GET returns `{ reached: number }` for ACTIVE boosts; returns `{ error: 'reach_unavailable' }` with status 502 on failure
+
+**Modified files:**
+- `lyra/prisma/schema.prisma` — added `PostBoost` model (`@@unique postId`), `BoostStatus` enum (ACTIVE/ENDED/CANCELLED/FAILED), `adAccountId String?` on `SocialAccount`, `boost PostBoost?` on `Post`
+- `lyra/services/social/facebook.ts` — added `fetchAdAccountId(accessToken)` — calls `/me/adaccounts?fields=id,account_status`, returns first ACTIVE account ID. Note: `ads_management` scope was added then immediately removed (see Known Limitations)
+- `lyra/app/api/social/callback/[platform]/route.ts` — stores `adAccountId` on Facebook SocialAccount (and linked Instagram SocialAccount) at OAuth callback time
+- `lyra/app/api/posts/route.ts` — added `platformPostId`, `boost`, `socialAccount.platformId`, `socialAccount.adAccountId` to GET select
+- `lyra/components/lyra/calendar/post-preview-card.tsx` — extended `CalendarPost` type with `platformPostId`, `boost` (PostBoost), `socialAccount.platformId`, `socialAccount.adAccountId`
+- `lyra/components/lyra/calendar/post-detail-panel.tsx` — added three-state boost section: no boost (chip selectors for budget/duration/audience + CTA), active boost (Live badge + stat tiles including live Reached counter + cancel button), ended/cancelled (Ended badge + Boost again CTA). Added `plan` prop. State resets on `post.id` change to prevent leak across posts.
+- `lyra/components/lyra/calendar/content-calendar.tsx` — passes `plan` prop to `PostDetailPanel`
+- `lyra/app/(dashboard)/workspace/[workspaceId]/calendar/page.tsx` — fetches `plan` from workspace and passes to `ContentCalendar`
+
+**Schema applied to Supabase:**
+```sql
+CREATE TYPE "BoostStatus" AS ENUM ('ACTIVE', 'ENDED', 'CANCELLED', 'FAILED');
+ALTER TABLE "SocialAccount" ADD COLUMN IF NOT EXISTS "adAccountId" TEXT;
+CREATE TABLE "PostBoost" (...);
+CREATE INDEX "PostBoost_status_endsAt_idx" ON "PostBoost"("status", "endsAt");
+```
+
+**Known issue — `ads_management` scope requires Meta App Review:**
+Adding `ads_management` to the Facebook OAuth scope request caused Meta to block Facebook Login entirely for the app ("Facebook Login is currently unavailable for this app"). Removed from the SCOPES array. The boost UI, API, and DB are fully built — the only missing piece is `adAccountId` populated on `SocialAccount`. Workaround: set it manually via Supabase SQL (`UPDATE "SocialAccount" SET "adAccountId" = 'YOUR_AD_ACCOUNT_ID' WHERE platform = 'FACEBOOK'`). Proper fix: submit `ads_management` for Meta App Review, then add the scope back to `facebook.ts` — when users reconnect Facebook, `adAccountId` will be stored automatically.
+
+---
+
+**Railway workers — deployed and running**
+
+The BullMQ worker process is now live on Railway. All four workers started successfully.
+
+**What changed:**
+- `lyra/railway.toml` — added `[build] buildCommand = "npm install"` to prevent Railway from running `next build` (which fails without Auth0/Redis env vars during static page generation). Workers only need dependencies installed, not a full Next.js build.
+- Railway env vars corrected — `REDIS_URL` was set to the full `redis-cli --tls -u <url>` CLI command instead of just the URL. Corrected to the `rediss://...` URL from Upstash.
+
+**Current worker status:** Running. Logs show `[workers] All workers started`. Posts will now be automatically published at their scheduled time, comments will be monitored, and AI responses will be enqueued.
+
+**Git incident — mid-rebase state resolved:**
+The session inherited a git rebase in progress. `facebook.ts` and `schema.prisma` had been staged during an earlier rebase but never committed — this was the root cause of the previous Netlify build failure (`fetchAdAccountId doesn't exist in target module`). Resolved by committing the staged files directly (the rebase-merge directory was already empty). The REBASE_HEAD file was a stale artefact and was cleaned up.
+
+---
+
 ### May 2026 — Session 9
 
 **Deployment steps completed (from Session 7/8 pending list)**
@@ -291,7 +340,7 @@ LYRA (lyraonline.ai) is a premium AI-powered social media management SaaS platfo
 | Web scraping | Cheerio | 1.x |
 | Token encryption | Node.js crypto AES-256-GCM | built-in |
 | App deployment | Netlify | — |
-| Worker deployment | Railway (not yet set up) | — |
+| Worker deployment | Railway | — |
 
 ---
 
@@ -596,12 +645,18 @@ One workspace is currently active in production:
 
 ### BullMQ Workers
 
-- Worker files are complete and production-ready in `lyra/workers/`
+- Workers are **live on Railway**. Logs confirm `[workers] All workers started`.
 - `lib/redis.ts` is the canonical Redis connection factory — imported by both cron routes (as Queue producers) and worker files (as Worker consumers)
-- `railway.toml` is committed — Railway will automatically use `npx tsx workers/index.ts` as the start command
-- Workers are **not yet deployed** to Railway. The code is ready; the Railway project has not been created yet.
-- Without workers: posts will not be automatically published at scheduled times, comments are not monitored, and AI responses are not auto-generated
-- **To activate:** complete the manual deployment steps in Session 7 above (Upstash Redis → env vars → Railway project → cron-job.org)
+- `railway.toml` specifies `buildCommand = "npm install"` (overrides Railway's default Next.js build) and `startCommand = "npx tsx workers/index.ts"`
+- All four cron-job.org jobs are active and returning 200 responses
+
+### Post Boosting — `ads_management` scope pending Meta App Review
+
+- The boost UI, API routes, and database table are all live
+- `adAccountId` will not be auto-populated on Facebook reconnect until Meta approves the `ads_management` scope for the app
+- **Workaround for testing:** set `adAccountId` directly in Supabase: `UPDATE "SocialAccount" SET "adAccountId" = 'YOUR_AD_ACCOUNT_ID' WHERE platform = 'FACEBOOK'`
+- Ad account IDs can be found in Meta Business Manager → Ad Accounts
+- **Proper fix:** submit `ads_management` for Meta App Review, then re-add `'ads_management'` to the SCOPES array in `lyra/services/social/facebook.ts` — users will get it stored automatically on next Facebook reconnect
 
 ### Mobile Responsiveness
 
@@ -638,7 +693,7 @@ Until those workers are live, the panel will remain in cold-start state. This is
 - SEO tables: `SeoConnection`, `SeoPage`, `SeoContent`, `SearchConsoleData` (Session 6)
 - `SocialAccount.lastCommentSyncAt` (Session 7, applied via Supabase SQL Editor in Session 9)
 
-**Pending (post boosting — Session 9, not yet applied):** The `PostBoost` table, `BoostStatus` enum, and `SocialAccount.adAccountId` column must be applied before the post boosting feature is implemented. SQL is in the Session 9 changelog above.
+**Also applied (Session 10):** `PostBoost` table, `BoostStatus` enum, `SocialAccount.adAccountId` column — all applied to Supabase. SQL in Session 10 changelog.
 
 **How to apply future schema changes — Supabase SQL Editor is the preferred method:**
 
@@ -733,7 +788,8 @@ LYRA uses a strict dark near-black design system defined in `lyra/lib/design-tok
 | `lyra/services/brand-intelligence/scraper.ts` | Website scraper (Cheerio) |
 | `lyra/services/brand-intelligence/profile-builder.ts` | Claude brand profiler |
 | `lyra/lib/s3.ts` | S3 helpers — `getPresignedUploadUrl()`, `deleteObject()` |
-| `lyra/services/social/facebook.ts` | Facebook Graph API helpers |
+| `lyra/services/social/facebook.ts` | Facebook Graph API helpers + `fetchAdAccountId()` |
+| `lyra/services/social/meta-ads.ts` | Meta Marketing API — `createBoost()`, `cancelBoost()`, `getBoostReach()` |
 | `lyra/services/social/linkedin.ts` | LinkedIn API helpers |
 | `lyra/services/social/youtube.ts` | YouTube OAuth + channel fetch |
 | `lyra/app/(dashboard)/layout.tsx` | Authenticated app shell |
@@ -777,23 +833,23 @@ LYRA uses a strict dark near-black design system defined in `lyra/lib/design-tok
 
 ## 12. Immediate Next Steps (Recommended Order)
 
-**Remaining deployment action (one step left):**
-1. **Deploy Railway workers** — create a Railway project connected to `rich3524-cyber/LYRA`, root directory `LYRA/lyra`. Add all env vars from Netlify plus `REDIS_URL`. Railway reads `railway.toml` automatically (`npx tsx workers/index.ts`). Check [status.railway.app](https://status.railway.app) first — was blocked by a Google Cloud outage in Session 9.
-
-**New features (designed, ready to build):**
-2. **Post Boosting** — implementation plan at `lyra/docs/superpowers/plans/2026-05-20-post-boosting.md` (7 tasks). Apply the schema via Supabase SQL Editor first (SQL in Session 9 changelog), then execute the plan. Requires Meta app review for `ads_management` scope before non-admin users can boost.
-3. **Media Library** (Phase 3) — S3 upload, AI topic tagging, media picker in composer and schedule review. Spec: `lyra/docs/superpowers/specs/2026-05-19-ai-content-schedule-design.md` section 3.
-4. **Build the Inbox UI** — comments API exists (`/api/comments`), inbox page at `/workspace/[id]/inbox` needs building. Workers will be populating `CommentResponse` rows once deployed.
+**New features (ready to build):**
+1. **Media Library** (Phase 3) — S3 upload, AI topic tagging, media picker in composer and schedule review. Spec: `lyra/docs/superpowers/specs/2026-05-19-ai-content-schedule-design.md` section 3.
+2. **Build the Inbox UI** — comments API exists (`/api/comments`), inbox page at `/workspace/[id]/inbox` needs building. Workers are now live and populating `Comment` rows.
 
 **Platform / integrations:**
-5. **Test GSC OAuth end-to-end** — navigate to SEO → connect Search Console → verify property auto-selects → add a page → Analyse → Generate
-6. **Test YouTube connection** — connect a Google account in Settings → YouTube, verify the channel saves correctly
-7. **Complete Facebook OAuth testing** — connect a Facebook Page, verify it saves correctly and `adAccountId` is stored (required for post boosting)
-8. **Apply for Meta App Review** — submit `ads_management` scope review alongside existing Facebook page permissions review. Until approved, only the app admin can test boosting.
-9. **Apply for LinkedIn company page access** — submit LinkedIn Community Management API application so pages (not personal profiles) can be connected
-10. **Apply for LinkedIn app verification** — enables `w_member_social` scope for posting
-11. **Create Google Business, Twitter, TikTok developer apps** — add credentials to Netlify env vars so those OAuth flows work
+3. **Test GSC OAuth end-to-end** — navigate to SEO → connect Search Console → verify property auto-selects → add a page → Analyse → Generate
+4. **Test YouTube connection** — connect a Google account in Settings → YouTube, verify the channel saves correctly
+5. **Connect Facebook** — reconnect Facebook in Settings; then set `adAccountId` manually in Supabase to test post boosting end-to-end
+6. **Apply for Meta App Review** — submit `ads_management` scope. Once approved, re-add `'ads_management'` to SCOPES in `facebook.ts` — `adAccountId` will populate automatically on next reconnect.
+7. **Apply for LinkedIn company page access** — submit LinkedIn Community Management API application so pages (not personal profiles) can be connected
+8. **Apply for LinkedIn app verification** — enables `w_member_social` scope for posting
+9. **Create Google Business, Twitter, TikTok developer apps** — add credentials to Netlify env vars so those OAuth flows work
 
 **UX / business:**
-12. **Mobile sidebar** — add a hamburger menu / bottom nav for mobile viewports
-13. **Stripe billing / marketing page** — create Stripe products/prices, wire up checkout flow, build public marketing landing page (plan saved: `lyra/docs/superpowers/plans/2026-05-19-marketing-landing-page.md`)
+10. **Mobile sidebar** — add a hamburger menu / bottom nav for mobile viewports
+11. **Stripe billing / marketing page** — create Stripe products/prices, wire up checkout flow, build public marketing landing page (plan saved: `lyra/docs/superpowers/plans/2026-05-19-marketing-landing-page.md`)
+
+**Post boosting — low priority polish:**
+12. Add cron job or scheduled check to flip `PostBoost.status` from `ACTIVE` to `ENDED` when `endsAt` has passed (currently boosts stay ACTIVE in the DB after expiring on Meta's side)
+13. Pull `broad` audience country from workspace settings instead of hardcoded `'AU'` in `meta-ads.ts`
