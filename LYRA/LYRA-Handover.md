@@ -8,6 +8,158 @@
 
 ## Changelog
 
+### May 2026 — Session 9
+
+**Deployment steps completed (from Session 7/8 pending list)**
+
+- **`lastCommentSyncAt` schema change applied** — used Supabase SQL Editor directly (`ALTER TABLE "SocialAccount" ADD COLUMN IF NOT EXISTS "lastCommentSyncAt" TIMESTAMP(3)`) after `prisma db push` failed repeatedly due to Supabase connection string issues. Supabase SQL Editor is now the established, preferred method for all schema changes — see updated note in Section 8.
+- **Upstash Redis created** — free tier, region `ap-southeast-1`. `REDIS_URL` (starts with `rediss://`) added to Netlify environment variables. Uses TLS — `lib/redis.ts` handles the `rediss://` protocol correctly.
+- **`CRON_SECRET` added to Netlify** — used `lyra-cron-2026-Dbth352421!`. All four cron-job.org jobs are live and returning green 200 responses with the correct `Authorization: Bearer` header.
+- **Railway still pending** — blocked by a major Google Cloud outage during the session (railway.app returned "train has not arrived at the station" even in incognito). The Railway project has not been created yet. Workers are not deployed. Check [status.railway.app](https://status.railway.app) before attempting.
+- **Workspace plan upgraded to PRO** — applied via Supabase SQL Editor: `UPDATE "Workspace" SET plan = 'PRO' WHERE name = 'Into The Wild Marketing'`. The "Into The Wild Marketing" workspace now has access to Pro features.
+- **Supabase password reset incident** — a Supabase password reset was attempted during connection debugging. This invalidated the `DATABASE_URL` and `DIRECT_URL` in Netlify, causing the live site to show "Setting up your account…". Fixed by updating both connection strings in Netlify environment variables to the new password and triggering a redeploy. **If the site ever shows this error again, check that the Netlify DB connection strings match the current Supabase password.**
+
+**Post Boosting feature — designed and planned**
+
+Full design and implementation plan created. Feature allows Pro/Agency users to boost published Facebook and Instagram posts directly from the Post Detail Panel using Meta's Marketing API — budget/duration/audience presets, no full ad manager required.
+
+**Design spec:** `lyra/docs/superpowers/specs/2026-05-20-post-boosting-design.md`  
+**Implementation plan:** `lyra/docs/superpowers/plans/2026-05-20-post-boosting.md` (7 tasks, ready to execute)
+
+Key decisions:
+- Entry point is the Post Detail Panel only (not a dedicated ads page)
+- Facebook and Instagram only (both via Meta Marketing API)
+- Pro and Agency plan tiers only — Starter sees nothing (gated both server-side and client-side)
+- Config presets: Budget ($10/$25/$50/$100), Duration (3/7/14/30 days), Audience (Page followers / Followers + similar / Broad reach)
+- Full Meta Marketing API approach: Campaign → AdSet → Ad sequence; `POST_ENGAGEMENT` objective; `lifetime_budget` in cents
+- Three panel states: no boost, active boost (with stat tiles), ended/cancelled (with Boost again CTA)
+- One boost record per post (`PostBoost @unique postId`) — Boost again replaces the previous record
+- `ads_management` scope requires Meta app review before non-admin users can use it in production. App owner (admin) can test immediately.
+
+**New files to be created (post boosting):**
+- `lyra/services/social/meta-ads.ts` — `createBoost()`, `cancelBoost()`, `getBoostReach()` — the only file that calls Meta Marketing API
+- `lyra/app/api/posts/[id]/boost/route.ts` — `POST` (create boost) and `DELETE` (cancel boost) handlers
+
+**Files to be modified (post boosting):**
+- `lyra/prisma/schema.prisma` — add `PostBoost` model, `BoostStatus` enum, `adAccountId String?` to `SocialAccount`, `boost PostBoost?` to `Post`
+- `lyra/services/social/facebook.ts` — add `ads_management` to SCOPES, add `fetchAdAccountId(accessToken)`
+- `lyra/app/api/social/callback/[platform]/route.ts` — store `adAccountId` on Facebook (and linked Instagram) `SocialAccount` at OAuth time
+- `lyra/app/api/posts/route.ts` — include `boost` relation and `platformPostId` in GET query
+- `lyra/components/lyra/calendar/post-preview-card.tsx` — extend `CalendarPost` type with `platformPostId`, `boost`, updated `socialAccount`
+- `lyra/components/lyra/calendar/post-detail-panel.tsx` — add three-state boost section
+- `lyra/components/lyra/calendar/content-calendar.tsx` — pass `plan` prop to `PostDetailPanel`
+
+**Schema changes required (post boosting — apply via Supabase SQL Editor):**
+```sql
+CREATE TYPE "BoostStatus" AS ENUM ('ACTIVE', 'ENDED', 'CANCELLED', 'FAILED');
+
+CREATE TABLE IF NOT EXISTS "PostBoost" (
+  "id"           TEXT PRIMARY KEY,
+  "postId"       TEXT UNIQUE NOT NULL REFERENCES "Post"("id") ON DELETE CASCADE,
+  "platform"     TEXT NOT NULL,
+  "adCampaignId" TEXT NOT NULL,
+  "adSetId"      TEXT NOT NULL,
+  "adId"         TEXT NOT NULL,
+  "budget"       INTEGER NOT NULL,
+  "durationDays" INTEGER NOT NULL,
+  "audience"     TEXT NOT NULL,
+  "status"       "BoostStatus" NOT NULL DEFAULT 'ACTIVE',
+  "startedAt"    TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "endsAt"       TIMESTAMP(3) NOT NULL,
+  "createdAt"    TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  "updatedAt"    TIMESTAMP(3) NOT NULL
+);
+
+ALTER TABLE "SocialAccount" ADD COLUMN IF NOT EXISTS "adAccountId" TEXT;
+```
+
+---
+
+### May 2026 — Session 8
+
+**Environment setup + prisma db push walkthrough**
+- Node.js v24.15.0 installed on the development machine (was not previously installed)
+- Discovered the correct Supabase connection string format for `prisma db push`: use the **direct host** `db.votuufwukkhojunzrjoa.supabase.co` (port 5432), NOT the pooler host `aws-1-ap-southeast-2.pooler.supabase.com`. The pooler host returns authentication errors for schema operations even with correct credentials.
+- Correct CMD syntax for setting env vars with special characters: `set "VAR=value"` (quotes around the whole `VAR=value` expression). Without quotes, `&` in the connection string is interpreted as a command separator.
+- `prisma db push` for the `lastCommentSyncAt` field (Session 7 schema change) is **in progress** — complete this before deploying Railway workers.
+- Updated all `prisma db push` command examples in this document to use the correct format.
+
+---
+
+### May 2026 — Session 7
+
+**BullMQ Workers + Railway deployment prep**
+
+**New files:**
+- `lyra/lib/redis.ts` — `getRedisConnection(): ConnectionOptions` factory that parses `REDIS_URL` safely (descriptive error on invalid URL), sets `maxRetriesPerRequest: null` (required by BullMQ), adds TLS for `rediss://` URLs, and falls back to localhost when the var is absent so Next.js builds without a live Redis. Also exports `redis` (the result of calling the factory) for existing imports in cron routes.
+- `lyra/app/api/cron/publish-due-posts/route.ts` — cron endpoint (GET, bearer token auth via `CRON_SECRET`) that finds all `SCHEDULED` posts with `scheduledAt <= now` and enqueues each to the `post-publishing` queue via `services/scheduler/post-queue.ts`. Uses `jobId: post-{id}` to deduplicate if cron fires twice. Returns `{ queued: N }`.
+- `lyra/railway.toml` — Railway deployment config: `startCommand = "npx tsx workers/index.ts"`, `restartPolicyType = "ON_FAILURE"`, `restartPolicyMaxRetries = 3`.
+
+**Modified files:**
+- `lyra/prisma/schema.prisma` — added `lastCommentSyncAt DateTime?` to `SocialAccount` for incremental comment sync. `prisma generate` has been run; `prisma db push` to production is a pending manual step (see below).
+- `lyra/package.json` — moved `tsx` from `devDependencies` to `dependencies`. Railway runs `npm ci --omit=dev` so `tsx` must be in `dependencies` to be available at runtime.
+- `lyra/workers/index.ts` — changed from side-effect imports to named default imports; graceful shutdown now uses `.catch(err => { console.error(...); process.exit(1) })` instead of `void shutdown()` which was silently swallowing Promise rejections.
+- `lyra/workers/post-publisher.worker.ts` — added `export const postPublishingQueue` (Queue instance for Railway-side use); added `if (!res.ok) throw new Error(...)` checks after every platform `fetch()` call (Facebook post, Instagram container create, Instagram publish, LinkedIn, Twitter). Without these checks, a 4xx from the platform API would silently mark the post `PUBLISHED` with a null `platformPostId`.
+- `lyra/workers/comment-monitor.worker.ts` — added `prisma.socialAccount.update({ data: { lastCommentSyncAt: new Date() } })` at the end of the processor. The field existed in the schema but was never written.
+- `lyra/app/api/cron/brand-refresh/route.ts` — removed import of `brandSyncQueue` from `@/workers/brand-sync.worker`. That import loaded the BullMQ `Worker` class into a Netlify serverless function, creating persistent Redis connections that can never be closed. Replaced with a local `new Queue('brand-sync', { connection: redis })` instance.
+
+**Critical architecture rule established — Serverless/Worker separation:**
+
+Cron routes (Netlify serverless) must **only** instantiate `Queue` (producer). Worker files (`workers/*.worker.ts`) must **never** be imported from API routes. Worker files load the BullMQ `Worker` class on import; in a serverless context this creates persistent Redis connections that exhaust the connection pool and stall job processing. The pattern is: cron route creates a local `Queue`, calls `queue.add(...)`, returns. The Railway process holds `Worker` instances long-term.
+
+**Pending manual steps — user must execute:**
+
+1. **Apply schema change** — run in Command Prompt (not PowerShell). Use the direct host (not the pooler) and quote the set commands:
+   ```cmd
+   set "DATABASE_URL=postgresql://postgres:PASSWORD@db.votuufwukkhojunzrjoa.supabase.co:5432/postgres"
+   set "DIRECT_URL=postgresql://postgres:PASSWORD@db.votuufwukkhojunzrjoa.supabase.co:5432/postgres"
+   cd "C:\Users\RichU\OneDrive - Into The Wild Marketing\LYRA\lyra"
+   npx prisma db push
+   ```
+   Password is in Supabase → Settings → Database → reveal. Do not wrap it in brackets.
+2. **Create Upstash Redis** — free tier, region `ap-southeast-1`. Copy the `REDIS_URL` (starts with `rediss://`).
+3. **Add env vars to Netlify** — `REDIS_URL` (from Upstash) and `CRON_SECRET` (any strong random string, e.g. `openssl rand -hex 32`).
+4. **Create Railway project** — connect to `rich3524-cyber/LYRA` GitHub repo, set root directory to `LYRA/lyra`. Add all env vars (copy from Netlify, plus add `REDIS_URL`). Railway will pick up `railway.toml` automatically and run `npx tsx workers/index.ts`.
+5. **Configure cron jobs on cron-job.org** — 4 jobs, all with header `Authorization: Bearer {CRON_SECRET}`:
+   - Every 1 min: `GET https://lyraonline.ai/api/cron/publish-due-posts`
+   - Every 5 min: `GET https://lyraonline.ai/api/cron/sync-comments`
+   - Every hour: `GET https://lyraonline.ai/api/cron/sync-metrics`
+   - Weekly (Sun 00:00 AEST): `GET https://lyraonline.ai/api/cron/brand-refresh`
+
+---
+
+### May 2026 — Session 6
+
+**Engagement-Optimised Posting Times (full feature)**
+- Added `topic String?` to the `Post` model in `prisma/schema.prisma` — stores the content theme for AI-generated posts; applied to Supabase with `prisma db push`
+- Created `services/ai/engagement-analyzer.ts` — pure-DB service that queries all PUBLISHED posts with non-zero `PostMetrics`, computes a weighted engagement score (`likes×1 + comments×3 + shares×2 + saves×2 + clicks×1`), groups by platform → dayOfWeek/hour, normalises scores 0–1, and returns top 5 platform slots and top 3 topic slots. Activation thresholds: ≥20 posts/platform, ≥10 posts/topic, sampleSize ≥5 per slot.
+- Created `app/api/brand-intelligence/analyze-engagement/route.ts` — manual POST endpoint to trigger analysis; merges result into `BrandProfile.postingPatterns` (preserving the existing `guidelines` key)
+- Modified `app/api/cron/brand-refresh/route.ts` — calls `analyzeEngagement` for all workspaces via `Promise.allSettled` at the end of each weekly brand refresh run
+- Modified `app/api/posts/route.ts` — accepts and stores optional `topic` field on post creation
+- Modified `components/lyra/schedule/schedule-generator.tsx` — passes `post.topic` when saving AI-generated posts to the calendar
+- Modified `services/ai/schedule-generator.ts` — accepts optional `postingPatterns` 5th parameter; when provided, replaces hardcoded time slots in the Claude prompt with the workspace's actual engagement data (including per-topic slot recommendations); falls back to hardcoded defaults when no data
+- Modified `app/api/schedule/generate/route.ts` — extracts engagement patterns from `brandProfile.postingPatterns` (filtering out the `guidelines` key) and passes them to `generateWeekPosts`
+- Modified `app/(dashboard)/workspace/[workspaceId]/compose/page.tsx` — fetches `brandProfile.postingPatterns` and passes it to `PostComposer`
+- Modified `components/lyra/composer/post-composer.tsx` — adds clickable time-hint chips below the schedule date/time picker; chips set the picker to that day/hour when clicked; shows "Publish more posts to unlock timing insights" when below threshold; hidden when no platform selected
+- Created `components/lyra/brand/engagement-insights.tsx` — new panel at the bottom of the brand page: active state shows a Mon–Sun × 6am–10pm engagement heat map with score-based cell colouring, a topic breakdown table, data freshness line, and a refresh button that calls the analyze-engagement endpoint in place; cold start state shows per-platform progress bars toward the 20-post threshold
+- Modified `app/(dashboard)/workspace/[workspaceId]/brand/page.tsx` — renders `EngagementInsights` panel; fetches `postCounts` (published posts with non-zero metrics per platform)
+- **Deployment note:** Tasks 1–3 were accidentally committed to the outer (OneDrive-level) git repo instead of the inner `lyra/` project repo. Fixed by re-adding and committing all three files to the correct repo before pushing. Root cause: subagents ran git from the wrong working directory. Watch for this if subagents commit files — always verify with `git -C lyra show HEAD:<path>`.
+
+**Post Now button** *(built in session preceding Session 6)*
+- Added "Post Now" button to the post composer toolbar
+- Sets `scheduledAt = now`, `status = SCHEDULED` — bypasses the date picker entirely
+- Confirms success with a toast; resets the composer on completion
+
+**AI Content Schedule Generator** *(built in session preceding Session 6)*
+- New modal component in the content calendar (`components/lyra/schedule/schedule-generator.tsx`)
+- Config: select platforms, posts per week, number of weeks (3 or 6)
+- Calls `POST /api/schedule/generate` — uses `generateWeekPosts` from `services/ai/schedule-generator.ts`
+- Claude writes captions + hashtags + `topic` for every post based on the brand profile
+- Per-week API calls (not SSE) to avoid Netlify function timeout
+- Posts land in the calendar as DRAFT; user reviews before publishing
+
+---
+
 ### May 2026 — Session 5
 
 **Demo + feature design**
@@ -231,6 +383,8 @@ All set in Netlify dashboard under Site Settings → Environment Variables.
 | `GOOGLE_SEARCH_CONSOLE_CLIENT_ID` | GSC OAuth client ID |
 | `GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET` | GSC OAuth client secret |
 | `GOOGLE_SEARCH_CONSOLE_REDIRECT_URI` | `https://lyra-online-app.netlify.app/api/seo/callback` |
+| `REDIS_URL` | Upstash Redis connection string (`rediss://...`) — required for BullMQ queues and workers |
+| `CRON_SECRET` | Bearer token shared between cron-job.org and all `/api/cron/*` endpoints — any strong random string |
 
 **Important:** `ENCRYPTION_KEY` must never change once social accounts have been connected. Changing it will make all stored tokens unreadable.
 
@@ -318,9 +472,12 @@ All access tokens are AES-256-GCM encrypted using `ENCRYPTION_KEY` before being 
 | `/api/workspaces/[id]` | GET, PATCH, DELETE | Workspace CRUD |
 | `/api/posts` | GET, POST | List posts by month, create post |
 | `/api/posts/[id]` | GET, PATCH, DELETE | Post CRUD |
+| `/api/posts/[id]/boost` | POST, DELETE | Create boost (Meta Marketing API) / Cancel boost |
 | `/api/comments` | GET | Comments inbox |
 | `/api/comments/[id]` | PATCH | Update comment status |
 | `/api/brand-intelligence/build` | POST | Trigger brand profile build |
+| `/api/brand-intelligence/analyze-engagement` | POST | Manually trigger engagement pattern analysis |
+| `/api/schedule/generate` | POST | AI schedule generator — generates a week of posts |
 | `/api/ai/generate` | POST | AI caption generation |
 | `/api/ai/respond` | POST | AI comment response draft |
 | `/api/social/connect/[platform]` | GET | Initiate platform OAuth |
@@ -355,7 +512,7 @@ Workspace → OnboardingToken (one)
 Workspace → SeoConnection (one)
 Workspace → SeoPage (many)
 Workspace → SearchConsoleData (many)
-Post → PostApproval, PostMetrics, Comment (many)
+Post → PostApproval, PostMetrics, Comment (many), PostBoost (one, pending)
 Comment → CommentResponse (many)
 SocialAccount → Post, Comment (many)
 SeoPage → SeoContent (many, onDelete: Cascade)
@@ -439,10 +596,12 @@ One workspace is currently active in production:
 
 ### BullMQ Workers
 
-- Worker files exist in `/workers/` for post publishing, comment monitoring, AI responding, and brand syncing
-- These have **not been deployed** to Railway yet
-- Without workers: posts cannot be automatically published at scheduled times, comments are not monitored, and AI responses are not auto-generated
-- To deploy workers: create a Railway project, connect the same GitHub repo, and set the start command to `node workers/post-publisher.worker.js` (etc.) with all the same environment variables
+- Worker files are complete and production-ready in `lyra/workers/`
+- `lib/redis.ts` is the canonical Redis connection factory — imported by both cron routes (as Queue producers) and worker files (as Worker consumers)
+- `railway.toml` is committed — Railway will automatically use `npx tsx workers/index.ts` as the start command
+- Workers are **not yet deployed** to Railway. The code is ready; the Railway project has not been created yet.
+- Without workers: posts will not be automatically published at scheduled times, comments are not monitored, and AI responses are not auto-generated
+- **To activate:** complete the manual deployment steps in Session 7 above (Upstash Redis → env vars → Railway project → cron-job.org)
 
 ### Mobile Responsiveness
 
@@ -451,25 +610,46 @@ One workspace is currently active in production:
 
 ### Cron Jobs
 
-- Three cron routes exist (`sync-comments`, `sync-metrics`, `brand-refresh`) but are not yet wired to an external scheduler
-- On Netlify, scheduled functions can be added in `netlify.toml` or via Netlify dashboard
-- Alternatively, an external service (Upstash, Cronhooks) can hit the cron API routes on schedule
+Four cron routes exist and are production-ready. All require a `Authorization: Bearer {CRON_SECRET}` header. None are wired to an external scheduler yet.
 
-### SEO DB Tables Not Yet Applied
+| Route | Frequency | Purpose |
+|---|---|---|
+| `/api/cron/publish-due-posts` | Every 1 min | Enqueues SCHEDULED posts past their `scheduledAt` time into the `post-publishing` BullMQ queue |
+| `/api/cron/sync-comments` | Every 5 min | Polls platform APIs for new comments; enqueues new ones to `ai-responding` queue |
+| `/api/cron/sync-metrics` | Every hour | Fetches likes/comments/shares for PUBLISHED posts; updates `PostMetrics` rows |
+| `/api/cron/brand-refresh` | Weekly (Sun midnight) | Refreshes brand intelligence + triggers engagement analysis for all workspaces |
 
-The SEO v1 schema changes (`SeoConnection`, `SeoPage`, `SeoContent`, `SearchConsoleData`) are committed and deployed but the tables do not yet exist in the Supabase database. The SEO page currently shows a DB error.
+**To activate:** configure these as HTTP cron jobs on [cron-job.org](https://cron-job.org) (free tier, sufficient). See Session 7 manual steps for the exact schedule and header configuration.
 
-To apply the tables, run in **Command Prompt** (not PowerShell) with your Supabase credentials:
+Note: Netlify scheduled functions are not suitable here because they cannot pass custom headers (needed for `CRON_SECRET` auth). Use an external HTTP cron service.
 
-```cmd
-set DATABASE_URL=postgresql://postgres.votuufwukkhojunzrjoa:[PASSWORD]@aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres
-set DIRECT_URL=postgresql://postgres.votuufwukkhojunzrjoa:[PASSWORD]@aws-1-ap-southeast-2.pooler.supabase.com:5432/postgres
-set NODE_OPTIONS=--use-system-ca
-cd "c:\Users\Rich\OneDrive - Into The Wild Marketing\LYRA\lyra"
-npx prisma db push
-```
+### Engagement Heat Map — Cold Start
 
-The Supabase database password is in Supabase → Settings → Database. No redeploy is needed after the push — the tables just need to exist.
+The engagement heat map on the Brand page will show progress bars ("X of 20 posts") until each platform reaches the 20-post threshold with non-zero `PostMetrics`. This requires:
+1. BullMQ workers deployed to Railway (so posts actually publish)
+2. `sync-metrics` cron running (so `PostMetrics` rows are populated)
+
+Until those workers are live, the panel will remain in cold-start state. This is expected behaviour — it degrades gracefully.
+
+### Schema Changes Applied
+
+**All schema changes through Session 9 have been applied to production Supabase**, including:
+- `Post.topic` (Session 6)
+- SEO tables: `SeoConnection`, `SeoPage`, `SeoContent`, `SearchConsoleData` (Session 6)
+- `SocialAccount.lastCommentSyncAt` (Session 7, applied via Supabase SQL Editor in Session 9)
+
+**Pending (post boosting — Session 9, not yet applied):** The `PostBoost` table, `BoostStatus` enum, and `SocialAccount.adAccountId` column must be applied before the post boosting feature is implemented. SQL is in the Session 9 changelog above.
+
+**How to apply future schema changes — Supabase SQL Editor is the preferred method:**
+
+After repeated failures with `prisma db push` (connection string issues, special characters in passwords, pooler vs. direct URL confusion), the established approach is:
+
+1. Write the SQL equivalent of your Prisma schema changes
+2. Open Supabase → SQL Editor → paste and run
+3. Run `npx prisma generate` locally to regenerate the client
+4. Run `npm run type-check` to verify
+
+`prisma db push` can still be used if the connection is reliable, but the SQL Editor approach is faster and avoids all connection string problems.
 
 ---
 
@@ -566,6 +746,20 @@ LYRA uses a strict dark near-black design system defined in `lyra/lib/design-tok
 | `lyra/components/lyra/brand/brand-build-button.tsx` | Brand profile build trigger |
 | `lyra/components/lyra/brand/guidelines-uploader.tsx` | Drag-and-drop brand guidelines uploader |
 | `lyra/components/lyra/settings/delete-workspace-button.tsx` | Delete with confirmation |
+| `lyra/services/ai/engagement-analyzer.ts` | Engagement pattern analysis — weighted scoring, thresholds, normalisation |
+| `lyra/services/ai/schedule-generator.ts` | AI schedule generator — Claude prompt builder, accepts `postingPatterns` |
+| `lyra/app/api/brand-intelligence/analyze-engagement/route.ts` | Manual engagement analysis trigger endpoint |
+| `lyra/app/api/schedule/generate/route.ts` | AI schedule generation endpoint |
+| `lyra/components/lyra/brand/engagement-insights.tsx` | Engagement heat map panel + cold start progress bars |
+| `lyra/components/lyra/schedule/schedule-generator.tsx` | AI schedule generator modal component |
+| `lyra/lib/redis.ts` | `getRedisConnection()` factory + `redis` named export — imports by both cron routes and worker files |
+| `lyra/workers/post-publisher.worker.ts` | BullMQ worker — publishes posts to Facebook, Instagram, LinkedIn, Twitter |
+| `lyra/workers/comment-monitor.worker.ts` | BullMQ worker — polls platforms for new comments, enqueues to ai-responding queue |
+| `lyra/workers/ai-responder.worker.ts` | BullMQ worker — generates AI draft/auto responses for new comments |
+| `lyra/workers/brand-sync.worker.ts` | BullMQ worker — refreshes brand intelligence data on schedule |
+| `lyra/workers/index.ts` | Worker entry point — starts all 4 workers, graceful SIGTERM/SIGINT shutdown |
+| `lyra/railway.toml` | Railway deployment config — start command `npx tsx workers/index.ts` |
+| `lyra/app/api/cron/publish-due-posts/route.ts` | Cron endpoint — enqueues due SCHEDULED posts into the post-publishing queue |
 | `lyra/services/seo/gsc-client.ts` | GSC OAuth + API queries |
 | `lyra/services/seo/on-page-analyzer.ts` | Cheerio page scraper + 100-point scorer |
 | `lyra/services/seo/content-generator.ts` | Claude SEO content generator |
@@ -583,22 +777,23 @@ LYRA uses a strict dark near-black design system defined in `lyra/lib/design-tok
 
 ## 12. Immediate Next Steps (Recommended Order)
 
-**New features (designed, ready to build):**
-1. **Post Now button** — add to `components/lyra/composer/post-composer.tsx`; sets `scheduledAt = now`, `status = SCHEDULED`. Spec: `lyra/docs/superpowers/specs/2026-05-19-ai-content-schedule-design.md`. Implementation plan: `lyra/docs/superpowers/plans/` (to be written).
-2. **AI Content Schedule Generator** — new API route `POST /api/schedule/generate`, config panel UI, SSE progress stream, review screen, bulk post creation to calendar. Text-only (no media). Spec as above.
-3. **Media Library** (Phase 3, after schedule generator) — S3 upload, AI topic tagging, media picker in composer and schedule review. Spec section 3 covers design intent.
+**Remaining deployment action (one step left):**
+1. **Deploy Railway workers** — create a Railway project connected to `rich3524-cyber/LYRA`, root directory `LYRA/lyra`. Add all env vars from Netlify plus `REDIS_URL`. Railway reads `railway.toml` automatically (`npx tsx workers/index.ts`). Check [status.railway.app](https://status.railway.app) first — was blocked by a Google Cloud outage in Session 9.
 
-**Infrastructure / platform:**
-4. **Apply SEO DB tables** — run `prisma db push` in Command Prompt against Supabase (see Section 8 — SEO DB Tables). This unblocks the SEO page immediately with no redeploy needed.
-5. **Test GSC OAuth end-to-end** — once tables exist: navigate to SEO → connect Search Console → verify property auto-selects → add a page → Analyse → Generate
-6. **Test YouTube connection** — connect a Google account in Settings → YouTube, verify the channel saves correctly and shows in the connected list
-7. **Complete Facebook OAuth testing** — connect a Facebook Page, verify it saves correctly and shows in Settings
-8. **Apply for LinkedIn company page access** — submit LinkedIn Community Management API application so pages (not personal profiles) can be connected
-9. **Apply for LinkedIn app verification** — enables `w_member_social` scope for posting
-10. **Create Google Business, Twitter, TikTok developer apps** — add credentials to Netlify env vars so those OAuth flows work
-11. **Set up Railway workers** — deploy the four BullMQ worker files so scheduled posts actually publish
-12. **Wire up cron jobs** — configure Netlify scheduled functions or an external cron service to hit the sync routes
-13. **Build the Post Composer UI** — the API exists (`/api/posts`), the UI page at `/workspace/[id]/compose` needs building
-14. **Build the Inbox UI** — comments API exists, the inbox page needs building
-15. **Mobile sidebar** — add a hamburger menu / bottom nav for mobile viewports
-16. **Stripe billing / marketing page** — create Stripe products/prices, wire up checkout flow, build public marketing landing page (plan saved: `lyra/docs/superpowers/plans/2026-05-19-marketing-landing-page.md`)
+**New features (designed, ready to build):**
+2. **Post Boosting** — implementation plan at `lyra/docs/superpowers/plans/2026-05-20-post-boosting.md` (7 tasks). Apply the schema via Supabase SQL Editor first (SQL in Session 9 changelog), then execute the plan. Requires Meta app review for `ads_management` scope before non-admin users can boost.
+3. **Media Library** (Phase 3) — S3 upload, AI topic tagging, media picker in composer and schedule review. Spec: `lyra/docs/superpowers/specs/2026-05-19-ai-content-schedule-design.md` section 3.
+4. **Build the Inbox UI** — comments API exists (`/api/comments`), inbox page at `/workspace/[id]/inbox` needs building. Workers will be populating `CommentResponse` rows once deployed.
+
+**Platform / integrations:**
+5. **Test GSC OAuth end-to-end** — navigate to SEO → connect Search Console → verify property auto-selects → add a page → Analyse → Generate
+6. **Test YouTube connection** — connect a Google account in Settings → YouTube, verify the channel saves correctly
+7. **Complete Facebook OAuth testing** — connect a Facebook Page, verify it saves correctly and `adAccountId` is stored (required for post boosting)
+8. **Apply for Meta App Review** — submit `ads_management` scope review alongside existing Facebook page permissions review. Until approved, only the app admin can test boosting.
+9. **Apply for LinkedIn company page access** — submit LinkedIn Community Management API application so pages (not personal profiles) can be connected
+10. **Apply for LinkedIn app verification** — enables `w_member_social` scope for posting
+11. **Create Google Business, Twitter, TikTok developer apps** — add credentials to Netlify env vars so those OAuth flows work
+
+**UX / business:**
+12. **Mobile sidebar** — add a hamburger menu / bottom nav for mobile viewports
+13. **Stripe billing / marketing page** — create Stripe products/prices, wire up checkout flow, build public marketing landing page (plan saved: `lyra/docs/superpowers/plans/2026-05-19-marketing-landing-page.md`)
