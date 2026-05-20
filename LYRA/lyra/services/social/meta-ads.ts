@@ -52,51 +52,59 @@ async function metaPost(path: string, body: Record<string, unknown>): Promise<Re
 }
 
 export async function createBoost(params: CreateBoostParams): Promise<BoostResult> {
-  const { pageId, platformPostId, adAccountId, accessToken, budget, durationDays, audience } = params
+  const { pageId, platformPostId, budget, durationDays, audience } = params
+  const adAccountId = params.adAccountId.replace(/^act_/, '')
+  const accessToken = params.accessToken
   const endsAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000)
 
   // Step 1: Create Campaign
   const campaign = await metaPost(`/act_${adAccountId}/campaigns`, {
     name: `LYRA Boost — ${platformPostId}`,
-    objective: 'POST_ENGAGEMENT',
+    objective: 'OUTCOME_ENGAGEMENT',
     status: 'ACTIVE',
     access_token: accessToken,
   })
   const adCampaignId = campaign.id as string
 
-  // Step 2: Create AdSet
-  const adSet = await metaPost(`/act_${adAccountId}/adsets`, {
-    name: `LYRA AdSet — ${platformPostId}`,
-    campaign_id: adCampaignId,
-    billing_event: 'IMPRESSIONS',
-    optimization_goal: 'POST_ENGAGEMENT',
-    lifetime_budget: budget,
-    end_time: Math.floor(endsAt.getTime() / 1000),
-    targeting: audienceSpec(pageId, audience),
-    status: 'ACTIVE',
-    access_token: accessToken,
-  })
-  const adSetId = adSet.id as string
+  try {
+    // Step 2: Create AdSet
+    const adSet = await metaPost(`/act_${adAccountId}/adsets`, {
+      name: `LYRA AdSet — ${platformPostId}`,
+      campaign_id: adCampaignId,
+      billing_event: 'IMPRESSIONS',
+      optimization_goal: 'OUTCOME_ENGAGEMENT',
+      lifetime_budget: budget,
+      end_time: Math.floor(endsAt.getTime() / 1000),
+      targeting: audienceSpec(pageId, audience),
+      status: 'ACTIVE',
+      access_token: accessToken,
+    })
+    const adSetId = adSet.id as string
 
-  // Step 3: Create Creative
-  const creative = await metaPost(`/act_${adAccountId}/adcreatives`, {
-    name: `LYRA Creative — ${platformPostId}`,
-    object_story_id: `${pageId}_${platformPostId}`,
-    access_token: accessToken,
-  })
-  const creativeId = creative.id as string
+    // Step 3: Create Creative
+    const creative = await metaPost(`/act_${adAccountId}/adcreatives`, {
+      name: `LYRA Creative — ${platformPostId}`,
+      object_story_id: `${pageId}_${platformPostId}`,
+      access_token: accessToken,
+    })
+    const creativeId = creative.id as string
 
-  // Step 4: Create Ad
-  const ad = await metaPost(`/act_${adAccountId}/ads`, {
-    name: `LYRA Ad — ${platformPostId}`,
-    adset_id: adSetId,
-    creative: { creative_id: creativeId },
-    status: 'ACTIVE',
-    access_token: accessToken,
-  })
-  const adId = ad.id as string
+    // Step 4: Create Ad
+    const ad = await metaPost(`/act_${adAccountId}/ads`, {
+      name: `LYRA Ad — ${platformPostId}`,
+      adset_id: adSetId,
+      creative: { creative_id: creativeId },
+      status: 'ACTIVE',
+      access_token: accessToken,
+    })
+    const adId = ad.id as string
 
-  return { adCampaignId, adSetId, adId }
+    return { adCampaignId, adSetId, adId }
+  } catch (err) {
+    // Best-effort: pause the orphaned campaign so it doesn't reserve budget
+    await metaPost(`/${adCampaignId}`, { status: 'PAUSED', access_token: accessToken }).catch(() => {})
+    throw err
+  }
 }
 
 export async function cancelBoost(params: CancelBoostParams): Promise<void> {
@@ -110,7 +118,8 @@ export async function getBoostReach(params: GetBoostReachParams): Promise<number
   const res = await fetch(
     `${BASE}/${params.adCampaignId}/insights?fields=impressions&access_token=${params.accessToken}`
   )
-  const data = await res.json() as { data?: { impressions?: string }[] }
+  const data = await res.json() as { data?: { impressions?: string }[]; error?: { message: string } }
+  if (data.error) throw new Error(data.error.message)
   const impressions = data.data?.[0]?.impressions
   return impressions ? parseInt(impressions, 10) : 0
 }
