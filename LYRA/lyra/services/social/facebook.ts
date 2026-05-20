@@ -8,6 +8,7 @@ const SCOPES = [
   'instagram_basic',
   'instagram_content_publish',
   'instagram_manage_comments',
+  'ads_management',
 ].join(',')
 
 export interface FacebookPage {
@@ -71,4 +72,15 @@ export async function getPages(userAccessToken: string): Promise<FacebookPage[]>
     accessToken: p.access_token as string,
     avatarUrl: (p.picture as { data?: { url?: string } } | undefined)?.data?.url,
   }))
+}
+
+export async function fetchAdAccountId(accessToken: string): Promise<string | null> {
+  const res = await fetch(
+    `${BASE_URL}/me/adaccounts?fields=id,account_status&access_token=${accessToken}`
+  )
+  const data = await res.json() as { data?: { id: string; account_status: number }[]; error?: { message: string } }
+  if (data.error) return null
+  // account_status 1 = ACTIVE
+  const active = (data.data ?? []).find((a) => a.account_status === 1)
+  return active ? active.id.replace('act_', '') : null
 }
