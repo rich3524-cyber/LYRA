@@ -319,6 +319,8 @@ model PostBoost {
   endsAt        DateTime
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
+
+  @@index([status, endsAt])
 }
 
 enum BoostStatus {
