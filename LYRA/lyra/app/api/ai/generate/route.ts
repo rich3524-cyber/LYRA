@@ -3,6 +3,9 @@ import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { generateCaption } from '@/services/ai/caption-generator'
 
+export const dynamic = 'force-dynamic'
+
+
 export async function POST(req: Request) {
   try {
     const user = await requireAuth()

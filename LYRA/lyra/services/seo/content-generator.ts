@@ -1,4 +1,4 @@
-import { anthropic } from '@/lib/anthropic'
+import { anthropic, CLAUDE_MODEL } from '@/lib/anthropic'
 import type { BrandProfile } from '@prisma/client'
 import type { PageAnalysis } from './on-page-analyzer'
 
@@ -45,7 +45,7 @@ Return ONLY valid JSON — no markdown, no commentary:
 }`
 
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
+    model: CLAUDE_MODEL,
     max_tokens: 600,
     messages: [{ role: 'user', content: prompt }],
   })

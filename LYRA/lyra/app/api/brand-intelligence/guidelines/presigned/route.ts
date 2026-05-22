@@ -3,6 +3,9 @@ import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getUploadPresignedUrl } from '@/lib/s3'
 
+export const dynamic = 'force-dynamic'
+
+
 const ALLOWED_TYPES = [
   'application/pdf',
   'text/plain',

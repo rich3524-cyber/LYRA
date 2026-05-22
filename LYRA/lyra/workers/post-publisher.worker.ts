@@ -30,6 +30,7 @@ const worker = new Worker(
               body:    JSON.stringify({ message: post.content, access_token: token }),
             }
           )
+          if (!res.ok) throw new Error(`Facebook API error ${res.status}: ${await res.text()}`)
           const data = await res.json() as { id?: string }
           platformPostId = data.id
           break
@@ -44,6 +45,7 @@ const worker = new Worker(
               body:    JSON.stringify({ caption: post.content, access_token: token }),
             }
           )
+          if (!containerRes.ok) throw new Error(`Instagram container API error ${containerRes.status}: ${await containerRes.text()}`)
           const container = await containerRes.json() as { id?: string }
           if (container.id) {
             const publishRes = await fetch(
@@ -54,6 +56,7 @@ const worker = new Worker(
                 body:    JSON.stringify({ creation_id: container.id, access_token: token }),
               }
             )
+            if (!publishRes.ok) throw new Error(`Instagram publish API error ${publishRes.status}: ${await publishRes.text()}`)
             const published = await publishRes.json() as { id?: string }
             platformPostId = published.id
           }
@@ -75,6 +78,7 @@ const worker = new Worker(
               visibility: { 'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC' },
             }),
           })
+          if (!res.ok) throw new Error(`LinkedIn API error ${res.status}: ${await res.text()}`)
           platformPostId = res.headers.get('x-restli-id') ?? undefined
           break
         }
@@ -84,12 +88,13 @@ const worker = new Worker(
             headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
             body:    JSON.stringify({ text: post.content }),
           })
+          if (!res.ok) throw new Error(`Twitter API error ${res.status}: ${await res.text()}`)
           const data = await res.json() as { data?: { id?: string } }
           platformPostId = data.data?.id
           break
         }
         default:
-          console.warn(`No publisher implemented for platform: ${post.socialAccount.platform}`)
+          throw new Error(`No publisher implemented for platform: ${post.socialAccount.platform}`)
       }
 
       await prisma.post.update({

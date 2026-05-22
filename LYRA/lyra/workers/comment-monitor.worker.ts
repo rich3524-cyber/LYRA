@@ -47,33 +47,52 @@ const worker = new Worker(
       return
     }
 
-    for (const comment of rawComments) {
-      const existing = await prisma.comment.findFirst({
-        where: { platformCommentId: comment.id },
+    if (rawComments.length > 0) {
+      // Single query to find which platformCommentIds already exist
+      const existingIds = await prisma.comment.findMany({
+        where: { platformCommentId: { in: rawComments.map(c => c.id) } },
+        select: { platformCommentId: true },
       })
-      if (existing) continue
+      const existingSet = new Set(existingIds.map(c => c.platformCommentId))
 
-      const newComment = await prisma.comment.create({
-        data: {
+      const toInsert = rawComments
+        .filter(c => !existingSet.has(c.id))
+        .map(c => ({
           workspaceId:       account.workspaceId,
           socialAccountId:   account.id,
-          platformCommentId: comment.id,
-          authorName:        comment.from?.name ?? 'Unknown',
-          content:           comment.message,
-          platformCreatedAt: new Date(comment.created_time),
-          status:            'PENDING',
-        },
-      })
+          platformCommentId: c.id,
+          authorName:        c.from?.name ?? 'Unknown',
+          content:           c.message,
+          platformCreatedAt: new Date(c.created_time),
+          status:            'PENDING' as const,
+        }))
 
-      const mode = account.workspace.aiResponseMode
-      if (mode === 'FULL' || mode === 'DRAFT_APPROVE') {
-        await aiRespondQueue.add(
-          'generate-response',
-          { commentId: newComment.id, autoPost: mode === 'FULL' },
-          { jobId: `respond-${newComment.id}` }
-        )
+      if (toInsert.length > 0) {
+        await prisma.comment.createMany({ data: toInsert, skipDuplicates: true })
+
+        const mode = account.workspace.aiResponseMode
+        if (mode === 'FULL' || mode === 'DRAFT_APPROVE') {
+          const created = await prisma.comment.findMany({
+            where: { platformCommentId: { in: toInsert.map(c => c.platformCommentId) } },
+            select: { id: true },
+          })
+          await Promise.all(
+            created.map(c =>
+              aiRespondQueue.add(
+                'generate-response',
+                { commentId: c.id, autoPost: mode === 'FULL' },
+                { jobId: `respond-${c.id}` }
+              )
+            )
+          )
+        }
       }
     }
+
+    await prisma.socialAccount.update({
+      where: { id: socialAccountId },
+      data:  { lastCommentSyncAt: new Date() },
+    })
   },
   { connection: redis, concurrency: 10 }
 )

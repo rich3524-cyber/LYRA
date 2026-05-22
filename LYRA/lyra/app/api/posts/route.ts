@@ -3,6 +3,9 @@ import { PostStatus } from '@prisma/client'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = 'force-dynamic'
+
+
 export async function GET(req: Request) {
   try {
     const user = await requireAuth()
@@ -46,10 +49,12 @@ export async function GET(req: Request) {
         status: true,
         scheduledAt: true,
         publishedAt: true,
+        platformPostId: true,
         mediaUrls: true,
         aiGenerated: true,
         createdAt: true,
-        socialAccount: { select: { platform: true, name: true } },
+        socialAccount: { select: { platform: true, name: true, platformId: true, adAccountId: true } },
+        boost: true,
       },
       orderBy: { createdAt: 'desc' },
     })
@@ -68,11 +73,16 @@ export async function POST(req: Request) {
   try {
     const user = await requireAuth()
     const body = await req.json()
-    const { workspaceId, content, platforms, scheduledAt, mediaUrls, status } = body
+    const { workspaceId, content, platforms, scheduledAt, mediaUrls, status, topic } = body
 
     if (!workspaceId || !content?.trim() || !Array.isArray(platforms) || platforms.length === 0) {
       return NextResponse.json({ error: 'workspaceId, content and platforms required' }, { status: 400 })
     }
+
+    const ALLOWED_CREATE_STATUSES: PostStatus[] = ['DRAFT', 'SCHEDULED']
+    const resolvedStatus: PostStatus = ALLOWED_CREATE_STATUSES.includes(status)
+      ? (status as PostStatus)
+      : 'DRAFT'
 
     const access = await prisma.workspaceAccess.findFirst({
       where: { workspaceId, userId: user.id },
@@ -105,8 +115,9 @@ export async function POST(req: Request) {
             authorId: user.id,
             content: content.trim(),
             mediaUrls: mediaUrls ?? [],
-            status: status ?? 'DRAFT',
+            status: resolvedStatus,
             scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
+            topic: topic ?? null,
           },
         })
       )

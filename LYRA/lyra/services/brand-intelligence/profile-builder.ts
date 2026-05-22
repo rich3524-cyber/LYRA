@@ -1,4 +1,4 @@
-import { anthropic } from '@/lib/anthropic'
+import { anthropic, CLAUDE_MODEL } from '@/lib/anthropic'
 import { ScrapedWebsite } from './scraper'
 
 export interface BrandProfileData {
@@ -50,7 +50,7 @@ Produce a JSON object with exactly these fields:
 Return ONLY valid JSON. No markdown, no explanation.`
 
   const response = await anthropic.messages.create({
-    model:      'claude-sonnet-4-6',
+    model:      CLAUDE_MODEL,
     max_tokens: 1000,
     messages:   [{ role: 'user', content: prompt }],
   })

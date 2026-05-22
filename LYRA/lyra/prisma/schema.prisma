@@ -43,6 +43,7 @@ model Agency {
   stripeSubId      String?  @unique
   maxWorkspaces    Int      @default(-1)
   maxAutonomy      Autonomy @default(FULL)
+  foundingMember   Boolean  @default(false)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -104,6 +105,7 @@ model WorkspaceAccess {
   createdAt   DateTime  @default(now())
 
   @@unique([userId, workspaceId])
+  @@index([userId])
 }
 
 model SocialAccount {
@@ -167,6 +169,9 @@ model Post {
   metrics  PostMetrics?
   comments Comment[]
   boost    PostBoost?
+
+  @@index([workspaceId, scheduledAt])
+  @@index([workspaceId, status])
 }
 
 enum PostStatus {
@@ -222,6 +227,10 @@ model Comment {
   createdAt         DateTime      @default(now())
 
   responses CommentResponse[]
+
+  @@unique([socialAccountId, platformCommentId])
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, status])
 }
 
 enum Sentiment {

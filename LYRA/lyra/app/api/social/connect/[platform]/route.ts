@@ -5,6 +5,10 @@ import * as linkedin from '@/services/social/linkedin'
 import * as google from '@/services/social/google-business'
 import * as twitter from '@/services/social/twitter'
 import * as tiktok from '@/services/social/tiktok'
+import * as youtube from '@/services/social/youtube'
+
+export const dynamic = 'force-dynamic'
+
 
 export async function GET(
   req: Request,
@@ -39,6 +43,9 @@ export async function GET(
       }
       case 'tiktok':
         redirectUrl = tiktok.getAuthUrl(workspaceId)
+        break
+      case 'youtube':
+        redirectUrl = youtube.getAuthUrl(workspaceId)
         break
       default:
         return NextResponse.json({ error: `Unknown platform: ${platform}` }, { status: 400 })

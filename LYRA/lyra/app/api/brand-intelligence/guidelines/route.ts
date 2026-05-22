@@ -3,6 +3,9 @@ import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { deleteObject } from '@/lib/s3'
 
+export const dynamic = 'force-dynamic'
+
+
 export async function POST(req: Request) {
   try {
     const user = await requireAuth()
@@ -12,17 +15,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'workspaceId and key required' }, { status: 400 })
     }
 
+    // Prevent cross-workspace key attachment
+    if (!key.startsWith(`guidelines/${workspaceId}/`)) {
+      return NextResponse.json({ error: 'Invalid key' }, { status: 400 })
+    }
+
     const access = await prisma.workspaceAccess.findFirst({ where: { workspaceId, userId: user.id } })
     if (!access) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-    // Upsert the BrandProfile row and append the key
-    const existing    = await prisma.brandProfile.findUnique({ where: { workspaceId } })
-    const currentUrls = existing?.guidelineUrls ?? []
-
+    // Atomic array push — prevents lost-update race on concurrent uploads
     await prisma.brandProfile.upsert({
       where:  { workspaceId },
       create: { workspaceId, guidelineUrls: [key] },
-      update: { guidelineUrls: [...currentUrls, key] },
+      update: { guidelineUrls: { push: key } },
     })
 
     return NextResponse.json({ success: true })
@@ -44,20 +49,23 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'workspaceId and key required' }, { status: 400 })
     }
 
+    // Prevent cross-workspace key deletion
+    if (!key.startsWith(`guidelines/${workspaceId}/`)) {
+      return NextResponse.json({ error: 'Invalid key' }, { status: 400 })
+    }
+
     const access = await prisma.workspaceAccess.findFirst({ where: { workspaceId, userId: user.id } })
     if (!access) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     // Remove from S3
     await deleteObject(key)
 
-    // Remove from BrandProfile.guidelineUrls
-    const profile = await prisma.brandProfile.findUnique({ where: { workspaceId } })
-    if (profile) {
-      await prisma.brandProfile.update({
-        where: { workspaceId },
-        data:  { guidelineUrls: profile.guidelineUrls.filter((u) => u !== key) },
-      })
-    }
+    // Atomic array_remove — avoids read-write race with concurrent uploads
+    await prisma.$executeRaw`
+      UPDATE "BrandProfile"
+      SET "guidelineUrls" = array_remove("guidelineUrls", ${key})
+      WHERE "workspaceId" = ${workspaceId}
+    `
 
     return NextResponse.json({ success: true })
   } catch (error) {

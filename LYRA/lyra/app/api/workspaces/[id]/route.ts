@@ -1,6 +1,20 @@
 import { NextResponse } from 'next/server'
+import { Autonomy } from '@prisma/client'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { PLANS } from '@/lib/stripe'
+
+export const dynamic = 'force-dynamic'
+
+
+const AUTONOMY_ORDER: Autonomy[] = ['OFF', 'DRAFT_APPROVE', 'FULL']
+
+function clampAutonomy(requested: string, max: Autonomy): Autonomy {
+  const reqIdx = AUTONOMY_ORDER.indexOf(requested as Autonomy)
+  const maxIdx = AUTONOMY_ORDER.indexOf(max)
+  if (reqIdx === -1) return 'OFF'
+  return AUTONOMY_ORDER[Math.min(reqIdx, maxIdx)]
+}
 
 async function getWorkspaceForUser(id: string, userId: string) {
   return prisma.workspace.findFirst({
@@ -54,6 +68,13 @@ export async function PATCH(
     const body = await req.json()
     const { name, industry, websiteUrl, clientAccessLevel, aiResponseMode } = body
 
+    let resolvedMode: Autonomy | undefined
+    if (aiResponseMode !== undefined) {
+      const planKey = existing.plan as keyof typeof PLANS
+      const maxAutonomy: Autonomy = PLANS[planKey]?.maxAutonomy ?? 'OFF'
+      resolvedMode = clampAutonomy(aiResponseMode, maxAutonomy)
+    }
+
     const workspace = await prisma.workspace.update({
       where: { id },
       data: {
@@ -61,7 +82,7 @@ export async function PATCH(
         ...(industry !== undefined && { industry }),
         ...(websiteUrl !== undefined && { websiteUrl }),
         ...(clientAccessLevel !== undefined && { clientAccessLevel }),
-        ...(aiResponseMode !== undefined && { aiResponseMode }),
+        ...(resolvedMode !== undefined && { aiResponseMode: resolvedMode }),
       },
     })
 

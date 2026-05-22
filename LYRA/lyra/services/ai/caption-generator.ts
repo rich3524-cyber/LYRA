@@ -1,5 +1,5 @@
 import { BrandProfile } from '@prisma/client'
-import { anthropic } from '@/lib/anthropic'
+import { anthropic, CLAUDE_MODEL } from '@/lib/anthropic'
 import { buildCaptionPrompt } from './prompt-builder'
 
 export async function generateCaption(
@@ -10,7 +10,7 @@ export async function generateCaption(
   const prompt = buildCaptionPrompt(brandProfile, platforms, topic)
 
   const response = await anthropic.messages.create({
-    model:      'claude-sonnet-4-20250514',
+    model:      CLAUDE_MODEL,
     max_tokens: 1000,
     messages:   [{ role: 'user', content: prompt }],
   })

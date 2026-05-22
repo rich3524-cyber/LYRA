@@ -5,6 +5,9 @@ import { analyzePage } from '@/services/seo/on-page-analyzer'
 import { generateSeoContent } from '@/services/seo/content-generator'
 import type { SeoContentType } from '@prisma/client'
 
+export const dynamic = 'force-dynamic'
+
+
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ pageId: string }> }

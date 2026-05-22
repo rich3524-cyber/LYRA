@@ -4,6 +4,9 @@ import { prisma } from '@/lib/prisma'
 import { encrypt } from '@/lib/encrypt'
 import { exchangeCode, getSites } from '@/services/seo/gsc-client'
 
+export const dynamic = 'force-dynamic'
+
+
 const BASE_URL = process.env.APP_BASE_URL!
 
 function parseState(raw: string | null): Record<string, string> {
@@ -17,13 +20,21 @@ function parseState(raw: string | null): Record<string, string> {
 
 export async function GET(req: Request) {
   try {
-    await requireAuth()
+    const user = await requireAuth()
     const { searchParams } = new URL(req.url)
     const code = searchParams.get('code')
     const state = parseState(searchParams.get('state'))
     const { workspaceId } = state
 
     if (!code || !workspaceId) {
+      return NextResponse.redirect(`${BASE_URL}?error=gsc_oauth_failed`)
+    }
+
+    // Verify the authenticated user has access to the target workspace
+    const workspaceAccess = await prisma.workspaceAccess.findFirst({
+      where: { workspaceId, userId: user.id },
+    })
+    if (!workspaceAccess) {
       return NextResponse.redirect(`${BASE_URL}?error=gsc_oauth_failed`)
     }
 
@@ -72,14 +83,14 @@ export async function GET(req: Request) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    const msg = error instanceof Error ? error.message : String(error)
-    console.error('GET /api/seo/callback error:', msg)
+    console.error('GET /api/seo/callback error:', error instanceof Error ? error.message : error)
     const { searchParams: sp } = new URL(req.url)
     const rawState = parseState(sp.get('state'))
     const wid = rawState.workspaceId
+    // Use a static error code — never reflect raw error messages to the browser
     const dest = wid
-      ? `${BASE_URL}/workspace/${wid}/seo?error=${encodeURIComponent(msg)}`
-      : `${BASE_URL}?error=${encodeURIComponent(msg)}`
+      ? `${BASE_URL}/workspace/${wid}/seo?error=gsc_oauth_failed`
+      : `${BASE_URL}?error=gsc_oauth_failed`
     return NextResponse.redirect(dest)
   }
 }

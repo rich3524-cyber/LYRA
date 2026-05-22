@@ -6,6 +6,9 @@ import { buildBrandProfile } from '@/services/brand-intelligence/profile-builder
 import { parseWorkspaceGuidelines } from '@/services/brand-intelligence/document-parser'
 import { analyzeSocialPosts } from '@/services/brand-intelligence/social-analyzer'
 
+export const dynamic = 'force-dynamic'
+
+
 export async function POST(req: Request) {
   try {
     const user = await requireAuth()
