@@ -31,10 +31,8 @@ export function DeleteAccountButton() {
 
   return (
     <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <button className="inline-flex items-center px-3 py-1.5 rounded-lg border border-status-error/50 font-sans text-xs text-status-error hover:bg-status-error/10 transition-colors duration-150">
-          Delete account
-        </button>
+      <AlertDialogTrigger className="inline-flex items-center px-3 py-1.5 rounded-lg border border-status-error/50 font-sans text-xs text-status-error hover:bg-status-error/10 transition-colors duration-150">
+        Delete account
       </AlertDialogTrigger>
       <AlertDialogContent className="bg-background-tertiary border-background-border">
         <AlertDialogHeader>
