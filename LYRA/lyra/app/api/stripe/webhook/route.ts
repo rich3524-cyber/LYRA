@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { stripe } from '@/lib/stripe'
 import { prisma } from '@/lib/prisma'
+import { subscribeEmail } from '@/lib/klaviyo'
 import type { Plan } from '@prisma/client'
 
 // Stripe sends raw bodies — must read as text/buffer, not parsed JSON
@@ -9,7 +10,8 @@ export const dynamic = 'force-dynamic'
 const VALID_PLANS: Plan[] = ['STARTER', 'PRO', 'AGENCY']
 
 function toPlan(value: string | undefined): Plan {
-  if (value && (VALID_PLANS as string[]).includes(value)) return value as Plan
+  const upper = value?.toUpperCase()
+  if (upper && (VALID_PLANS as string[]).includes(upper)) return upper as Plan
   return 'STARTER'
 }
 
@@ -50,10 +52,45 @@ export async function POST(req: Request) {
     case 'checkout.session.completed': {
       const session = event.data.object
       if (session.mode === 'subscription' && session.customer && session.metadata?.agencyId) {
-        await prisma.agency.update({
-          where: { id: session.metadata.agencyId },
-          data:  { stripeCustomerId: session.customer as string },
+        const { agencyId, plan, userId } = session.metadata
+        const agency = await prisma.agency.update({
+          where:   { id: agencyId },
+          data:    { stripeCustomerId: session.customer as string },
+          include: { workspaces: { take: 1 } },
         })
+        if (agency.workspaces.length === 0 && userId) {
+          const workspace = await prisma.workspace.create({
+            data: { name: 'My Workspace', agencyId: agency.id, plan: toPlan(plan) },
+          })
+          await prisma.workspaceAccess.create({
+            data: { userId, workspaceId: workspace.id, role: 'AGENCY_ADMIN' },
+          })
+        }
+        // Subscribe the user's email to Klaviyo
+        if (userId) {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { email: true },
+          })
+          if (dbUser?.email) {
+            await subscribeEmail(dbUser.email).catch((err) =>
+              console.error('[webhook] klaviyo subscribe failed:', err)
+            )
+          }
+        }
+
+        // Assign founding member status if slots remain (first 100 sign-ups)
+        if (!agency.foundingMember) {
+          await prisma.$transaction(async (tx) => {
+            const taken = await tx.agency.count({ where: { foundingMember: true } })
+            if (taken < 100) {
+              await tx.agency.update({
+                where: { id: agencyId },
+                data:  { foundingMember: true },
+              })
+            }
+          })
+        }
       }
       break
     }

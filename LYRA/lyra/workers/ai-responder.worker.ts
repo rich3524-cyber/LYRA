@@ -2,6 +2,8 @@ import { Worker } from 'bullmq'
 import { redis } from '@/lib/redis'
 import { prisma } from '@/lib/prisma'
 import { generateCommentResponse } from '@/services/ai/response-generator'
+import { decrypt } from '@/lib/encrypt'
+import { replyToComment } from '@/services/social/facebook'
 
 const worker = new Worker(
   'ai-responding',
@@ -31,16 +33,36 @@ const worker = new Worker(
     }
 
     if (autoPost && result.response) {
-      // In full-autonomy mode: mark as responded without human review
-      await prisma.comment.update({
-        where: { id: commentId },
-        data: {
-          status:        'RESPONDED',
-          finalResponse: result.response,
-          respondedAt:   new Date(),
-        },
-      })
-      // TODO: publish to platform via social API
+      try {
+        const account = await prisma.socialAccount.findUnique({
+          where: { id: comment.socialAccountId },
+        })
+        if (account && (account.platform === 'FACEBOOK' || account.platform === 'INSTAGRAM')) {
+          const token = decrypt(account.accessToken)
+          await replyToComment(comment.platformCommentId, result.response, token)
+          await prisma.comment.update({
+            where: { id: commentId },
+            data:  {
+              status:        'RESPONDED',
+              finalResponse: result.response,
+              respondedAt:   new Date(),
+            },
+          })
+        } else {
+          // Platform not supported for auto-reply — fall back to draft for human review
+          await prisma.comment.update({
+            where: { id: commentId },
+            data:  { status: 'AI_DRAFTED', aiDraftResponse: result.response },
+          })
+        }
+      } catch (err) {
+        console.error(`Auto-reply failed for comment ${commentId}:`, err)
+        // Fall back to draft so it appears in Pending tab for manual approval
+        await prisma.comment.update({
+          where: { id: commentId },
+          data:  { status: 'AI_DRAFTED', aiDraftResponse: result.response },
+        })
+      }
     } else {
       await prisma.comment.update({
         where: { id: commentId },

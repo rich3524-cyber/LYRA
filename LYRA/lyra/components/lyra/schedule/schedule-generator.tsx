@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -54,6 +54,11 @@ export function ScheduleGenerator({
   const [isSaving, setIsSaving]           = useState(false)
   const abortRef                          = useRef<AbortController | null>(null)
 
+  useEffect(() => () => { abortRef.current?.abort() }, [])
+
+  const newId = () =>
+    (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`)
+
   const activePlatforms = connectedPlatforms.filter(p => selected[p])
   const totalPosts = activePlatforms.reduce(
     (sum, p) => sum + postsPerWeek[p] * durationWeeks, 0
@@ -84,57 +89,41 @@ export function ScheduleGenerator({
 
     abortRef.current = new AbortController()
 
+    // Compute the start date for week 1 (next Monday midnight UTC)
+    const baseStart = new Date()
+    baseStart.setUTCHours(0, 0, 0, 0)
+    const dayOfWeek = baseStart.getUTCDay()
+    baseStart.setUTCDate(baseStart.getUTCDate() + (dayOfWeek === 0 ? 1 : 8 - dayOfWeek))
+
     try {
-      const res = await fetch('/api/schedule/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, durationWeeks, platforms }),
-        signal: abortRef.current.signal,
-      })
+      for (let week = 1; week <= durationWeeks; week++) {
+        if (abortRef.current.signal.aborted) return
 
-      if (!res.ok || !res.body) throw new Error('Generation failed')
+        setProgressLabel(`Generating week ${week} of ${durationWeeks}…`)
+        setProgress(Math.round(((week - 1) / durationWeeks) * 100))
 
-      const reader  = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer    = ''
-      let eventType = ''
+        const weekStartDate = new Date(baseStart)
+        weekStartDate.setUTCDate(baseStart.getUTCDate() + (week - 1) * 7)
 
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() ?? ''
+        const res = await fetch('/api/schedule/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ workspaceId, weekNumber: week, weekStartDate: weekStartDate.toISOString(), platforms }),
+          signal: abortRef.current.signal,
+        })
 
-        for (const line of lines) {
-          if (line.startsWith('event: ')) {
-            eventType = line.slice(7).trim()
-          } else if (line.startsWith('data: ')) {
-            let data: unknown
-            try {
-              data = JSON.parse(line.slice(6))
-            } catch {
-              continue
-            }
-            const parsed = data as Record<string, unknown>
-            if (eventType === 'progress') {
-              setProgress(Math.round(((parsed.week as number) / (parsed.total as number)) * 100))
-              setProgressLabel(parsed.status as string)
-            } else if (eventType === 'week_posts') {
-              const incoming: PostEntry[] = (parsed.posts as GeneratedPost[]).map(p => ({
-                ...p,
-                id: crypto.randomUUID(),
-                weekNum: parsed.week as number,
-              }))
-              setPosts(prev => [...prev, ...incoming])
-            } else if (eventType === 'done') {
-              setPhase('review')
-            } else if (eventType === 'error') {
-              throw new Error(parsed.message as string)
-            }
-          }
-        }
+        if (!res.ok) throw new Error(`Week ${week} generation failed`)
+
+        const { posts: weekPosts } = await res.json() as { posts: GeneratedPost[] }
+        setPosts(prev => [
+          ...prev,
+          ...weekPosts.map(p => ({ ...p, id: newId(), weekNum: week })),
+        ])
+
+        setProgress(Math.round((week / durationWeeks) * 100))
       }
+
+      setPhase('review')
     } catch (error) {
       if ((error as Error).name === 'AbortError') return
       toast.error('Schedule generation failed. Try again.')
@@ -160,12 +149,14 @@ export function ScheduleGenerator({
     setIsSaving(true)
     try {
       const BATCH_SIZE = 10
-      const results: Response[] = []
+      const failedIds: string[] = []
+      let savedCount = 0
+
       for (let i = 0; i < posts.length; i += BATCH_SIZE) {
         const batch = posts.slice(i, i + BATCH_SIZE)
         const batchResults = await Promise.all(
-          batch.map(post =>
-            fetch('/api/posts', {
+          batch.map(async post => {
+            const res = await fetch('/api/posts', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -174,20 +165,29 @@ export function ScheduleGenerator({
                 platforms: [post.platform],
                 scheduledAt: post.scheduledAt,
                 status: 'DRAFT',
+                topic: post.topic ?? null,
               }),
             })
-          )
+            return { id: post.id, ok: res.ok }
+          })
         )
-        results.push(...batchResults)
+        for (const r of batchResults) {
+          if (r.ok) savedCount++
+          else failedIds.push(r.id)
+        }
       }
-      const failed = results.filter(r => !r.ok).length
-      if (failed > 0) {
-        toast.error(`${failed} posts failed to save. The rest were added.`)
+
+      if (savedCount > 0) {
+        window.dispatchEvent(new CustomEvent('draft-saved'))
+      }
+
+      if (failedIds.length > 0) {
+        setPosts(prev => prev.filter(p => failedIds.includes(p.id)))
+        toast.error(`${failedIds.length} posts failed to save. Review the remaining posts and try again.`)
       } else {
-        toast.success(`${posts.length} posts added to your calendar as drafts.`)
+        toast.success(`${savedCount} posts added to your calendar as drafts.`)
+        setOpen(false)
       }
-      window.dispatchEvent(new CustomEvent('draft-saved'))
-      setOpen(false)
     } catch {
       toast.error('Failed to save posts. Try again.')
     } finally {

@@ -1,14 +1,31 @@
-// Worker process entry point — starts all BullMQ workers
-// Run via: node dist/workers/index.js (after tsc with tsconfig.workers.json)
-
-import './post-publisher.worker'
-import './comment-monitor.worker'
-import './ai-responder.worker'
-import './brand-sync.worker'
+import brandSyncWorker from './brand-sync.worker'
+import postPublisherWorker from './post-publisher.worker'
+import commentMonitorWorker from './comment-monitor.worker'
+import aiResponderWorker from './ai-responder.worker'
 
 console.log('[workers] All workers started')
 
-process.on('SIGTERM', () => {
-  console.log('[workers] SIGTERM received — shutting down gracefully')
+async function shutdown(signal: string) {
+  console.log(`[workers] ${signal} received — closing workers`)
+  await Promise.all([
+    brandSyncWorker.close(),
+    postPublisherWorker.close(),
+    commentMonitorWorker.close(),
+    aiResponderWorker.close(),
+  ])
+  console.log('[workers] All workers closed')
   process.exit(0)
+}
+
+process.on('SIGTERM', () => {
+  shutdown('SIGTERM').catch((err) => {
+    console.error('[workers] Shutdown error:', err)
+    process.exit(1)
+  })
+})
+process.on('SIGINT', () => {
+  shutdown('SIGINT').catch((err) => {
+    console.error('[workers] Shutdown error:', err)
+    process.exit(1)
+  })
 })

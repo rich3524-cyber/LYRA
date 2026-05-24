@@ -102,7 +102,7 @@ function DayCell({
   )
 }
 
-export function ContentCalendar({ workspaceId }: { workspaceId: string }) {
+export function ContentCalendar({ workspaceId, plan }: { workspaceId: string; plan: 'STARTER' | 'PRO' | 'AGENCY' }) {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [posts, setPosts]               = useState<CalendarPost[]>([])
   const [loading, setLoading]           = useState(true)
@@ -319,6 +319,7 @@ export function ContentCalendar({ workspaceId }: { workspaceId: string }) {
       <PostDetailPanel
         post={selectedPost}
         workspaceId={workspaceId}
+        plan={plan}
         onClose={() => setSelectedPost(null)}
         onDeleted={handlePostDeleted}
         onUpdated={handlePostUpdated}

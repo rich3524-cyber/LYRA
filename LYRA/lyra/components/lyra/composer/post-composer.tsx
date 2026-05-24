@@ -17,6 +17,7 @@ import { MediaUploader } from './media-uploader'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import type { PostingPatterns } from '@/services/ai/engagement-analyzer'
 
 const CHAR_LIMITS: Record<string, number> = {
   TWITTER:          280,
@@ -30,9 +31,22 @@ const CHAR_LIMITS: Record<string, number> = {
 interface PostComposerProps {
   workspaceId: string
   connectedPlatforms: string[]
+  postingPatterns?: PostingPatterns | null
 }
 
-export function PostComposer({ workspaceId, connectedPlatforms }: PostComposerProps) {
+const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+function fmtHintHour(h: number): string {
+  return h === 0 ? '12am' : h < 12 ? `${h}am` : h === 12 ? '12pm' : `${h - 12}pm`
+}
+function nextSlotOccurrence(dayOfWeek: number, hour: number): Date {
+  const d = new Date()
+  d.setHours(hour, 0, 0, 0)
+  const daysAhead = (dayOfWeek - d.getDay() + 7) % 7 || 7
+  d.setDate(d.getDate() + daysAhead)
+  return d
+}
+
+export function PostComposer({ workspaceId, connectedPlatforms, postingPatterns = null }: PostComposerProps) {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
   const [scheduleDate, setScheduleDate]             = useState<Date | undefined>()
   const [scheduleTime, setScheduleTime]             = useState('09:00')
@@ -257,6 +271,45 @@ export function PostComposer({ workspaceId, connectedPlatforms }: PostComposerPr
                   className="w-full rounded-lg bg-background-secondary border border-background-border px-3 py-2 font-mono text-sm text-text-primary focus:outline-none focus:border-background-border-mid transition-colors"
                 />
               </div>
+
+              {/* Engagement hints */}
+              {selectedPlatforms.length > 0 && (
+                <div className="px-3 pb-3 border-t border-background-border pt-3 space-y-1.5">
+                  {selectedPlatforms.map((platform) => {
+                    const pattern = postingPatterns?.[platform]
+                    if (!pattern) {
+                      return (
+                        <p key={platform} className="font-sans text-xs text-text-tertiary">
+                          Publish more posts to unlock timing insights for {platform.charAt(0) + platform.slice(1).toLowerCase().replace('_', ' ')}.
+                        </p>
+                      )
+                    }
+                    return (
+                      <div key={platform} className="flex flex-wrap items-center gap-1.5">
+                        <span className="font-sans text-xs text-text-tertiary">
+                          Best times for {platform.charAt(0) + platform.slice(1).toLowerCase().replace('_', ' ')}:
+                        </span>
+                        {pattern.topSlots.slice(0, 3).map((slot, i) => {
+                          const d = nextSlotOccurrence(slot.dayOfWeek, slot.hour)
+                          return (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => {
+                                setScheduleDate(d)
+                                setScheduleTime(`${String(slot.hour).padStart(2, '0')}:00`)
+                              }}
+                              className="px-2 py-0.5 rounded-md bg-background-tertiary border border-background-border-mid font-sans text-xs text-text-secondary hover:border-accent-silver hover:text-text-primary transition-colors duration-150"
+                            >
+                              {DAY_SHORT[slot.dayOfWeek]} {fmtHintHour(slot.hour)}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </PopoverContent>
           </Popover>
 

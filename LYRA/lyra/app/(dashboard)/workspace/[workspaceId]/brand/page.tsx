@@ -1,10 +1,12 @@
 import { redirect, notFound } from 'next/navigation'
-import { Zap, Globe, Share2, Lock } from 'lucide-react'
+import { Zap, Globe, Share2, Lock, Check } from 'lucide-react'
 import Link from 'next/link'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { BrandBuildButton } from '@/components/lyra/brand/brand-build-button'
 import { GuidelinesUploader } from '@/components/lyra/brand/guidelines-uploader'
+import { EngagementInsights } from '@/components/lyra/brand/engagement-insights'
+import type { PostingPatterns } from '@/services/ai/engagement-analyzer'
 
 interface Props {
   params: Promise<{ workspaceId: string }>
@@ -17,8 +19,9 @@ interface AudienceProfile {
   languageLevel?: string
 }
 
-interface PostingPatterns {
+interface BrandPatternsJson {
   guidelines?: string
+  [key: string]: unknown
 }
 
 function timeAgo(date: Date): string {
@@ -44,17 +47,55 @@ export default async function BrandPage({ params }: Props) {
       name: true,
       websiteUrl: true,
       brandProfile: true,
-      _count: { select: { socialAccounts: { where: { isActive: true } } } },
+      socialAccounts: {
+        where: { isActive: true },
+        select: { platform: true },
+      },
     },
   })
   if (!workspace) notFound()
 
+  const connectedPlatforms = [...new Set(workspace.socialAccounts.map(a => a.platform as string))]
   const hasWebsite  = !!workspace.websiteUrl
-  const hasSocial   = (workspace._count?.socialAccounts ?? 0) > 0
+  const hasSocial   = connectedPlatforms.length > 0
   const brandReady  = hasWebsite && hasSocial
   const profile     = workspace.brandProfile
   const audience    = profile?.audienceProfile as AudienceProfile | null
-  const patterns    = profile?.postingPatterns as PostingPatterns | null
+  const patternsJson = profile?.postingPatterns as BrandPatternsJson | null
+  const guidelines  = patternsJson?.guidelines ?? null
+
+  const engagementPatterns: PostingPatterns = {}
+  if (patternsJson) {
+    for (const [key, val] of Object.entries(patternsJson)) {
+      if (key !== 'guidelines' && typeof val === 'object' && val !== null && 'topSlots' in val) {
+        engagementPatterns[key] = val as PostingPatterns[string]
+      }
+    }
+  }
+
+  const postCounts: Record<string, number> = {}
+  if (profile) {
+    const publishedPosts = await prisma.post.findMany({
+      where: {
+        workspaceId,
+        status: 'PUBLISHED',
+        metrics: {
+          OR: [
+            { likes: { gt: 0 } },
+            { comments: { gt: 0 } },
+            { shares: { gt: 0 } },
+            { saves: { gt: 0 } },
+            { clicks: { gt: 0 } },
+          ],
+        },
+      },
+      select: { socialAccount: { select: { platform: true } } },
+    })
+    for (const p of publishedPosts) {
+      const pl = p.socialAccount.platform as string
+      postCounts[pl] = (postCounts[pl] ?? 0) + 1
+    }
+  }
 
   return (
     <div className="space-y-8 max-w-3xl">
@@ -88,11 +129,7 @@ export default async function BrandPage({ params }: Props) {
           <div className="space-y-3">
             <div className="flex items-center gap-3">
               <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${hasWebsite ? 'border-status-success bg-status-success' : 'border-background-border-mid'}`}>
-                {hasWebsite && (
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                    <path d="M2 5l2 2 4-4" stroke="#080808" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                )}
+                {hasWebsite && <Check size={10} strokeWidth={1.5} className="text-background-primary" />}
               </div>
               <Globe size={14} strokeWidth={1.5} className="text-text-tertiary" />
               <span className="font-sans text-sm text-text-tertiary">Website URL added</span>
@@ -135,7 +172,7 @@ export default async function BrandPage({ params }: Props) {
             <p className="font-sans text-xs text-text-tertiary">
               Optionally upload brand guidelines before building your profile.
             </p>
-            <GuidelinesUploader workspaceId={workspaceId} guidelineUrls={[]} />
+            <GuidelinesUploader workspaceId={workspaceId} guidelineUrls={workspace.brandProfile?.guidelineUrls ?? []} />
           </div>
         </div>
       ) : (
@@ -243,13 +280,13 @@ export default async function BrandPage({ params }: Props) {
           )}
 
           {/* Posting Guidelines */}
-          {patterns?.guidelines && (
+          {guidelines && (
             <section className="p-5 rounded-xl bg-background-secondary border border-background-border space-y-3">
               <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
                 Posting Guidelines
               </p>
               <p className="font-sans text-sm text-text-primary leading-relaxed whitespace-pre-line">
-                {patterns.guidelines}
+                {guidelines}
               </p>
             </section>
           )}
@@ -283,6 +320,13 @@ export default async function BrandPage({ params }: Props) {
               </div>
             )}
           </div>
+
+          <EngagementInsights
+            workspaceId={workspaceId}
+            postingPatterns={Object.keys(engagementPatterns).length > 0 ? engagementPatterns : null}
+            connectedPlatforms={connectedPlatforms}
+            postCounts={postCounts}
+          />
         </div>
       )}
     </div>

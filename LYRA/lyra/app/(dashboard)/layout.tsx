@@ -1,6 +1,11 @@
 export const dynamic = 'force-dynamic'
 
+import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+}
 import { auth0 } from '@/lib/auth0'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -47,11 +52,13 @@ export default async function DashboardLayout({
     workspacePlan = ws?.plan ?? undefined
   }
 
+  const isFoundingMember = user.agency?.foundingMember ?? false
+
   return (
     <div className="flex h-screen overflow-hidden bg-background-primary">
       <Sidebar workspaceId={workspaceId} brandReady={brandReady} />
       <div className="flex flex-col flex-1 overflow-hidden">
-        <Header user={user} title="" plan={workspacePlan} />
+        <Header user={user} title="" plan={workspacePlan} foundingMember={isFoundingMember} />
         <main className="flex-1 overflow-y-auto p-6 animate-fade-in">
           {children}
         </main>

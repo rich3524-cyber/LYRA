@@ -14,8 +14,8 @@ export default async function InboxPage({ params }: Props) {
   const { workspaceId } = await params
 
   const workspace = await prisma.workspace.findFirst({
-    where: { id: workspaceId, access: { some: { userId: user.id } } },
-    select: { id: true, name: true },
+    where:  { id: workspaceId, access: { some: { userId: user.id } } },
+    select: { id: true, name: true, aiResponseMode: true, plan: true },
   })
 
   if (!workspace) notFound()
@@ -23,10 +23,14 @@ export default async function InboxPage({ params }: Props) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="font-display text-2xl text-text-primary">Comment Inbox</h2>
+        <h1 className="text-2xl font-medium text-text-primary">Comment Inbox</h1>
         <p className="text-sm text-text-tertiary mt-1">{workspace.name}</p>
       </div>
-      <ResponseInbox workspaceId={workspaceId} />
+      <ResponseInbox
+        workspaceId={workspaceId}
+        aiResponseMode={workspace.aiResponseMode}
+        plan={workspace.plan}
+      />
     </div>
   )
 }

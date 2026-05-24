@@ -6,9 +6,14 @@ const SCOPES = [
   'pages_show_list',
   'pages_manage_posts',
   'pages_read_engagement',
+  'pages_manage_engagement',
+  'pages_manage_metadata',
+  'pages_read_user_content',
+  'business_management',
   'instagram_basic',
   'instagram_content_publish',
   'instagram_manage_comments',
+  'ads_management',
 ].join(',')
 
 export interface FacebookPage {
@@ -18,7 +23,7 @@ export interface FacebookPage {
   avatarUrl?: string
 }
 
-export function getAuthUrl(workspaceId: string): string {
+export function getAuthUrl(workspaceId: string, rerequest = false): string {
   const state = Buffer.from(JSON.stringify({ workspaceId })).toString('base64')
   const params = new URLSearchParams({
     client_id: process.env.FACEBOOK_APP_ID!,
@@ -26,6 +31,7 @@ export function getAuthUrl(workspaceId: string): string {
     scope: SCOPES,
     state,
     response_type: 'code',
+    ...(rerequest && { auth_type: 'rerequest' }),
   })
   return `${DIALOG_URL}?${params}`
 }

@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { PostComposer } from '@/components/lyra/composer/post-composer'
 import { DraftList } from '@/components/lyra/composer/draft-list'
+import type { PostingPatterns } from '@/services/ai/engagement-analyzer'
 
 interface Props {
   params: Promise<{ workspaceId: string }>
@@ -16,9 +17,23 @@ export default async function ComposePage({ params }: Props) {
 
   const workspace = await prisma.workspace.findFirst({
     where: { id: workspaceId, access: { some: { userId: user.id } } },
-    select: { id: true, name: true },
+    select: {
+      id: true,
+      name: true,
+      brandProfile: { select: { postingPatterns: true } },
+    },
   })
   if (!workspace) notFound()
+
+  const rawPatterns = workspace.brandProfile?.postingPatterns as Record<string, unknown> | null
+  const postingPatterns: PostingPatterns = {}
+  if (rawPatterns) {
+    for (const [key, val] of Object.entries(rawPatterns)) {
+      if (key !== 'guidelines' && typeof val === 'object' && val !== null && 'topSlots' in val) {
+        postingPatterns[key] = val as PostingPatterns[string]
+      }
+    }
+  }
 
   const socialAccounts = await prisma.socialAccount.findMany({
     where: { workspaceId, isActive: true },
@@ -33,7 +48,11 @@ export default async function ComposePage({ params }: Props) {
         <p className="font-sans text-sm text-text-secondary mt-1">{workspace.name}</p>
       </div>
 
-      <PostComposer workspaceId={workspaceId} connectedPlatforms={connectedPlatforms} />
+      <PostComposer
+        workspaceId={workspaceId}
+        connectedPlatforms={connectedPlatforms}
+        postingPatterns={Object.keys(postingPatterns).length > 0 ? postingPatterns : null}
+      />
 
       {connectedPlatforms.length === 0 && (
         <p className="font-sans text-xs text-text-tertiary text-center">

@@ -5,14 +5,28 @@ import { CSS } from '@dnd-kit/utilities'
 import { GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
+export interface PostBoost {
+  id: string
+  budget: number
+  durationDays: number
+  audience: string
+  status: string
+  adCampaignId: string
+  endsAt: string
+  startedAt: string
+}
+
 export interface CalendarPost {
   id: string
   content: string
   status: string
   scheduledAt: string | null
+  publishedAt: string | null
+  platformPostId: string | null
   mediaUrls: string[]
   aiGenerated: boolean
-  socialAccount: { platform: string; name: string }
+  socialAccount: { platform: string; name: string; platformId: string; adAccountId: string | null }
+  boost: PostBoost | null
 }
 
 export const PLATFORM_LABELS: Record<string, string> = {
@@ -83,7 +97,7 @@ export function PostPreviewCard({ post, onSelect }: PostPreviewCardProps) {
         {...listeners}
         {...attributes}
         onClick={(e) => e.stopPropagation()}
-        className="cursor-grab active:cursor-grabbing p-0.5 mt-0.5 text-text-tertiary hover:text-text-secondary shrink-0 transition-colors"
+        className="cursor-grab active:cursor-grabbing p-0.5 mt-0.5 text-text-tertiary hover:text-text-secondary shrink-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-background-tertiary rounded"
         aria-label="Drag to reschedule"
       >
         <GripVertical size={10} strokeWidth={1.5} />
@@ -92,7 +106,7 @@ export function PostPreviewCard({ post, onSelect }: PostPreviewCardProps) {
       {/* Clickable content area — opens detail panel */}
       <button
         type="button"
-        className="flex-1 min-w-0 text-left"
+        className="flex-1 min-w-0 text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-background-tertiary"
         onClick={() => onSelect(post)}
         aria-label={`Open post details — ${PLATFORM_LABELS[post.socialAccount.platform] ?? post.socialAccount.platform}, ${post.status.toLowerCase().replace(/_/g, ' ')}`}
       >

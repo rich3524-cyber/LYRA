@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
+import { randomUUID } from 'crypto'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { encrypt } from '@/lib/encrypt'
+import { redisClient } from '@/lib/redis'
 import * as facebook from '@/services/social/facebook'
 import * as instagram from '@/services/social/instagram'
 import * as linkedin from '@/services/social/linkedin'
@@ -57,54 +59,24 @@ export async function GET(
         const pages = await facebook.getPages(longToken)
         const adAccountId = await facebook.fetchAdAccountId(longToken)
 
-        for (const page of pages) {
-          await prisma.socialAccount.upsert({
-            where: { workspaceId_platform_platformId: { workspaceId, platform: 'FACEBOOK', platformId: page.id } },
-            create: {
-              workspaceId,
-              platform: 'FACEBOOK',
-              platformId: page.id,
-              handle: page.name,
-              name: page.name,
-              avatarUrl: page.avatarUrl,
-              accessToken: encrypt(page.accessToken),
-              adAccountId,
-            },
-            update: {
-              accessToken: encrypt(page.accessToken),
-              adAccountId,
-              isActive: true,
-            },
-          })
-
-          // Also connect any linked Instagram Business Account
-          try {
-            const igAccount = await instagram.getConnectedAccount(page.id, page.accessToken)
-            if (igAccount) {
-              await prisma.socialAccount.upsert({
-                where: { workspaceId_platform_platformId: { workspaceId, platform: 'INSTAGRAM', platformId: igAccount.id } },
-                create: {
-                  workspaceId,
-                  platform: 'INSTAGRAM',
-                  platformId: igAccount.id,
-                  handle: igAccount.username,
-                  name: igAccount.name,
-                  avatarUrl: igAccount.avatarUrl,
-                  accessToken: encrypt(page.accessToken), // IG uses the page token
-                  adAccountId,
-                },
-                update: {
-                  accessToken: encrypt(page.accessToken),
-                  adAccountId,
-                  isActive: true,
-                },
-              })
-            }
-          } catch {
-            // IG account not connected to this page — skip silently
-          }
+        // Store pending Page-picker state in Redis (10-minute TTL).
+        // Tokens are encrypted before storage; the complete route decrypts and writes to DB.
+        const pendingKey = randomUUID()
+        const pendingData = {
+          workspaceId,
+          adAccountId,
+          pages: pages.map((p) => ({
+            id: p.id,
+            name: p.name,
+            avatarUrl: p.avatarUrl ?? null,
+            encryptedToken: encrypt(p.accessToken),
+          })),
         }
-        break
+        await redisClient.set(`fb_pending:${pendingKey}`, JSON.stringify(pendingData), 'EX', 600)
+
+        return NextResponse.redirect(
+          `${BASE_URL}/workspace/${workspaceId}/settings?fbpending=${pendingKey}`
+        )
       }
 
       case 'linkedin': {

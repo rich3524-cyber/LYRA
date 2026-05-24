@@ -19,6 +19,7 @@ export async function GET(
     const { platform } = await params
     const { searchParams } = new URL(req.url)
     const workspaceId = searchParams.get('workspaceId')
+    const rerequest = searchParams.get('rerequest') === 'true'
 
     if (!workspaceId) {
       return NextResponse.json({ error: 'workspaceId required' }, { status: 400 })
@@ -28,7 +29,7 @@ export async function GET(
 
     switch (platform) {
       case 'facebook':
-        redirectUrl = facebook.getAuthUrl(workspaceId)
+        redirectUrl = facebook.getAuthUrl(workspaceId, rerequest)
         break
       case 'linkedin':
         redirectUrl = linkedin.getAuthUrl(workspaceId)

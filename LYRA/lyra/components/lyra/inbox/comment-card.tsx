@@ -11,6 +11,7 @@ interface CommentData {
   sentiment?:      string | null
   status:          string
   aiDraftResponse: string | null
+  finalResponse:   string | null
   createdAt:       string
   socialAccount:   { platform: string; name: string }
 }
@@ -27,15 +28,32 @@ const SENTIMENT_COLOURS: Record<string, string> = {
   URGENT:   'text-status-warning',
 }
 
-export function CommentCard({ comment, onUpdate }: { comment: CommentData; onUpdate: () => void }) {
-  const [draft, setDraft]         = useState(comment.aiDraftResponse ?? '')
-  const [generating, setGen]      = useState(false)
-  const [approving, setApproving] = useState(false)
+const SENTIMENT_LABELS: Record<string, string> = {
+  POSITIVE: 'Positive', NEUTRAL: 'Neutral', NEGATIVE: 'Negative', URGENT: 'Urgent',
+}
+
+export function CommentCard({
+  comment,
+  onUpdate,
+  aiResponseMode,
+  plan,
+}: {
+  comment:        CommentData
+  onUpdate:       (newStatus: string) => void
+  aiResponseMode: 'OFF' | 'DRAFT_APPROVE' | 'FULL'
+  plan:           'STARTER' | 'PRO' | 'AGENCY'
+}) {
+  const [draft, setDraft]     = useState(comment.aiDraftResponse ?? '')
+  const [generating, setGen]  = useState(false)
+  const [sending, setSending] = useState(false)
+
+  const showAi       = plan !== 'STARTER' && aiResponseMode !== 'OFF'
+  const isActionable = comment.status !== 'ESCALATED' && comment.status !== 'IGNORED' && comment.status !== 'RESPONDED'
 
   async function handleGenerate() {
     setGen(true)
     try {
-      const res = await fetch('/api/ai/respond', {
+      const res  = await fetch('/api/ai/respond', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ commentId: comment.id }),
@@ -43,7 +61,7 @@ export function CommentCard({ comment, onUpdate }: { comment: CommentData; onUpd
       const data = await res.json()
       if (data.shouldEscalate) {
         toast.error(`Escalated: ${data.escalationReason}`)
-        onUpdate()
+        onUpdate('ESCALATED')
       } else {
         setDraft(data.response ?? '')
         toast.success('AI draft generated')
@@ -55,41 +73,56 @@ export function CommentCard({ comment, onUpdate }: { comment: CommentData; onUpd
     }
   }
 
-  async function handleApprove() {
+  async function handleSend() {
     if (!draft.trim()) return
-    setApproving(true)
+    setSending(true)
     try {
-      await fetch(`/api/comments/${comment.id}`, {
-        method:  'PATCH',
+      const res  = await fetch(`/api/comments/${comment.id}/reply`, {
+        method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ status: 'RESPONDED', finalResponse: draft, respondedAt: new Date().toISOString() }),
+        body:    JSON.stringify({ response: draft }),
       })
-      toast.success('Response marked as sent')
-      onUpdate()
+      const data = await res.json()
+      if (!res.ok) {
+        toast.error(data.error ?? 'Failed to send reply')
+        return
+      }
+      toast.success('Reply sent.')
+      onUpdate('RESPONDED')
     } catch {
-      toast.error('Failed to update comment')
+      toast.error('Failed to send reply')
     } finally {
-      setApproving(false)
+      setSending(false)
     }
   }
 
   async function handleEscalate() {
-    await fetch(`/api/comments/${comment.id}`, {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ status: 'ESCALATED', isEscalated: true }),
-    })
-    toast('Escalated to team')
-    onUpdate()
+    try {
+      const res = await fetch(`/api/comments/${comment.id}`, {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ status: 'ESCALATED', isEscalated: true }),
+      })
+      if (!res.ok) { toast.error('Failed to escalate comment'); return }
+      toast.success('Escalated to team')
+      onUpdate('ESCALATED')
+    } catch {
+      toast.error('Failed to escalate comment')
+    }
   }
 
   async function handleIgnore() {
-    await fetch(`/api/comments/${comment.id}`, {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ status: 'IGNORED' }),
-    })
-    onUpdate()
+    try {
+      const res = await fetch(`/api/comments/${comment.id}`, {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ status: 'IGNORED' }),
+      })
+      if (!res.ok) { toast.error('Failed to ignore comment'); return }
+      onUpdate('IGNORED')
+    } catch {
+      toast.error('Failed to ignore comment')
+    }
   }
 
   const sentimentClass = comment.sentiment
@@ -113,7 +146,9 @@ export function CommentCard({ comment, onUpdate }: { comment: CommentData; onUpd
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {comment.sentiment && (
-            <span className={`text-xs font-medium ${sentimentClass}`}>{comment.sentiment}</span>
+            <span className={`text-xs font-medium ${sentimentClass}`}>
+              {SENTIMENT_LABELS[comment.sentiment ?? ''] ?? comment.sentiment}
+            </span>
           )}
           <span className="text-xs px-1.5 py-0.5 rounded bg-background-hover border border-background-border-mid text-text-secondary font-mono">
             {PLATFORM_LABELS[comment.socialAccount.platform] ?? comment.socialAccount.platform}
@@ -124,46 +159,64 @@ export function CommentCard({ comment, onUpdate }: { comment: CommentData; onUpd
       {/* Comment content */}
       <p className="text-sm text-text-primary leading-relaxed">{comment.content}</p>
 
-      {/* AI draft */}
-      {comment.status !== 'ESCALATED' && comment.status !== 'IGNORED' && (
+      {/* Response textarea — only for actionable comments */}
+      {isActionable && (
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-text-tertiary flex items-center gap-1">
-              <Sparkles size={11} strokeWidth={1.5} /> AI draft
-            </span>
-            <span className="text-xs text-text-tertiary">{draft.length}/280</span>
-          </div>
+          {showAi && (
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-text-tertiary flex items-center gap-1">
+                <Sparkles size={12} strokeWidth={1.5} /> AI draft
+              </span>
+              <span className="text-xs text-text-tertiary">{draft.length}/280</span>
+            </div>
+          )}
           <textarea
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             rows={3}
-            placeholder="Generate or write a response."
+            placeholder={showAi ? 'Generate or write a response.' : 'Write a reply.'}
             className="w-full rounded-lg bg-background-hover border border-background-border-mid px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary resize-none focus:outline-none focus:border-text-tertiary transition-colors"
           />
         </div>
       )}
 
+      {/* Auto-sent response — shown in Done tab for FULL auto mode */}
+      {comment.status === 'RESPONDED' && comment.finalResponse && (
+        <div className="rounded-lg bg-background-hover border border-background-border-mid px-3 py-2 space-y-1">
+          <span className="text-xs text-text-tertiary flex items-center gap-1">
+            <Sparkles size={12} strokeWidth={1.5} /> Auto-sent
+          </span>
+          <p className="text-sm text-text-primary">{comment.finalResponse}</p>
+        </div>
+      )}
+
       {/* Actions */}
-      {comment.status !== 'ESCALATED' && comment.status !== 'IGNORED' && comment.status !== 'RESPONDED' && (
+      {isActionable && (
         <div className="flex items-center gap-2 flex-wrap">
-          {draft && (
+          {draft.trim() && (
             <button
-              onClick={handleApprove}
-              disabled={approving}
+              onClick={handleSend}
+              disabled={sending}
               className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-status-success/10 border border-status-success/30 text-status-success hover:bg-status-success/20 transition-colors disabled:opacity-50"
             >
-              {approving ? <Loader2 size={12} className="animate-spin" /> : <CheckCheck size={12} strokeWidth={1.5} />}
-              Approve &amp; send
+              {sending
+                ? <Loader2 size={12} className="animate-spin" />
+                : <CheckCheck size={12} strokeWidth={1.5} />}
+              {showAi ? 'Approve & send' : 'Send reply'}
             </button>
           )}
-          <button
-            onClick={handleGenerate}
-            disabled={generating}
-            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-background-hover border border-background-border-mid text-text-secondary hover:text-text-primary hover:border-text-tertiary transition-colors disabled:opacity-50"
-          >
-            {generating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} strokeWidth={1.5} />}
-            {draft ? 'Re-generate' : 'Generate'}
-          </button>
+          {showAi && (
+            <button
+              onClick={handleGenerate}
+              disabled={generating}
+              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-background-hover border border-background-border-mid text-text-secondary hover:text-text-primary hover:border-text-tertiary transition-colors disabled:opacity-50"
+            >
+              {generating
+                ? <Loader2 size={12} className="animate-spin" />
+                : <Sparkles size={12} strokeWidth={1.5} />}
+              {draft ? 'Re-generate' : 'Generate'}
+            </button>
+          )}
           <button
             onClick={handleEscalate}
             className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-background-hover border border-background-border-mid text-status-warning hover:bg-status-warning/10 transition-colors"
@@ -184,7 +237,7 @@ export function CommentCard({ comment, onUpdate }: { comment: CommentData; onUpd
           <AlertTriangle size={12} strokeWidth={1.5} /> Escalated to team
         </p>
       )}
-      {comment.status === 'RESPONDED' && (
+      {comment.status === 'RESPONDED' && !comment.finalResponse && (
         <p className="text-xs text-status-success flex items-center gap-1.5">
           <CheckCheck size={12} strokeWidth={1.5} /> Response sent
         </p>

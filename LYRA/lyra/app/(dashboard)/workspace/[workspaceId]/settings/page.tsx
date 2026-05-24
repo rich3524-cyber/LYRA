@@ -5,10 +5,12 @@ import { CheckCircle, Link2, Link2Off } from 'lucide-react'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { DeleteWorkspaceButton } from '@/components/lyra/settings/delete-workspace-button'
+import { FacebookConnectButton } from '@/components/lyra/settings/facebook-connect-button'
+import { FacebookPagePicker } from '@/components/lyra/settings/facebook-page-picker'
 
 interface Props {
   params: Promise<{ workspaceId: string }>
-  searchParams: Promise<{ connected?: string }>
+  searchParams: Promise<{ connected?: string; fbpending?: string }>
 }
 
 interface PlatformConfig {
@@ -49,6 +51,12 @@ const PLATFORMS: PlatformConfig[] = [
     description: 'Publish video content and monitor engagement.',
     dbPlatforms: ['TIKTOK'],
   },
+  {
+    id: 'youtube',
+    name: 'YouTube',
+    description: 'Publish videos and manage your channel content.',
+    dbPlatforms: ['YOUTUBE'],
+  },
 ]
 
 const PLATFORM_LABELS: Record<string, string> = {
@@ -58,6 +66,7 @@ const PLATFORM_LABELS: Record<string, string> = {
   GOOGLE_BUSINESS: 'Google Business',
   TWITTER: 'X (Twitter)',
   TIKTOK: 'TikTok',
+  YOUTUBE: 'YouTube',
 }
 
 export default async function SettingsPage({ params, searchParams }: Props) {
@@ -65,7 +74,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
   if (!user) redirect('/auth/login')
 
   const { workspaceId } = await params
-  const { connected } = await searchParams
+  const { connected, fbpending } = await searchParams
 
   const workspace = await prisma.workspace.findFirst({
     where: { id: workspaceId, access: { some: { userId: user.id } } },
@@ -101,6 +110,11 @@ export default async function SettingsPage({ params, searchParams }: Props) {
 
   return (
     <div className="space-y-8 max-w-2xl">
+      {/* Page-picker modal — shown after Facebook OAuth returns fbpending param */}
+      {fbpending && (
+        <FacebookPagePicker workspaceId={workspaceId} pendingKey={fbpending} />
+      )}
+
       {/* Header */}
       <div className="space-y-0.5">
         <h1 className="font-display text-4xl text-text-primary">Settings</h1>
@@ -145,14 +159,21 @@ export default async function SettingsPage({ params, searchParams }: Props) {
                     </p>
                   </div>
 
-                  <Link
-                    href={`/api/social/connect/${platform.id}?workspaceId=${workspaceId}`}
-                    prefetch={false}
-                    className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-sans font-medium transition-all duration-150 bg-background-tertiary border border-background-border-mid text-text-secondary hover:text-text-primary hover:border-accent-silver"
-                  >
-                    <Link2 size={12} strokeWidth={1.5} />
-                    {isConnected ? 'Reconnect' : 'Connect'}
-                  </Link>
+                  {platform.id === 'facebook' ? (
+                    <FacebookConnectButton
+                      workspaceId={workspaceId}
+                      isReconnect={isConnected}
+                    />
+                  ) : (
+                    <Link
+                      href={`/api/social/connect/${platform.id}?workspaceId=${workspaceId}`}
+                      prefetch={false}
+                      className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-sans font-medium transition-all duration-150 bg-background-tertiary border border-background-border-mid text-text-secondary hover:text-text-primary hover:border-accent-silver"
+                    >
+                      <Link2 size={12} strokeWidth={1.5} />
+                      {isConnected ? 'Reconnect' : 'Connect'}
+                    </Link>
+                  )}
                 </div>
 
                 {/* Connected accounts */}

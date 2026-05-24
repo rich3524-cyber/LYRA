@@ -21,19 +21,23 @@ export function DraftList({ workspaceId }: { workspaceId: string }) {
   const [drafts, setDrafts]   = useState<Draft[]>([])
   const [loading, setLoading] = useState(true)
 
-  const load = useCallback(() => {
-    setLoading(true)
-    fetch(`/api/posts?workspaceId=${workspaceId}&status=DRAFT`)
-      .then((r) => r.json())
-      .then((data: Draft[]) => { setDrafts(data); setLoading(false) })
-      .catch(() => setLoading(false))
+  const fetchDrafts = useCallback(async () => {
+    const r = await fetch(`/api/posts?workspaceId=${workspaceId}&status=DRAFT`)
+    const data: Draft[] = await r.json()
+    return Array.isArray(data) ? data : []
   }, [workspaceId])
 
+  const reload = useCallback(() => {
+    fetchDrafts().then(setDrafts).catch(() => {})
+  }, [fetchDrafts])
+
   useEffect(() => {
-    load()
-    window.addEventListener('draft-saved', load)
-    return () => window.removeEventListener('draft-saved', load)
-  }, [load])
+    fetchDrafts()
+      .then((data) => { setDrafts(data); setLoading(false) })
+      .catch(() => setLoading(false))
+    window.addEventListener('draft-saved', reload)
+    return () => window.removeEventListener('draft-saved', reload)
+  }, [fetchDrafts, reload])
 
   async function handleDelete(id: string) {
     try {

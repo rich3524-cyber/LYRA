@@ -21,6 +21,7 @@ export default async function CalendarPage({ params }: Props) {
     select: {
       id: true,
       name: true,
+      plan: true,
       brandProfile: { select: { id: true } },
       socialAccounts: { where: { isActive: true }, select: { platform: true } },
     },
@@ -54,7 +55,7 @@ export default async function CalendarPage({ params }: Props) {
         </div>
       </div>
 
-      <ContentCalendar workspaceId={workspaceId} />
+      <ContentCalendar workspaceId={workspaceId} plan={workspace.plan} />
     </div>
   )
 }

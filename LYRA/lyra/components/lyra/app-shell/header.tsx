@@ -17,9 +17,10 @@ interface HeaderProps {
   user: { name?: string | null; email: string; avatarUrl?: string | null }
   title: string
   plan?: string
+  foundingMember?: boolean
 }
 
-export function Header({ user, title, plan }: HeaderProps) {
+export function Header({ user, title, plan, foundingMember }: HeaderProps) {
   const [upgradeOpen, setUpgradeOpen] = useState(false)
   const showUpgrade = plan === 'STARTER' || plan === 'PRO'
 
@@ -80,6 +81,11 @@ export function Header({ user, title, plan }: HeaderProps) {
             <div className="px-2 py-1.5">
               <p className="text-xs text-text-secondary">{user.name}</p>
               <p className="text-xs text-text-tertiary truncate">{user.email}</p>
+              {foundingMember && (
+                <span className="inline-flex items-center mt-1.5 px-1.5 py-0.5 rounded-md border border-accent-silver/30 font-sans text-[10px] font-medium text-accent-silver tracking-[0.08em] uppercase">
+                  Founding Member
+                </span>
+              )}
             </div>
 
             <DropdownMenuSeparator className="bg-background-border" />
