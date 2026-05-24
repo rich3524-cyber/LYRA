@@ -8,6 +8,69 @@
 
 ## Changelog
 
+### May 2026 — Session 19
+
+**28-point UX overhaul — mobile nav, live preview, account page, design system**
+
+Full UX audit implemented across the entire app. Every page in the authenticated shell was reviewed and updated. 22 files changed, 1,330 insertions, 6 new files created.
+
+**Commits shipped:**
+- `48c0d06` — feat: 28-point UX overhaul — mobile nav, live preview, account page, design system
+- `0705f1c` — fix: remove asChild from AlertDialogTrigger — base-ui has no asChild prop
+
+**App shell**
+- `components/lyra/app-shell/sidebar.tsx` — active nav item now has a left platinum border accent; hit area extended with invisible padding so the full row is clickable; collapsed state shows workspace monogram instead of empty space; hidden on mobile (`hidden md:flex`)
+- `components/lyra/app-shell/mobile-nav.tsx` — **new file**; fixed bottom navigation bar for mobile, 5 items (Dashboard, Calendar, Compose, Inbox, Brand), `md:hidden`
+- `components/lyra/app-shell/header.tsx` — removed stale `title` prop; user dropdown now uses `router.push('/account')` (was broken 404)
+- `app/(dashboard)/layout.tsx` — imports and renders `<MobileNav>`; main content area gets `pb-20 md:pb-6` to clear the mobile bottom nav
+
+**Calendar**
+- `components/lyra/calendar/content-calendar.tsx` — Today button left of navigation arrows (dimmed/disabled when already on current month); mobile agenda view (`md:hidden`) with chronological day groups, platform colour dot, `HH:mm` time, 80-char content excerpt; calendar grid wrapped in `hidden md:grid`; proper empty state in both views
+- `app/(dashboard)/workspace/[workspaceId]/calendar/page.tsx` — heading updated to `font-display text-4xl`
+
+**Composer**
+- `components/lyra/composer/post-composer.tsx` — toolbar split into two rows (row 1: AI generate + media; row 2: char counter + schedule + save draft + post now + schedule button); "Post now" opens an AlertDialog confirmation listing target platforms and a 120-char content preview
+- `components/lyra/composer/post-preview.tsx` — **new file**; six platform-specific mock previews (Instagram, Facebook, LinkedIn, Twitter, Google Business, TikTok); desktop/mobile toggle; tab per selected platform; placeholder when no platform selected
+- `components/lyra/composer/compose-client.tsx` — **new file**; client wrapper that lifts `content` and `selectedPlatforms` state; mobile tab strip (Compose / Preview); desktop side-by-side `md:grid-cols-2` layout with sticky preview panel
+- `app/(dashboard)/workspace/[workspaceId]/compose/page.tsx` — rewritten to use `ComposeClient`; `max-w-2xl` → `max-w-3xl`; heading `font-display text-4xl`
+
+**Dashboard**
+- `app/(dashboard)/dashboard/page.tsx` — KPI status strip: 3 tiles (Pending comments → inbox, Scheduled today → calendar, Posts this week → analytics) with `font-mono` counts; workspace cards show platform colour dots + pending comment badge; setup checklist items show ChevronRight on hover
+
+**Settings**
+- `app/(dashboard)/workspace/[workspaceId]/settings/page.tsx` — workspace name + website URL edit form with server action (`prisma.workspace.updateMany` with access check); connected platform cards show `border-l-2 border-l-status-success/50` accent; danger zone uses `border-t border-status-error/20` and card `border border-status-error/20`
+
+**Inbox**
+- `components/lyra/inbox/response-inbox.tsx` — filter area reserves fixed `h-7` height with skeleton during load (no layout shift); all three tabs always show count badge (zero shown as dimmed mono text); comment lists wrapped in `<AnimatePresence>` with Framer Motion exit animation (`opacity: 0, x: -16, duration: 200ms`)
+- `app/(dashboard)/workspace/[workspaceId]/inbox/page.tsx` — heading `font-display text-4xl`
+
+**Brand**
+- `app/(dashboard)/workspace/[workspaceId]/brand/page.tsx` — voice summary wrapped in `border-l-2 border-accent-platinum pl-4` with `text-base leading-relaxed`; all tag spans (tone, themes, interests) get `select-none cursor-default`
+
+**Analytics**
+- `app/(dashboard)/workspace/[workspaceId]/analytics/page.tsx` — heading and subtext replaced with design system tokens (was hardcoded hex + `font-semibold`)
+
+**Marketing page**
+- `app/page.tsx` — sign-in link added `absolute top-6 right-6`; founding member slot counter colour changed from `text-status-warning` to `text-accent-platinum`
+
+**Account page (new)**
+- `app/(dashboard)/account/page.tsx` — **new file**; Profile section (avatar image or initials, name, email); Plan & Billing section (plan badge, founding member badge, "Manage billing" link); Danger Zone section
+- `components/lyra/account/delete-account-button.tsx` — **new file**; AlertDialog confirmation before deleting account; on confirm calls `DELETE /api/account` then redirects to `/auth/logout`
+- `app/api/account/route.ts` — **new file**; DELETE handler removes all user data in a single Prisma transaction (cascade order: commentResponses → comments → postMetrics → postApproval → posts → socialAccounts → brandProfile → guardrails → onboardingTokens → workspaceAccess → workspaces → user)
+
+**Billing client — design system tokens**
+- `app/(dashboard)/account/billing/billing-client.tsx` — all hardcoded hex values (`#e2e2e2`, `#555`, `#888`, `#111`, `#141414`, `#0f0f0f`, `#080808`, `#333`) replaced with design tokens; `font-semibold` / `font-bold` replaced with `font-medium`; price moved to `font-mono`; checkmarks changed from `text-emerald-400` to `text-status-success`
+
+**Build fix**
+- `AlertDialogTrigger asChild` — this project uses `@base-ui/react` (not Radix). `asChild` does not exist in base-ui; `Trigger` already renders as a `<button>`. Fix: removed `asChild`, applied className directly to `AlertDialogTrigger`.
+
+**Git incident — stale rebase-merge directory**
+- The repo had a stale empty `.git/rebase-merge/` directory causing git to report "You are currently rebasing" even though no rebase was in progress. Fixed by removing the directory manually, then committing normally.
+
+**Codebase size as of this session:** ~21,200 lines across 196 source files (192 TypeScript/TSX files).
+
+---
+
 ### May 2026 — Session 18
 
 **Facebook Page-picker flow + Meta/LinkedIn App Review preparation**
@@ -1031,27 +1094,31 @@ All set in Netlify dashboard under Site Settings → Environment Variables.
 
 ### 6.2 App Shell
 
-- **Sidebar** (`components/lyra/app-shell/sidebar.tsx`) — collapsible with Framer Motion animation, shows LYRA logo (full wordmark expanded, icon mark collapsed), workspace navigation, workspace switcher
-- **Header** (`components/lyra/app-shell/header.tsx`) — user avatar, name display
+- **Sidebar** (`components/lyra/app-shell/sidebar.tsx`) — collapsible with Framer Motion animation, shows LYRA logo (full wordmark expanded, icon mark collapsed), workspace navigation, workspace switcher. Active item has platinum left border accent. Full row is clickable via invisible hit-area padding. Hidden on mobile (`hidden md:flex`).
+- **Mobile Nav** (`components/lyra/app-shell/mobile-nav.tsx`) — fixed bottom navigation bar for mobile viewports (`md:hidden`); 5 items: Dashboard, Calendar, Compose, Inbox, Brand. Main content area has `pb-20 md:pb-6` to clear it.
+- **Header** (`components/lyra/app-shell/header.tsx`) — user avatar, name display. User dropdown links to `/account` (working).
 - **Workspace Switcher** (`components/lyra/app-shell/workspace-switcher.tsx`) — dropdown to switch between workspaces
 
 The sidebar receives a `brandReady` prop from the layout, which locks the Brand AI nav item behind a padlock icon if the workspace hasn't connected a website URL and at least one social account.
 
-### 6.3 Dashboard Home (`app/(dashboard)/page.tsx`)
+### 6.3 Dashboard Home (`app/(dashboard)/dashboard/page.tsx`)
 
 - Personalised greeting using the user's first name
+- **KPI status strip** — 3 tiles at the top: Pending comments (links to inbox), Scheduled today (links to calendar), Posts this week (links to analytics). Counts in `font-mono`, fetched in parallel via Prisma.
 - **Brand AI unlock banner** — appears when brand requirements are met but no profile has been built yet, prompts user to go build the profile
-- **Setup checklist** — appears when brand requirements are not yet met, shows three steps: add website URL, connect a social account, build brand profile
-- Workspace list cards linking to each workspace
+- **Setup checklist** — appears when brand requirements are not yet met, shows three steps: add website URL, connect a social account, build brand profile. Items show ChevronRight arrow on hover.
+- Workspace list cards with platform colour dots and pending comment badge
 - Quick-action links to Compose, Inbox, and Add Workspace
 
 ### 6.4 Workspace Settings (`app/(dashboard)/workspace/[workspaceId]/settings/page.tsx`)
 
+- **Workspace section** at top — editable name and website URL fields, saved via server action (`prisma.workspace.updateMany` with access check)
 - Lists all supported social platforms with connect / reconnect buttons
+- Connected platform rows show `border-l-2 border-l-status-success/50` left accent
 - Shows connected accounts with a green dot indicator
 - Disconnect button (soft-delete — marks `isActive: false`)
 - **Success banner** on `?connected=platform` query param after OAuth completes
-- **Danger Zone** section at the bottom with a delete workspace button, backed by an `AlertDialog` confirmation modal
+- **Danger Zone** section styled with `border-t border-status-error/20` and card `border border-status-error/20`; delete workspace button backed by an `AlertDialog` confirmation modal
 - Deleting a workspace cascades through all children (social accounts, posts, brand profile, etc.) in a database transaction before removing the workspace
 
 ### 6.5 Brand Intelligence (`app/(dashboard)/workspace/[workspaceId]/brand/page.tsx`)
@@ -1241,8 +1308,10 @@ One workspace is currently active in production:
 
 ### Mobile Responsiveness
 
-- The sidebar is not yet optimised for mobile — it does not collapse to a bottom nav or hamburger menu on small screens
-- All other pages use responsive Tailwind classes and work acceptably on mobile
+- Mobile navigation is now live — fixed bottom nav bar (`components/lyra/app-shell/mobile-nav.tsx`) with 5 items, visible below the `md` breakpoint
+- The calendar switches to an agenda view on mobile; the full grid is desktop-only
+- The composer shows a tab strip (Compose / Preview) on mobile instead of side-by-side columns
+- All pages use responsive Tailwind classes and work acceptably on mobile
 
 ### Cron Jobs
 
@@ -1377,7 +1446,8 @@ LYRA uses a strict dark near-black design system defined in `lyra/lib/design-tok
 | `lyra/app/api/workspaces/[id]/route.ts` | Workspace CRUD including cascade delete |
 | `lyra/app/api/brand-intelligence/build/route.ts` | Brand profile build endpoint |
 | `lyra/app/api/social/callback/[platform]/route.ts` | OAuth callback handler |
-| `lyra/components/lyra/app-shell/sidebar.tsx` | Sidebar with brand lock logic |
+| `lyra/components/lyra/app-shell/sidebar.tsx` | Sidebar with brand lock logic, platinum active border, mobile hidden |
+| `lyra/components/lyra/app-shell/mobile-nav.tsx` | Fixed bottom nav bar for mobile (md:hidden), 5 items |
 | `lyra/components/lyra/calendar/content-calendar.tsx` | Monthly calendar with filters, DnD, and detail panel |
 | `lyra/components/lyra/calendar/post-detail-panel.tsx` | Slide-in post detail + status editor |
 | `lyra/components/lyra/brand/brand-build-button.tsx` | Brand profile build trigger |
@@ -1412,6 +1482,11 @@ LYRA uses a strict dark near-black design system defined in `lyra/lib/design-tok
 | `lyra/components/lyra/seo/gsc-analytics.tsx` | GSC chart + top queries table |
 | `lyra/app/docs/legal/[filename]/route.ts` | Serves legal PDFs from `public/docs/legal/` — bypasses the Netlify static file routing issue |
 | `lyra/public/docs/legal/` | Legal PDFs (Instruction Manual, Privacy Policy, Terms of Service) |
+| `lyra/app/(dashboard)/account/page.tsx` | Account page — profile, plan/billing, danger zone |
+| `lyra/app/api/account/route.ts` | DELETE handler — full cascade user data deletion in one transaction |
+| `lyra/components/lyra/account/delete-account-button.tsx` | AlertDialog confirmation for account deletion |
+| `lyra/components/lyra/composer/compose-client.tsx` | Client wrapper lifting content + platform state; mobile tab strip, desktop side-by-side |
+| `lyra/components/lyra/composer/post-preview.tsx` | Six platform-specific post preview renderers; desktop/mobile toggle |
 
 ---
 
@@ -1431,7 +1506,7 @@ LYRA uses a strict dark near-black design system defined in `lyra/lib/design-tok
 9. **Create Google Business, Twitter, TikTok developer apps** — add credentials to Netlify env vars so those OAuth flows work
 
 **UX / business:**
-10. **Mobile sidebar** — add a hamburger menu / bottom nav for mobile viewports
+10. **Mobile sidebar** — ✅ done (Session 19) — fixed bottom nav bar live on mobile
 11. **Stripe billing / marketing page** — create Stripe products/prices, wire up checkout flow, build public marketing landing page (plan saved: `lyra/docs/superpowers/plans/2026-05-19-marketing-landing-page.md`)
 
 **Post boosting — low priority polish:**
