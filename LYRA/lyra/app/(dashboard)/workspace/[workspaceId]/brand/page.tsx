@@ -182,9 +182,11 @@ export default async function BrandPage({ params }: Props) {
             <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
               Voice Summary
             </p>
-            <p className="font-sans text-sm text-text-primary leading-relaxed">
-              {profile.voiceSummary ?? '—'}
-            </p>
+            <div className="border-l-2 border-accent-platinum pl-4">
+              <p className="font-sans text-base leading-relaxed text-text-primary">
+                {profile.voiceSummary ?? '—'}
+              </p>
+            </div>
           </section>
 
           {/* Tone + Themes */}
@@ -198,7 +200,7 @@ export default async function BrandPage({ params }: Props) {
                   ? profile.toneAttributes.map((attr) => (
                       <span
                         key={attr}
-                        className="px-2 py-1 rounded-md bg-background-tertiary border border-background-border-mid font-sans text-xs text-text-secondary"
+                        className="px-2 py-1 rounded-md bg-background-tertiary border border-background-border-mid font-sans text-xs text-text-secondary select-none cursor-default"
                       >
                         {attr}
                       </span>
@@ -217,7 +219,7 @@ export default async function BrandPage({ params }: Props) {
                   ? profile.contentThemes.map((theme) => (
                       <span
                         key={theme}
-                        className="px-2 py-1 rounded-md bg-background-tertiary border border-background-border-mid font-sans text-xs text-text-secondary"
+                        className="px-2 py-1 rounded-md bg-background-tertiary border border-background-border-mid font-sans text-xs text-text-secondary select-none cursor-default"
                       >
                         {theme}
                       </span>
@@ -255,7 +257,7 @@ export default async function BrandPage({ params }: Props) {
                     {audience.interests.map((item) => (
                       <span
                         key={item}
-                        className="px-2 py-1 rounded-md bg-background-tertiary border border-background-border-mid font-sans text-xs text-text-secondary"
+                        className="px-2 py-1 rounded-md bg-background-tertiary border border-background-border-mid font-sans text-xs text-text-secondary select-none cursor-default"
                       >
                         {item}
                       </span>

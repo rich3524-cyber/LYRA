@@ -62,6 +62,13 @@ export default async function MarketingPage() {
 
   return (
     <div className="min-h-screen bg-background-primary flex flex-col items-center justify-center px-6 relative overflow-hidden">
+      {/* Sign in link */}
+      <Link
+        href="/auth/login"
+        className="absolute top-6 right-6 font-sans text-xs text-text-tertiary hover:text-text-secondary transition-colors"
+      >
+        Sign in
+      </Link>
       {/* Ambient glow */}
       <div
         className="absolute inset-0 pointer-events-none"
@@ -105,7 +112,7 @@ export default async function MarketingPage() {
               Founding Member Offer
             </span>
             {slotsRemaining > 0 ? (
-              <span className="font-mono text-xs text-status-warning">
+              <span className="font-mono text-xs text-accent-platinum">
                 {slotsRemaining} of {FOUNDING_MEMBER_LIMIT} spots remaining
               </span>
             ) : (

@@ -18,6 +18,16 @@ import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { PostingPatterns } from '@/services/ai/engagement-analyzer'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 const CHAR_LIMITS: Record<string, number> = {
   TWITTER:          280,
@@ -32,6 +42,8 @@ interface PostComposerProps {
   workspaceId: string
   connectedPlatforms: string[]
   postingPatterns?: PostingPatterns | null
+  onContentChange?: (content: string) => void
+  onPlatformsChange?: (platforms: string[]) => void
 }
 
 const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -46,8 +58,13 @@ function nextSlotOccurrence(dayOfWeek: number, hour: number): Date {
   return d
 }
 
-export function PostComposer({ workspaceId, connectedPlatforms, postingPatterns = null }: PostComposerProps) {
+export function PostComposer({ workspaceId, connectedPlatforms, postingPatterns = null, onContentChange, onPlatformsChange }: PostComposerProps) {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
+
+  function handlePlatformsChange(platforms: string[]) {
+    setSelectedPlatforms(platforms)
+    onPlatformsChange?.(platforms)
+  }
   const [scheduleDate, setScheduleDate]             = useState<Date | undefined>()
   const [scheduleTime, setScheduleTime]             = useState('09:00')
   const [mediaUrls, setMediaUrls]                   = useState<string[]>([])
@@ -55,6 +72,7 @@ export function PostComposer({ workspaceId, connectedPlatforms, postingPatterns 
   const [isGenerating, setIsGenerating]             = useState(false)
   const [isSubmitting, setIsSubmitting]             = useState(false)
   const [isPostingNow, setIsPostingNow]             = useState(false)
+  const [postNowOpen, setPostNowOpen]               = useState(false)
 
   // Combine date + time into a single Date for the API
   const scheduledAt = useMemo(() => {
@@ -74,6 +92,9 @@ export function PostComposer({ workspaceId, connectedPlatforms, postingPatterns 
       attributes: {
         class: 'min-h-[160px] text-sm text-text-primary leading-relaxed outline-none',
       },
+    },
+    onUpdate: ({ editor: e }) => {
+      onContentChange?.(e.getText())
     },
   })
 
@@ -181,7 +202,7 @@ export function PostComposer({ workspaceId, connectedPlatforms, postingPatterns 
         <PlatformSelector
           connectedPlatforms={connectedPlatforms}
           selected={selectedPlatforms}
-          onChange={setSelectedPlatforms}
+          onChange={handlePlatformsChange}
         />
       </div>
 
@@ -218,28 +239,29 @@ export function PostComposer({ workspaceId, connectedPlatforms, postingPatterns 
         </div>
       )}
 
-      {/* Toolbar */}
-      <div className="flex items-center justify-between px-5 py-3 border-t border-background-border">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            type="button"
-            onClick={handleAIGenerate}
-            disabled={isGenerating}
-            className="text-text-secondary hover:text-text-primary gap-2 text-xs"
-          >
-            <Sparkles size={14} strokeWidth={1.5} className={cn(isGenerating && 'animate-pulse')} />
-            {isGenerating ? 'Generating…' : 'AI Generate'}
-          </Button>
-          <MediaUploader
-            workspaceId={workspaceId}
-            onUpload={(url) => setMediaUrls((prev) => [...prev, url])}
-          />
-        </div>
+      {/* Toolbar row 1 — creation tools */}
+      <div className="flex items-center gap-3 px-5 py-3 border-t border-background-border">
+        <Button
+          variant="ghost"
+          size="sm"
+          type="button"
+          onClick={handleAIGenerate}
+          disabled={isGenerating}
+          className="text-text-secondary hover:text-text-primary gap-2 text-xs"
+        >
+          <Sparkles size={14} strokeWidth={1.5} className={cn(isGenerating && 'animate-pulse')} />
+          {isGenerating ? 'Generating…' : 'AI Generate'}
+        </Button>
+        <MediaUploader
+          workspaceId={workspaceId}
+          onUpload={(url) => setMediaUrls((prev) => [...prev, url])}
+        />
+      </div>
 
-        <div className="flex items-center gap-2">
-          {/* Character counter */}
+      {/* Toolbar row 2 — actions */}
+      <div className="flex items-center justify-between px-5 pb-3">
+        {/* Character counter */}
+        <div>
           {charLimit !== null && (
             <span className={cn(
               'font-mono text-xs tabular-nums',
@@ -248,7 +270,9 @@ export function PostComposer({ workspaceId, connectedPlatforms, postingPatterns 
               {charCount}/{charLimit}
             </span>
           )}
+        </div>
 
+        <div className="flex items-center gap-2">
           {/* Schedule picker */}
           <Popover>
             <PopoverTrigger
@@ -272,7 +296,6 @@ export function PostComposer({ workspaceId, connectedPlatforms, postingPatterns 
                 />
               </div>
 
-              {/* Engagement hints */}
               {selectedPlatforms.length > 0 && (
                 <div className="px-3 pb-3 border-t border-background-border pt-3 space-y-1.5">
                   {selectedPlatforms.map((platform) => {
@@ -327,12 +350,12 @@ export function PostComposer({ workspaceId, connectedPlatforms, postingPatterns 
           <Button
             size="sm"
             type="button"
-            onClick={handlePostNow}
+            onClick={() => setPostNowOpen(true)}
             disabled={isPostingNow || isSubmitting}
             className="bg-background-tertiary border border-background-border-mid text-text-secondary hover:text-text-primary hover:border-accent-silver text-xs gap-2 transition-all duration-150"
           >
             <Zap size={12} strokeWidth={1.5} />
-            {isPostingNow ? 'Posting…' : 'Post now'}
+            Post now
           </Button>
 
           <Button
@@ -347,6 +370,39 @@ export function PostComposer({ workspaceId, connectedPlatforms, postingPatterns 
           </Button>
         </div>
       </div>
+
+      {/* Post Now confirmation */}
+      <AlertDialog open={postNowOpen} onOpenChange={setPostNowOpen}>
+        <AlertDialogContent className="bg-background-tertiary border-background-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-sans font-medium text-text-primary">Post now?</AlertDialogTitle>
+            <AlertDialogDescription className="font-sans text-sm text-text-secondary">
+              {selectedPlatforms.length > 0 && (
+                <span className="block mb-2">
+                  Posting to: {selectedPlatforms.map((p) => p.charAt(0) + p.slice(1).toLowerCase().replace('_', ' ')).join(', ')}
+                </span>
+              )}
+              {editor?.getText().trim().slice(0, 120) && (
+                <span className="block text-text-tertiary italic">
+                  "{editor?.getText().trim().slice(0, 120)}{(editor?.getText().trim().length ?? 0) > 120 ? '…' : ''}"
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="font-sans text-xs bg-transparent border-background-border-mid text-text-secondary hover:text-text-primary">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handlePostNow}
+              disabled={isPostingNow}
+              className="font-sans text-xs bg-accent-platinum text-background-primary hover:bg-accent-white"
+            >
+              {isPostingNow ? 'Posting…' : 'Publish'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

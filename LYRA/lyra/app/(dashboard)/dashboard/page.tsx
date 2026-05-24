@@ -1,8 +1,18 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { ArrowRight, Plus, Building2, PenSquare, MessageSquare, Zap, Globe, Share2 } from 'lucide-react'
+import { ArrowRight, Plus, Building2, PenSquare, MessageSquare, Zap, Globe, Share2, ChevronRight } from 'lucide-react'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+
+const PLATFORM_COLORS: Record<string, string> = {
+  FACEBOOK:        '#1877F2',
+  INSTAGRAM:       '#E1306C',
+  LINKEDIN:        '#0A66C2',
+  TWITTER:         '#1DA1F2',
+  TIKTOK:          '#010101',
+  GOOGLE_BUSINESS: '#EA4335',
+  YOUTUBE:         '#FF0000',
+}
 
 export default async function DashboardHome() {
   const user = await getCurrentUser()
@@ -12,23 +22,96 @@ export default async function DashboardHome() {
   const hasWorkspaces = workspaces.length > 0
   const firstName = user.name?.split(' ')[0] ?? null
 
-  // Check brand readiness for the active workspace
-  let brandReady = false
-  let hasBrandProfile = false
   const activeWorkspaceId = workspaces[0]?.id ?? ''
 
-  if (activeWorkspaceId) {
-    const ws = await prisma.workspace.findUnique({
-      where: { id: activeWorkspaceId },
-      select: {
-        websiteUrl: true,
-        brandProfile: { select: { id: true } },
-        _count: { select: { socialAccounts: { where: { isActive: true } } } },
-      },
-    }).catch(() => null)
+  let brandReady = false
+  let hasBrandProfile = false
+
+  // KPI data
+  let pendingComments = 0
+  let scheduledToday = 0
+  let postsThisWeek = 0
+
+  // Workspace card data
+  let workspaceDetails: {
+    id: string
+    name: string
+    plan: string
+    platforms: string[]
+    pendingCount: number
+  }[] = []
+
+  if (hasWorkspaces && activeWorkspaceId) {
+    const workspaceIds = workspaces.map((w) => w.id)
+
+    const now = new Date()
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const todayEnd   = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1)
+    const weekStart  = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay())
+    const weekEnd    = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay() + 7)
+
+    const [ws, pendingCommentsCount, scheduledTodayCount, postsThisWeekCount, wsDetails] = await Promise.all([
+      prisma.workspace.findUnique({
+        where: { id: activeWorkspaceId },
+        select: {
+          websiteUrl: true,
+          brandProfile: { select: { id: true } },
+          _count: { select: { socialAccounts: { where: { isActive: true } } } },
+        },
+      }).catch(() => null),
+
+      prisma.comment.count({
+        where: {
+          post: { workspaceId: { in: workspaceIds } },
+          status: 'PENDING',
+        },
+      }).catch(() => 0),
+
+      prisma.post.count({
+        where: {
+          workspaceId: { in: workspaceIds },
+          status: 'SCHEDULED',
+          scheduledAt: { gte: todayStart, lt: todayEnd },
+        },
+      }).catch(() => 0),
+
+      prisma.post.count({
+        where: {
+          workspaceId: { in: workspaceIds },
+          status: { in: ['PUBLISHED', 'SCHEDULED'] },
+          scheduledAt: { gte: weekStart, lt: weekEnd },
+        },
+      }).catch(() => 0),
+
+      prisma.workspace.findMany({
+        where: { id: { in: workspaceIds } },
+        select: {
+          id: true,
+          name: true,
+          plan: true,
+          socialAccounts: { where: { isActive: true }, select: { platform: true } },
+          _count: {
+            select: {
+              posts: { where: { comments: { some: { status: 'PENDING' } } } },
+            },
+          },
+        },
+      }).catch(() => []),
+    ])
 
     brandReady = !!(ws?.websiteUrl && (ws._count?.socialAccounts ?? 0) > 0)
     hasBrandProfile = !!ws?.brandProfile
+    pendingComments = pendingCommentsCount
+    scheduledToday = scheduledTodayCount
+    postsThisWeek = postsThisWeekCount
+
+    workspaceDetails = wsDetails.map((w) => ({
+      id: w.id,
+      name: w.name,
+      plan: w.plan,
+      platforms: [...new Set(w.socialAccounts.map((a) => a.platform))],
+      pendingCount: w._count.posts,
+    }))
   }
 
   return (
@@ -49,6 +132,31 @@ export default async function DashboardHome() {
 
       {hasWorkspaces ? (
         <>
+          {/* KPI status strip */}
+          <div className="grid grid-cols-3 gap-3">
+            <Link
+              href={`/workspace/${activeWorkspaceId}/inbox`}
+              className="p-4 rounded-xl bg-background-secondary border border-background-border hover:border-background-border-mid transition-all duration-150 space-y-1"
+            >
+              <p className="font-mono text-2xl text-text-primary tabular-nums">{pendingComments}</p>
+              <p className="font-sans text-xs text-text-tertiary">Pending comments</p>
+            </Link>
+            <Link
+              href={`/workspace/${activeWorkspaceId}/calendar`}
+              className="p-4 rounded-xl bg-background-secondary border border-background-border hover:border-background-border-mid transition-all duration-150 space-y-1"
+            >
+              <p className="font-mono text-2xl text-text-primary tabular-nums">{scheduledToday}</p>
+              <p className="font-sans text-xs text-text-tertiary">Scheduled today</p>
+            </Link>
+            <Link
+              href={`/workspace/${activeWorkspaceId}/analytics`}
+              className="p-4 rounded-xl bg-background-secondary border border-background-border hover:border-background-border-mid transition-all duration-150 space-y-1"
+            >
+              <p className="font-mono text-2xl text-text-primary tabular-nums">{postsThisWeek}</p>
+              <p className="font-sans text-xs text-text-tertiary">Posts this week</p>
+            </Link>
+          </div>
+
           {/* Brand AI unlock banner */}
           {brandReady && !hasBrandProfile && (
             <div className="p-5 rounded-xl bg-background-secondary border border-background-border space-y-3">
@@ -60,8 +168,7 @@ export default async function DashboardHome() {
                   </p>
                   <p className="font-sans text-sm text-text-secondary leading-relaxed">
                     LYRA will now scrape your website and analyse your connected social accounts
-                    to build your brand voice profile. The more social accounts you connect, the
-                    more accurate and nuanced the profile becomes.
+                    to build your brand voice profile.
                   </p>
                 </div>
               </div>
@@ -75,7 +182,7 @@ export default async function DashboardHome() {
             </div>
           )}
 
-          {/* Setup checklist — shown when brand not yet ready */}
+          {/* Setup checklist */}
           {!brandReady && (
             <div className="p-5 rounded-xl bg-background-secondary border border-background-border space-y-4">
               <div className="space-y-0.5">
@@ -116,17 +223,40 @@ export default async function DashboardHome() {
               Workspaces
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {workspaces.map((ws) => (
+              {workspaceDetails.map((ws) => (
                 <Link
                   key={ws.id}
                   href={`/workspace/${ws.id}`}
                   className="group flex items-center justify-between p-5 rounded-xl bg-background-secondary border border-background-border hover:border-background-border-mid transition-all duration-150"
                 >
-                  <div className="space-y-0.5">
-                    <p className="font-sans text-sm font-medium text-text-primary">{ws.name}</p>
-                    <p className="font-sans text-xs text-text-tertiary capitalize">
-                      {ws.plan.charAt(0) + ws.plan.slice(1).toLowerCase()} plan
-                    </p>
+                  <div className="space-y-2">
+                    <div className="space-y-0.5">
+                      <p className="font-sans text-sm font-medium text-text-primary">{ws.name}</p>
+                      <p className="font-sans text-xs text-text-tertiary capitalize">
+                        {ws.plan.charAt(0) + ws.plan.slice(1).toLowerCase()} plan
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {ws.platforms.length > 0 ? (
+                        <div className="flex items-center gap-1">
+                          {ws.platforms.map((platform) => (
+                            <span
+                              key={platform}
+                              className="rounded-full"
+                              style={{ width: 7, height: 7, backgroundColor: PLATFORM_COLORS[platform] ?? '#888' }}
+                              title={platform}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="font-sans text-xs text-text-tertiary">No accounts connected</span>
+                      )}
+                      {ws.pendingCount > 0 && (
+                        <span className="font-mono text-[10px] text-status-warning bg-status-warning/10 px-1.5 py-0.5 rounded-md">
+                          {ws.pendingCount} pending
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <ArrowRight size={16} strokeWidth={1.5} className="text-text-tertiary group-hover:text-text-secondary transition-colors shrink-0" />
                 </Link>
@@ -165,7 +295,6 @@ export default async function DashboardHome() {
           </section>
         </>
       ) : (
-        /* Empty state */
         <section className="py-12 space-y-6">
           <div className="space-y-2">
             <Building2 size={24} strokeWidth={1.5} className="text-text-tertiary" />
@@ -201,8 +330,8 @@ function SetupStep({
   href: string
   locked?: boolean
 }) {
-  const content = (
-    <div className={`flex items-center gap-3 ${locked ? 'opacity-40' : ''}`}>
+  const inner = (
+    <div className={`group flex items-center gap-3 transition-opacity ${locked ? 'opacity-40' : 'hover:opacity-80'}`}>
       <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${done ? 'border-status-success bg-status-success' : 'border-background-border-mid'}`}>
         {done && (
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
@@ -211,12 +340,19 @@ function SetupStep({
         )}
       </div>
       <Icon size={14} strokeWidth={1.5} className={done ? 'text-text-secondary' : 'text-text-tertiary'} />
-      <span className={`font-sans text-sm ${done ? 'text-text-secondary' : 'text-text-tertiary'}`}>
+      <span className={`font-sans text-sm flex-1 ${done ? 'text-text-secondary' : 'text-text-tertiary'}`}>
         {label}
       </span>
+      {!locked && (
+        <ChevronRight
+          size={14}
+          strokeWidth={1.5}
+          className="text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity ml-auto"
+        />
+      )}
     </div>
   )
 
-  if (locked) return <div>{content}</div>
-  return <Link href={href}>{content}</Link>
+  if (locked) return <div>{inner}</div>
+  return <Link href={href}>{inner}</Link>
 }

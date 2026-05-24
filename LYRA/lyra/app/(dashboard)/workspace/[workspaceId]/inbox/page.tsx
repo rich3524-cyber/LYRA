@@ -23,8 +23,8 @@ export default async function InboxPage({ params }: Props) {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-medium text-text-primary">Comment Inbox</h1>
-        <p className="text-sm text-text-tertiary mt-1">{workspace.name}</p>
+        <h1 className="font-display text-4xl text-text-primary">Inbox</h1>
+        <p className="font-sans text-sm text-text-secondary mt-1">{workspace.name}</p>
       </div>
       <ResponseInbox
         workspaceId={workspaceId}

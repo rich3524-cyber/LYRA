@@ -1,8 +1,10 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { CommentCard } from './comment-card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 
 interface CommentData {
   id:              string
@@ -20,6 +22,27 @@ interface CommentData {
 const PLATFORM_LABELS: Record<string, string> = {
   FACEBOOK: 'FB', INSTAGRAM: 'IG', LINKEDIN: 'LI',
   TIKTOK: 'TT', TWITTER: 'X', GOOGLE_BUSINESS: 'GBP',
+}
+
+function CountBadge({ count, variant }: { count: number; variant?: 'warning' | 'default' }) {
+  if (count === 0) {
+    return (
+      <span className="font-mono text-[10px] text-text-tertiary ml-1">{count}</span>
+    )
+  }
+  return (
+    <Badge
+      variant="secondary"
+      className={cn(
+        'text-xs px-1.5 py-0',
+        variant === 'warning'
+          ? 'bg-status-warning/20 text-status-warning'
+          : 'bg-background-hover'
+      )}
+    >
+      {count}
+    </Badge>
+  )
 }
 
 export function ResponseInbox({
@@ -70,45 +93,45 @@ export function ResponseInbox({
       {error && (
         <p className="text-sm text-status-error text-center py-6">{error}</p>
       )}
-      {/* Platform filter — only shown when multiple platforms have comments */}
-      {!loading && platforms.length > 1 && (
-        <div className="flex items-center gap-2">
-          {(['ALL', ...platforms] as string[]).map(p => (
-            <button
-              key={p}
-              onClick={() => setPlatformFilter(p)}
-              aria-pressed={platformFilter === p}
-              className={`text-xs px-3 py-1 rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-silver focus-visible:ring-offset-2 focus-visible:ring-offset-background-primary ${
-                platformFilter === p
-                  ? 'bg-accent-platinum text-background-primary border-accent-platinum'
-                  : 'bg-background-secondary border-background-border text-text-secondary hover:border-background-border-mid'
-              }`}
-            >
-              {p === 'ALL' ? 'All' : (PLATFORM_LABELS[p] ?? p)}
-            </button>
-          ))}
-        </div>
-      )}
+
+      {/* Platform filter — reserved height prevents layout shift */}
+      <div className="h-7 flex items-center">
+        {loading ? (
+          <div className="h-7 w-48 rounded-full bg-background-secondary border border-background-border animate-pulse" />
+        ) : platforms.length > 1 ? (
+          <div className="flex items-center gap-2">
+            {(['ALL', ...platforms] as string[]).map(p => (
+              <button
+                key={p}
+                onClick={() => setPlatformFilter(p)}
+                aria-pressed={platformFilter === p}
+                className={`text-xs px-3 py-1 rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-silver focus-visible:ring-offset-2 focus-visible:ring-offset-background-primary ${
+                  platformFilter === p
+                    ? 'bg-accent-platinum text-background-primary border-accent-platinum'
+                    : 'bg-background-secondary border-background-border text-text-secondary hover:border-background-border-mid'
+                }`}
+              >
+                {p === 'ALL' ? 'All' : (PLATFORM_LABELS[p] ?? p)}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
 
       <Tabs defaultValue="pending" className="space-y-4">
         <TabsList className="bg-background-secondary border border-background-border">
           <TabsTrigger value="pending" className="text-xs gap-2">
             Pending
-            {pending.length > 0 && (
-              <Badge variant="secondary" className="text-xs px-1.5 py-0 bg-background-hover">
-                {pending.length}
-              </Badge>
-            )}
+            <CountBadge count={pending.length} />
           </TabsTrigger>
           <TabsTrigger value="escalated" className="text-xs gap-2">
             Escalated
-            {escalated.length > 0 && (
-              <Badge variant="secondary" className="text-xs px-1.5 py-0 bg-status-warning/20 text-status-warning">
-                {escalated.length}
-              </Badge>
-            )}
+            <CountBadge count={escalated.length} variant="warning" />
           </TabsTrigger>
-          <TabsTrigger value="responded" className="text-xs">Done</TabsTrigger>
+          <TabsTrigger value="responded" className="text-xs gap-2">
+            Done
+            <CountBadge count={responded.length} />
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="pending" className="space-y-3">
@@ -119,15 +142,22 @@ export function ResponseInbox({
           ) : pending.length === 0 ? (
             <p className="text-sm text-text-tertiary text-center py-12">All caught up.</p>
           ) : (
-            pending.map(c => (
-              <CommentCard
-                key={c.id}
-                comment={c}
-                aiResponseMode={aiResponseMode}
-                plan={plan}
-                onUpdate={(s) => handleUpdate(c.id, s)}
-              />
-            ))
+            <AnimatePresence>
+              {pending.map(c => (
+                <motion.div
+                  key={c.id}
+                  exit={{ opacity: 0, x: -16 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <CommentCard
+                    comment={c}
+                    aiResponseMode={aiResponseMode}
+                    plan={plan}
+                    onUpdate={(s) => handleUpdate(c.id, s)}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
           )}
         </TabsContent>
 
@@ -139,15 +169,22 @@ export function ResponseInbox({
           ) : escalated.length === 0 ? (
             <p className="text-sm text-text-tertiary text-center py-12">No escalated comments.</p>
           ) : (
-            escalated.map(c => (
-              <CommentCard
-                key={c.id}
-                comment={c}
-                aiResponseMode={aiResponseMode}
-                plan={plan}
-                onUpdate={() => {}}
-              />
-            ))
+            <AnimatePresence>
+              {escalated.map(c => (
+                <motion.div
+                  key={c.id}
+                  exit={{ opacity: 0, x: -16 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <CommentCard
+                    comment={c}
+                    aiResponseMode={aiResponseMode}
+                    plan={plan}
+                    onUpdate={() => {}}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
           )}
         </TabsContent>
 
@@ -159,15 +196,22 @@ export function ResponseInbox({
           ) : responded.length === 0 ? (
             <p className="text-sm text-text-tertiary text-center py-12">No responses sent yet.</p>
           ) : (
-            responded.map(c => (
-              <CommentCard
-                key={c.id}
-                comment={c}
-                aiResponseMode={aiResponseMode}
-                plan={plan}
-                onUpdate={() => {}}
-              />
-            ))
+            <AnimatePresence>
+              {responded.map(c => (
+                <motion.div
+                  key={c.id}
+                  exit={{ opacity: 0, x: -16 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <CommentCard
+                    comment={c}
+                    aiResponseMode={aiResponseMode}
+                    plan={plan}
+                    onUpdate={() => {}}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
           )}
         </TabsContent>
       </Tabs>

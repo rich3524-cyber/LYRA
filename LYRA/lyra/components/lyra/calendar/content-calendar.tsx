@@ -8,6 +8,7 @@ import {
   eachDayOfInterval,
   isSameDay,
   isToday,
+  isSameMonth,
 } from 'date-fns'
 import {
   DndContext,
@@ -18,7 +19,8 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import { useDroppable } from '@dnd-kit/core'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { PostPreviewCard, CalendarPost, PLATFORM_COLORS, PLATFORM_LABELS } from './post-preview-card'
 import { PostDetailPanel } from './post-detail-panel'
@@ -222,7 +224,19 @@ export function ContentCalendar({ workspaceId, plan }: { workspaceId: string; pl
             <h2 className="font-sans text-sm font-medium text-text-secondary uppercase tracking-[0.1em]">
               {format(currentMonth, 'MMMM yyyy')}
             </h2>
-            <div className="flex gap-1">
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setCurrentMonth(new Date())}
+                className={cn(
+                  'font-sans text-xs h-7 px-2',
+                  isSameMonth(currentMonth, new Date()) ? 'opacity-40 pointer-events-none' : ''
+                )}
+                aria-label="Go to today"
+              >
+                Today
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"
@@ -270,8 +284,64 @@ export function ContentCalendar({ workspaceId, plan }: { workspaceId: string; pl
             })}
           </div>
 
-          {/* Calendar grid */}
-          <div className="grid grid-cols-7 gap-px bg-background-border rounded-xl overflow-hidden">
+          {/* Mobile agenda view */}
+          <div className="md:hidden space-y-3">
+            {loading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-16 rounded-xl bg-background-secondary border border-background-border animate-pulse" />
+              ))
+            ) : filteredPosts.length === 0 ? (
+              <div className="flex flex-col items-center gap-3 py-12 text-center">
+                <CalendarIcon size={24} className="text-text-tertiary" />
+                <p className="font-sans text-sm text-text-secondary">No posts scheduled this month.</p>
+                <div className="flex flex-col gap-1.5">
+                  <Link href={`/workspace/${workspaceId}/compose`} className="font-sans text-xs text-accent-silver hover:text-text-primary transition-colors">
+                    Compose a post
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              days.filter((day) => filteredPosts.some((p) => p.scheduledAt && isSameDay(new Date(p.scheduledAt), day))).map((day) => {
+                const dayPosts = filteredPosts.filter((p) => p.scheduledAt && isSameDay(new Date(p.scheduledAt), day))
+                return (
+                  <div key={day.toISOString()}>
+                    <p className={cn(
+                      'font-sans text-xs font-medium uppercase tracking-[0.1em] mb-2',
+                      isToday(day) ? 'text-accent-platinum' : 'text-text-tertiary'
+                    )}>
+                      {format(day, 'EEE, MMM d')}
+                    </p>
+                    <div className="space-y-1.5">
+                      {dayPosts.map((post) => (
+                        <button
+                          key={post.id}
+                          onClick={() => setSelectedPost(post)}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-background-secondary border border-background-border hover:bg-background-hover transition-colors text-left"
+                        >
+                          <span
+                            className="rounded-full shrink-0"
+                            style={{ width: 8, height: 8, backgroundColor: PLATFORM_COLORS[post.socialAccount.platform] ?? PLATFORM_COLORS['TWITTER'] }}
+                            aria-hidden="true"
+                          />
+                          {post.scheduledAt && (
+                            <span className="font-mono text-[10px] text-text-tertiary shrink-0">
+                              {format(new Date(post.scheduledAt), 'HH:mm')}
+                            </span>
+                          )}
+                          <span className="font-sans text-xs text-text-secondary truncate">
+                            {post.content?.slice(0, 80) ?? 'No content'}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+          {/* Desktop calendar grid */}
+          <div className="hidden md:grid grid-cols-7 gap-px bg-background-border rounded-xl overflow-hidden">
             {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
               <div
                 key={d}
@@ -304,6 +374,23 @@ export function ContentCalendar({ workspaceId, plan }: { workspaceId: string; pl
                   )
                 })}
           </div>
+
+          {/* Desktop empty state */}
+          {!loading && filteredPosts.length === 0 && (
+            <div className="hidden md:flex flex-col items-center gap-3 py-12 text-center">
+              <CalendarIcon size={24} className="text-text-tertiary" />
+              <p className="font-sans text-sm text-text-secondary">No posts scheduled this month.</p>
+              <div className="flex items-center gap-4">
+                <Link href={`/workspace/${workspaceId}/compose`} className="font-sans text-xs text-accent-silver hover:text-text-primary transition-colors">
+                  Compose a post
+                </Link>
+                <span className="text-text-tertiary text-xs">or</span>
+                <span className="font-sans text-xs text-accent-silver hover:text-text-primary transition-colors cursor-pointer">
+                  Use AI Schedule Generator
+                </span>
+              </div>
+            </div>
+          )}
         </div>
 
         <DragOverlay>

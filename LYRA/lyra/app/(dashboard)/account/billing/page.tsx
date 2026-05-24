@@ -14,8 +14,8 @@ export default async function BillingPage() {
   return (
     <div className="space-y-8 max-w-4xl">
       <div>
-        <h1 className="text-2xl font-semibold text-[#e2e2e2]">Billing</h1>
-        <p className="text-sm text-[#555] mt-1">Manage your subscription and plan.</p>
+        <h1 className="font-display text-4xl text-text-primary">Billing</h1>
+        <p className="font-sans text-sm text-text-secondary mt-1">Manage your subscription and plan.</p>
       </div>
       <BillingClient
         currentPlan={agency?.plan ?? 'STARTER'}

@@ -1,8 +1,7 @@
 import { redirect, notFound } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { PostComposer } from '@/components/lyra/composer/post-composer'
-import { DraftList } from '@/components/lyra/composer/draft-list'
+import { ComposeClient } from '@/components/lyra/composer/compose-client'
 import type { PostingPatterns } from '@/services/ai/engagement-analyzer'
 
 interface Props {
@@ -42,32 +41,17 @@ export default async function ComposePage({ params }: Props) {
   const connectedPlatforms = [...new Set(socialAccounts.map((a) => a.platform as string))]
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-3xl space-y-6">
       <div>
-        <h2 className="font-display text-2xl text-text-primary">Compose</h2>
+        <h2 className="font-display text-4xl text-text-primary">Compose</h2>
         <p className="font-sans text-sm text-text-secondary mt-1">{workspace.name}</p>
       </div>
 
-      <PostComposer
+      <ComposeClient
         workspaceId={workspaceId}
         connectedPlatforms={connectedPlatforms}
         postingPatterns={Object.keys(postingPatterns).length > 0 ? postingPatterns : null}
       />
-
-      {connectedPlatforms.length === 0 && (
-        <p className="font-sans text-xs text-text-tertiary text-center">
-          No social accounts connected yet.{' '}
-          <a
-            href={`/workspace/${workspaceId}/settings`}
-            className="text-accent-silver hover:text-text-primary underline"
-          >
-            Connect accounts
-          </a>{' '}
-          to start posting.
-        </p>
-      )}
-
-      <DraftList workspaceId={workspaceId} />
     </div>
   )
 }

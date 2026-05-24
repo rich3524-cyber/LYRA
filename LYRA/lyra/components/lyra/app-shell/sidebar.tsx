@@ -33,14 +33,20 @@ const navItems = [
 
 export function Sidebar({ workspaceId, brandReady }: { workspaceId: string; brandReady: boolean }) {
   const [collapsed, setCollapsed] = useState(false)
+  const [switcherOpen, setSwitcherOpen] = useState(false)
   const pathname = usePathname()
   const base = `/workspace/${workspaceId}`
 
+  // Derive workspace monogram from switcher (first char of workspace name via DOM isn't ideal;
+  // we pass workspaceId and let WorkspaceSwitcher handle full name — for collapsed we show a fallback icon)
+  const monogram = workspaceId ? workspaceId[0].toUpperCase() : 'W'
+
   return (
+    // Hidden on mobile — mobile nav handles navigation below md breakpoint
     <motion.aside
       animate={{ width: collapsed ? 64 : 240 }}
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-      className="relative flex flex-col h-screen bg-background-secondary border-r border-background-border shrink-0 overflow-hidden"
+      className="hidden md:flex relative flex-col h-screen bg-background-secondary border-r border-background-border shrink-0 overflow-hidden"
     >
       {/* Logo */}
       <div className="flex items-center h-16 px-4 border-b border-background-border shrink-0">
@@ -79,9 +85,25 @@ export function Sidebar({ workspaceId, brandReady }: { workspaceId: string; bran
         </AnimatePresence>
       </div>
 
-      {/* Workspace Switcher */}
-      {!collapsed && (
-        <div className="px-3 py-3 border-b border-background-border">
+      {/* Workspace Switcher — full when expanded, monogram when collapsed */}
+      <div className="px-3 py-3 border-b border-background-border">
+        {!collapsed ? (
+          <WorkspaceSwitcher workspaceId={workspaceId} />
+        ) : (
+          <button
+            onClick={() => setSwitcherOpen(true)}
+            className="w-8 h-8 mx-auto rounded-md bg-background-hover flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors cursor-pointer"
+            aria-label="Switch workspace"
+            title="Switch workspace"
+          >
+            <span className="font-sans text-xs font-medium">{monogram}</span>
+          </button>
+        )}
+      </div>
+
+      {/* Hidden WorkspaceSwitcher for collapsed state — triggered by monogram */}
+      {collapsed && switcherOpen && (
+        <div className="absolute left-16 top-16 z-50">
           <WorkspaceSwitcher workspaceId={workspaceId} />
         </div>
       )}
@@ -121,15 +143,16 @@ export function Sidebar({ workspaceId, brandReady }: { workspaceId: string; bran
           const fullHref = `${base}${href}`
           const isActive =
             pathname === fullHref || (href !== '' && pathname.startsWith(fullHref))
+
           return (
             <Link
               key={label}
               href={fullHref}
               className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150 group',
+                'flex items-center gap-3 py-2.5 rounded-lg text-sm transition-all duration-150 group',
                 isActive
-                  ? 'bg-background-hover text-text-primary'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-background-hover',
+                  ? 'bg-background-hover text-text-primary border-l-2 border-accent-platinum pl-[10px] pr-3'
+                  : 'text-text-secondary hover:text-text-primary hover:bg-background-hover px-3',
               )}
               aria-label={collapsed ? label : undefined}
             >
@@ -155,7 +178,12 @@ export function Sidebar({ workspaceId, brandReady }: { workspaceId: string; bran
       <div className="border-t border-background-border p-2 space-y-0.5">
         <Link
           href={`${base}/settings`}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-text-secondary hover:text-text-primary hover:bg-background-hover transition-all duration-150"
+          className={cn(
+            'flex items-center gap-3 py-2.5 rounded-lg text-sm transition-all duration-150',
+            pathname === `${base}/settings`
+              ? 'bg-background-hover text-text-primary border-l-2 border-accent-platinum pl-[10px] pr-3'
+              : 'text-text-secondary hover:text-text-primary hover:bg-background-hover px-3',
+          )}
           aria-label={collapsed ? 'Settings' : undefined}
         >
           <Settings size={16} strokeWidth={1.5} className="shrink-0" />
@@ -163,12 +191,15 @@ export function Sidebar({ workspaceId, brandReady }: { workspaceId: string; bran
         </Link>
       </div>
 
-      {/* Collapse toggle */}
+      {/* Collapse toggle — extended invisible hit area via padding */}
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-3 top-20 w-6 h-6 rounded-full bg-background-tertiary border border-background-border flex items-center justify-center text-text-tertiary hover:text-text-primary transition-colors z-10 cursor-pointer"
+        className="absolute -right-3 top-20 w-6 h-6 rounded-full bg-background-tertiary border border-background-border flex items-center justify-center text-text-tertiary hover:text-text-primary transition-colors z-10 cursor-pointer p-4 box-content"
+        style={{ padding: 0, width: 24, height: 24 }}
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       >
+        {/* Invisible extended touch target */}
+        <span className="absolute -inset-3" aria-hidden="true" />
         {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
       </button>
     </motion.aside>
