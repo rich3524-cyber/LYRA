@@ -79,6 +79,7 @@ model Workspace {
   seoPages          SeoPage[]
   searchConsoleData SearchConsoleData[]
   crisisEvents      CrisisEvent[]
+  competitors       Competitor[]
 }
 
 enum Plan {
@@ -420,4 +421,27 @@ model CrisisEvent {
   resolvedAt  DateTime?
   triggerType String    // "SENTIMENT_SPIKE" | "KEYWORD_MATCH"
   commentIds  String[]
+}
+
+model Competitor {
+  id              String               @id @default(cuid())
+  workspaceId     String
+  workspace       Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name            String
+  websiteUrl      String?
+  twitterHandle   String?
+  facebookPageId  String?
+  createdAt       DateTime             @default(now())
+  snapshots       CompetitorSnapshot[]
+}
+
+model CompetitorSnapshot {
+  id                  String     @id @default(cuid())
+  competitorId        String
+  competitor          Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  capturedAt          DateTime   @default(now())
+  postsPerWeek        Float?
+  recentTopics        String[]
+  engagementBenchmark Float?
+  recentPosts         Json?
 }
