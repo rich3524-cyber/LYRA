@@ -45,7 +45,9 @@ ${JSON.stringify(comments.map((c) => ({ id: c.id, content: c.content })))}
 
   let scores: { id: string; score: number }[] = []
   try {
-    scores = JSON.parse(text)
+    const parsed = JSON.parse(text)
+    if (!Array.isArray(parsed)) return { triggered: false }
+    scores = parsed
   } catch {
     // If Claude returns malformed JSON, don't trigger — fail open
     return { triggered: false }
