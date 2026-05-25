@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 async function getWorkspaceForUser(id: string, userId: string) {
   return prisma.workspace.findFirst({
     where: { id, access: { some: { userId } } },
+    select: { id: true, plan: true },
   })
 }
 
@@ -54,6 +55,11 @@ export async function PATCH(
     const body = await req.json()
     const { name, industry, websiteUrl, clientAccessLevel, aiResponseMode, crisisAware } = body
 
+    // Plan gate: Starter users cannot enable crisisAware
+    if (crisisAware === true && existing.plan === 'STARTER') {
+      return NextResponse.json({ error: 'Crisis Aware requires Pro or Agency plan.' }, { status: 403 })
+    }
+
     const workspace = await prisma.workspace.update({
       where: { id },
       data: {
@@ -62,7 +68,7 @@ export async function PATCH(
         ...(websiteUrl !== undefined && { websiteUrl }),
         ...(clientAccessLevel !== undefined && { clientAccessLevel }),
         ...(aiResponseMode !== undefined && { aiResponseMode }),
-        ...(crisisAware !== undefined && { crisisAware: Boolean(crisisAware) }),
+        ...(crisisAware !== undefined && { crisisAware: crisisAware === true }),
       },
     })
 
