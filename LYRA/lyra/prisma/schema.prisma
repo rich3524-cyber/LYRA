@@ -63,6 +63,9 @@ model Workspace {
   stripeCustomerId String?      @unique
   clientAccessLevel ClientAccess @default(NONE)
   aiResponseMode   Autonomy     @default(OFF)
+  crisisAware       Boolean   @default(false)
+  crisisActive      Boolean   @default(false)
+  crisisTriggeredAt DateTime?
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
@@ -75,6 +78,7 @@ model Workspace {
   seoConnection     SeoConnection?
   seoPages          SeoPage[]
   searchConsoleData SearchConsoleData[]
+  crisisEvents      CrisisEvent[]
 }
 
 enum Plan {
@@ -406,4 +410,14 @@ model SearchConsoleData {
   createdAt   DateTime  @default(now())
 
   @@unique([workspaceId, date, query, page])
+}
+
+model CrisisEvent {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  triggeredAt DateTime  @default(now())
+  resolvedAt  DateTime?
+  triggerType String    // "SENTIMENT_SPIKE" | "KEYWORD_MATCH"
+  commentIds  String[]
 }
