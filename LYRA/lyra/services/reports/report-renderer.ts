@@ -178,11 +178,28 @@ function ContentPage({ data }: { data: ReportData }) {
     )
   )
 
+  const platformSection =
+    data.platforms.length > 0
+      ? [
+          React.createElement(Text, { key: 'ph', style: styles.sectionHeading }, 'Platform Breakdown'),
+          React.createElement(View, { key: 'phead', style: styles.row }, ...headerCells),
+          ...platformRows,
+        ]
+      : []
+
+  const topPostsSection =
+    data.topPosts.length > 0
+      ? [
+          React.createElement(Text, { key: 'tph', style: styles.sectionHeading }, 'Top Posts'),
+          ...topPostCards,
+        ]
+      : []
+
   const narrativeSection =
     data.narrative.length > 0
       ? [
-          React.createElement(Text, { style: styles.sectionHeading }, 'Performance Analysis'),
-          React.createElement(Text, { style: styles.narrative }, data.narrative),
+          React.createElement(Text, { key: 'nh', style: styles.sectionHeading }, 'Performance Analysis'),
+          React.createElement(Text, { key: 'nb', style: styles.narrative }, data.narrative),
         ]
       : []
 
@@ -208,11 +225,8 @@ function ContentPage({ data }: { data: ReportData }) {
       { style: { fontSize: 14, color: '#e2e2e2', fontFamily: 'Helvetica', marginBottom: 24 } },
       data.summary.bestPlatform
     ),
-    React.createElement(Text, { style: styles.sectionHeading }, 'Platform Breakdown'),
-    React.createElement(View, { style: styles.row }, ...headerCells),
-    ...platformRows,
-    React.createElement(Text, { style: styles.sectionHeading }, 'Top Posts'),
-    ...topPostCards,
+    ...platformSection,
+    ...topPostsSection,
     ...narrativeSection
   )
 }
@@ -224,5 +238,5 @@ export async function renderReport(data: ReportData): Promise<Buffer> {
     React.createElement(CoverPage, { data }),
     React.createElement(ContentPage, { data })
   )
-  return renderToBuffer(doc) as Promise<Buffer>
+  return renderToBuffer(doc)
 }
