@@ -11,10 +11,17 @@ interface CrisisBannerProps {
 export function CrisisBanner({ workspaceId, triggeredAt }: CrisisBannerProps) {
   const [resolving, setResolving] = useState(false)
   const [resolved, setResolved] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   if (resolved) return null
 
+  const formatDate = (dateString: string) => {
+    const d = new Date(dateString)
+    return isNaN(d.getTime()) ? '' : d.toLocaleString()
+  }
+
   const handleResolve = async () => {
+    setError(null)
     setResolving(true)
     try {
       const res = await fetch('/api/crisis/resolve', {
@@ -25,6 +32,8 @@ export function CrisisBanner({ workspaceId, triggeredAt }: CrisisBannerProps) {
       if (res.ok) {
         setResolved(true)
         window.location.reload()
+      } else {
+        setError('Could not resolve. Try again.')
       }
     } finally {
       setResolving(false)
@@ -32,16 +41,21 @@ export function CrisisBanner({ workspaceId, triggeredAt }: CrisisBannerProps) {
   }
 
   return (
-    <div className="flex items-center gap-3 px-4 py-3 bg-background-secondary border-b border-status-error/30">
+    <div role="alert" className="flex items-center gap-3 px-4 py-3 bg-background-secondary border-b border-status-error/30">
       <AlertTriangle className="h-4 w-4 text-status-error shrink-0" strokeWidth={1.5} />
-      <p className="text-sm text-status-error font-sans font-medium flex-1">
-        Crisis detected — scheduled posts paused.
-        {triggeredAt && (
-          <span className="text-text-secondary font-normal ml-2">
-            Triggered {new Date(triggeredAt).toLocaleString()}
-          </span>
+      <div className="flex-1">
+        <p className="text-sm text-status-error font-sans font-medium">
+          Crisis detected — scheduled posts paused.
+          {triggeredAt && (
+            <span className="text-text-secondary font-normal ml-2">
+              Triggered {formatDate(triggeredAt)}
+            </span>
+          )}
+        </p>
+        {error && (
+          <span className="text-xs font-sans text-status-error mt-1 block">{error}</span>
         )}
-      </p>
+      </div>
       <button
         onClick={handleResolve}
         disabled={resolving}
