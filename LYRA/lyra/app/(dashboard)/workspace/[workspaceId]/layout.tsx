@@ -1,5 +1,6 @@
 export const dynamic = 'force-dynamic'
 
+import { notFound } from 'next/navigation'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { CrisisBanner } from '@/components/lyra/crisis/crisis-banner'
@@ -13,21 +14,21 @@ export default async function WorkspaceLayout({
 }) {
   const { workspaceId } = params
 
-  const user = await requireAuth().catch(() => null)
+  const user = await requireAuth()
 
-  let workspace: { crisisActive: boolean; crisisTriggeredAt: Date | null } | null = null
+  const workspace = await prisma.workspace.findFirst({
+    where: {
+      id: workspaceId,
+      access: { some: { userId: user.id } },
+    },
+    select: {
+      crisisActive: true,
+      crisisTriggeredAt: true,
+    },
+  })
 
-  if (user && workspaceId) {
-    workspace = await prisma.workspace.findFirst({
-      where: {
-        id: workspaceId,
-        access: { some: { userId: user.id } },
-      },
-      select: {
-        crisisActive: true,
-        crisisTriggeredAt: true,
-      },
-    }).catch(() => null)
+  if (!workspace) {
+    notFound()
   }
 
   return (
