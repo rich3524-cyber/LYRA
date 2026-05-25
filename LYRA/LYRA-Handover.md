@@ -8,6 +8,132 @@
 
 ## Changelog
 
+### May 2026 — Sessions 11–17+ (Security Audit + Feature Sprint)
+
+---
+
+#### Security & Quality Audit (commit `968fe30`, 2026-05-22)
+
+25 fixes shipped. Highlights:
+
+**Critical security fixes:**
+- Cross-tenant OAuth token injection — workspace access check added to social + SEO OAuth callbacks
+- SSRF protection added to brand intelligence scraper (blocks RFC1918, loopback, link-local ranges)
+- Auth0 diagnostic log removed (was leaking OAuth tokens to server logs)
+- Cron secret comparison now uses `timingSafeEqual` (timing-safe)
+- POST /api/posts status allowlist — only DRAFT/SCHEDULED creatable by clients
+- `aiResponseMode` now clamped to plan's `maxAutonomy` in PATCH /api/workspaces/[id]
+
+**Reliability fixes:**
+- Prisma singleton now retained in production (`globalThis` pattern corrected — was recreating client on every serverless invocation)
+- Post publisher now throws on unimplemented platform (was falsely marking posts as PUBLISHED)
+- BullMQ jobId unified to `post-${id}`; retries bumped to 5
+- Comment monitor N+1 queries replaced with batched `createMany`
+- `schedule-generator` `max_tokens` raised to 8000 (was truncating large schedules)
+- `analyzeEngagement` offloaded from Netlify serverless to Railway BullMQ worker
+- `cancelBoost` now sets status to `PAUSED` not `DELETED` (preserves spend history)
+
+**Schema additions:** 6 new indexes + 1 unique constraint on `Comment`. Apply via `prisma db push` or Supabase SQL Editor.
+
+---
+
+#### P1 — Crisis Detection & Auto-Pause
+
+Monitors comment inbox for sentiment spikes and keyword triggers. When a crisis is detected:
+- All scheduled posts for the workspace are automatically paused
+- `Workspace.crisisActive` is set to `true`; `crisisTriggeredAt` is recorded
+- A `CrisisEvent` row is created linking the triggering comment IDs
+- User receives an alert and can manually resolve (sets `crisisActive = false`)
+- `Workspace.crisisAware` toggle (default `false`) must be enabled per workspace before monitoring activates
+
+**New schema fields on `Workspace`:** `crisisAware Boolean @default(false)`, `crisisActive Boolean @default(false)`, `crisisTriggeredAt DateTime?`  
+**New model:** `CrisisEvent` (id, workspaceId, triggeredAt, resolvedAt, triggerType, commentIds[])  
+**Feature gated to:** PRO / AGENCY plans
+
+---
+
+#### P2 — Agency Client Reports (PDF)
+
+"Generate report" button on the analytics page. User picks 7-day or 30-day range. Generates a PDF in LYRA branding:
+- Cover page with workspace name + date range
+- Summary stats (posts published, total reach, avg engagement rate)
+- Platform breakdown table
+- Top 3 posts by engagement
+- AI-written executive narrative (Claude)
+
+**Library:** `@react-pdf/renderer` (not puppeteer — too heavy for Netlify serverless)  
+**Route:** `POST /api/reports/generate` — streams a PDF response  
+**Feature gated to:** PRO / AGENCY plans
+
+---
+
+#### P3 — Competitor Intelligence
+
+User adds competitor social handles + blog/website URLs. LYRA monitors public content, posting frequency, and engagement benchmarks.
+
+**Data sources covered:**
+- Blog/website (Cheerio scraper — same SSRF-protected pattern as brand intelligence)
+- Twitter/X public timeline
+- Facebook public pages
+
+**Instagram/TikTok/LinkedIn competitor data is not available** — these platforms require authentication and don't expose public APIs for third-party monitoring.
+
+**New schema models:** `Competitor`, `CompetitorSnapshot`  
+**Competitor fields:** name, websiteUrl, twitterHandle, facebookPageId  
+**Snapshot fields:** postsPerWeek, recentTopics[], engagementBenchmark, recentPosts (JSON), capturedAt  
+**Route:** `GET/POST /api/competitors`, `POST /api/competitors/[id]/snapshot`  
+**Feature gated to:** PRO / AGENCY plans  
+**Integrates with reports:** benchmark data included in P2 client reports
+
+---
+
+#### P4 — Pre-Publish Content Scoring (commit `49a5113`)
+
+Slide-out panel in the post composer. Score updates live as user types (1.5 s debounce).
+
+**Scoring dimensions (each 0–10, via Claude):**
+- Hook strength, Clarity, Call to action, Optimal length, Hashtag usage, Emotional resonance
+
+**Returns:** score per dimension + one specific fix for anything below threshold  
+**Behaviour:** coach only — not a gatekeeper. User can ignore and publish.  
+
+**New files:**
+- `lyra/services/ai/content-scorer.ts` — `scoreContent(content, platform)`, returns typed `ScoringResult`
+- `lyra/app/api/ai/score-content/route.ts` — POST, workspace auth, 10-char minimum, 503 on scorer failure
+- `lyra/components/lyra/composer/content-score-panel.tsx` — Framer Motion slide-in panel (right edge of composer), `ScoreRing` SVG, `DotBar` (10 dots), suggestions list
+
+**Modified files:**
+- `lyra/components/lyra/composer/post-composer.tsx` — `scoreOpen`, `scoring`, `scoreResult` state; debounced scoring useEffect; Score button in toolbar; `<ContentScorePanel>` mounted as last child of composer outer div
+
+---
+
+#### P5 — Smart Content Repurposing (commit `9f7f799`)
+
+Paste a blog URL or long-form text → LYRA generates platform-native posts for each selected target channel → output feeds into the schedule review page (same flow as the AI schedule generator).
+
+**New files:**
+- `lyra/services/ai/content-repurposer.ts` — `extractArticleText(url)` (SSRF-protected Cheerio fetch, 8 000-char limit), `repurposeContent(text, platforms)` async generator (Claude streaming, parses `---PLATFORM: X---` delimiters)
+- `lyra/app/api/ai/repurpose/route.ts` — POST → SSE `ReadableStream`. Streams `{type:'post'}`, `{type:'done'}`, `{type:'error'}` events. `Content-Type: text/event-stream`.
+- `lyra/components/lyra/repurpose/repurpose-form.tsx` — URL/text source toggle, 6-platform chip selector, SSE reader, live progress list; on `done` saves accumulated posts to `sessionStorage` (`lyra:schedule-review:{workspaceId}`) and navigates to the schedule review page
+- `lyra/app/(dashboard)/workspace/[workspaceId]/repurpose/page.tsx` — server page (auth + workspace access guard)
+
+**Modified files:**
+- `lyra/components/lyra/app-shell/sidebar.tsx` — Repurpose nav item added (Scissors icon, no lock)
+
+---
+
+#### Build / Deploy fixes (this session, commits `0bc2e0e`, `5ffcc59`, `d82e257`)
+
+**Header `title` prop** — `header.tsx` on disk had `title: string` but the committed version had `foundingMember?` instead. Fixed by committing the disk version. `HeaderProps` is now: `{ user, title: string, plan? }`.
+
+**`netlify.toml` — schema sync on every deploy** — the Netlify build command now runs `prisma db push` on every deploy:
+```
+npx prisma generate && DIRECT_URL="$DATABASE_URL" npx prisma db push --accept-data-loss && npm run build
+```
+`DIRECT_URL` is overridden with `DATABASE_URL` because `DIRECT_URL` in Netlify env vars has an invalid scheme. **Action required:** fix `DIRECT_URL` in Netlify → Site Config → Environment Variables. Correct value is the Supabase Session Pooler URL (port 5432, format: `postgresql://postgres.[ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres`). Once fixed, remove the `DIRECT_URL="$DATABASE_URL"` override from `netlify.toml`.
+
+---
+
 ### May 2026 — Session 10
 
 **Post Boosting — built and fully deployed**
@@ -349,12 +475,14 @@ LYRA (lyraonline.ai) is a premium AI-powered social media management SaaS platfo
 ### 4.1 Netlify (App Host)
 
 - **Site name:** lyra-online-app
-- **Build command:** `npx prisma generate && npm run build`
+- **Build command:** `npx prisma generate && DIRECT_URL="$DATABASE_URL" npx prisma db push --accept-data-loss && npm run build`
 - **Publish directory:** `.next`
 - **Node version:** 20
 - **Plugin:** `@netlify/plugin-nextjs`
 
-The Netlify build does NOT run `prisma db push` — schema changes must be applied separately (see Section 8).
+The build now runs `prisma db push` automatically on every deploy — schema changes are applied to the production database as part of the build. No separate manual schema step is needed.
+
+**Note on `DIRECT_URL` override:** The `DIRECT_URL` env var currently has an invalid scheme in Netlify, so the build forces it to `DATABASE_URL` inline. Once `DIRECT_URL` is corrected to a valid Supabase Session Pooler URL (port 5432), remove the `DIRECT_URL="$DATABASE_URL"` prefix from the build command and rely on the env var directly.
 
 ### 4.2 Supabase (Database)
 
@@ -546,6 +674,12 @@ All access tokens are AES-256-GCM encrypted using `ENCRYPTION_KEY` before being 
 | `/api/seo/pages/[pageId]/analyze` | POST | Score page on-page SEO |
 | `/api/seo/pages/[pageId]/generate` | POST | Generate AI SEO content |
 | `/api/seo/gsc-data` | GET | Fetch GSC queries + trend data |
+| `/api/competitors` | GET, POST | List / add competitor profiles |
+| `/api/competitors/[id]` | DELETE | Remove a competitor |
+| `/api/competitors/[id]/snapshot` | POST | Scrape + store a competitor snapshot |
+| `/api/ai/score-content` | POST | Score post content across 6 dimensions |
+| `/api/ai/repurpose` | POST (SSE) | Repurpose long-form content into platform-native posts |
+| `/api/reports/generate` | POST | Generate PDF client report (7-day or 30-day) |
 
 ### 6.9 Database Schema
 
@@ -561,10 +695,13 @@ Workspace → OnboardingToken (one)
 Workspace → SeoConnection (one)
 Workspace → SeoPage (many)
 Workspace → SearchConsoleData (many)
-Post → PostApproval, PostMetrics, Comment (many), PostBoost (one, pending)
+Workspace → CrisisEvent (many, onDelete: Cascade)
+Workspace → Competitor (many, onDelete: Cascade)
+Post → PostApproval, PostMetrics, Comment (many), PostBoost (one)
 Comment → CommentResponse (many)
 SocialAccount → Post, Comment (many)
 SeoPage → SeoContent (many, onDelete: Cascade)
+Competitor → CompetitorSnapshot (many, onDelete: Cascade)
 ```
 
 **Note:** Foreign key cascades are not configured in the schema except for `SeoContent` (which cascades on `SeoPage` delete). The workspace delete API handles other cascades manually in a transaction. If any new child models are added to `Workspace`, the delete route (`app/api/workspaces/[id]/route.ts`) must be updated.
@@ -688,23 +825,18 @@ Until those workers are live, the panel will remain in cold-start state. This is
 
 ### Schema Changes Applied
 
-**All schema changes through Session 9 have been applied to production Supabase**, including:
+**Schema is now auto-synced on every Netlify deploy** via `prisma db push --accept-data-loss` in the build command. No manual schema steps are needed after any deploy.
+
+**All models and columns through the most recent session are in production**, including:
 - `Post.topic` (Session 6)
 - SEO tables: `SeoConnection`, `SeoPage`, `SeoContent`, `SearchConsoleData` (Session 6)
-- `SocialAccount.lastCommentSyncAt` (Session 7, applied via Supabase SQL Editor in Session 9)
+- `SocialAccount.lastCommentSyncAt` (Session 7)
+- `PostBoost`, `BoostStatus` enum, `SocialAccount.adAccountId` (Session 10)
+- Security audit indexes + unique constraint on `Comment` (2026-05-22 audit)
+- **P1 Crisis Aware:** `Workspace.crisisAware`, `Workspace.crisisActive`, `Workspace.crisisTriggeredAt`, `CrisisEvent` model
+- **P3 Competitor Intelligence:** `Competitor` model, `CompetitorSnapshot` model
 
-**Also applied (Session 10):** `PostBoost` table, `BoostStatus` enum, `SocialAccount.adAccountId` column — all applied to Supabase. SQL in Session 10 changelog.
-
-**How to apply future schema changes — Supabase SQL Editor is the preferred method:**
-
-After repeated failures with `prisma db push` (connection string issues, special characters in passwords, pooler vs. direct URL confusion), the established approach is:
-
-1. Write the SQL equivalent of your Prisma schema changes
-2. Open Supabase → SQL Editor → paste and run
-3. Run `npx prisma generate` locally to regenerate the client
-4. Run `npm run type-check` to verify
-
-`prisma db push` can still be used if the connection is reliable, but the SQL Editor approach is faster and avoids all connection string problems.
+**For local development:** schema changes still require a manual `prisma db push` or Supabase SQL Editor step against the development database. The automated step only runs in the Netlify build pipeline.
 
 ---
 
@@ -734,15 +866,19 @@ NODE_OPTIONS="--use-system-ca" npx netlify ...
 
 ### Applying Schema Changes
 
-Schema changes (edits to `prisma/schema.prisma`) must be pushed to the database manually — the Netlify build does not do this automatically.
+**Production:** schema changes are applied automatically by `prisma db push` as part of the Netlify build — push your code and the schema syncs on deploy.
+
+**Local/development database:** still requires a manual push:
 
 ```bash
-# Uses DIRECT_URL (not the pooled PgBouncer URL)
+# From lyra/ directory, using your local DATABASE_URL
 npx prisma db push
 
-# Or for production-grade migrations:
-npx prisma migrate dev --name describe-your-change
-npx prisma migrate deploy
+# If prisma db push fails (connection issues), use Supabase SQL Editor directly:
+# write the SQL equivalent, paste into Supabase → SQL Editor, run
+# then regenerate the client locally:
+npx prisma generate
+npm run type-check
 ```
 
 ---
@@ -828,28 +964,41 @@ LYRA uses a strict dark near-black design system defined in `lyra/lib/design-tok
 | `lyra/components/lyra/seo/gsc-analytics.tsx` | GSC chart + top queries table |
 | `lyra/app/docs/legal/[filename]/route.ts` | Serves legal PDFs from `public/docs/legal/` — bypasses the Netlify static file routing issue |
 | `lyra/public/docs/legal/` | Legal PDFs (Instruction Manual, Privacy Policy, Terms of Service) |
+| `lyra/services/ai/content-scorer.ts` | `scoreContent(content, platform)` — 6-dimension Claude scorer, returns typed `ScoringResult` |
+| `lyra/app/api/ai/score-content/route.ts` | POST endpoint for pre-publish content scoring |
+| `lyra/components/lyra/composer/content-score-panel.tsx` | Slide-in score panel — `ScoreRing` SVG, `DotBar`, suggestions |
+| `lyra/services/ai/content-repurposer.ts` | `extractArticleText(url)` (SSRF-safe Cheerio), `repurposeContent()` async generator |
+| `lyra/app/api/ai/repurpose/route.ts` | SSE streaming repurpose endpoint |
+| `lyra/components/lyra/repurpose/repurpose-form.tsx` | Repurpose UI — URL/text toggle, platform chips, SSE reader |
+| `lyra/app/(dashboard)/workspace/[workspaceId]/repurpose/page.tsx` | Repurpose page (server, auth-guarded) |
+| `lyra/app/(dashboard)/workspace/[workspaceId]/competitors/page.tsx` | Competitor Intelligence page |
+| `lyra/netlify.toml` | Build config — now includes `prisma db push` for automatic schema sync |
 
 ---
 
 ## 12. Immediate Next Steps (Recommended Order)
 
+**Deployment (do first):**
+1. **Fix `DIRECT_URL` in Netlify** — set it to the Supabase Session Pooler URL (port 5432): `postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres`. Once fixed, remove the `DIRECT_URL="$DATABASE_URL"` prefix from the `netlify.toml` build command and push.
+
 **New features (ready to build):**
-1. **Media Library** (Phase 3) — S3 upload, AI topic tagging, media picker in composer and schedule review. Spec: `lyra/docs/superpowers/specs/2026-05-19-ai-content-schedule-design.md` section 3.
-2. **Build the Inbox UI** — comments API exists (`/api/comments`), inbox page at `/workspace/[id]/inbox` needs building. Workers are now live and populating `Comment` rows.
+2. **Inbox UI** — comments API exists (`/api/comments`), inbox page at `/workspace/[id]/inbox` needs a UI. Workers are live and populating `Comment` rows.
+3. **Media Library** (Phase 3) — S3 upload, AI topic tagging, media picker in composer and schedule review. Spec: `lyra/docs/superpowers/specs/2026-05-19-ai-content-schedule-design.md` section 3.
+4. **Crisis Aware UI** — the data model and detection logic exist; build the workspace settings toggle and the in-app crisis alert/resolve UI.
 
 **Platform / integrations:**
-3. **Test GSC OAuth end-to-end** — navigate to SEO → connect Search Console → verify property auto-selects → add a page → Analyse → Generate
-4. **Test YouTube connection** — connect a Google account in Settings → YouTube, verify the channel saves correctly
-5. **Connect Facebook** — reconnect Facebook in Settings; then set `adAccountId` manually in Supabase to test post boosting end-to-end
-6. **Apply for Meta App Review** — submit `ads_management` scope. Once approved, re-add `'ads_management'` to SCOPES in `facebook.ts` — `adAccountId` will populate automatically on next reconnect.
-7. **Apply for LinkedIn company page access** — submit LinkedIn Community Management API application so pages (not personal profiles) can be connected
-8. **Apply for LinkedIn app verification** — enables `w_member_social` scope for posting
-9. **Create Google Business, Twitter, TikTok developer apps** — add credentials to Netlify env vars so those OAuth flows work
+5. **Test GSC OAuth end-to-end** — navigate to SEO → connect Search Console → verify property auto-selects → add a page → Analyse → Generate
+6. **Test YouTube connection** — connect a Google account in Settings → YouTube, verify the channel saves correctly
+7. **Connect Facebook** — reconnect Facebook in Settings; then set `adAccountId` manually in Supabase to test post boosting end-to-end
+8. **Apply for Meta App Review** — submit `ads_management` scope. Once approved, re-add `'ads_management'` to SCOPES in `facebook.ts` — `adAccountId` will populate automatically on next reconnect.
+9. **Apply for LinkedIn company page access** — submit LinkedIn Community Management API application so pages (not personal profiles) can be connected
+10. **Apply for LinkedIn app verification** — enables `w_member_social` scope for posting
+11. **Create Google Business, Twitter, TikTok developer apps** — add credentials to Netlify env vars so those OAuth flows work
 
 **UX / business:**
-10. **Mobile sidebar** — add a hamburger menu / bottom nav for mobile viewports
-11. **Stripe billing / marketing page** — create Stripe products/prices, wire up checkout flow, build public marketing landing page (plan saved: `lyra/docs/superpowers/plans/2026-05-19-marketing-landing-page.md`)
+12. **Mobile sidebar** — add a hamburger menu / bottom nav for mobile viewports
+13. **Stripe billing / marketing page** — create Stripe products/prices, wire up checkout flow, build public marketing landing page (plan saved: `lyra/docs/superpowers/plans/2026-05-19-marketing-landing-page.md`)
 
 **Post boosting — low priority polish:**
-12. Add cron job or scheduled check to flip `PostBoost.status` from `ACTIVE` to `ENDED` when `endsAt` has passed (currently boosts stay ACTIVE in the DB after expiring on Meta's side)
-13. Pull `broad` audience country from workspace settings instead of hardcoded `'AU'` in `meta-ads.ts`
+14. Add cron job or scheduled check to flip `PostBoost.status` from `ACTIVE` to `ENDED` when `endsAt` has passed (currently boosts stay ACTIVE in the DB after expiring on Meta's side)
+15. Pull `broad` audience country from workspace settings instead of hardcoded `'AU'` in `meta-ads.ts`
