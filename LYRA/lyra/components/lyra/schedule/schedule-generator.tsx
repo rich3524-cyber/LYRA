@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -8,14 +9,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Sparkles, Calendar, Pencil, Trash2, Check, X } from 'lucide-react'
+import { Sparkles, Calendar, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
-import { format, parseISO } from 'date-fns'
 import type { GeneratedPost } from '@/services/ai/schedule-generator'
 
-type PostEntry = GeneratedPost & { id: string; weekNum: number }
-type Phase = 'config' | 'generating' | 'review'
+type PostEntry = GeneratedPost & {
+  id: string
+  weekNum: number
+  mediaUrls: string[]
+  uploadingMedia: boolean
+}
+type Phase = 'config' | 'generating' | 'complete'
 
 const PLATFORM_LABELS: Record<string, string> = {
   INSTAGRAM:       'Instagram',
@@ -37,6 +42,8 @@ export function ScheduleGenerator({
   connectedPlatforms,
   hasBrandProfile,
 }: ScheduleGeneratorProps) {
+  const router = useRouter()
+
   const [open, setOpen]                   = useState(false)
   const [phase, setPhase]                 = useState<Phase>('config')
   const [durationWeeks, setDurationWeeks] = useState<3 | 6>(6)
@@ -49,9 +56,6 @@ export function ScheduleGenerator({
   const [progress, setProgress]           = useState(0)
   const [progressLabel, setProgressLabel] = useState('')
   const [posts, setPosts]                 = useState<PostEntry[]>([])
-  const [editingId, setEditingId]         = useState<string | null>(null)
-  const [editContent, setEditContent]     = useState('')
-  const [isSaving, setIsSaving]           = useState(false)
   const abortRef                          = useRef<AbortController | null>(null)
 
   useEffect(() => () => { abortRef.current?.abort() }, [])
@@ -89,11 +93,12 @@ export function ScheduleGenerator({
 
     abortRef.current = new AbortController()
 
-    // Compute the start date for week 1 (next Monday midnight UTC)
     const baseStart = new Date()
     baseStart.setUTCHours(0, 0, 0, 0)
     const dayOfWeek = baseStart.getUTCDay()
     baseStart.setUTCDate(baseStart.getUTCDate() + (dayOfWeek === 0 ? 1 : 8 - dayOfWeek))
+
+    const accumulated: PostEntry[] = []
 
     try {
       for (let week = 1; week <= durationWeeks; week++) {
@@ -106,24 +111,37 @@ export function ScheduleGenerator({
         weekStartDate.setUTCDate(baseStart.getUTCDate() + (week - 1) * 7)
 
         const res = await fetch('/api/schedule/generate', {
-          method: 'POST',
+          method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workspaceId, weekNumber: week, weekStartDate: weekStartDate.toISOString(), platforms }),
+          body:    JSON.stringify({
+            workspaceId,
+            weekNumber:    week,
+            weekStartDate: weekStartDate.toISOString(),
+            platforms,
+          }),
           signal: abortRef.current.signal,
         })
 
         if (!res.ok) throw new Error(`Week ${week} generation failed`)
 
         const { posts: weekPosts } = await res.json() as { posts: GeneratedPost[] }
-        setPosts(prev => [
-          ...prev,
-          ...weekPosts.map(p => ({ ...p, id: newId(), weekNum: week })),
-        ])
-
+        const newEntries: PostEntry[] = weekPosts.map(p => ({
+          ...p,
+          id:             newId(),
+          weekNum:        week,
+          mediaUrls:      [],
+          uploadingMedia: false,
+        }))
+        accumulated.push(...newEntries)
+        setPosts([...accumulated])
         setProgress(Math.round((week / durationWeeks) * 100))
       }
 
-      setPhase('review')
+      sessionStorage.setItem(
+        `lyra:schedule-review:${workspaceId}`,
+        JSON.stringify(accumulated)
+      )
+      setPhase('complete')
     } catch (error) {
       if ((error as Error).name === 'AbortError') return
       toast.error('Schedule generation failed. Try again.')
@@ -135,75 +153,6 @@ export function ScheduleGenerator({
     abortRef.current?.abort()
     setPhase('config')
   }
-
-  const handleDelete = (id: string) => {
-    setPosts(prev => prev.filter(p => p.id !== id))
-  }
-
-  const handleEditSave = (id: string) => {
-    setPosts(prev => prev.map(p => p.id === id ? { ...p, content: editContent } : p))
-    setEditingId(null)
-  }
-
-  const handleAddToCalendar = async () => {
-    setIsSaving(true)
-    try {
-      const BATCH_SIZE = 10
-      const failedIds: string[] = []
-      let savedCount = 0
-
-      for (let i = 0; i < posts.length; i += BATCH_SIZE) {
-        const batch = posts.slice(i, i + BATCH_SIZE)
-        const batchResults = await Promise.all(
-          batch.map(async post => {
-            const res = await fetch('/api/posts', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                workspaceId,
-                content: post.content,
-                platforms: [post.platform],
-                scheduledAt: post.scheduledAt,
-                status: 'DRAFT',
-                topic: post.topic ?? null,
-              }),
-            })
-            return { id: post.id, ok: res.ok }
-          })
-        )
-        for (const r of batchResults) {
-          if (r.ok) savedCount++
-          else failedIds.push(r.id)
-        }
-      }
-
-      if (savedCount > 0) {
-        window.dispatchEvent(new CustomEvent('draft-saved'))
-      }
-
-      if (failedIds.length > 0) {
-        setPosts(prev => prev.filter(p => failedIds.includes(p.id)))
-        toast.error(`${failedIds.length} posts failed to save. Review the remaining posts and try again.`)
-      } else {
-        toast.success(`${savedCount} posts added to your calendar as drafts.`)
-        setOpen(false)
-      }
-    } catch {
-      toast.error('Failed to save posts. Try again.')
-    } finally {
-      setIsSaving(false)
-    }
-  }
-
-  const postsByWeek = posts.reduce<Record<number, PostEntry[]>>((acc, post) => {
-    if (!acc[post.weekNum]) acc[post.weekNum] = []
-    acc[post.weekNum].push(post)
-    return acc
-  }, {})
-
-  const sortedWeeks = Object.keys(postsByWeek)
-    .map(Number)
-    .sort((a, b) => a - b)
 
   return (
     <>
@@ -223,7 +172,7 @@ export function ScheduleGenerator({
             <DialogTitle className="font-sans text-base font-medium text-text-primary">
               {phase === 'config'     && 'Generate content schedule'}
               {phase === 'generating' && 'Generating your schedule…'}
-              {phase === 'review'     && `Review ${posts.length} posts`}
+              {phase === 'complete'   && `${posts.length} posts ready`}
             </DialogTitle>
           </DialogHeader>
 
@@ -343,99 +292,27 @@ export function ScheduleGenerator({
             </div>
           )}
 
-          {/* ── REVIEW ── */}
-          {phase === 'review' && (
-            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
-              {posts.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 space-y-2">
-                  <p className="text-sm text-text-secondary">No posts were generated.</p>
-                  <p className="text-xs text-text-tertiary">Check your brand profile and try again.</p>
-                </div>
-              ) : sortedWeeks.map(weekNum => (
-                <div key={weekNum}>
-                  <p className="text-xs font-medium text-text-secondary uppercase tracking-widest mb-3">
-                    Week {weekNum}
-                  </p>
-                  <div className="space-y-2">
-                    {postsByWeek[weekNum]
-                      .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))
-                      .map(post => {
-                        const isEditing = editingId === post.id
-                        return (
-                          <div
-                            key={post.id}
-                            className="rounded-xl bg-background-tertiary border border-background-border p-4 space-y-2"
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="text-xs font-medium text-text-secondary shrink-0">
-                                  {PLATFORM_LABELS[post.platform] ?? post.platform}
-                                </span>
-                                <span className="text-text-tertiary text-xs">·</span>
-                                <span className="font-mono text-xs text-text-tertiary truncate">
-                                  {format(parseISO(post.scheduledAt), 'EEE MMM d, h:mm a')}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1 shrink-0">
-                                {isEditing ? (
-                                  <>
-                                    <button
-                                      onClick={() => handleEditSave(post.id)}
-                                      className="p-1.5 rounded-md hover:bg-background-hover text-status-success transition-colors"
-                                      aria-label="Save edit"
-                                    >
-                                      <Check size={13} strokeWidth={1.5} />
-                                    </button>
-                                    <button
-                                      onClick={() => setEditingId(null)}
-                                      className="p-1.5 rounded-md hover:bg-background-hover text-text-tertiary transition-colors"
-                                      aria-label="Cancel edit"
-                                    >
-                                      <X size={13} strokeWidth={1.5} />
-                                    </button>
-                                  </>
-                                ) : (
-                                  <>
-                                    <button
-                                      onClick={() => {
-                                        setEditingId(post.id)
-                                        setEditContent(post.content)
-                                      }}
-                                      className="p-1.5 rounded-md hover:bg-background-hover text-text-tertiary hover:text-text-secondary transition-colors"
-                                      aria-label="Edit post"
-                                    >
-                                      <Pencil size={13} strokeWidth={1.5} />
-                                    </button>
-                                    <button
-                                      onClick={() => handleDelete(post.id)}
-                                      className="p-1.5 rounded-md hover:bg-background-hover text-text-tertiary hover:text-status-error transition-colors"
-                                      aria-label="Delete post"
-                                    >
-                                      <Trash2 size={13} strokeWidth={1.5} />
-                                    </button>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                            {isEditing ? (
-                              <textarea
-                                value={editContent}
-                                onChange={e => setEditContent(e.target.value)}
-                                rows={4}
-                                autoFocus
-                                className="w-full bg-background-secondary border border-background-border-mid rounded-lg px-3 py-2 text-sm text-text-primary font-sans resize-none focus:outline-none focus:border-accent-silver transition-colors"
-                              />
-                            ) : (
-                              <p className="text-sm text-text-secondary leading-relaxed">
-                                {post.content}
-                              </p>
-                            )}
-                          </div>
-                        )
-                      })}
-                  </div>
-                </div>
-              ))}
+          {/* ── COMPLETE ── */}
+          {phase === 'complete' && (
+            <div className="flex-1 flex flex-col items-center justify-center gap-6 px-6 py-12">
+              <div className="text-center space-y-1">
+                <p className="font-sans text-sm text-text-primary">
+                  {posts.length} posts generated
+                </p>
+                <p className="font-sans text-xs text-text-secondary">
+                  Review and attach media before adding to your calendar.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setOpen(false)
+                  router.push(`/workspace/${workspaceId}/schedule/review`)
+                }}
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-accent-platinum text-background-primary font-sans text-sm font-medium hover:bg-accent-white transition-colors"
+              >
+                <Calendar size={14} strokeWidth={1.5} />
+                Review posts
+              </button>
             </div>
           )}
 
@@ -468,21 +345,10 @@ export function ScheduleGenerator({
                 Cancel
               </button>
             )}
-            {phase === 'review' && (
-              <>
-                <span className="text-xs text-text-tertiary">
-                  <span className="font-mono text-text-secondary">{posts.length}</span> posts ready
-                </span>
-                <Button
-                  onClick={handleAddToCalendar}
-                  disabled={isSaving || posts.length === 0}
-                  size="sm"
-                  className="bg-accent-platinum text-background-primary hover:bg-accent-white text-xs gap-2"
-                >
-                  <Calendar size={12} strokeWidth={1.5} />
-                  {isSaving ? 'Adding…' : `Add ${posts.length} to calendar`}
-                </Button>
-              </>
+            {phase === 'complete' && (
+              <span className="font-mono text-xs text-text-tertiary">
+                {posts.length} posts ready to review
+              </span>
             )}
           </div>
         </DialogContent>
