@@ -81,30 +81,35 @@ const worker = new Worker(
     }
 
     if (savedComments.length > 0) {
-      const workspaceMeta = await prisma.workspace.findUnique({
-        where: { id: account.workspaceId },
-        select: { crisisAware: true, crisisActive: true },
-      })
+      try {
+        const workspaceMeta = await prisma.workspace.findUnique({
+          where: { id: account.workspaceId },
+          select: { crisisAware: true, crisisActive: true },
+        })
 
-      if (workspaceMeta?.crisisAware && !workspaceMeta.crisisActive) {
-        const result = await detectCrisis(account.workspaceId, savedComments)
+        if (workspaceMeta?.crisisAware && !workspaceMeta.crisisActive) {
+          const result = await detectCrisis(account.workspaceId, savedComments)
 
-        if (result.triggered) {
-          await prisma.$transaction([
-            prisma.workspace.update({
-              where: { id: account.workspaceId },
-              data: { crisisActive: true, crisisTriggeredAt: new Date() },
-            }),
-            prisma.crisisEvent.create({
-              data: {
-                workspaceId: account.workspaceId,
-                triggerType: result.type,
-                commentIds:  result.commentIds,
-              },
-            }),
-          ])
-          console.log(`Crisis triggered for workspace ${account.workspaceId}: ${result.type}`)
+          if (result.triggered) {
+            await prisma.$transaction([
+              prisma.workspace.update({
+                where: { id: account.workspaceId },
+                data: { crisisActive: true, crisisTriggeredAt: new Date() },
+              }),
+              prisma.crisisEvent.create({
+                data: {
+                  workspaceId: account.workspaceId,
+                  triggerType: result.type,
+                  commentIds:  result.commentIds,
+                },
+              }),
+            ])
+            console.log(`Crisis triggered for workspace ${account.workspaceId}: ${result.type}`)
+          }
         }
+      } catch (err) {
+        console.error(`Crisis detection failed for workspace ${account.workspaceId}:`, err)
+        // Continue — do not crash the job
       }
     }
   },
