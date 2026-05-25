@@ -7,7 +7,13 @@ import { renderReport, ReportData } from '@/services/reports/report-renderer'
 export async function POST(req: Request) {
   try {
     const user = await requireAuth()
-    const { workspaceId, period } = await req.json() as { workspaceId: string; period: '7d' | '30d' }
+    const body = await req.json().catch(() => null)
+    const workspaceId = body?.workspaceId as unknown
+    const period = body?.period as unknown
+    if (typeof workspaceId !== 'string' || (period !== '7d' && period !== '30d')) {
+      return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
+    }
+    const validPeriod = period as '7d' | '30d'
 
     const workspace = await prisma.workspace.findFirst({
       where: { id: workspaceId, access: { some: { userId: user.id } } },
@@ -18,7 +24,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Reports require PRO or AGENCY plan.' }, { status: 403 })
     }
 
-    const days = period === '7d' ? 7 : 30
+    const days = validPeriod === '7d' ? 7 : 30
     const periodStart = new Date()
     periodStart.setDate(periodStart.getDate() - days)
 
@@ -26,13 +32,13 @@ export async function POST(req: Request) {
       where: {
         workspaceId,
         status: 'PUBLISHED',
-        scheduledAt: { gte: periodStart },
+        publishedAt: { gte: periodStart },
       },
       include: {
         metrics: true,
         socialAccount: { select: { platform: true } },
       },
-      orderBy: { scheduledAt: 'desc' },
+      orderBy: { publishedAt: 'desc' },
     })
 
     // Engagements are derived from likes + comments + shares (no single engagements field).
@@ -69,15 +75,19 @@ export async function POST(req: Request) {
       .slice(0, 3)
       .map((p) => ({
         platform: p.socialAccount?.platform ?? 'UNKNOWN',
-        scheduledAt: p.scheduledAt ? new Date(p.scheduledAt).toLocaleDateString() : '',
+        scheduledAt: p.publishedAt ? new Date(p.publishedAt).toLocaleDateString() : '',
         contentExcerpt: (p.content ?? '').slice(0, 120),
         impressions: p.metrics!.impressions ?? 0,
         engagements: engagementsOf(p.metrics),
       }))
 
+    if (posts.length === 0) {
+      return NextResponse.json({ error: 'No published posts in the selected period.' }, { status: 422 })
+    }
+
     const reportDataWithoutNarrative = {
       workspaceName: workspace.name,
-      period,
+      period: validPeriod,
       generatedAt: new Date().toLocaleDateString(),
       summary: { totalPosts: posts.length, totalImpressions, totalEngagements, avgEngRate, bestPlatform },
       platforms,
@@ -93,7 +103,7 @@ export async function POST(req: Request) {
     return new Response(new Uint8Array(pdfBuffer), {
       headers: {
         'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="lyra-report-${period}-${Date.now()}.pdf"`,
+        'Content-Disposition': `attachment; filename="lyra-report-${validPeriod}-${Date.now()}.pdf"`,
       },
     })
   } catch (error) {

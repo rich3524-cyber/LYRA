@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { FileText } from 'lucide-react'
 import {
   Dialog,
@@ -20,6 +20,10 @@ export function ReportGeneratorModal({ workspaceId, open, onClose }: ReportGener
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  useEffect(() => {
+    if (open) setError(null)
+  }, [open])
+
   const handleGenerate = async () => {
     setGenerating(true)
     setError(null)
@@ -31,8 +35,8 @@ export function ReportGeneratorModal({ workspaceId, open, onClose }: ReportGener
       })
 
       if (!res.ok) {
-        const data = await res.json()
-        setError(data.error ?? 'Report generation failed.')
+        const data = await res.json().catch(() => null)
+        setError(data?.error ?? `Report generation failed (${res.status}).`)
         return
       }
 
@@ -42,7 +46,7 @@ export function ReportGeneratorModal({ workspaceId, open, onClose }: ReportGener
       a.href = url
       a.download = `lyra-report-${period}-${Date.now()}.pdf`
       a.click()
-      URL.revokeObjectURL(url)
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
       onClose()
     } catch {
       setError('Report generation failed. Try again.')
@@ -52,7 +56,7 @@ export function ReportGeneratorModal({ workspaceId, open, onClose }: ReportGener
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose() }}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o && !generating) onClose() }}>
       <DialogContent className="bg-background-secondary border-background-border max-w-sm">
         <DialogHeader>
           <DialogTitle className="font-sans font-medium text-text-primary">Generate report</DialogTitle>
@@ -87,7 +91,7 @@ export function ReportGeneratorModal({ workspaceId, open, onClose }: ReportGener
             {generating ? (
               <>
                 <span className="h-4 w-4 rounded-full border-2 border-background-primary/30 border-t-background-primary animate-spin" />
-                Generating PDF…
+                Building your report. This takes about 10 seconds.
               </>
             ) : (
               <>
