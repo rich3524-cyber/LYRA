@@ -18,6 +18,7 @@ import {
   Lock,
   Search,
   Crosshair,
+  Scissors,
 } from 'lucide-react'
 import { WorkspaceSwitcher } from './workspace-switcher'
 import { cn } from '@/lib/utils'
@@ -29,6 +30,7 @@ const navItems = [
   { href: '/inbox',        label: 'Inbox',       icon: MessageSquare, proOnly: false },
   { href: '/brand',        label: 'Brand AI',    icon: Zap,         proOnly: false },
   { href: '/competitors',  label: 'Competitors', icon: Crosshair,   proOnly: true  },
+  { href: '/repurpose',    label: 'Repurpose',   icon: Scissors,    proOnly: false },
   { href: '/analytics',    label: 'Analytics',   icon: BarChart3,   proOnly: false },
   { href: '/seo',          label: 'SEO',         icon: Search,      proOnly: false },
 ]

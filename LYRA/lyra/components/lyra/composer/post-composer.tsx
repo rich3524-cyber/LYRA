@@ -23,9 +23,13 @@ import { toast } from 'sonner'
 interface PostComposerProps {
   workspaceId: string
   connectedPlatforms: string[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  postingPatterns?: any
+  onContentChange?: (content: string) => void
+  onPlatformsChange?: (platforms: string[]) => void
 }
 
-export function PostComposer({ workspaceId, connectedPlatforms }: PostComposerProps) {
+export function PostComposer({ workspaceId, connectedPlatforms, onContentChange, onPlatformsChange }: PostComposerProps) {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
   const [scheduledAt, setScheduledAt] = useState<Date | undefined>()
   const [mediaUrls, setMediaUrls] = useState<string[]>([])
@@ -47,7 +51,11 @@ export function PostComposer({ workspaceId, connectedPlatforms }: PostComposerPr
         class: 'min-h-[160px] text-sm text-text-primary leading-relaxed outline-none',
       },
     },
-    onUpdate: ({ editor }) => setContent(editor.getText()),
+    onUpdate: ({ editor }) => {
+      const text = editor.getText()
+      setContent(text)
+      onContentChange?.(text)
+    },
   })
 
   useEffect(() => {
@@ -127,7 +135,10 @@ export function PostComposer({ workspaceId, connectedPlatforms }: PostComposerPr
         <PlatformSelector
           connectedPlatforms={connectedPlatforms}
           selected={selectedPlatforms}
-          onChange={setSelectedPlatforms}
+          onChange={(platforms) => {
+            setSelectedPlatforms(platforms)
+            onPlatformsChange?.(platforms)
+          }}
         />
       </div>
 
