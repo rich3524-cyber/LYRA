@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { Bell, Search, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
@@ -16,18 +15,21 @@ import { UpgradeModal } from '@/components/lyra/billing/upgrade-modal'
 
 interface HeaderProps {
   user: { name?: string | null; email: string; avatarUrl?: string | null }
+  title: string
   plan?: string
-  foundingMember?: boolean
 }
 
-export function Header({ user, plan, foundingMember }: HeaderProps) {
+export function Header({ user, title, plan }: HeaderProps) {
   const [upgradeOpen, setUpgradeOpen] = useState(false)
-  const router = useRouter()
   const showUpgrade = plan === 'STARTER' || plan === 'PRO'
 
   return (
     <>
-      <header className="h-16 flex items-center justify-end px-6 border-b border-background-border bg-background-secondary shrink-0">
+      <header className="h-16 flex items-center justify-between px-6 border-b border-background-border bg-background-secondary shrink-0">
+        <h1 className="text-sm font-medium text-text-secondary tracking-widest uppercase">
+          {title}
+        </h1>
+
         <div className="flex items-center gap-3">
           {showUpgrade && (
             <button
@@ -48,71 +50,68 @@ export function Header({ user, plan, foundingMember }: HeaderProps) {
             <Search size={16} />
           </Button>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-text-tertiary hover:text-text-primary"
-            aria-label="Notifications"
+        <Button
+          variant="ghost"
+          size="icon"
+          className="text-text-tertiary hover:text-text-primary"
+          aria-label="Notifications"
+        >
+          <Bell size={16} />
+        </Button>
+
+        <DropdownMenu>
+          {/* Base UI Trigger — no asChild; style the trigger directly */}
+          <DropdownMenuTrigger
+            className="flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-silver rounded-full cursor-pointer bg-transparent border-0 p-0"
+            aria-label="User menu"
           >
-            <Bell size={16} />
-          </Button>
+            <Avatar className="h-7 w-7">
+              <AvatarImage src={user.avatarUrl ?? undefined} />
+              <AvatarFallback className="bg-background-tertiary text-text-secondary text-xs">
+                {user.name?.[0] ?? user.email[0].toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+          </DropdownMenuTrigger>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              className="flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-silver rounded-full cursor-pointer bg-transparent border-0 p-0"
-              aria-label="User menu"
+          <DropdownMenuContent
+            align="end"
+            className="w-48 bg-background-tertiary border-background-border"
+          >
+            <div className="px-2 py-1.5">
+              <p className="text-xs text-text-secondary">{user.name}</p>
+              <p className="text-xs text-text-tertiary truncate">{user.email}</p>
+            </div>
+
+            <DropdownMenuSeparator className="bg-background-border" />
+
+            <DropdownMenuItem
+              className="text-text-secondary cursor-pointer"
+              onClick={() => { window.location.href = '/account' }}
             >
-              <Avatar className="h-7 w-7">
-                <AvatarImage src={user.avatarUrl ?? undefined} />
-                <AvatarFallback className="bg-background-tertiary text-text-secondary text-xs">
-                  {user.name?.[0] ?? user.email[0].toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-            </DropdownMenuTrigger>
+              Account
+            </DropdownMenuItem>
 
-            <DropdownMenuContent
-              align="end"
-              className="w-48 bg-background-tertiary border-background-border"
+            <DropdownMenuSeparator className="bg-background-border" />
+
+            {/* Auth0 v4 logout route */}
+            <DropdownMenuItem
+              className="text-status-error cursor-pointer"
+              onClick={() => { window.location.href = '/auth/logout' }}
             >
-              <div className="px-2 py-1.5">
-                <p className="text-xs text-text-secondary">{user.name}</p>
-                <p className="text-xs text-text-tertiary truncate">{user.email}</p>
-                {foundingMember && (
-                  <span className="inline-flex items-center mt-1.5 px-1.5 py-0.5 rounded-md border border-accent-silver/30 font-sans text-[10px] font-medium text-accent-silver tracking-[0.08em] uppercase">
-                    Founding Member
-                  </span>
-                )}
-              </div>
+              Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </header>
 
-              <DropdownMenuSeparator className="bg-background-border" />
-
-              <DropdownMenuItem
-                className="text-text-secondary cursor-pointer"
-                onClick={() => router.push('/account')}
-              >
-                Account
-              </DropdownMenuItem>
-
-              <DropdownMenuSeparator className="bg-background-border" />
-
-              <DropdownMenuItem
-                className="text-status-error cursor-pointer"
-                onClick={() => { window.location.href = '/auth/logout' }}
-              >
-                Sign out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </header>
-
-      {showUpgrade && (
-        <UpgradeModal
-          open={upgradeOpen}
-          onClose={() => setUpgradeOpen(false)}
-          currentPlan={plan!}
-        />
-      )}
+    {showUpgrade && (
+      <UpgradeModal
+        open={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+        currentPlan={plan!}
+      />
+    )}
     </>
   )
 }
