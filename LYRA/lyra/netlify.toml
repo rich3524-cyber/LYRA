@@ -1,6 +1,6 @@
 [build]
   base    = "LYRA/lyra"
-  command = "npx prisma generate && npx prisma db push --accept-data-loss && npm run build"
+  command = "npx prisma generate && DIRECT_URL=\"$DATABASE_URL\" npx prisma db push --accept-data-loss && npm run build"
   publish = ".next"
 
 [build.environment]
