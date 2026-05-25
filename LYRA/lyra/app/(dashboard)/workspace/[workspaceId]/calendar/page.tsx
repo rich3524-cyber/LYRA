@@ -47,7 +47,7 @@ export default async function CalendarPage({ params }: Props) {
           />
           <Link
             href={`/workspace/${workspaceId}/compose`}
-            className="inline-flex items-center gap-1.5 text-xs font-medium bg-accent-platinum text-text-inverse hover:bg-accent-white px-3 h-8 rounded-md transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-medium bg-accent-platinum text-background-primary hover:bg-accent-white px-3 h-8 rounded-md transition-colors"
           >
             <Plus size={13} />
             New post
