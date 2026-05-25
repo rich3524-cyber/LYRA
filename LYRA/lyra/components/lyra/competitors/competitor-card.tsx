@@ -1,3 +1,5 @@
+'use client'
+
 import { Trash2, Globe, ExternalLink } from 'lucide-react'
 
 interface Snapshot {

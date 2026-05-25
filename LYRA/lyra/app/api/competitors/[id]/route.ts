@@ -22,6 +22,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    console.error('[competitors] DELETE error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
