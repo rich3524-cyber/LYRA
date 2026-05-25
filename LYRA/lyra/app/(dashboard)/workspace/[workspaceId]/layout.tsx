@@ -10,9 +10,9 @@ export default async function WorkspaceLayout({
   params,
 }: {
   children: React.ReactNode
-  params: { workspaceId: string }
+  params: Promise<{ workspaceId: string }>
 }) {
-  const { workspaceId } = params
+  const { workspaceId } = await params
 
   const user = await requireAuth()
 
