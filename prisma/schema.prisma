@@ -43,6 +43,7 @@ model Agency {
   stripeSubId      String?  @unique
   maxWorkspaces    Int      @default(-1)
   maxAutonomy      Autonomy @default(FULL)
+  foundingMember   Boolean  @default(false)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
@@ -62,6 +63,9 @@ model Workspace {
   stripeCustomerId String?      @unique
   clientAccessLevel ClientAccess @default(NONE)
   aiResponseMode   Autonomy     @default(OFF)
+  crisisAware       Boolean   @default(false)
+  crisisActive      Boolean   @default(false)
+  crisisTriggeredAt DateTime?
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
@@ -74,6 +78,8 @@ model Workspace {
   seoConnection     SeoConnection?
   seoPages          SeoPage[]
   searchConsoleData SearchConsoleData[]
+  crisisEvents      CrisisEvent[]
+  competitors       Competitor[]
 }
 
 enum Plan {
@@ -104,6 +110,7 @@ model WorkspaceAccess {
   createdAt   DateTime  @default(now())
 
   @@unique([userId, workspaceId])
+  @@index([userId])
 }
 
 model SocialAccount {
@@ -119,8 +126,10 @@ model SocialAccount {
   refreshToken String?
   tokenExpiry  DateTime?
   webhookId    String?
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
+  isActive            Boolean   @default(true)
+  lastCommentSyncAt   DateTime?
+  adAccountId         String?
+  createdAt           DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
   posts    Post[]
@@ -157,12 +166,17 @@ model Post {
   publishedAt     DateTime?
   platformPostId  String?
   aiGenerated     Boolean       @default(false)
+  topic           String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
   approval PostApproval?
   metrics  PostMetrics?
   comments Comment[]
+  boost    PostBoost?
+
+  @@index([workspaceId, scheduledAt])
+  @@index([workspaceId, status])
 }
 
 enum PostStatus {
@@ -218,6 +232,10 @@ model Comment {
   createdAt         DateTime      @default(now())
 
   responses CommentResponse[]
+
+  @@unique([socialAccountId, platformCommentId])
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, status])
 }
 
 enum Sentiment {
@@ -299,6 +317,33 @@ model PostMetrics {
   updatedAt    DateTime  @updatedAt
 }
 
+model PostBoost {
+  id            String      @id @default(cuid())
+  postId        String      @unique
+  post          Post        @relation(fields: [postId], references: [id], onDelete: Cascade)
+  platform      Platform
+  adCampaignId  String
+  adSetId       String
+  adId          String
+  budget        Int
+  durationDays  Int
+  audience      String
+  status        BoostStatus @default(ACTIVE)
+  startedAt     DateTime    @default(now())
+  endsAt        DateTime
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([status, endsAt])
+}
+
+enum BoostStatus {
+  ACTIVE
+  ENDED
+  CANCELLED
+  FAILED
+}
+
 model OnboardingToken {
   id          String    @id @default(cuid())
   workspaceId String    @unique
@@ -366,4 +411,37 @@ model SearchConsoleData {
   createdAt   DateTime  @default(now())
 
   @@unique([workspaceId, date, query, page])
+}
+
+model CrisisEvent {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  triggeredAt DateTime  @default(now())
+  resolvedAt  DateTime?
+  triggerType String    // "SENTIMENT_SPIKE" | "KEYWORD_MATCH"
+  commentIds  String[]
+}
+
+model Competitor {
+  id              String               @id @default(cuid())
+  workspaceId     String
+  workspace       Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name            String
+  websiteUrl      String?
+  twitterHandle   String?
+  facebookPageId  String?
+  createdAt       DateTime             @default(now())
+  snapshots       CompetitorSnapshot[]
+}
+
+model CompetitorSnapshot {
+  id                  String     @id @default(cuid())
+  competitorId        String
+  competitor          Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  capturedAt          DateTime   @default(now())
+  postsPerWeek        Float?
+  recentTopics        String[]
+  engagementBenchmark Float?
+  recentPosts         Json?
 }
