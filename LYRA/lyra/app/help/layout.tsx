@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { PdfDownloadButton } from '@/components/lyra/help/pdf-download-button'
 
 const sections = [
   { id: 'getting-started',     label: 'Getting Started' },
@@ -26,12 +27,16 @@ export default function HelpLayout({ children }: { children: React.ReactNode }) 
             <span className="text-background-border">|</span>
             <span className="font-sans text-sm text-text-tertiary">Documentation</span>
           </div>
-          <Link
-            href="/auth/login"
-            className="font-sans text-xs text-text-tertiary hover:text-text-secondary transition-colors"
-          >
-            Back to app
-          </Link>
+          <div className="flex items-center gap-5">
+            <PdfDownloadButton />
+            <span className="text-background-border">|</span>
+            <Link
+              href="/auth/login"
+              className="font-sans text-xs text-text-tertiary hover:text-text-secondary transition-colors"
+            >
+              Back to app
+            </Link>
+          </div>
         </div>
       </header>
 
