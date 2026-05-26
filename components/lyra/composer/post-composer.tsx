@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -11,9 +11,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { Sparkles, CalendarIcon, Send } from 'lucide-react'
+import { Sparkles, CalendarIcon, Send, BarChart2 } from 'lucide-react'
 import { PlatformSelector } from './platform-selector'
 import { MediaUploader } from './media-uploader'
+import { ContentScorePanel } from './content-score-panel'
+import type { ScoringResult } from '@/services/ai/content-scorer'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -21,14 +23,23 @@ import { toast } from 'sonner'
 interface PostComposerProps {
   workspaceId: string
   connectedPlatforms: string[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  postingPatterns?: any
+  onContentChange?: (content: string) => void
+  onPlatformsChange?: (platforms: string[]) => void
 }
 
-export function PostComposer({ workspaceId, connectedPlatforms }: PostComposerProps) {
+export function PostComposer({ workspaceId, connectedPlatforms, onContentChange, onPlatformsChange }: PostComposerProps) {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
   const [scheduledAt, setScheduledAt] = useState<Date | undefined>()
   const [mediaUrls, setMediaUrls] = useState<string[]>([])
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [content, setContent] = useState('')
+  const [scoreOpen, setScoreOpen] = useState(false)
+  const [scoring, setScoring] = useState(false)
+  const [scoreResult, setScoreResult] = useState<ScoringResult | null>(null)
+  const scoreDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const editor = useEditor({
     extensions: [
@@ -40,7 +51,34 @@ export function PostComposer({ workspaceId, connectedPlatforms }: PostComposerPr
         class: 'min-h-[160px] text-sm text-text-primary leading-relaxed outline-none',
       },
     },
+    onUpdate: ({ editor }) => {
+      const text = editor.getText()
+      setContent(text)
+      onContentChange?.(text)
+    },
   })
+
+  useEffect(() => {
+    if (!scoreOpen || content.length < 10) return
+    if (scoreDebounceRef.current) clearTimeout(scoreDebounceRef.current)
+    scoreDebounceRef.current = setTimeout(async () => {
+      setScoring(true)
+      try {
+        const platform = selectedPlatforms[0] ?? 'INSTAGRAM'
+        const res = await fetch('/api/ai/score-content', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ workspaceId, content, platform }),
+        })
+        if (res.ok) setScoreResult(await res.json() as ScoringResult)
+      } catch {
+        // silent fail — score panel stays at last result
+      } finally {
+        setScoring(false)
+      }
+    }, 1500)
+    return () => { if (scoreDebounceRef.current) clearTimeout(scoreDebounceRef.current) }
+  }, [content, scoreOpen, selectedPlatforms, workspaceId])
 
   const handleAIGenerate = async () => {
     if (selectedPlatforms.length === 0) {
@@ -90,14 +128,17 @@ export function PostComposer({ workspaceId, connectedPlatforms }: PostComposerPr
   }
 
   return (
-    <div className="bg-background-secondary border border-background-border rounded-xl overflow-hidden">
+    <div className="relative bg-background-secondary border border-background-border rounded-xl overflow-hidden">
       {/* Platform selector */}
       <div className="px-5 py-4 border-b border-background-border">
         <p className="text-xs text-text-tertiary mb-3 tracking-wider uppercase">Post to</p>
         <PlatformSelector
           connectedPlatforms={connectedPlatforms}
           selected={selectedPlatforms}
-          onChange={setSelectedPlatforms}
+          onChange={(platforms) => {
+            setSelectedPlatforms(platforms)
+            onPlatformsChange?.(platforms)
+          }}
         />
       </div>
 
@@ -141,6 +182,20 @@ export function PostComposer({ workspaceId, connectedPlatforms }: PostComposerPr
             workspaceId={workspaceId}
             onUpload={(url) => setMediaUrls((prev) => [...prev, url])}
           />
+          <Button
+            variant="ghost"
+            size="sm"
+            type="button"
+            onClick={() => {
+              const newOpen = !scoreOpen
+              setScoreOpen(newOpen)
+              if (newOpen && content.length >= 10) setScoring(true)
+            }}
+            className={cn('gap-2 text-xs', scoreOpen ? 'text-text-primary' : 'text-text-secondary hover:text-text-primary')}
+          >
+            <BarChart2 size={14} strokeWidth={1.5} />
+            Score
+          </Button>
         </div>
 
         <div className="flex items-center gap-2">
@@ -181,6 +236,8 @@ export function PostComposer({ workspaceId, connectedPlatforms }: PostComposerPr
           </Button>
         </div>
       </div>
+
+      <ContentScorePanel open={scoreOpen} onClose={() => setScoreOpen(false)} scoring={scoring} result={scoreResult} />
     </div>
   )
 }
