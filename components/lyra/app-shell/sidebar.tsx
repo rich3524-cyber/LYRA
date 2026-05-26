@@ -17,21 +17,32 @@ import {
   ChevronRight,
   Lock,
   Search,
+  Crosshair,
+  Scissors,
 } from 'lucide-react'
 import { WorkspaceSwitcher } from './workspace-switcher'
+import { SetupProgress } from './setup-progress'
+import type { SetupProgressData } from '@/lib/setup-progress'
 import { cn } from '@/lib/utils'
 
 const navItems = [
-  { href: '',           label: 'Dashboard', icon: LayoutGrid  },
-  { href: '/calendar',  label: 'Calendar',  icon: Calendar    },
-  { href: '/compose',   label: 'Compose',   icon: PenSquare   },
-  { href: '/inbox',     label: 'Inbox',     icon: MessageSquare },
-  { href: '/brand',     label: 'Brand AI',  icon: Zap         },
-  { href: '/analytics', label: 'Analytics', icon: BarChart3   },
-  { href: '/seo',       label: 'SEO',       icon: Search      },
+  { href: '',              label: 'Dashboard',   icon: LayoutGrid,  proOnly: false },
+  { href: '/calendar',     label: 'Calendar',    icon: Calendar,    proOnly: false },
+  { href: '/compose',      label: 'Compose',     icon: PenSquare,   proOnly: false },
+  { href: '/inbox',        label: 'Inbox',       icon: MessageSquare, proOnly: false },
+  { href: '/brand',        label: 'Brand AI',    icon: Zap,         proOnly: false },
+  { href: '/competitors',  label: 'Competitors', icon: Crosshair,   proOnly: true  },
+  { href: '/repurpose',    label: 'Repurpose',   icon: Scissors,    proOnly: false },
+  { href: '/analytics',    label: 'Analytics',   icon: BarChart3,   proOnly: false },
+  { href: '/seo',          label: 'SEO',         icon: Search,      proOnly: false },
 ]
 
-export function Sidebar({ workspaceId, brandReady }: { workspaceId: string; brandReady: boolean }) {
+export function Sidebar({ workspaceId, brandReady, plan, setupProgress }: {
+  workspaceId: string
+  brandReady: boolean
+  plan?: string
+  setupProgress?: SetupProgressData
+}) {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
   const base = `/workspace/${workspaceId}`
@@ -88,18 +99,21 @@ export function Sidebar({ workspaceId, brandReady }: { workspaceId: string; bran
 
       {/* Navigation */}
       <nav className="flex-1 py-4 px-2 space-y-0.5 overflow-y-auto">
-        {navItems.map(({ href, label, icon: Icon }) => {
+        {navItems.map(({ href, label, icon: Icon, proOnly }) => {
           const isBrandAI = href === '/brand'
-          const locked = isBrandAI && !brandReady
+          const locked = (isBrandAI && !brandReady) || (proOnly && plan === 'STARTER')
 
           if (locked) {
+            const lockTitle = isBrandAI
+              ? 'Connect your website and a social account to unlock Brand AI'
+              : 'Upgrade to PRO or AGENCY to unlock this feature'
             return (
               <Link
                 key={label}
                 href={`${base}/settings`}
-                title="Connect your website and a social account to unlock Brand AI"
+                title={lockTitle}
                 className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-text-tertiary hover:bg-background-hover transition-all duration-150"
-                aria-label={collapsed ? 'Brand AI (locked)' : undefined}
+                aria-label={collapsed ? `${label} (locked)` : undefined}
               >
                 <Lock size={16} className="shrink-0" strokeWidth={1.5} />
                 <AnimatePresence>
@@ -110,7 +124,7 @@ export function Sidebar({ workspaceId, brandReady }: { workspaceId: string; bran
                       exit={{ opacity: 0, width: 0 }}
                       className="overflow-hidden whitespace-nowrap tracking-wide"
                     >
-                      Brand AI
+                      {label}
                     </motion.span>
                   )}
                 </AnimatePresence>
@@ -150,6 +164,11 @@ export function Sidebar({ workspaceId, brandReady }: { workspaceId: string; bran
           )
         })}
       </nav>
+
+      {/* Setup Progress */}
+      {setupProgress && (
+        <SetupProgress data={setupProgress} collapsed={collapsed} />
+      )}
 
       {/* Bottom nav */}
       <div className="border-t border-background-border p-2 space-y-0.5">

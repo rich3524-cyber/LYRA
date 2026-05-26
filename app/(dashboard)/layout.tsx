@@ -6,6 +6,8 @@ import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { Sidebar } from '@/components/lyra/app-shell/sidebar'
 import { Header } from '@/components/lyra/app-shell/header'
+import { computeSetupProgress } from '@/lib/setup-progress'
+import type { SetupProgressData } from '@/lib/setup-progress'
 
 export default async function DashboardLayout({
   children,
@@ -31,25 +33,34 @@ export default async function DashboardLayout({
 
   const workspaceId = user.workspaceAccess[0]?.workspaceId ?? ''
 
-  // Check whether Brand AI is unlocked for the active workspace
+  // Check whether Brand AI is unlocked and compute setup progress for the active workspace
   let brandReady = false
   let workspacePlan: string | undefined
+  let setupProgress: SetupProgressData | undefined
   if (workspaceId) {
     const ws = await prisma.workspace.findFirst({
       where: { id: workspaceId },
       select: {
         plan: true,
         websiteUrl: true,
-        _count: { select: { socialAccounts: { where: { isActive: true } } } },
+        aiResponseMode: true,
+        brandProfile: { select: { voiceSummary: true } },
+        _count: {
+          select: {
+            socialAccounts: { where: { isActive: true } },
+            posts: { where: { status: { in: ['SCHEDULED', 'PUBLISHED', 'APPROVED'] as const } } },
+          },
+        },
       },
     }).catch(() => null)
     brandReady = !!(ws?.websiteUrl && (ws._count?.socialAccounts ?? 0) > 0)
     workspacePlan = ws?.plan ?? undefined
+    setupProgress = computeSetupProgress(ws)
   }
 
   return (
     <div className="flex h-screen overflow-hidden bg-background-primary">
-      <Sidebar workspaceId={workspaceId} brandReady={brandReady} />
+      <Sidebar workspaceId={workspaceId} brandReady={brandReady} plan={workspacePlan} setupProgress={setupProgress} />
       <div className="flex flex-col flex-1 overflow-hidden">
         <Header user={user} title="" plan={workspacePlan} />
         <main className="flex-1 overflow-y-auto p-6 animate-fade-in">
