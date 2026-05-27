@@ -32,14 +32,14 @@ export async function POST(
     const file = entry
 
     if (!ALLOWED_TYPES.includes(file.type)) {
-      return NextResponse.json({ error: 'File must be PNG, JPG, or SVG' }, { status: 400 })
+      return NextResponse.json({ error: 'File must be PNG or JPG' }, { status: 400 })
     }
 
     if (file.size > MAX_SIZE) {
       return NextResponse.json({ error: `File must be under ${MAX_SIZE / (1024 * 1024)}MB` }, { status: 400 })
     }
 
-    const ext = file.type === 'image/svg+xml' ? 'svg' : file.type === 'image/png' ? 'png' : 'jpg'
+    const ext = file.type === 'image/png' ? 'png' : 'jpg'
     const s3Key = `workspace-logos/${workspaceId}/logo.${ext}`
 
     if (workspace.clientLogoS3Key && workspace.clientLogoS3Key !== s3Key) {
