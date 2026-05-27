@@ -461,7 +461,7 @@ model AssistantReport {
   workspace   Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   quarter     String
   generatedAt DateTime              @default(now())
-  status      AssistantReportStatus
+  status      AssistantReportStatus @default(GENERATING)
   reportData  Json?
   pdfS3Key    String?
   createdAt   DateTime              @default(now())
