@@ -32,11 +32,11 @@ const navItems = [
   { href: '/compose',      label: 'Compose',        icon: PenSquare,     proOnly: false },
   { href: '/inbox',        label: 'Inbox',          icon: MessageSquare, proOnly: false },
   { href: '/brand',        label: 'Brand AI',       icon: Zap,           proOnly: false },
-  { href: '/assistant',    label: 'LYRA Assistant', icon: Sparkles,      proOnly: false },
   { href: '/competitors',  label: 'Competitors',    icon: Crosshair,     proOnly: true  },
   { href: '/repurpose',    label: 'Repurpose',      icon: Scissors,      proOnly: false },
   { href: '/analytics',    label: 'Analytics',      icon: BarChart3,     proOnly: false },
   { href: '/seo',          label: 'SEO',            icon: Search,        proOnly: false },
+  { href: '/assistant',    label: 'LYRA Assistant', icon: Sparkles,      proOnly: false },
 ]
 
 export function Sidebar({ workspaceId, brandReady, plan, setupProgress }: {
@@ -103,6 +103,7 @@ export function Sidebar({ workspaceId, brandReady, plan, setupProgress }: {
       <nav className="flex-1 py-4 px-2 space-y-0.5 overflow-y-auto">
         {navItems.map(({ href, label, icon: Icon, proOnly }) => {
           const isBrandAI = href === '/brand'
+          const isAssistant = href === '/assistant'
           const locked = (isBrandAI && !brandReady) || (proOnly && plan === 'STARTER')
 
           if (locked) {
@@ -137,6 +138,38 @@ export function Sidebar({ workspaceId, brandReady, plan, setupProgress }: {
           const fullHref = `${base}${href}`
           const isActive =
             pathname === fullHref || (href !== '' && pathname.startsWith(fullHref))
+
+          if (isAssistant) {
+            return (
+              <div key={label} className="pt-3">
+                <Link
+                  href={fullHref}
+                  className={cn(
+                    'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150 group border',
+                    isActive
+                      ? 'bg-purple-500/10 border-purple-500/70 text-purple-300'
+                      : 'border-purple-500/30 text-purple-400 hover:bg-purple-500/10 hover:border-purple-500/60 hover:text-purple-300',
+                  )}
+                  aria-label={collapsed ? label : undefined}
+                >
+                  <Icon size={16} className="shrink-0" strokeWidth={isActive ? 2 : 1.5} />
+                  <AnimatePresence>
+                    {!collapsed && (
+                      <motion.span
+                        initial={{ opacity: 0, width: 0 }}
+                        animate={{ opacity: 1, width: 'auto' }}
+                        exit={{ opacity: 0, width: 0 }}
+                        className="overflow-hidden whitespace-nowrap tracking-wide"
+                      >
+                        {label}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </Link>
+              </div>
+            )
+          }
+
           return (
             <Link
               key={label}
