@@ -29,21 +29,8 @@ export interface StrategyMonth {
   recommendedFrequency: StrategyFrequency[]
 }
 
-export interface ReportPerformance {
-  totalPosts: number
-  avgEngagementRate: number
-  bestPlatform: string | null
-  topContentTheme: string | null
-  byPlatform: PlatformPerformance[]
-  insightNarrative: string
-}
-
-export interface ReportData {
-  period: PerformancePeriod
-  performance: ReportPerformance
-  strategy: {
-    months: StrategyMonth[]
-  }
+export interface ReportStrategy {
+  months: StrategyMonth[]
 }
 
 export interface ReportMetrics {
@@ -52,4 +39,14 @@ export interface ReportMetrics {
   bestPlatform: string | null
   topContentTheme: string | null
   byPlatform: PlatformPerformance[]
+}
+
+export interface ReportPerformance extends ReportMetrics {
+  insightNarrative: string
+}
+
+export interface ReportData {
+  period: PerformancePeriod
+  performance: ReportPerformance
+  strategy: ReportStrategy
 }
