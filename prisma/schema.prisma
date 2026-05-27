@@ -80,6 +80,9 @@ model Workspace {
   searchConsoleData SearchConsoleData[]
   crisisEvents      CrisisEvent[]
   competitors       Competitor[]
+  assistantReports  AssistantReport[]
+  clientLogoS3Key   String?
+  region            String            @default("AU")
 }
 
 enum Plan {
@@ -444,4 +447,25 @@ model CompetitorSnapshot {
   recentTopics        String[]
   engagementBenchmark Float?
   recentPosts         Json?
+}
+
+enum AssistantReportStatus {
+  GENERATING
+  READY
+  FAILED
+}
+
+model AssistantReport {
+  id          String                @id @default(cuid())
+  workspaceId String
+  workspace   Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  quarter     String
+  generatedAt DateTime              @default(now())
+  status      AssistantReportStatus
+  reportData  Json?
+  pdfS3Key    String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@index([workspaceId, createdAt])
 }
