@@ -5,6 +5,8 @@ import { CheckCircle, Link2, Link2Off } from 'lucide-react'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { DeleteWorkspaceButton } from '@/components/lyra/settings/delete-workspace-button'
+import { CrisisAwareToggle } from '@/components/lyra/settings/crisis-aware-toggle'
+import { BrandingTab } from '@/components/lyra/settings/branding-tab'
 
 interface Props {
   params: Promise<{ workspaceId: string }>
@@ -69,7 +71,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
 
   const workspace = await prisma.workspace.findFirst({
     where: { id: workspaceId, access: { some: { userId: user.id } } },
-    select: { id: true, name: true },
+    select: { id: true, name: true, crisisAware: true, plan: true, clientLogoS3Key: true },
   })
   if (!workspace) notFound()
 
@@ -189,6 +191,26 @@ export default async function SettingsPage({ params, searchParams }: Props) {
               </div>
             )
           })}
+        </div>
+      </section>
+
+      {/* Add-ons */}
+      <section className="space-y-4">
+        <h2 className="text-lg font-medium font-sans text-text-primary">Add-ons</h2>
+        <CrisisAwareToggle
+          workspaceId={workspace.id}
+          enabled={workspace.crisisAware}
+          isPro={workspace.plan === 'PRO' || workspace.plan === 'AGENCY'}
+        />
+      </section>
+
+      {/* Branding */}
+      <section className="space-y-3">
+        <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
+          Branding
+        </p>
+        <div className="p-5 rounded-xl bg-background-secondary border border-background-border">
+          <BrandingTab workspaceId={workspace.id} hasLogo={!!workspace.clientLogoS3Key} />
         </div>
       </section>
 
