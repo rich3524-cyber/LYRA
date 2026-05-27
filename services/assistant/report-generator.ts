@@ -204,7 +204,7 @@ Only include platforms in recommendedFrequency that appeared in the performance 
   })
 
   const text = response.content[0].type === 'text' ? response.content[0].text : ''
-  const jsonText = text.replace(/^```json\s*/i, '').replace(/\s*```$/, '').trim()
+  const jsonText = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
   const aiData = JSON.parse(jsonText) as { insightNarrative: string; strategy: { months: unknown[] } }
 
   return {
