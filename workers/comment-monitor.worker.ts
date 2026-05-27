@@ -2,6 +2,7 @@ import { Worker, Queue } from 'bullmq'
 import { redis } from '@/lib/redis'
 import { prisma } from '@/lib/prisma'
 import { decrypt } from '@/lib/encrypt'
+import { detectCrisis } from '@/services/ai/crisis-detector'
 
 const aiRespondQueue = new Queue('ai-responding', { connection: redis })
 
@@ -47,6 +48,8 @@ const worker = new Worker(
       return
     }
 
+    const savedComments: Array<{ id: string; content: string }> = []
+
     for (const comment of rawComments) {
       const existing = await prisma.comment.findFirst({
         where: { platformCommentId: comment.id },
@@ -65,6 +68,8 @@ const worker = new Worker(
         },
       })
 
+      savedComments.push({ id: newComment.id, content: newComment.content })
+
       const mode = account.workspace.aiResponseMode
       if (mode === 'FULL' || mode === 'DRAFT_APPROVE') {
         await aiRespondQueue.add(
@@ -72,6 +77,39 @@ const worker = new Worker(
           { commentId: newComment.id, autoPost: mode === 'FULL' },
           { jobId: `respond-${newComment.id}` }
         )
+      }
+    }
+
+    if (savedComments.length > 0) {
+      try {
+        const workspaceMeta = await prisma.workspace.findUnique({
+          where: { id: account.workspaceId },
+          select: { crisisAware: true, crisisActive: true },
+        })
+
+        if (workspaceMeta?.crisisAware && !workspaceMeta.crisisActive) {
+          const result = await detectCrisis(account.workspaceId, savedComments)
+
+          if (result.triggered) {
+            await prisma.$transaction([
+              prisma.workspace.update({
+                where: { id: account.workspaceId },
+                data: { crisisActive: true, crisisTriggeredAt: new Date() },
+              }),
+              prisma.crisisEvent.create({
+                data: {
+                  workspaceId: account.workspaceId,
+                  triggerType: result.type,
+                  commentIds:  result.commentIds,
+                },
+              }),
+            ])
+            console.log(`Crisis triggered for workspace ${account.workspaceId}: ${result.type}`)
+          }
+        }
+      } catch (err) {
+        console.error(`Crisis detection failed for workspace ${account.workspaceId}:`, err)
+        // Continue — do not crash the job
       }
     }
   },

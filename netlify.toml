@@ -1,2 +1,10 @@
 [build]
-  base = "LYRA/lyra"
+  base    = "LYRA/lyra"
+  command = "npx prisma generate && DIRECT_URL=\"$DATABASE_URL\" npx prisma db push --accept-data-loss && npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

@@ -93,9 +93,10 @@ export function PostComposer({ workspaceId, connectedPlatforms, onContentChange,
         body: JSON.stringify({ workspaceId, platforms: selectedPlatforms }),
       })
       const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Generation failed')
       editor?.commands.setContent(data.content)
-    } catch {
-      toast.error('Failed to generate content')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to generate content')
     } finally {
       setIsGenerating(false)
     }

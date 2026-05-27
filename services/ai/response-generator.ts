@@ -1,4 +1,4 @@
-import { anthropic } from '@/lib/anthropic'
+import { anthropic, CLAUDE_MODEL } from '@/lib/anthropic'
 import { BrandProfile, Guardrail, Comment } from '@prisma/client'
 
 export async function generateCommentResponse(
@@ -50,7 +50,7 @@ If you cannot respond appropriately without breaking any rules, respond with exa
 Write only the response — no explanation.`
 
   const apiResponse = await anthropic.messages.create({
-    model:      'claude-sonnet-4-20250514',
+    model:      CLAUDE_MODEL,
     max_tokens: 300,
     messages:   [{ role: 'user', content: prompt }],
   })

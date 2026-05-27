@@ -81,10 +81,11 @@ export function AssistantUpsell() {
         <PlanCard name="Agency" price="from $149/mo" features={AGENCY_FEATURES} />
       </div>
 
-      <Link href="/account/billing" className="block mt-6">
-        <button className="w-full bg-accent-platinum text-background-primary text-sm font-medium py-2.5 rounded-lg hover:bg-accent-white transition-colors duration-150">
-          Upgrade to Pro
-        </button>
+      <Link
+        href="/account/billing"
+        className="mt-6 flex w-full min-h-[44px] items-center justify-center bg-accent-platinum text-background-primary text-sm font-medium rounded-lg hover:bg-accent-white transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-background-primary"
+      >
+        Upgrade to Pro
       </Link>
     </div>
   )

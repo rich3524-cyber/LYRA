@@ -72,3 +72,17 @@ export async function getPages(userAccessToken: string): Promise<FacebookPage[]>
     avatarUrl: (p.picture as { data?: { url?: string } } | undefined)?.data?.url,
   }))
 }
+
+export async function replyToComment(
+  commentId: string,
+  message: string,
+  accessToken: string
+): Promise<void> {
+  const res = await fetch(`${BASE_URL}/${commentId}/comments`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, access_token: accessToken }),
+  })
+  const data = await res.json()
+  if (data.error) throw new Error(data.error.message)
+}

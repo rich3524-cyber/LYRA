@@ -5,6 +5,7 @@ import './post-publisher.worker'
 import './comment-monitor.worker'
 import './ai-responder.worker'
 import './brand-sync.worker'
+import './competitor-monitor.worker'
 
 console.log('[workers] All workers started')
 

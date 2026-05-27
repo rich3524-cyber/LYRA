@@ -3,6 +3,18 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Zap, RefreshCw } from 'lucide-react'
+import { AnimatePresence } from 'framer-motion'
+import { AnalysisOverlay } from '@/components/lyra/shared/analysis-overlay'
+
+const BRAND_MESSAGES = [
+  'Reading your brand…',
+  'Scanning your website…',
+  'Understanding content themes…',
+  'Mapping your brand voice…',
+  'Identifying your audience…',
+  'Analysing your social accounts…',
+  'Building your profile…',
+]
 
 interface Props {
   workspaceId: string
@@ -36,22 +48,28 @@ export function BrandBuildButton({ workspaceId, hasProfile }: Props) {
   }
 
   return (
-    <div className="space-y-1">
-      <button
-        onClick={handleBuild}
-        disabled={loading}
-        className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-sans font-medium transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed bg-accent-platinum text-background-primary hover:bg-accent-white"
-      >
-        {loading ? (
-          <RefreshCw size={14} strokeWidth={1.5} className="animate-spin" />
-        ) : hasProfile ? (
-          <RefreshCw size={14} strokeWidth={1.5} />
-        ) : (
-          <Zap size={14} strokeWidth={1.5} />
-        )}
-        {loading ? 'Analyzing…' : hasProfile ? 'Re-analyze' : 'Build brand profile'}
-      </button>
-      {error && <p className="text-xs text-status-error mt-1">{error}</p>}
-    </div>
+    <>
+      <AnimatePresence>
+        {loading && <AnalysisOverlay messages={BRAND_MESSAGES} />}
+      </AnimatePresence>
+
+      <div className="space-y-1">
+        <button
+          onClick={handleBuild}
+          disabled={loading}
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-sans font-medium transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed bg-accent-platinum text-background-primary hover:bg-accent-white"
+        >
+          {loading ? (
+            <RefreshCw size={14} strokeWidth={1.5} className="animate-spin" />
+          ) : hasProfile ? (
+            <RefreshCw size={14} strokeWidth={1.5} />
+          ) : (
+            <Zap size={14} strokeWidth={1.5} />
+          )}
+          {loading ? 'Analysing…' : hasProfile ? 'Re-analyse' : 'Build brand profile'}
+        </button>
+        {error && <p className="text-xs text-status-error mt-1">{error}</p>}
+      </div>
+    </>
   )
 }

@@ -6,6 +6,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { Sidebar } from '@/components/lyra/app-shell/sidebar'
 import { Header } from '@/components/lyra/app-shell/header'
+import { NavigationLoader } from '@/components/lyra/app-shell/navigation-loader'
 import { computeSetupProgress } from '@/lib/setup-progress'
 import type { SetupProgressData } from '@/lib/setup-progress'
 
@@ -60,6 +61,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex h-screen overflow-hidden bg-background-primary">
+      <NavigationLoader />
       <Sidebar workspaceId={workspaceId} brandReady={brandReady} plan={workspacePlan} setupProgress={setupProgress} />
       <div className="flex flex-col flex-1 overflow-hidden">
         <Header user={user} title="" plan={workspacePlan} />

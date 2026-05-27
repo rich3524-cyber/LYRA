@@ -2,9 +2,20 @@
 
 import { useState } from 'react'
 import { ExternalLink, RefreshCw, Sparkles, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+import { AnimatePresence } from 'framer-motion'
 import { AiContentPanel } from './ai-content-panel'
+import { AnalysisOverlay } from '@/components/lyra/shared/analysis-overlay'
 import type { SeoPageWithContent } from '@/app/(dashboard)/workspace/[workspaceId]/seo/page'
 import type { ScoreDimension } from '@/services/seo/on-page-analyzer'
+
+const SEO_MESSAGES = [
+  'Scanning your page…',
+  'Checking meta data…',
+  'Analysing content structure…',
+  'Evaluating heading hierarchy…',
+  'Reviewing keyword usage…',
+  'Calculating your score…',
+]
 
 interface AnalysisResult {
   seoScore: number
@@ -88,7 +99,12 @@ export function PageCard({ page, onDeleted, onContentGenerated }: Props) {
   }, {})
 
   return (
-    <div className="rounded-xl bg-background-secondary border border-background-border overflow-hidden">
+    <>
+      <AnimatePresence>
+        {analysing && <AnalysisOverlay messages={SEO_MESSAGES} />}
+      </AnimatePresence>
+
+      <div className="rounded-xl bg-background-secondary border border-background-border overflow-hidden">
       {/* Header row */}
       <div className="flex items-center gap-3 px-4 py-3">
         <div className="flex-1 min-w-0">
@@ -192,5 +208,6 @@ export function PageCard({ page, onDeleted, onContentGenerated }: Props) {
         </div>
       )}
     </div>
+    </>
   )
 }

@@ -30,7 +30,7 @@ LYRA (lyraonline.ai) is a premium AI-powered social media intelligence SaaS plat
 | Rich Text | Tiptap | Post composer editor |
 | Drag & Drop | @dnd-kit | Content calendar rescheduling |
 | Database ORM | Prisma + PostgreSQL | Always use singleton from lib/prisma.ts |
-| AI | Anthropic Claude API | Model: claude-sonnet-4-20250514 ALWAYS |
+| AI | Anthropic Claude API | Model: claude-sonnet-4-6 ALWAYS |
 | Job Queue | BullMQ + Redis | Post scheduling, comment monitoring workers |
 | Auth | Auth0 (@auth0/nextjs-auth0) | Multi-role, OAuth social connections |
 | Payments | Stripe | Subscription billing |
