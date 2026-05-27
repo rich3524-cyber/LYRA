@@ -69,14 +69,15 @@ export async function calculateMetrics(
     return { totalPosts: 0, avgEngagementRate: 0, bestPlatform: null, topContentTheme: null, byPlatform: [] }
   }
 
-  const byPlatformMap = new Map<string, { postCount: number; totalEngagement: number; topPostId: string | null; topEngagement: number }>()
+  const byPlatformMap = new Map<string, { postCount: number; metricCount: number; totalEngagement: number; topPostId: string | null; topEngagement: number }>()
 
   let globalTotalEngagement = 0
+  let globalMetricCount = 0
 
   for (const post of posts) {
     const platform = post.socialAccount.platform
     if (!byPlatformMap.has(platform)) {
-      byPlatformMap.set(platform, { postCount: 0, totalEngagement: 0, topPostId: null, topEngagement: -1 })
+      byPlatformMap.set(platform, { postCount: 0, metricCount: 0, totalEngagement: 0, topPostId: null, topEngagement: -1 })
     }
     const entry = byPlatformMap.get(platform)!
     entry.postCount++
@@ -90,7 +91,9 @@ export async function calculateMetrics(
         impressions: post.metrics.impressions,
       })
       entry.totalEngagement += rate
+      entry.metricCount++
       globalTotalEngagement += rate
+      globalMetricCount++
 
       if (rate > entry.topEngagement) {
         entry.topEngagement = rate
@@ -104,7 +107,7 @@ export async function calculateMetrics(
   let bestAvgRate = -1
 
   for (const [platform, data] of byPlatformMap) {
-    const avgEngagementRate = data.postCount > 0 ? data.totalEngagement / data.postCount : 0
+    const avgEngagementRate = data.metricCount > 0 ? data.totalEngagement / data.metricCount : 0
     byPlatform.push({ platform, postCount: data.postCount, avgEngagementRate, topPostId: data.topPostId })
     if (avgEngagementRate > bestAvgRate) {
       bestAvgRate = avgEngagementRate
@@ -112,7 +115,7 @@ export async function calculateMetrics(
     }
   }
 
-  const avgEngagementRate = posts.length > 0 ? globalTotalEngagement / posts.length : 0
+  const avgEngagementRate = globalMetricCount > 0 ? globalTotalEngagement / globalMetricCount : 0
 
   const topicCounts = new Map<string, number>()
   for (const post of posts) {
@@ -199,13 +202,21 @@ Only include platforms in recommendedFrequency that appeared in the performance 
 
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
-    max_tokens: 2000,
+    max_tokens: 3000,
     messages: [{ role: 'user', content: prompt }],
   })
 
   const text = response.content[0].type === 'text' ? response.content[0].text : ''
   const jsonText = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
-  const aiData = JSON.parse(jsonText) as { insightNarrative: string; strategy: { months: unknown[] } }
+  let aiData: { insightNarrative: string; strategy: { months: unknown[] } }
+  try {
+    aiData = JSON.parse(jsonText)
+  } catch {
+    throw new Error('Report generation returned malformed JSON — retry to regenerate')
+  }
+  if (!aiData?.insightNarrative || !Array.isArray(aiData?.strategy?.months)) {
+    throw new Error('Report generation returned incomplete data — retry to regenerate')
+  }
 
   return {
     period,
