@@ -19,6 +19,7 @@ import {
   Search,
   Crosshair,
   Scissors,
+  Sparkles,
 } from 'lucide-react'
 import { WorkspaceSwitcher } from './workspace-switcher'
 import { SetupProgress } from './setup-progress'
@@ -35,6 +36,7 @@ const navItems = [
   { href: '/repurpose',    label: 'Repurpose',   icon: Scissors,    proOnly: false },
   { href: '/analytics',    label: 'Analytics',   icon: BarChart3,   proOnly: false },
   { href: '/seo',          label: 'SEO',         icon: Search,      proOnly: false },
+  { href: '/assistant',    label: 'LYRA Assistant', icon: Sparkles,  proOnly: false },
 ]
 
 export function Sidebar({ workspaceId, brandReady, plan, setupProgress }: {
