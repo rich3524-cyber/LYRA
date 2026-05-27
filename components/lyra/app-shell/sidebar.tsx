@@ -27,16 +27,16 @@ import type { SetupProgressData } from '@/lib/setup-progress'
 import { cn } from '@/lib/utils'
 
 const navItems = [
-  { href: '',              label: 'Dashboard',   icon: LayoutGrid,  proOnly: false },
-  { href: '/calendar',     label: 'Calendar',    icon: Calendar,    proOnly: false },
-  { href: '/compose',      label: 'Compose',     icon: PenSquare,   proOnly: false },
-  { href: '/inbox',        label: 'Inbox',       icon: MessageSquare, proOnly: false },
-  { href: '/brand',        label: 'Brand AI',    icon: Zap,         proOnly: false },
-  { href: '/competitors',  label: 'Competitors', icon: Crosshair,   proOnly: true  },
-  { href: '/repurpose',    label: 'Repurpose',   icon: Scissors,    proOnly: false },
-  { href: '/analytics',    label: 'Analytics',   icon: BarChart3,   proOnly: false },
-  { href: '/seo',          label: 'SEO',         icon: Search,      proOnly: false },
-  { href: '/assistant',    label: 'LYRA Assistant', icon: Sparkles,  proOnly: false },
+  { href: '',              label: 'Dashboard',      icon: LayoutGrid,    proOnly: false },
+  { href: '/calendar',     label: 'Calendar',       icon: Calendar,      proOnly: false },
+  { href: '/compose',      label: 'Compose',        icon: PenSquare,     proOnly: false },
+  { href: '/inbox',        label: 'Inbox',          icon: MessageSquare, proOnly: false },
+  { href: '/brand',        label: 'Brand AI',       icon: Zap,           proOnly: false },
+  { href: '/assistant',    label: 'LYRA Assistant', icon: Sparkles,      proOnly: false },
+  { href: '/competitors',  label: 'Competitors',    icon: Crosshair,     proOnly: true  },
+  { href: '/repurpose',    label: 'Repurpose',      icon: Scissors,      proOnly: false },
+  { href: '/analytics',    label: 'Analytics',      icon: BarChart3,     proOnly: false },
+  { href: '/seo',          label: 'SEO',            icon: Search,        proOnly: false },
 ]
 
 export function Sidebar({ workspaceId, brandReady, plan, setupProgress }: {
@@ -53,7 +53,7 @@ export function Sidebar({ workspaceId, brandReady, plan, setupProgress }: {
     <motion.aside
       animate={{ width: collapsed ? 64 : 240 }}
       transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-      className="relative flex flex-col h-screen bg-background-secondary border-r border-background-border shrink-0 overflow-hidden"
+      className="relative flex flex-col h-screen bg-background-secondary border-r border-background-border shrink-0 overflow-x-hidden"
     >
       {/* Logo */}
       <div className="flex items-center h-16 px-4 border-b border-background-border shrink-0">
