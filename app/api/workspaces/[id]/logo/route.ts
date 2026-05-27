@@ -3,7 +3,7 @@ import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { putObject, deleteObject } from '@/lib/s3'
 
-const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/svg+xml']
+const ALLOWED_TYPES = ['image/png', 'image/jpeg']
 const MAX_SIZE = 2 * 1024 * 1024
 
 export async function POST(
@@ -24,25 +24,26 @@ export async function POST(
     }
 
     const formData = await req.formData()
-    const file = formData.get('logo') as File | null
+    const entry = formData.get('logo')
 
-    if (!file) {
+    if (!(entry instanceof File)) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
+    const file = entry
 
     if (!ALLOWED_TYPES.includes(file.type)) {
       return NextResponse.json({ error: 'File must be PNG, JPG, or SVG' }, { status: 400 })
     }
 
     if (file.size > MAX_SIZE) {
-      return NextResponse.json({ error: 'File must be under 2MB' }, { status: 400 })
+      return NextResponse.json({ error: `File must be under ${MAX_SIZE / (1024 * 1024)}MB` }, { status: 400 })
     }
 
     const ext = file.type === 'image/svg+xml' ? 'svg' : file.type === 'image/png' ? 'png' : 'jpg'
     const s3Key = `workspace-logos/${workspaceId}/logo.${ext}`
 
     if (workspace.clientLogoS3Key && workspace.clientLogoS3Key !== s3Key) {
-      await deleteObject(workspace.clientLogoS3Key).catch(() => {})
+      await deleteObject(workspace.clientLogoS3Key).catch((e) => console.error('Logo S3 cleanup failed:', e))
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())
@@ -64,7 +65,7 @@ export async function POST(
 }
 
 export async function DELETE(
-  req: NextRequest,
+  _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -81,7 +82,7 @@ export async function DELETE(
     }
 
     if (workspace.clientLogoS3Key) {
-      await deleteObject(workspace.clientLogoS3Key).catch(() => {})
+      await deleteObject(workspace.clientLogoS3Key).catch((e) => console.error('Logo S3 cleanup failed:', e))
       await prisma.workspace.update({
         where: { id: workspaceId },
         data: { clientLogoS3Key: null },
