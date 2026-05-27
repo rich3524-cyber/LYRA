@@ -103,7 +103,7 @@ export function BrandingTab({ workspaceId, hasLogo: initialHasLogo }: BrandingTa
       ) : (
         <button
           onClick={() => fileInputRef.current?.click()}
-          disabled={isUploading}
+          disabled={isUploading || isRemoving}
           className="flex items-center gap-2 px-4 py-2.5 bg-background-secondary border border-background-border rounded-xl font-sans text-sm text-text-secondary hover:text-text-primary hover:border-background-border-mid transition-colors duration-150 disabled:opacity-50"
         >
           <Upload size={16} strokeWidth={1.5} />
@@ -118,7 +118,7 @@ export function BrandingTab({ workspaceId, hasLogo: initialHasLogo }: BrandingTa
         className="hidden"
         onChange={e => {
           const file = e.target.files?.[0]
-          if (file) handleUpload(file)
+          if (file) void handleUpload(file)
           e.target.value = ''
         }}
       />
