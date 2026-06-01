@@ -94,6 +94,16 @@ export function GettingStartedSection() {
             <Strong>Analytics</Strong> — social media performance data for the active workspace.
           </li>
           <li>
+            <Strong>Repurpose</Strong> — convert any blog post URL or long-form text into
+            platform-native posts for every connected channel simultaneously.
+            Available on Pro and Agency plans.
+          </li>
+          <li>
+            <Strong>LYRA Assistant</Strong> — AI-generated quarterly performance reports and
+            3-month content strategies built from the workspace&apos;s historical data.
+            Available on Pro and Agency plans.
+          </li>
+          <li>
             <Strong>Settings</Strong> — workspace-level configuration including connected accounts,
             AI autonomy, guardrails, and client access.
           </li>

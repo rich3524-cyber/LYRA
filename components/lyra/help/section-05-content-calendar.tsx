@@ -1,4 +1,4 @@
-import { SectionHeader, Subsection, Strong, Note, StatusRow, Steps, Step } from './primitives'
+import { SectionHeader, Subsection, Strong, Note, StatusRow, StatusBadge, Steps, Step } from './primitives'
 
 export function ContentCalendarSection() {
   return (
@@ -102,6 +102,54 @@ export function ContentCalendarSection() {
           <li>Click <Strong>Cancel post</Strong> to cancel a scheduled post before it publishes</li>
           <li>Click <Strong>View on platform</Strong> (published posts only) to open the live post</li>
         </ul>
+      </Subsection>
+
+      <Subsection title="Boosting a post (Pro and Agency)">
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          Boost a published Facebook or Instagram post directly from the calendar without
+          leaving LYRA. A boost promotes the post as a paid ad to a wider audience using
+          your connected Meta ad account.
+        </p>
+        <Steps>
+          <Step n={1}>
+            Click a <Strong>Published</Strong> Facebook or Instagram post on the calendar
+            to open the preview panel.
+          </Step>
+          <Step n={2}>
+            Scroll to the <Strong>Boost this post</Strong> section at the bottom of the
+            preview panel. Select your budget ($10, $25, $50, or $100 AUD), duration
+            (3, 7, 14, or 30 days), and target audience.
+          </Step>
+          <Step n={3}>
+            Three audience options are available:
+            <ul className="mt-1.5 ml-4 space-y-1 font-sans text-xs text-text-tertiary list-disc">
+              <li><Strong>Page followers</Strong> — people who already follow the Page</li>
+              <li><Strong>Followers + similar</Strong> — followers plus a lookalike audience</li>
+              <li><Strong>Broad reach</Strong> — Meta&apos;s widest targeting based on location and interests</li>
+            </ul>
+          </Step>
+          <Step n={4}>
+            Click <Strong>Boost post</Strong>. LYRA creates a Meta ad campaign and returns
+            to the preview panel, which now shows the active boost with a
+            <StatusBadge color="text-status-success border-status-success/30">Live</StatusBadge> badge,
+            the number of people reached so far, and a countdown to the end date.
+          </Step>
+          <Step n={5}>
+            To cancel an active boost before it ends, click <Strong>Cancel boost</Strong>
+            in the preview panel. Spend up to that point is not refunded — Meta charges
+            for impressions already delivered.
+          </Step>
+        </Steps>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-1">
+          Once a boost ends naturally, the panel shows an <Strong>Ended</Strong> badge and a
+          <Strong> Boost again</Strong> option if you want to re-promote the same post.
+        </p>
+        <Note>
+          Boosting requires a Facebook ad account connected to the workspace&apos;s Facebook Page.
+          If the Boost section does not appear, your ad account may not be linked yet —
+          contact support for help connecting it. Boosting is available on Pro and Agency plans.
+          Facebook and Instagram only; other platforms are not supported.
+        </Note>
       </Subsection>
 
       <Subsection title="Creating a post from the calendar">

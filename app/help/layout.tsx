@@ -13,6 +13,7 @@ const sections = [
   { id: 'analytics',           label: 'Analytics' },
   { id: 'settings',            label: 'Settings' },
   { id: 'billing',             label: 'Billing' },
+  { id: 'assistant',           label: 'LYRA Assistant' },
 ]
 
 export default function HelpLayout({ children }: { children: React.ReactNode }) {

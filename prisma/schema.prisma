@@ -469,3 +469,63 @@ model AssistantReport {
 
   @@index([workspaceId, createdAt])
 }
+
+// ─── Beta feedback ────────────────────────────────────────────────────────────
+
+model BetaResponse {
+  id                  String              @id @default(cuid())
+  name                String
+  email               String?
+  disappointmentScore DisappointmentScore
+  alternativeTool     String?
+  mostUsedFeature     String?
+  unusedFeatures      String?
+  aiVoiceScore        Int
+  timeSavedScore      TimeSavedScore
+  confusingPart       String?
+  missingFeature      String?
+  priceTooExpensive   Float?
+  priceCheap          Float?
+  wouldPay            WouldPay
+  npsScore            Int
+  createdAt           DateTime            @default(now())
+
+  @@index([createdAt])
+}
+
+enum DisappointmentScore {
+  VERY
+  SOMEWHAT
+  NOT
+}
+
+enum TimeSavedScore {
+  SIGNIFICANT
+  SOME
+  NONE
+  MORE_WORK
+}
+
+enum WouldPay {
+  YES
+  NO
+  MAYBE
+}
+
+model FeedbackResponse {
+  id           String       @id @default(cuid())
+  name         String
+  feedbackType FeedbackType
+  description  String
+  rating       Int
+  createdAt    DateTime     @default(now())
+
+  @@index([createdAt])
+}
+
+enum FeedbackType {
+  BUG_REPORT
+  FEATURE_REQUEST
+  GENERAL
+  PRAISE
+}
