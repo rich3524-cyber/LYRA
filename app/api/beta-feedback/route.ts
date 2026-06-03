@@ -176,7 +176,7 @@ export async function POST(req: Request) {
 
     try {
       await resend.emails.send({
-        from:    'LYRA Beta <onboarding@resend.dev>',
+        from:    'LYRA Beta <noreply@lyraonline.ai>',
         to:      FEEDBACK_RECIPIENTS,
         subject: `LYRA Beta Feedback — ${record.name}`,
         html:    buildBetaEmail(record),
