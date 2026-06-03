@@ -54,16 +54,21 @@ export class KlaviyoProvider implements EmailProvider {
   async getCampaigns(): Promise<RawCampaign[]> {
     const results: RawCampaign[] = []
 
-    // Minimal request — no filters, no includes — to confirm the endpoint and
-    // headers work. We will add filters back once a clean 200 is confirmed.
-    let url: string | null = `${BASE}/campaigns/`
+    // Klaviyo requires a channel filter — it rejects requests without one.
+    // Use plain template literals (not URLSearchParams) so brackets and
+    // single quotes are not percent-encoded, which Klaviyo also rejects.
+    // No fields[campaign] restriction — avoids invalid field name errors.
+    let url: string | null =
+      `${BASE}/campaigns/` +
+      `?filter=equals(messages.channel,'email')` +
+      `&filter=any(status,["Draft","Scheduled","Sent","Sending"])` +
+      `&include=campaign-messages`
 
     while (url) {
       const res = await fetch(url, { headers: this.headers })
       if (!res.ok) {
-        const errorBody = await res.text()
-        // Surface the raw error temporarily so we can diagnose the 400
-        throw new Error(`Klaviyo ${res.status}: ${errorBody}`)
+        console.error(`[klaviyo] API error ${res.status}`)
+        throw new Error(`Klaviyo returned ${res.status}. Check your API key and account permissions.`)
       }
 
       const json = await res.json() as {
