@@ -54,14 +54,13 @@ export class KlaviyoProvider implements EmailProvider {
   async getCampaigns(): Promise<RawCampaign[]> {
     const results: RawCampaign[] = []
 
-    // Klaviyo requires a channel filter — it rejects requests without one.
-    // Use plain template literals (not URLSearchParams) so brackets and
-    // single quotes are not percent-encoded, which Klaviyo also rejects.
-    // No fields[campaign] restriction — avoids invalid field name errors.
+    // Node.js fetch uses the WHATWG URL parser which encodes ' → %27 and " → %22.
+    // Pre-encode them here so the parser sees already-encoded sequences and
+    // passes them through unchanged. Klaviyo decodes %27/%22 correctly.
     let url: string | null =
       `${BASE}/campaigns/` +
-      `?filter=equals(messages.channel,'email')` +
-      `&filter=any(status,["Draft","Scheduled","Sent","Sending"])` +
+      `?filter=equals(messages.channel,%27email%27)` +
+      `&filter=any(status,[%22Draft%22,%22Scheduled%22,%22Sent%22,%22Sending%22])` +
       `&include=campaign-messages`
 
     while (url) {
