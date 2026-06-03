@@ -1,33 +1,28 @@
+import { request as httpsRequest } from 'node:https'
 import type { EmailProvider, RawCampaign } from './types'
 
-const BASE = 'https://a.klaviyo.com/api'
+const HOST        = 'a.klaviyo.com'
+const BASE_PATH   = '/api'
 const API_VERSION = '2024-02-15'
 
 interface KlaviyoCampaign {
   id:   string
   type: 'campaign'
   attributes: {
-    name:          string
-    status:        string
-    send_strategy?: {
-      method:   string
-      datetime: string | null
-    }
-    scheduled_at?: string | null
+    name:           string
+    status:         string
+    send_strategy?: { method: string; datetime: string | null }
+    scheduled_at?:  string | null
   }
   relationships?: {
-    'campaign-messages'?: {
-      data: Array<{ type: string; id: string }>
-    }
+    'campaign-messages'?: { data: Array<{ type: string; id: string }> }
   }
 }
 
 interface KlaviyoCampaignMessage {
   id:         string
   type:       'campaign-message'
-  attributes: {
-    content?: { subject?: string }
-  }
+  attributes: { content?: { subject?: string } }
 }
 
 function mapStatus(raw: string): 'scheduled' | 'sent' | 'draft' {
@@ -43,59 +38,76 @@ function mapStatus(raw: string): 'scheduled' | 'sent' | 'draft' {
 export class KlaviyoProvider implements EmailProvider {
   constructor(private apiKey: string) {}
 
-  private get headers() {
-    return {
-      'Authorization': `Klaviyo-API-Key ${this.apiKey}`,
-      'revision':       API_VERSION,
-      'Accept':         'application/json',
-    }
+  // Use Node.js https.request so the path string is sent exactly as-is.
+  // fetch() uses the WHATWG URL parser which encodes ' → %27 and " → %22
+  // in query strings for https URLs — Klaviyo's filter parser rejects that.
+  private get(path: string): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+      const req = httpsRequest(
+        {
+          hostname: HOST,
+          path,
+          method:   'GET',
+          headers: {
+            Authorization: `Klaviyo-API-Key ${this.apiKey}`,
+            revision:       API_VERSION,
+            Accept:         'application/json',
+          },
+        },
+        (res) => {
+          const chunks: Buffer[] = []
+          res.on('data', (c: Buffer) => chunks.push(c))
+          res.on('end', () => {
+            const body = Buffer.concat(chunks).toString('utf-8')
+            if (res.statusCode && res.statusCode >= 400) {
+              console.error(`[klaviyo] API error ${res.statusCode}`)
+              reject(new Error(
+                `Klaviyo returned ${res.statusCode}. Check your API key and account permissions.`
+              ))
+              return
+            }
+            try { resolve(JSON.parse(body)) }
+            catch { reject(new Error('Invalid JSON response from Klaviyo')) }
+          })
+        }
+      )
+      req.on('error', reject)
+      req.end()
+    })
   }
 
   async getCampaigns(): Promise<RawCampaign[]> {
     const results: RawCampaign[] = []
 
-    // Node.js fetch uses the WHATWG URL parser which encodes ' → %27 and " → %22.
-    // Pre-encode them here so the parser sees already-encoded sequences and
-    // passes them through unchanged. Klaviyo decodes %27/%22 correctly.
-    let url: string | null =
-      `${BASE}/campaigns/` +
-      `?filter=equals(messages.channel,%27email%27)` +
-      `&filter=any(status,[%22Draft%22,%22Scheduled%22,%22Sent%22,%22Sending%22])` +
+    // Literal path — single and double quotes sent unchanged to Klaviyo
+    let path: string | null =
+      `${BASE_PATH}/campaigns/` +
+      `?filter=equals(messages.channel,'email')` +
+      `&filter=any(status,["Draft","Scheduled","Sent","Sending"])` +
       `&include=campaign-messages`
 
-    while (url) {
-      const res = await fetch(url, { headers: this.headers })
-      if (!res.ok) {
-        console.error(`[klaviyo] API error ${res.status}`)
-        throw new Error(`Klaviyo returned ${res.status}. Check your API key and account permissions.`)
-      }
-
-      const json = await res.json() as {
-        data:     KlaviyoCampaign[]
+    while (path) {
+      const json = this.get(path) as unknown
+      const page = await json as {
+        data:      KlaviyoCampaign[]
         included?: KlaviyoCampaignMessage[]
-        links:    { next?: string | null }
+        links:     { next?: string | null }
       }
 
-      // Build subject-line map from included campaign-message resources
+      // Map included campaign-messages by ID for subject-line lookup
       const subjectByMsgId = new Map<string, string>()
-      for (const msg of (json.included ?? [])) {
+      for (const msg of (page.included ?? [])) {
         if (msg.type === 'campaign-message' && msg.attributes?.content?.subject) {
           subjectByMsgId.set(msg.id, msg.attributes.content.subject)
         }
       }
 
-      for (const c of json.data) {
-        const attr   = c.attributes
-        const status = mapStatus(attr.status)
+      for (const c of page.data) {
+        const attr    = c.attributes
+        const status  = mapStatus(attr.status)
+        const sendDt  = attr.send_strategy?.datetime ?? attr.scheduled_at ?? null
+        const sendDate = sendDt ? new Date(sendDt) : null
 
-        // Send time: prefer send_strategy.datetime, fall back to scheduled_at
-        const sendDateStr =
-          attr.send_strategy?.datetime ??
-          attr.scheduled_at ??
-          null
-        const sendDate = sendDateStr ? new Date(sendDateStr) : null
-
-        // Subject: first linked campaign-message, fall back to campaign name
         const firstMsgId  = c.relationships?.['campaign-messages']?.data?.[0]?.id
         const subjectLine = (firstMsgId && subjectByMsgId.get(firstMsgId)) || attr.name
 
@@ -109,7 +121,18 @@ export class KlaviyoProvider implements EmailProvider {
         })
       }
 
-      url = json.links?.next ?? null
+      // Klaviyo next link is a full URL — extract path + query only
+      const nextHref = page.links?.next
+      if (nextHref) {
+        try {
+          const u = new URL(nextHref)
+          path = u.pathname + u.search
+        } catch {
+          path = null
+        }
+      } else {
+        path = null
+      }
     }
 
     return results
