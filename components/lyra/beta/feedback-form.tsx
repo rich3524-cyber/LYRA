@@ -80,7 +80,7 @@ export function FeedbackForm() {
             >
               <CheckCircle className="text-status-success mb-6" size={32} strokeWidth={1.5} />
               <h1 className="font-display text-4xl text-text-primary mb-3">
-                Thank you, {name.split(' ')[0]}.
+                Thank you, {name.trim()}.
               </h1>
               <p className="text-text-secondary text-sm font-sans leading-relaxed">
                 Your feedback has been recorded. We read every submission.
@@ -106,12 +106,12 @@ export function FeedbackForm() {
 
                 {/* Name */}
                 <div>
-                  <label className="block text-sm font-sans font-medium text-text-primary mb-2">Name</label>
+                  <label className="block text-sm font-sans font-medium text-text-primary mb-2">First name</label>
                   <input
                     type="text"
                     value={name}
                     onChange={e => setName(e.target.value)}
-                    placeholder="Your name"
+                    placeholder="Your first name"
                     className="
                       w-full px-4 py-3 rounded-lg
                       bg-background-secondary border border-background-border

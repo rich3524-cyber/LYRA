@@ -274,7 +274,7 @@ export function BetaSurveyForm() {
             >
               <CheckCircle className="text-status-success mb-6" size={32} strokeWidth={1.5} />
               <h1 className="font-display text-4xl text-text-primary mb-3">
-                Thank you, {form.name.split(' ')[0]}.
+                Thank you, {form.name.trim()}.
               </h1>
               <p className="text-text-secondary text-sm font-sans leading-relaxed">
                 Your feedback has been recorded. We will review it carefully.
@@ -303,8 +303,8 @@ export function BetaSurveyForm() {
                 <SectionLabel>About you</SectionLabel>
                 <div className="space-y-4 mb-0">
                   <div>
-                    <FieldLabel>Name</FieldLabel>
-                    <TextInput value={form.name} onChange={v => set('name', v)} placeholder="Your name" />
+                    <FieldLabel>First name</FieldLabel>
+                    <TextInput value={form.name} onChange={v => set('name', v)} placeholder="Your first name" />
                   </div>
                   <div>
                     <FieldLabel optional>Email</FieldLabel>
