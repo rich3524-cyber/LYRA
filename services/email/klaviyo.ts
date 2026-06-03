@@ -3,20 +3,18 @@ import type { EmailProvider, RawCampaign } from './types'
 const BASE = 'https://a.klaviyo.com/api'
 const API_VERSION = '2024-02-15'
 
-// Klaviyo v3 campaign attributes (valid field names)
-interface KlaviyoCampaignAttributes {
-  name:          string
-  status:        string          // Draft | Scheduled | Sending | Sent | Cancelled | Archived
-  send_strategy: {
-    method:   string             // static | smart_send_time | continuous
-    datetime: string | null      // ISO send datetime for static sends
-  } | null
-}
-
 interface KlaviyoCampaign {
   id:   string
   type: 'campaign'
-  attributes: KlaviyoCampaignAttributes
+  attributes: {
+    name:          string
+    status:        string
+    send_strategy?: {
+      method:   string
+      datetime: string | null
+    }
+    scheduled_at?: string | null
+  }
   relationships?: {
     'campaign-messages'?: {
       data: Array<{ type: string; id: string }>
@@ -56,17 +54,13 @@ export class KlaviyoProvider implements EmailProvider {
   async getCampaigns(): Promise<RawCampaign[]> {
     const results: RawCampaign[] = []
 
-    // Valid campaign fields + include campaign-messages for subject lines
-    const params = new URLSearchParams({
-      'filter':                    "equals(messages.channel,'email')",
-      'fields[campaign]':          'name,status,send_strategy',
-      'include':                   'campaign-messages',
-      'fields[campaign-message]':  'content.subject',
-    })
-    // Add second filter — Klaviyo ANDs multiple filter params
-    params.append('filter', 'any(status,["Draft","Scheduled","Sent","Sending"])')
-
-    let url: string | null = `${BASE}/campaigns/?${params.toString()}`
+    // Use a plain URL string — URLSearchParams percent-encodes brackets which
+    // Klaviyo does not accept in the fields[] and filter parameters.
+    // Include campaign-messages to get subject lines from the linked resource.
+    let url: string | null =
+      `${BASE}/campaigns/` +
+      `?filter=any(status,["Draft","Scheduled","Sent","Sending"])` +
+      `&include=campaign-messages`
 
     while (url) {
       const res = await fetch(url, { headers: this.headers })
@@ -77,34 +71,40 @@ export class KlaviyoProvider implements EmailProvider {
 
       const json = await res.json() as {
         data:     KlaviyoCampaign[]
-        included: KlaviyoCampaignMessage[]
+        included?: KlaviyoCampaignMessage[]
         links:    { next?: string | null }
       }
 
-      // Build a subject-line map from the included campaign-messages
-      const subjectByMessageId = new Map<string, string>()
+      // Build subject-line map from included campaign-message resources
+      const subjectByMsgId = new Map<string, string>()
       for (const msg of (json.included ?? [])) {
         if (msg.type === 'campaign-message' && msg.attributes?.content?.subject) {
-          subjectByMessageId.set(msg.id, msg.attributes.content.subject)
+          subjectByMsgId.set(msg.id, msg.attributes.content.subject)
         }
       }
 
       for (const c of json.data) {
-        const attr    = c.attributes
-        const sendDt  = attr.send_strategy?.datetime ?? null
-        const status  = mapStatus(attr.status)
+        const attr   = c.attributes
+        const status = mapStatus(attr.status)
 
-        // Get subject from the first related campaign-message
+        // Send time: prefer send_strategy.datetime, fall back to scheduled_at
+        const sendDateStr =
+          attr.send_strategy?.datetime ??
+          attr.scheduled_at ??
+          null
+        const sendDate = sendDateStr ? new Date(sendDateStr) : null
+
+        // Subject: first linked campaign-message, fall back to campaign name
         const firstMsgId  = c.relationships?.['campaign-messages']?.data?.[0]?.id
-        const subjectLine = (firstMsgId && subjectByMessageId.get(firstMsgId)) || attr.name
+        const subjectLine = (firstMsgId && subjectByMsgId.get(firstMsgId)) || attr.name
 
         results.push({
           externalId:  c.id,
           name:        attr.name,
           subjectLine,
           status,
-          scheduledAt: status === 'scheduled' && sendDt ? new Date(sendDt) : null,
-          sentAt:      status === 'sent'      && sendDt ? new Date(sendDt) : null,
+          scheduledAt: status === 'scheduled' ? sendDate : null,
+          sentAt:      status === 'sent'      ? sendDate : null,
         })
       }
 
