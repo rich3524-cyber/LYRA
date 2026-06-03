@@ -76,11 +76,11 @@ export class KlaviyoProvider implements EmailProvider {
   async getCampaigns(): Promise<RawCampaign[]> {
     const results: RawCampaign[] = []
 
-    // Literal path — single and double quotes sent unchanged to Klaviyo
+    // Single filter param using AND() — Klaviyo only reads the last filter
+    // param when duplicates are present, so both conditions must be combined.
     let path: string | null =
       `${BASE_PATH}/campaigns/` +
-      `?filter=equals(messages.channel,'email')` +
-      `&filter=any(status,["Draft","Scheduled","Sent","Sending"])` +
+      `?filter=AND(equals(messages.channel,'email'),any(status,["Draft","Scheduled","Sent","Sending"]))` +
       `&include=campaign-messages`
 
     while (path) {
