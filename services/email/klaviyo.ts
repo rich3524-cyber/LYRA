@@ -60,10 +60,7 @@ export class KlaviyoProvider implements EmailProvider {
           res.on('end', () => {
             const body = Buffer.concat(chunks).toString('utf-8')
             if (res.statusCode && res.statusCode >= 400) {
-              console.error(`[klaviyo] API error ${res.statusCode}`)
-              reject(new Error(
-                `Klaviyo returned ${res.statusCode}. Check your API key and account permissions.`
-              ))
+              reject(new Error(`Klaviyo ${res.statusCode}: ${body}`))
               return
             }
             try { resolve(JSON.parse(body)) }
