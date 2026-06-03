@@ -61,10 +61,9 @@ export class KlaviyoProvider implements EmailProvider {
     while (url) {
       const res = await fetch(url, { headers: this.headers })
       if (!res.ok) {
-        // Log full body temporarily to diagnose the 400
         const errorBody = await res.text()
-        console.error(`[klaviyo] API error ${res.status}:`, errorBody)
-        throw new Error(`Klaviyo returned ${res.status}. Check your API key and account permissions.`)
+        // Surface the raw error temporarily so we can diagnose the 400
+        throw new Error(`Klaviyo ${res.status}: ${errorBody}`)
       }
 
       const json = await res.json() as {
