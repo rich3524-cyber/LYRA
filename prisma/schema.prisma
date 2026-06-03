@@ -83,6 +83,7 @@ model Workspace {
   assistantReports  AssistantReport[]
   clientLogoS3Key   String?
   region            String            @default("AU")
+  emailConnection   EmailConnection?
 }
 
 enum Plan {
@@ -528,4 +529,54 @@ enum FeedbackType {
   FEATURE_REQUEST
   GENERAL
   PRAISE
+}
+
+// ─── Email Marketing Integration ─────────────────────────────────────────────
+
+enum EmailProvider {
+  KLAVIYO
+  MAILCHIMP
+}
+
+enum EmailCampaignStatus {
+  DRAFT
+  SCHEDULED
+  SENT
+}
+
+model EmailConnection {
+  id            String        @id @default(cuid())
+  workspaceId   String        @unique
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  provider      EmailProvider
+  credentials   String        // AES-256-GCM encrypted JSON: { apiKey } | { apiKey, serverPrefix }
+  isActive      Boolean       @default(true)
+  lastSyncAt    DateTime?
+  lastSyncError String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  campaigns EmailCampaign[]
+
+  @@index([provider])
+}
+
+model EmailCampaign {
+  id                String              @id @default(cuid())
+  emailConnectionId String
+  emailConnection   EmailConnection     @relation(fields: [emailConnectionId], references: [id], onDelete: Cascade)
+  workspaceId       String
+  externalId        String
+  name              String
+  subjectLine       String
+  status            EmailCampaignStatus
+  scheduledAt       DateTime?
+  sentAt            DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@unique([emailConnectionId, externalId])
+  @@index([workspaceId, scheduledAt])
+  @@index([workspaceId, sentAt])
+  @@index([emailConnectionId])
 }

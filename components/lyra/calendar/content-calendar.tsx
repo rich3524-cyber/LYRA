@@ -19,27 +19,73 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import { useDroppable } from '@dnd-kit/core'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Mail } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { PostPreviewCard, CalendarPost, PLATFORM_COLORS, PLATFORM_LABELS } from './post-preview-card'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
+// ── Email campaign types ───────────────────────────────────────────────────────
+
+interface EmailCampaign {
+  id:          string
+  name:        string
+  subjectLine: string
+  status:      'DRAFT' | 'SCHEDULED' | 'SENT'
+  scheduledAt: string | null
+  sentAt:      string | null
+  emailConnection: { provider: 'KLAVIYO' | 'MAILCHIMP' }
+}
+
+const EMAIL_STATUS_LABEL: Record<EmailCampaign['status'], string> = {
+  DRAFT:     'Draft',
+  SCHEDULED: 'Scheduled',
+  SENT:      'Sent',
+}
+
+function EmailCampaignChip({ campaign }: { campaign: EmailCampaign }) {
+  const sendTime = campaign.scheduledAt ?? campaign.sentAt
+  return (
+    <div className="flex items-start gap-1.5 px-2 py-1.5 rounded-md bg-background-primary border-l-2 border-l-violet-500/50 border border-background-border text-[11px] font-sans leading-tight">
+      <Mail size={10} strokeWidth={1.5} className="text-violet-400 mt-0.5 shrink-0" />
+      <div className="min-w-0">
+        <p className="text-text-secondary truncate" title={campaign.name}>{campaign.name}</p>
+        <div className="flex items-center gap-1 mt-0.5">
+          {sendTime && (
+            <span className="text-text-tertiary font-mono">
+              {format(new Date(sendTime), 'h:mm a')}
+            </span>
+          )}
+          <span className={cn(
+            'font-sans',
+            campaign.status === 'SCHEDULED' && 'text-status-info',
+            campaign.status === 'SENT'      && 'text-text-tertiary',
+            campaign.status === 'DRAFT'     && 'text-text-tertiary',
+          )}>
+            {EMAIL_STATUS_LABEL[campaign.status]}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── DayCell ───────────────────────────────────────────────────────────────────
+
 function DayCell({
   day,
   posts,
+  emailCampaigns,
   isCurrentDay,
 }: {
-  day: Date
-  posts: CalendarPost[]
-  isCurrentDay: boolean
+  day:           Date
+  posts:         CalendarPost[]
+  emailCampaigns: EmailCampaign[]
+  isCurrentDay:  boolean
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: day.toISOString() })
 
-  // Unique platforms scheduled this day — for the quick-reference dot strip
-  const platforms = Array.from(
-    new Set(posts.map((p) => p.socialAccount.platform))
-  )
+  const platforms = Array.from(new Set(posts.map((p) => p.socialAccount.platform)))
 
   return (
     <div
@@ -50,14 +96,9 @@ function DayCell({
         isOver && 'bg-background-hover'
       )}
     >
-      {/* Date row with platform dot strip */}
+      {/* Date row */}
       <div className="flex items-center justify-between gap-1 mb-1">
-        <span
-          className={cn(
-            'text-xs',
-            isCurrentDay ? 'text-accent-platinum font-medium' : 'text-text-tertiary'
-          )}
-        >
+        <span className={cn('text-xs', isCurrentDay ? 'text-accent-platinum font-medium' : 'text-text-tertiary')}>
           {format(day, 'd')}
         </span>
         {platforms.length > 0 && (
@@ -66,11 +107,7 @@ function DayCell({
               <span
                 key={platform}
                 className="rounded-full shrink-0"
-                style={{
-                  width: 6,
-                  height: 6,
-                  backgroundColor: PLATFORM_COLORS[platform] ?? '#555555',
-                }}
+                style={{ width: 6, height: 6, backgroundColor: PLATFORM_COLORS[platform] ?? '#555555' }}
                 title={PLATFORM_LABELS[platform] ?? platform}
                 aria-hidden="true"
               />
@@ -78,35 +115,63 @@ function DayCell({
           </div>
         )}
       </div>
+
+      {/* Social post chips */}
       {posts.map((post) => (
         <PostPreviewCard key={post.id} post={post} />
+      ))}
+
+      {/* Email campaign chips — non-draggable */}
+      {emailCampaigns.map((campaign) => (
+        <EmailCampaignChip key={campaign.id} campaign={campaign} />
       ))}
     </div>
   )
 }
 
+// ── ContentCalendar ───────────────────────────────────────────────────────────
+
 export function ContentCalendar({ workspaceId }: { workspaceId: string }) {
-  const [currentMonth, setCurrentMonth] = useState(new Date())
-  const [posts, setPosts] = useState<CalendarPost[]>([])
-  const [activePost, setActivePost] = useState<CalendarPost | null>(null)
+  const [currentMonth, setCurrentMonth]     = useState(new Date())
+  const [posts, setPosts]                   = useState<CalendarPost[]>([])
+  const [emailCampaigns, setEmailCampaigns] = useState<EmailCampaign[]>([])
+  const [activePost, setActivePost]         = useState<CalendarPost | null>(null)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   )
 
-  const loadPosts = useCallback(() => {
-    fetch(`/api/posts?workspaceId=${workspaceId}&month=${format(currentMonth, 'yyyy-MM')}`)
-      .then((r) => r.json())
+  const monthParam = format(currentMonth, 'yyyy-MM')
+
+  // Keep a revert function for drag-and-drop failures
+  const reloadPosts = useCallback(() => {
+    fetch(`/api/posts?workspaceId=${workspaceId}&month=${monthParam}`)
+      .then(r => r.json())
       .then((data: CalendarPost[]) => setPosts(Array.isArray(data) ? data : []))
-      .catch(() => setPosts([]))
-  }, [workspaceId, currentMonth])
+      .catch(() => {})
+  }, [workspaceId, monthParam])
 
-  useEffect(() => { loadPosts() }, [loadPosts])
+  useEffect(() => {
+    let ignore = false
+    fetch(`/api/posts?workspaceId=${workspaceId}&month=${monthParam}`)
+      .then(r => r.json())
+      .then((data: CalendarPost[]) => { if (!ignore) setPosts(Array.isArray(data) ? data : []) })
+      .catch(() => { if (!ignore) setPosts([]) })
+    return () => { ignore = true }
+  }, [workspaceId, monthParam])
 
-  const days = eachDayOfInterval({
-    start: startOfMonth(currentMonth),
-    end: endOfMonth(currentMonth),
-  })
+  useEffect(() => {
+    let ignore = false
+    fetch(`/api/email/campaigns?workspaceId=${workspaceId}&month=${monthParam}`)
+      .then(r => r.json())
+      .then((data: { campaigns: EmailCampaign[] }) => {
+        if (!ignore) setEmailCampaigns(Array.isArray(data.campaigns) ? data.campaigns : [])
+      })
+      .catch(() => { if (!ignore) setEmailCampaigns([]) })
+    return () => { ignore = true }
+  }, [workspaceId, monthParam])
+
+  const days     = eachDayOfInterval({ start: startOfMonth(currentMonth), end: endOfMonth(currentMonth) })
   const startDay = startOfMonth(currentMonth).getDay()
 
   async function handleDragEnd(event: DragEndEvent) {
@@ -117,29 +182,25 @@ export function ContentCalendar({ workspaceId }: { workspaceId: string }) {
     const post = posts.find((p) => p.id === active.id)
     if (!post) return
 
-    // over.id is the ISO string of the target day
-    const targetDay = new Date(over.id as string)
-    const originalDate = post.scheduledAt ? new Date(post.scheduledAt) : new Date()
+    const targetDay      = new Date(over.id as string)
+    const originalDate   = post.scheduledAt ? new Date(post.scheduledAt) : new Date()
     const newScheduledAt = setDate(originalDate, targetDay.getDate())
 
-    // Optimistic update
     setPosts((prev) =>
-      prev.map((p) =>
-        p.id === post.id ? { ...p, scheduledAt: newScheduledAt.toISOString() } : p
-      )
+      prev.map((p) => p.id === post.id ? { ...p, scheduledAt: newScheduledAt.toISOString() } : p)
     )
 
     try {
       const res = await fetch(`/api/posts/${post.id}`, {
-        method: 'PATCH',
+        method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scheduledAt: newScheduledAt.toISOString() }),
+        body:    JSON.stringify({ scheduledAt: newScheduledAt.toISOString() }),
       })
       if (!res.ok) throw new Error('Failed to reschedule')
       toast.success('Post rescheduled')
     } catch {
       toast.error('Failed to reschedule post')
-      loadPosts() // revert
+      reloadPosts()
     }
   }
 
@@ -179,10 +240,7 @@ export function ContentCalendar({ workspaceId }: { workspaceId: string }) {
 
         <div className="grid grid-cols-7 gap-px bg-background-border rounded-xl overflow-hidden">
           {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
-            <div
-              key={d}
-              className="bg-background-secondary px-3 py-2 text-xs text-text-tertiary text-center tracking-widest"
-            >
+            <div key={d} className="bg-background-secondary px-3 py-2 text-xs text-text-tertiary text-center tracking-widest">
               {d}
             </div>
           ))}
@@ -195,11 +253,16 @@ export function ContentCalendar({ workspaceId }: { workspaceId: string }) {
             const dayPosts = posts.filter(
               (p) => p.scheduledAt && isSameDay(new Date(p.scheduledAt), day)
             )
+            const dayCampaigns = emailCampaigns.filter((c) => {
+              const date = c.scheduledAt ?? c.sentAt
+              return date && isSameDay(new Date(date), day)
+            })
             return (
               <DayCell
                 key={day.toISOString()}
                 day={day}
                 posts={dayPosts}
+                emailCampaigns={dayCampaigns}
                 isCurrentDay={isToday(day)}
               />
             )

@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { DeleteWorkspaceButton } from '@/components/lyra/settings/delete-workspace-button'
 import { CrisisAwareToggle } from '@/components/lyra/settings/crisis-aware-toggle'
 import { BrandingTab } from '@/components/lyra/settings/branding-tab'
+import { EmailMarketingSection } from '@/components/lyra/settings/email-marketing-section'
 
 interface Props {
   params: Promise<{ workspaceId: string }>
@@ -79,6 +80,11 @@ export default async function SettingsPage({ params, searchParams }: Props) {
     where: { workspaceId, isActive: true },
     select: { id: true, platform: true, name: true, handle: true },
     orderBy: { platform: 'asc' },
+  })
+
+  const emailConnection = await prisma.emailConnection.findUnique({
+    where:  { workspaceId },
+    select: { id: true, provider: true, isActive: true, lastSyncAt: true, lastSyncError: true },
   })
 
   async function disconnectAccount(formData: FormData) {
@@ -212,6 +218,23 @@ export default async function SettingsPage({ params, searchParams }: Props) {
         <div className="p-5 rounded-xl bg-background-secondary border border-background-border">
           <BrandingTab workspaceId={workspace.id} hasLogo={!!workspace.clientLogoS3Key} />
         </div>
+      </section>
+
+      {/* Email marketing */}
+      <section className="space-y-3">
+        <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
+          Email Marketing
+        </p>
+        <EmailMarketingSection
+          workspaceId={workspaceId}
+          initialConnection={emailConnection ? {
+            id:           emailConnection.id,
+            provider:     emailConnection.provider,
+            isActive:     emailConnection.isActive,
+            lastSyncAt:   emailConnection.lastSyncAt?.toISOString() ?? null,
+            lastSyncError: emailConnection.lastSyncError,
+          } : null}
+        />
       </section>
 
       {/* Danger zone */}
