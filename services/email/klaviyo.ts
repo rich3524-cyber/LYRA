@@ -54,18 +54,16 @@ export class KlaviyoProvider implements EmailProvider {
   async getCampaigns(): Promise<RawCampaign[]> {
     const results: RawCampaign[] = []
 
-    // Use a plain URL string — URLSearchParams percent-encodes brackets which
-    // Klaviyo does not accept in the fields[] and filter parameters.
-    // Include campaign-messages to get subject lines from the linked resource.
-    let url: string | null =
-      `${BASE}/campaigns/` +
-      `?filter=any(status,["Draft","Scheduled","Sent","Sending"])` +
-      `&include=campaign-messages`
+    // Minimal request — no filters, no includes — to confirm the endpoint and
+    // headers work. We will add filters back once a clean 200 is confirmed.
+    let url: string | null = `${BASE}/campaigns/`
 
     while (url) {
       const res = await fetch(url, { headers: this.headers })
       if (!res.ok) {
-        console.error(`[klaviyo] API error ${res.status}`)
+        // Log full body temporarily to diagnose the 400
+        const errorBody = await res.text()
+        console.error(`[klaviyo] API error ${res.status}:`, errorBody)
         throw new Error(`Klaviyo returned ${res.status}. Check your API key and account permissions.`)
       }
 
