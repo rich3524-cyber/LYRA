@@ -170,6 +170,27 @@ export function ContentCalendarSection() {
         </p>
       </Subsection>
 
+      <Subsection title="Email campaigns on the calendar">
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          If you have connected a Klaviyo or Mailchimp account in
+          <Strong> Settings → Email Marketing</Strong>, scheduled and sent email campaigns
+          appear directly on the calendar alongside your social posts. This gives you a
+          complete view of all outbound marketing activity — social and email — without
+          switching between tools.
+        </p>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          Email campaign entries are visually distinct from social posts: they display a
+          violet left border and a mail icon. Each entry shows the campaign name, scheduled
+          or sent time, and status (Scheduled or Sent). Email campaigns are read-only on
+          the calendar — to edit or send them, use Klaviyo or Mailchimp directly.
+        </p>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          The calendar syncs email campaigns automatically every 15 minutes. To pull
+          changes immediately, go to <Strong>Settings → Email Marketing</Strong> and click
+          <Strong> Sync now</Strong>.
+        </p>
+      </Subsection>
+
       <Subsection title="AI Schedule Generator">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
           The Schedule Generator builds a complete multi-week content plan for a workspace in
