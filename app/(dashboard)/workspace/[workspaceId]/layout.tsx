@@ -22,8 +22,14 @@ export default async function WorkspaceLayout({
       access: { some: { userId: user.id } },
     },
     select: {
-      crisisActive: true,
+      crisisActive:      true,
       crisisTriggeredAt: true,
+      crisisEvents: {
+        where:   { resolvedAt: null },
+        orderBy: { triggeredAt: 'desc' },
+        take:    1,
+        select:  { triggerType: true, commentIds: true },
+      },
     },
   })
 
@@ -31,12 +37,16 @@ export default async function WorkspaceLayout({
     notFound()
   }
 
+  const activeCrisis = workspace.crisisEvents[0] ?? null
+
   return (
     <>
       {workspace?.crisisActive && (
         <CrisisBanner
           workspaceId={workspaceId}
           triggeredAt={workspace.crisisTriggeredAt?.toISOString() ?? null}
+          triggerType={activeCrisis?.triggerType ?? null}
+          triggeringCommentCount={activeCrisis?.commentIds.length ?? 0}
         />
       )}
       {children}

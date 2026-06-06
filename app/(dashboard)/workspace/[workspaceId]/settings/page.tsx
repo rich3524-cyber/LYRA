@@ -6,6 +6,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { DeleteWorkspaceButton } from '@/components/lyra/settings/delete-workspace-button'
 import { CrisisAwareToggle } from '@/components/lyra/settings/crisis-aware-toggle'
+import { CrisisHistory } from '@/components/lyra/crisis/crisis-history'
 import { BrandingTab } from '@/components/lyra/settings/branding-tab'
 import { EmailMarketingSection } from '@/components/lyra/settings/email-marketing-section'
 
@@ -208,6 +209,14 @@ export default async function SettingsPage({ params, searchParams }: Props) {
           enabled={workspace.crisisAware}
           isPro={workspace.plan === 'PRO' || workspace.plan === 'AGENCY'}
         />
+        {(workspace.plan === 'PRO' || workspace.plan === 'AGENCY') && (
+          <div className="space-y-3">
+            <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
+              Crisis History
+            </p>
+            <CrisisHistory workspaceId={workspace.id} />
+          </div>
+        )}
       </section>
 
       {/* Branding */}
