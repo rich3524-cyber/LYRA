@@ -152,6 +152,23 @@ export function SettingsSection() {
         </ul>
       </Subsection>
 
+      <Subsection title="Workspace settings — Add-ons">
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          The <Strong>Add-ons</Strong> section shows optional paid features that can be
+          activated per workspace, billed separately from your main LYRA subscription.
+        </p>
+        <ul className="space-y-2 font-sans text-sm text-text-secondary">
+          <li>
+            <Strong>LYRA Trend</Strong> — AI-powered trend discovery. Surfaces what is
+            currently trending across social platforms and news sources, scored for relevance
+            to this workspace&apos;s brand. Unlocks the Trend Hub in the sidebar and the Trend
+            picker in the composer. Click <Strong>Activate</Strong> to subscribe, or
+            <Strong> Manage</Strong> to access the Stripe billing portal. Available on all
+            plans. See the <Strong>LYRA Trend</Strong> section for full details.
+          </li>
+        </ul>
+      </Subsection>
+
       <Subsection title="Workspace settings — Danger Zone">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
           Contains the <Strong>Delete workspace</Strong> action. This is irreversible. You must

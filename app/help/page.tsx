@@ -11,6 +11,7 @@ import { AnalyticsSection } from '@/components/lyra/help/section-09-analytics'
 import { SettingsSection } from '@/components/lyra/help/section-10-settings'
 import { BillingSection } from '@/components/lyra/help/section-11-billing'
 import { AssistantSection } from '@/components/lyra/help/section-12-assistant'
+import { TrendsSection } from '@/components/lyra/help/section-13-trends'
 
 export const metadata = {
   title: 'Documentation — LYRA',
@@ -43,6 +44,8 @@ export default function HelpPage() {
       <BillingSection />
       <Divider />
       <AssistantSection />
+      <Divider />
+      <TrendsSection />
     </div>
   )
 }
