@@ -49,6 +49,12 @@ export function PostComposer({ workspaceId, connectedPlatforms, onContentChange,
     initialTrend ? { id: initialTrend.trendId, title: initialTrend.title, sourcePlatform: initialTrend.sourcePlatform } : null
   )
 
+  useEffect(() => {
+    if (initialTrend) {
+      setActiveTrend({ id: initialTrend.trendId, title: initialTrend.title, sourcePlatform: initialTrend.sourcePlatform })
+    }
+  }, [initialTrend])
+
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -111,7 +117,6 @@ export function PostComposer({ workspaceId, connectedPlatforms, onContentChange,
   }
 
   const handleSubmit = async (status: 'DRAFT' | 'SCHEDULED') => {
-    const content = editor?.getText()
     if (!content?.trim()) { toast.error('Post content is required'); return }
     if (selectedPlatforms.length === 0) { toast.error('Select at least one platform'); return }
     if (status === 'SCHEDULED' && !scheduledAt) { toast.error('Set a schedule time'); return }
@@ -164,7 +169,7 @@ export function PostComposer({ workspaceId, connectedPlatforms, onContentChange,
                 aria-label="Remove trend"
                 className="ml-1 text-text-tertiary hover:text-text-primary transition-colors"
               >
-                <X size={10} />
+                <X size={10} strokeWidth={1.5} />
               </button>
             </span>
           </div>

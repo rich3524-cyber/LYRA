@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Loader2, TrendingUp } from 'lucide-react'
+import { X, TrendingUp } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import type { TrendItem } from '@prisma/client'
 
@@ -32,22 +33,33 @@ export function TrendPickerPanel({ open, workspaceId, onClose, onSelectTrend }: 
 
   useEffect(() => {
     if (!open) return
+    const controller = new AbortController()
     setLoading(true)
-    fetch(`/api/trends?workspaceId=${workspaceId}`)
+    setTrends([])
+    fetch(`/api/trends?workspaceId=${workspaceId}`, { signal: controller.signal })
       .then(r => r.json())
       .then((d: { trends?: TrendItem[] }) => setTrends(d.trends ?? []))
-      .catch(() => {})
+      .catch((err: unknown) => {
+        if (err instanceof Error && err.name !== 'AbortError') {
+          console.error('Failed to fetch trends:', err)
+        }
+      })
       .finally(() => setLoading(false))
+    return () => controller.abort()
   }, [open, workspaceId])
 
   const handleDismiss = async (trend: TrendItem) => {
     setDismissing(trend.id)
     try {
-      await fetch(`/api/trends/${trend.id}/status`, {
+      const res = await fetch(`/api/trends/${trend.id}/status`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ status: 'DISMISSED' }),
       })
+      if (!res.ok) {
+        toast.error('Failed to dismiss trend')
+        return
+      }
       setTrends(prev => prev.filter(t => t.id !== trend.id))
       if (expanded === trend.id) setExpanded(null)
     } finally {
@@ -79,8 +91,10 @@ export function TrendPickerPanel({ open, workspaceId, onClose, onSelectTrend }: 
             {/* Body */}
             <div className="flex-1 overflow-y-auto p-2 space-y-1">
               {loading && (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 size={16} strokeWidth={1.5} className="animate-spin text-text-tertiary" />
+                <div className="space-y-1 p-2">
+                  {Array.from({ length: 4 }).map((_, i) => (
+                    <div key={i} className="h-14 rounded-lg bg-background-secondary border border-background-border animate-pulse" />
+                  ))}
                 </div>
               )}
               {!loading && trends.length === 0 && (
@@ -97,10 +111,10 @@ export function TrendPickerPanel({ open, workspaceId, onClose, onSelectTrend }: 
                   >
                     <p className="font-sans text-xs font-medium text-text-primary leading-snug line-clamp-2">{trend.title}</p>
                     <div className="flex items-center gap-1.5 mt-1">
-                      <span className="font-sans text-[9px] font-medium uppercase tracking-[0.08em] px-1 py-0.5 rounded bg-background-hover border border-background-border text-text-tertiary">
+                      <span className="font-sans text-xs font-medium uppercase tracking-[0.08em] px-1 py-0.5 rounded bg-background-hover border border-background-border text-text-tertiary">
                         {PLATFORM_LABELS[trend.sourcePlatform] ?? trend.sourcePlatform}
                       </span>
-                      <span className={cn('font-mono text-[10px]', scoreColor(trend.relevanceScore))}>
+                      <span className={cn('font-mono text-[11px]', scoreColor(trend.relevanceScore))}>
                         {trend.relevanceScore}
                       </span>
                     </div>
@@ -112,7 +126,7 @@ export function TrendPickerPanel({ open, workspaceId, onClose, onSelectTrend }: 
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.15 }}
+                        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                         className="overflow-hidden px-2.5 pb-2"
                       >
                         <p className="font-sans text-[11px] text-text-secondary leading-relaxed mb-2">
