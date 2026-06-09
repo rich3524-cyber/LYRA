@@ -9,10 +9,11 @@ import { CrisisAwareToggle } from '@/components/lyra/settings/crisis-aware-toggl
 import { CrisisHistory } from '@/components/lyra/crisis/crisis-history'
 import { BrandingTab } from '@/components/lyra/settings/branding-tab'
 import { EmailMarketingSection } from '@/components/lyra/settings/email-marketing-section'
+import { TrendAddonCard } from '@/components/lyra/settings/trend-addon-card'
 
 interface Props {
   params: Promise<{ workspaceId: string }>
-  searchParams: Promise<{ connected?: string }>
+  searchParams: Promise<{ connected?: string; trend?: string }>
 }
 
 interface PlatformConfig {
@@ -69,11 +70,11 @@ export default async function SettingsPage({ params, searchParams }: Props) {
   if (!user) redirect('/auth/login')
 
   const { workspaceId } = await params
-  const { connected } = await searchParams
+  const { connected, trend } = await searchParams
 
   const workspace = await prisma.workspace.findFirst({
     where: { id: workspaceId, access: { some: { userId: user.id } } },
-    select: { id: true, name: true, crisisAware: true, plan: true, clientLogoS3Key: true },
+    select: { id: true, name: true, crisisAware: true, plan: true, clientLogoS3Key: true, trendEnabled: true, trendStripeSubscriptionId: true },
   })
   if (!workspace) notFound()
 
@@ -122,6 +123,16 @@ export default async function SettingsPage({ params, searchParams }: Props) {
           <CheckCircle size={16} strokeWidth={1.5} className="text-status-success shrink-0" />
           <p className="font-sans text-sm text-text-primary">
             {connectedPlatformLabel} connected successfully.
+          </p>
+        </div>
+      )}
+
+      {/* Trend activation success banner */}
+      {trend === 'activated' && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-background-secondary border border-background-border">
+          <CheckCircle size={16} strokeWidth={1.5} className="text-status-success shrink-0" />
+          <p className="font-sans text-sm text-text-primary">
+            LYRA Trend activated. Your first trend sync will run tonight.
           </p>
         </div>
       )}
@@ -208,6 +219,11 @@ export default async function SettingsPage({ params, searchParams }: Props) {
           workspaceId={workspace.id}
           enabled={workspace.crisisAware}
           isPro={workspace.plan === 'PRO' || workspace.plan === 'AGENCY'}
+        />
+        <TrendAddonCard
+          workspaceId={workspace.id}
+          enabled={workspace.trendEnabled}
+          subscriptionId={workspace.trendStripeSubscriptionId ?? null}
         />
         {(workspace.plan === 'PRO' || workspace.plan === 'AGENCY') && (
           <div className="space-y-3">
