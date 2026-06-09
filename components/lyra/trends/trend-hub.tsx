@@ -37,15 +37,13 @@ export function TrendHub({ workspaceId }: TrendHubProps) {
       if (!res.ok) return
       const data = await res.json() as { trends: TrendItem[] }
       setTrends(data.trends)
-      if (data.trends.length > 0 && !selected) {
-        setSelected(data.trends[0])
-      }
+      setSelected(prev => prev ?? data.trends[0] ?? null)
     } catch {
       setError('Could not load trends.')
     } finally {
       setLoading(false)
     }
-  }, [workspaceId, selected])
+  }, [workspaceId])
 
   useEffect(() => { fetchTrends() }, [fetchTrends])
 
@@ -72,11 +70,15 @@ export function TrendHub({ workspaceId }: TrendHubProps) {
   const handleDismiss = async (trend: TrendItem) => {
     setActionLoading(true)
     try {
-      await fetch(`/api/trends/${trend.id}/status`, {
+      const res = await fetch(`/api/trends/${trend.id}/status`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ status: 'DISMISSED' }),
       })
+      if (!res.ok) {
+        setError('Failed to dismiss trend. Try again.')
+        return
+      }
       const next = trends.filter(t => t.id !== trend.id)
       setTrends(next)
       setSelected(next[0] ?? null)
@@ -88,11 +90,15 @@ export function TrendHub({ workspaceId }: TrendHubProps) {
   const handleUse = async (trend: TrendItem) => {
     setActionLoading(true)
     try {
-      await fetch(`/api/trends/${trend.id}/status`, {
+      const res = await fetch(`/api/trends/${trend.id}/status`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ status: 'USED' }),
       })
+      if (!res.ok) {
+        setError('Failed to mark trend as used. Try again.')
+        return
+      }
       sessionStorage.setItem('lyra_active_trend', JSON.stringify({
         trendId:        trend.id,
         title:          trend.title,
@@ -199,7 +205,7 @@ export function TrendHub({ workspaceId }: TrendHubProps) {
               <div>
                 <p className="font-sans text-[11px] font-medium uppercase tracking-[0.1em] text-text-tertiary mb-2">Source</p>
                 <div className="flex items-center gap-2">
-                  <span className="font-sans text-[10px] font-medium uppercase tracking-[0.08em] px-1.5 py-0.5 rounded bg-background-hover border border-background-border text-text-tertiary">
+                  <span className="font-sans text-[11px] font-medium uppercase tracking-[0.08em] px-1.5 py-0.5 rounded bg-background-hover border border-background-border text-text-tertiary">
                     {selected.sourcePlatform}
                   </span>
                   <span className="font-mono text-xs text-text-tertiary">

@@ -37,7 +37,7 @@ export function TrendRow({ trend, active, onClick }: TrendRowProps) {
         {trend.title}
       </p>
       <div className="flex items-center gap-2 mt-1">
-        <span className="font-sans text-[10px] font-medium uppercase tracking-[0.08em] px-1.5 py-0.5 rounded bg-background-hover border border-background-border text-text-tertiary">
+        <span className="font-sans text-[11px] font-medium uppercase tracking-[0.08em] px-1.5 py-0.5 rounded bg-background-hover border border-background-border text-text-tertiary">
           {PLATFORM_LABELS[trend.sourcePlatform] ?? trend.sourcePlatform}
         </span>
         <span className={cn('font-mono text-xs', scoreColor(trend.relevanceScore))}>

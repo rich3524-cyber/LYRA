@@ -8,6 +8,13 @@ export async function POST(req: Request) {
     const user = await requireAuth()
     const { workspaceId, platforms, topic, trendContext } = await req.json()
 
+    const safeTrendContext = typeof trendContext === 'string'
+      ? trendContext.trim().slice(0, 200)
+      : undefined
+    const safeTopic = typeof topic === 'string'
+      ? topic.trim().slice(0, 500)
+      : undefined
+
     const workspace = await prisma.workspace.findFirst({
       where:  { id: workspaceId, access: { some: { userId: user.id } } },
       select: { id: true, plan: true },
@@ -25,7 +32,7 @@ export async function POST(req: Request) {
       )
     }
 
-    const content = await generateCaption(brandProfile, platforms ?? [], topic, trendContext)
+    const content = await generateCaption(brandProfile, platforms ?? [], safeTopic, safeTrendContext)
     return NextResponse.json({ content })
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {

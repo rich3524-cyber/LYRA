@@ -9,7 +9,11 @@ const RATE_LIMIT_SECONDS = 600 // 10 minutes
 export async function POST(req: Request) {
   try {
     const user = await requireAuth()
-    const { workspaceId } = await req.json() as { workspaceId: string }
+    const body = await req.json()
+    const workspaceId = typeof body?.workspaceId === 'string' ? body.workspaceId.trim() : null
+    if (!workspaceId) {
+      return NextResponse.json({ error: 'workspaceId required' }, { status: 400 })
+    }
 
     const workspace = await prisma.workspace.findFirst({
       where: {
@@ -28,16 +32,13 @@ export async function POST(req: Request) {
     }
 
     const rateLimitKey = `trend-refresh-rl:${workspaceId}`
-    const locked = await redis.get(rateLimitKey)
-
-    if (locked) {
+    const acquired = await redis.set(rateLimitKey, '1', 'EX', RATE_LIMIT_SECONDS, 'NX')
+    if (!acquired) {
       return NextResponse.json(
         { error: 'Refresh already in progress. Try again in a few minutes.' },
         { status: 429 }
       )
     }
-
-    await redis.set(rateLimitKey, '1', 'EX', RATE_LIMIT_SECONDS)
 
     await trendSyncQueue.add(
       'manual-refresh',
