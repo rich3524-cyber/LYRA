@@ -4,9 +4,7 @@ import { redirect } from 'next/navigation'
 import { auth0 } from '@/lib/auth0'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { Sidebar } from '@/components/lyra/app-shell/sidebar'
-import { Header } from '@/components/lyra/app-shell/header'
-import { NavigationLoader } from '@/components/lyra/app-shell/navigation-loader'
+import { AppShell } from '@/components/lyra/app-shell/app-shell'
 import { computeSetupProgress } from '@/lib/setup-progress'
 import type { SetupProgressData } from '@/lib/setup-progress'
 
@@ -38,6 +36,7 @@ export default async function DashboardLayout({
   let brandReady = false
   let workspacePlan: string | undefined
   let setupProgress: SetupProgressData | undefined
+  let trendEnabled = false
   if (workspaceId) {
     const ws = await prisma.workspace.findFirst({
       where: { id: workspaceId },
@@ -45,6 +44,7 @@ export default async function DashboardLayout({
         plan: true,
         websiteUrl: true,
         aiResponseMode: true,
+        trendEnabled: true,
         brandProfile: { select: { voiceSummary: true } },
         _count: {
           select: {
@@ -56,19 +56,20 @@ export default async function DashboardLayout({
     }).catch(() => null)
     brandReady = !!(ws?.websiteUrl && (ws._count?.socialAccounts ?? 0) > 0)
     workspacePlan = ws?.plan ?? undefined
+    trendEnabled = ws?.trendEnabled ?? false
     setupProgress = computeSetupProgress(ws)
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background-primary">
-      <NavigationLoader />
-      <Sidebar workspaceId={workspaceId} brandReady={brandReady} plan={workspacePlan} setupProgress={setupProgress} />
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <Header user={user} title="" plan={workspacePlan} />
-        <main className="flex-1 overflow-y-auto p-6 animate-fade-in">
-          {children}
-        </main>
-      </div>
-    </div>
+    <AppShell
+      user={user}
+      plan={workspacePlan}
+      workspaceId={workspaceId}
+      brandReady={brandReady}
+      setupProgress={setupProgress}
+      trendEnabled={trendEnabled}
+    >
+      {children}
+    </AppShell>
   )
 }

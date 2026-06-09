@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
@@ -20,6 +20,8 @@ import {
   Crosshair,
   Scissors,
   Sparkles,
+  TrendingUp,
+  X,
 } from 'lucide-react'
 import { WorkspaceSwitcher } from './workspace-switcher'
 import { SetupProgress } from './setup-progress'
@@ -39,152 +41,88 @@ const navItems = [
   { href: '/assistant',    label: 'LYRA Assistant', icon: Sparkles,      proOnly: false },
 ]
 
-export function Sidebar({ workspaceId, brandReady, plan, setupProgress }: {
+interface SidebarProps {
   workspaceId: string
   brandReady: boolean
   plan?: string
   setupProgress?: SetupProgressData
-}) {
+  mobileOpen?: boolean
+  onMobileClose?: () => void
+  trendEnabled?: boolean
+}
+
+export function Sidebar({
+  workspaceId,
+  brandReady,
+  plan,
+  setupProgress,
+  mobileOpen,
+  onMobileClose,
+  trendEnabled,
+}: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
   const base = `/workspace/${workspaceId}`
 
-  return (
-    <motion.aside
-      animate={{ width: collapsed ? 64 : 240 }}
-      transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-      className="relative flex flex-col h-screen bg-background-secondary border-r border-background-border shrink-0 overflow-x-hidden"
-    >
-      {/* Logo */}
-      <div className="flex items-center h-16 px-4 border-b border-background-border shrink-0">
-        <AnimatePresence mode="wait">
-          {!collapsed ? (
-            <motion.div
-              key="full"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <Image
-                src="/brand/lyra-logo-primary.svg"
-                alt="LYRA"
-                width={96}
-                height={30}
-                priority
-              />
-            </motion.div>
-          ) : (
-            <motion.div
-              key="icon"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <Image
-                src="/brand/lyra-icon-mark.svg"
-                alt="LYRA"
-                width={32}
-                height={32}
-                priority
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+  // Close mobile drawer when navigating
+  useEffect(() => {
+    onMobileClose?.()
+  }, [pathname]) // eslint-disable-line react-hooks/exhaustive-deps
 
-      {/* Workspace Switcher */}
-      {!collapsed && (
-        <div className="px-3 py-3 border-b border-background-border">
-          <WorkspaceSwitcher workspaceId={workspaceId} />
-        </div>
-      )}
+  function renderNavItems(isCollapsed: boolean) {
+    return navItems.map(({ href, label, icon: Icon, proOnly }) => {
+      const isBrandAI   = href === '/brand'
+      const isAssistant = href === '/assistant'
+      const locked = (isBrandAI && !brandReady) || (proOnly && plan === 'STARTER')
 
-      {/* Navigation */}
-      <nav className="flex-1 py-4 px-2 space-y-0.5 overflow-y-auto">
-        {navItems.map(({ href, label, icon: Icon, proOnly }) => {
-          const isBrandAI = href === '/brand'
-          const isAssistant = href === '/assistant'
-          const locked = (isBrandAI && !brandReady) || (proOnly && plan === 'STARTER')
-
-          if (locked) {
-            const lockTitle = isBrandAI
-              ? 'Connect your website and a social account to unlock Brand AI'
-              : 'Upgrade to PRO or AGENCY to unlock this feature'
-            return (
-              <Link
-                key={label}
-                href={`${base}/settings`}
-                title={lockTitle}
-                className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-text-tertiary hover:bg-background-hover transition-all duration-150"
-                aria-label={collapsed ? `${label} (locked)` : undefined}
-              >
-                <Lock size={16} className="shrink-0" strokeWidth={1.5} />
-                <AnimatePresence>
-                  {!collapsed && (
-                    <motion.span
-                      initial={{ opacity: 0, width: 0 }}
-                      animate={{ opacity: 1, width: 'auto' }}
-                      exit={{ opacity: 0, width: 0 }}
-                      className="overflow-hidden whitespace-nowrap tracking-wide"
-                    >
-                      {label}
-                    </motion.span>
-                  )}
-                </AnimatePresence>
-              </Link>
-            )
-          }
-
-          const fullHref = `${base}${href}`
-          const isActive =
-            pathname === fullHref || (href !== '' && pathname.startsWith(fullHref))
-
-          if (isAssistant) {
-            return (
-              <div key={label} className="pt-3">
-                <Link
-                  href={fullHref}
-                  className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150 group border',
-                    isActive
-                      ? 'bg-purple-500/10 border-purple-500/70 text-purple-300'
-                      : 'border-purple-500/30 text-purple-400 hover:bg-purple-500/10 hover:border-purple-500/60 hover:text-purple-300',
-                  )}
-                  aria-label={collapsed ? label : undefined}
+      if (locked) {
+        const lockTitle = isBrandAI
+          ? 'Connect your website and a social account to unlock Brand AI'
+          : 'Upgrade to PRO or AGENCY to unlock this feature'
+        return (
+          <Link
+            key={label}
+            href={`${base}/settings`}
+            title={lockTitle}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-text-tertiary hover:bg-background-hover transition-all duration-150"
+            aria-label={isCollapsed ? `${label} (locked)` : undefined}
+          >
+            <Lock size={16} className="shrink-0" strokeWidth={1.5} />
+            <AnimatePresence>
+              {!isCollapsed && (
+                <motion.span
+                  initial={{ opacity: 0, width: 0 }}
+                  animate={{ opacity: 1, width: 'auto' }}
+                  exit={{ opacity: 0, width: 0 }}
+                  className="overflow-hidden whitespace-nowrap tracking-wide"
                 >
-                  <Icon size={16} className="shrink-0" strokeWidth={isActive ? 2 : 1.5} />
-                  <AnimatePresence>
-                    {!collapsed && (
-                      <motion.span
-                        initial={{ opacity: 0, width: 0 }}
-                        animate={{ opacity: 1, width: 'auto' }}
-                        exit={{ opacity: 0, width: 0 }}
-                        className="overflow-hidden whitespace-nowrap tracking-wide"
-                      >
-                        {label}
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </Link>
-              </div>
-            )
-          }
+                  {label}
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </Link>
+        )
+      }
 
-          return (
+      const fullHref = `${base}${href}`
+      const isActive = pathname === fullHref || (href !== '' && pathname.startsWith(fullHref))
+
+      if (isAssistant) {
+        return (
+          <div key={label} className="pt-3">
             <Link
-              key={label}
               href={fullHref}
               className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150 group',
+                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150 group border',
                 isActive
-                  ? 'bg-background-hover text-text-primary'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-background-hover',
+                  ? 'bg-purple-500/10 border-purple-500/70 text-purple-300'
+                  : 'border-purple-500/30 text-purple-400 hover:bg-purple-500/10 hover:border-purple-500/60 hover:text-purple-300',
               )}
-              aria-label={collapsed ? label : undefined}
+              aria-label={isCollapsed ? label : undefined}
             >
               <Icon size={16} className="shrink-0" strokeWidth={isActive ? 2 : 1.5} />
               <AnimatePresence>
-                {!collapsed && (
+                {!isCollapsed && (
                   <motion.span
                     initial={{ opacity: 0, width: 0 }}
                     animate={{ opacity: 1, width: 'auto' }}
@@ -196,35 +134,202 @@ export function Sidebar({ workspaceId, brandReady, plan, setupProgress }: {
                 )}
               </AnimatePresence>
             </Link>
-          )
-        })}
-      </nav>
+          </div>
+        )
+      }
 
-      {/* Setup Progress */}
-      {setupProgress && (
-        <SetupProgress data={setupProgress} collapsed={collapsed} />
-      )}
-
-      {/* Bottom nav */}
-      <div className="border-t border-background-border p-2 space-y-0.5">
+      return (
         <Link
-          href={`${base}/settings`}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-text-secondary hover:text-text-primary hover:bg-background-hover transition-all duration-150"
-          aria-label={collapsed ? 'Settings' : undefined}
+          key={label}
+          href={fullHref}
+          className={cn(
+            'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150 group',
+            isActive
+              ? 'bg-background-hover text-text-primary'
+              : 'text-text-secondary hover:text-text-primary hover:bg-background-hover',
+          )}
+          aria-label={isCollapsed ? label : undefined}
         >
-          <Settings size={16} strokeWidth={1.5} className="shrink-0" />
-          {!collapsed && <span className="tracking-wide">Settings</span>}
+          <Icon size={16} className="shrink-0" strokeWidth={isActive ? 2 : 1.5} />
+          <AnimatePresence>
+            {!isCollapsed && (
+              <motion.span
+                initial={{ opacity: 0, width: 0 }}
+                animate={{ opacity: 1, width: 'auto' }}
+                exit={{ opacity: 0, width: 0 }}
+                className="overflow-hidden whitespace-nowrap tracking-wide"
+              >
+                {label}
+              </motion.span>
+            )}
+          </AnimatePresence>
         </Link>
-      </div>
+      )
+    })
+  }
 
-      {/* Collapse toggle */}
-      <button
-        onClick={() => setCollapsed(!collapsed)}
-        className="absolute -right-3 top-20 w-6 h-6 rounded-full bg-background-tertiary border border-background-border flex items-center justify-center text-text-tertiary hover:text-text-primary transition-colors z-10 cursor-pointer"
-        aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+  function renderContent(isCollapsed: boolean, isMobile = false) {
+    return (
+      <>
+        {/* Logo */}
+        <div className="flex items-center h-16 px-4 border-b border-background-border shrink-0">
+          <div className="flex-1">
+            <AnimatePresence mode="wait">
+              {!isCollapsed ? (
+                <motion.div
+                  key="full"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <Image
+                    src="/brand/lyra-logo-primary.svg"
+                    alt="LYRA"
+                    width={96}
+                    height={30}
+                    priority
+                  />
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="icon"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <Image
+                    src="/brand/lyra-icon-mark.svg"
+                    alt="LYRA"
+                    width={32}
+                    height={32}
+                    priority
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+          {isMobile && (
+            <button
+              onClick={onMobileClose}
+              className="p-1 text-text-tertiary hover:text-text-primary transition-colors duration-150"
+              aria-label="Close navigation"
+            >
+              <X size={18} strokeWidth={1.5} />
+            </button>
+          )}
+        </div>
+
+        {/* Workspace Switcher */}
+        {!isCollapsed && (
+          <div className="px-3 py-3 border-b border-background-border">
+            <WorkspaceSwitcher workspaceId={workspaceId} />
+          </div>
+        )}
+
+        {/* Navigation */}
+        <nav className="flex-1 py-4 px-2 space-y-0.5 overflow-y-auto">
+          {renderNavItems(isCollapsed)}
+          {trendEnabled && (() => {
+            const fullHref = `${base}/trends`
+            const isActive = pathname === fullHref || pathname.startsWith(fullHref)
+            return (
+              <div key="trends" className="pt-1">
+                <Link
+                  href={fullHref}
+                  className={cn(
+                    'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150 group',
+                    isActive
+                      ? 'bg-background-hover text-text-primary'
+                      : 'text-text-secondary hover:text-text-primary hover:bg-background-hover',
+                  )}
+                  aria-label={isCollapsed ? 'Trends' : undefined}
+                >
+                  <TrendingUp size={16} className="shrink-0" strokeWidth={isActive ? 2 : 1.5} />
+                  <AnimatePresence>
+                    {!isCollapsed && (
+                      <motion.span
+                        initial={{ opacity: 0, width: 0 }}
+                        animate={{ opacity: 1, width: 'auto' }}
+                        exit={{ opacity: 0, width: 0 }}
+                        className="overflow-hidden whitespace-nowrap tracking-wide"
+                      >
+                        Trends
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </Link>
+              </div>
+            )
+          })()}
+        </nav>
+
+        {/* Setup Progress */}
+        {setupProgress && (
+          <SetupProgress data={setupProgress} collapsed={isCollapsed} />
+        )}
+
+        {/* Bottom nav */}
+        <div className="border-t border-background-border p-2 space-y-0.5">
+          <Link
+            href={`${base}/settings`}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-text-secondary hover:text-text-primary hover:bg-background-hover transition-all duration-150"
+            aria-label={isCollapsed ? 'Settings' : undefined}
+          >
+            <Settings size={16} strokeWidth={1.5} className="shrink-0" />
+            {!isCollapsed && <span className="tracking-wide">Settings</span>}
+          </Link>
+        </div>
+      </>
+    )
+  }
+
+  return (
+    <>
+      {/* Desktop sidebar — hidden on mobile */}
+      <motion.aside
+        animate={{ width: collapsed ? 64 : 240 }}
+        transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+        className="relative hidden lg:flex flex-col h-screen bg-background-secondary border-r border-background-border shrink-0 overflow-x-hidden"
       >
-        {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
-      </button>
-    </motion.aside>
+        {renderContent(collapsed)}
+
+        {/* Collapse toggle */}
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="absolute -right-3 top-20 w-6 h-6 rounded-full bg-background-tertiary border border-background-border flex items-center justify-center text-text-tertiary hover:text-text-primary transition-colors z-10 cursor-pointer"
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {collapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
+        </button>
+      </motion.aside>
+
+      {/* Mobile drawer */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <>
+            <motion.div
+              key="mobile-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+              className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+              onClick={onMobileClose}
+              aria-hidden="true"
+            />
+            <motion.aside
+              key="mobile-drawer"
+              initial={{ x: -240 }}
+              animate={{ x: 0 }}
+              exit={{ x: -240 }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="fixed left-0 top-0 h-full w-60 flex flex-col bg-background-secondary border-r border-background-border z-50 lg:hidden overflow-y-auto"
+            >
+              {renderContent(false, true)}
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+    </>
   )
 }
