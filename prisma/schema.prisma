@@ -1,6 +1,6 @@
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["native", "rhel-openssl-1.0.x", "debian-openssl-1.1.x"]
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -80,10 +80,15 @@ model Workspace {
   searchConsoleData SearchConsoleData[]
   crisisEvents      CrisisEvent[]
   competitors       Competitor[]
-  assistantReports  AssistantReport[]
-  clientLogoS3Key   String?
-  region            String            @default("AU")
-  emailConnection   EmailConnection?
+  assistantReports    AssistantReport[]
+  clientLogoS3Key     String?
+  region              String              @default("AU")
+  emailConnection     EmailConnection?
+  aiVisibilityQueries AiVisibilityQuery[]
+  aiVisibilitySnapshots AiVisibilitySnapshot[]
+  trendEnabled              Boolean     @default(false)
+  trendStripeSubscriptionId String?
+  trendItems                TrendItem[]
 }
 
 enum Plan {
@@ -110,7 +115,7 @@ model WorkspaceAccess {
   workspaceId String
   role        UserRole
   user        User      @relation(fields: [userId], references: [id])
-  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   createdAt   DateTime  @default(now())
 
   @@unique([userId, workspaceId])
@@ -120,7 +125,7 @@ model WorkspaceAccess {
 model SocialAccount {
   id           String    @id @default(cuid())
   workspaceId  String
-  workspace    Workspace @relation(fields: [workspaceId], references: [id])
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   platform     Platform
   platformId   String
   handle       String
@@ -140,6 +145,7 @@ model SocialAccount {
   comments Comment[]
 
   @@unique([workspaceId, platform, platformId])
+  @@index([workspaceId, isActive])
 }
 
 enum Platform {
@@ -158,7 +164,7 @@ enum Platform {
 model Post {
   id              String        @id @default(cuid())
   workspaceId     String
-  workspace       Workspace     @relation(fields: [workspaceId], references: [id])
+  workspace       Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   socialAccountId String
   socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id])
   authorId        String
@@ -272,7 +278,7 @@ model CommentResponse {
 model BrandProfile {
   id               String    @id @default(cuid())
   workspaceId      String    @unique
-  workspace        Workspace @relation(fields: [workspaceId], references: [id])
+  workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   voiceSummary     String?
   toneAttributes   String[]
   contentThemes    String[]
@@ -292,10 +298,12 @@ model BrandProfile {
 model Guardrail {
   id          String        @id @default(cuid())
   workspaceId String
-  workspace   Workspace     @relation(fields: [workspaceId], references: [id])
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   type        GuardrailType
   value       String
   createdAt   DateTime      @default(now())
+
+  @@index([workspaceId, type])
 }
 
 enum GuardrailType {
@@ -305,10 +313,16 @@ enum GuardrailType {
   APPROVED_ANSWER
 }
 
+enum TrendStatus {
+  NEW
+  USED
+  DISMISSED
+}
+
 model PostMetrics {
   id           String    @id @default(cuid())
   postId       String    @unique
-  post         Post      @relation(fields: [postId], references: [id])
+  post         Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
   likes        Int       @default(0)
   comments     Int       @default(0)
   shares       Int       @default(0)
@@ -319,6 +333,8 @@ model PostMetrics {
   lastSyncedAt DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
+
+  @@index([postId, lastSyncedAt])
 }
 
 model PostBoost {
@@ -351,7 +367,7 @@ enum BoostStatus {
 model OnboardingToken {
   id          String    @id @default(cuid())
   workspaceId String    @unique
-  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   token       String    @unique @default(cuid())
   expiresAt   DateTime
   completedAt DateTime?
@@ -361,7 +377,7 @@ model OnboardingToken {
 model SeoConnection {
   id           String    @id @default(cuid())
   workspaceId  String    @unique
-  workspace    Workspace @relation(fields: [workspaceId], references: [id])
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   accessToken  String
   refreshToken String
   propertyUrl  String
@@ -379,7 +395,7 @@ enum SeoContentType {
 model SeoPage {
   id             String       @id @default(cuid())
   workspaceId    String
-  workspace      Workspace    @relation(fields: [workspaceId], references: [id])
+  workspace      Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   url            String
   seoScore       Int?
   lastAnalysedAt DateTime?
@@ -404,7 +420,7 @@ model SeoContent {
 model SearchConsoleData {
   id          String    @id @default(cuid())
   workspaceId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   date        DateTime
   query       String
   page        String
@@ -415,6 +431,7 @@ model SearchConsoleData {
   createdAt   DateTime  @default(now())
 
   @@unique([workspaceId, date, query, page])
+  @@index([workspaceId, date])
 }
 
 model CrisisEvent {
@@ -425,6 +442,8 @@ model CrisisEvent {
   resolvedAt  DateTime?
   triggerType String    // "SENTIMENT_SPIKE" | "KEYWORD_MATCH"
   commentIds  String[]
+
+  @@index([workspaceId, triggeredAt])
 }
 
 model Competitor {
@@ -437,6 +456,8 @@ model Competitor {
   facebookPageId  String?
   createdAt       DateTime             @default(now())
   snapshots       CompetitorSnapshot[]
+
+  @@index([workspaceId])
 }
 
 model CompetitorSnapshot {
@@ -579,4 +600,68 @@ model EmailCampaign {
   @@index([workspaceId, scheduledAt])
   @@index([workspaceId, sentAt])
   @@index([emailConnectionId])
+}
+
+// ─── AI Search Visibility ─────────────────────────────────────────────────────
+
+enum AiVisibilityProvider {
+  PERPLEXITY
+}
+
+enum AiVisibilityCategory {
+  BRAND
+  PRODUCT
+  CATEGORY
+  COMPETITOR
+}
+
+model AiVisibilityQuery {
+  id          String               @id @default(cuid())
+  workspaceId String
+  workspace   Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  query       String
+  category    AiVisibilityCategory @default(BRAND)
+  isActive    Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  snapshots AiVisibilitySnapshot[]
+
+  @@index([workspaceId, isActive])
+}
+
+model AiVisibilitySnapshot {
+  id                String               @id @default(cuid())
+  workspaceId       String
+  workspace         Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  queryId           String
+  query             AiVisibilityQuery    @relation(fields: [queryId], references: [id], onDelete: Cascade)
+  provider          AiVisibilityProvider @default(PERPLEXITY)
+  responseText      String               @db.Text
+  brandMentioned    Boolean              @default(false)
+  brandMentionCount Int                  @default(0)
+  citedUrls         String[]
+  takenAt           DateTime             @default(now())
+
+  @@index([workspaceId, takenAt])
+  @@index([queryId, takenAt])
+}
+
+// ─── LYRA Trend ───────────────────────────────────────────────────────────────
+
+model TrendItem {
+  id             String      @id @default(cuid())
+  workspaceId    String
+  title          String
+  description    String      @db.Text
+  whyItFits      String      @db.Text
+  sourcePlatform String
+  relevanceScore Int         @default(0)
+  sourceUrl      String?
+  status         TrendStatus @default(NEW)
+  syncedAt       DateTime    @default(now())
+  workspace      Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, relevanceScore])
+  @@index([workspaceId, syncedAt])
 }
