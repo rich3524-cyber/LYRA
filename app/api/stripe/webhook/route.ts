@@ -30,17 +30,33 @@ export async function POST(req: Request) {
     case 'customer.subscription.created':
     case 'customer.subscription.updated': {
       const sub = event.data.object
+      const meta = sub.metadata as Record<string, string>
+      if (meta.type === 'trend_addon' && meta.workspaceId) {
+        await prisma.workspace.update({
+          where: { id: meta.workspaceId },
+          data:  { trendEnabled: true, trendStripeSubscriptionId: sub.id },
+        })
+        break
+      }
       await prisma.agency.updateMany({
         where: { stripeCustomerId: sub.customer as string },
         data:  {
           stripeSubId: sub.id,
-          plan:        toPlan((sub.metadata as Record<string, string>).plan),
+          plan:        toPlan(meta.plan),
         },
       })
       break
     }
     case 'customer.subscription.deleted': {
       const sub = event.data.object
+      const meta = sub.metadata as Record<string, string>
+      if (meta.type === 'trend_addon' && meta.workspaceId) {
+        await prisma.workspace.update({
+          where: { id: meta.workspaceId },
+          data:  { trendEnabled: false, trendStripeSubscriptionId: null },
+        })
+        break
+      }
       await prisma.agency.updateMany({
         where: { stripeCustomerId: sub.customer as string },
         data:  { plan: 'STARTER', stripeSubId: null },
