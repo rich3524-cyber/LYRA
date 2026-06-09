@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { encrypt } from '@/lib/encrypt'
+import { verifyState } from '@/lib/oauth-state'
 import * as facebook from '@/services/social/facebook'
 import * as instagram from '@/services/social/instagram'
 import * as linkedin from '@/services/social/linkedin'
@@ -11,28 +12,28 @@ import * as tiktok from '@/services/social/tiktok'
 
 const BASE_URL = process.env.APP_BASE_URL!
 
-function parseState(raw: string | null): Record<string, string> {
-  if (!raw) return {}
-  try {
-    return JSON.parse(Buffer.from(raw, 'base64').toString('utf8'))
-  } catch {
-    return {}
-  }
-}
-
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ platform: string }> }
 ) {
   try {
-    await requireAuth()
+    const user = await requireAuth()
     const { platform } = await params
     const { searchParams } = new URL(req.url)
     const code = searchParams.get('code')
-    const state = parseState(searchParams.get('state'))
+    const state = verifyState(searchParams.get('state'))
     const { workspaceId } = state
 
     if (!code || !workspaceId) {
+      return NextResponse.redirect(`${BASE_URL}?error=oauth_failed`)
+    }
+
+    // Verify the authenticated user has access to this workspace before writing any tokens.
+    const access = await prisma.workspaceAccess.findFirst({
+      where: { workspaceId, userId: user.id },
+      select: { id: true },
+    })
+    if (!access) {
       return NextResponse.redirect(`${BASE_URL}?error=oauth_failed`)
     }
 

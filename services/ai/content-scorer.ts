@@ -1,4 +1,4 @@
-import { anthropic } from '@/lib/anthropic'
+import { anthropic, CLAUDE_MODEL } from '@/lib/anthropic'
 
 export type DimensionScore = {
   score: number
@@ -64,7 +64,7 @@ ${content}
 `
 
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
+    model: CLAUDE_MODEL,
     max_tokens: 600,
     messages: [{ role: 'user', content: prompt }],
   })

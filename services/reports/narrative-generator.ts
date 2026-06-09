@@ -1,4 +1,4 @@
-import { anthropic } from '@/lib/anthropic'
+import { anthropic, CLAUDE_MODEL } from '@/lib/anthropic'
 import { ReportData } from './report-renderer'
 
 export async function generateNarrative(data: Omit<ReportData, 'narrative'>): Promise<string> {
@@ -25,7 +25,7 @@ ${data.topPosts.map((p, i) => `${i + 1}. ${p.platform} (${p.scheduledAt}): ${p.i
 
   try {
     const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: CLAUDE_MODEL,
       max_tokens: 600,
       messages: [{ role: 'user', content: prompt }],
     })

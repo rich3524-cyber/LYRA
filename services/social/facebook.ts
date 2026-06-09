@@ -1,3 +1,5 @@
+import { signState } from '@/lib/oauth-state'
+
 const BASE_URL = 'https://graph.facebook.com/v19.0'
 const DIALOG_URL = 'https://www.facebook.com/v19.0/dialog/oauth'
 
@@ -18,7 +20,7 @@ export interface FacebookPage {
 }
 
 export function getAuthUrl(workspaceId: string): string {
-  const state = Buffer.from(JSON.stringify({ workspaceId })).toString('base64')
+  const state = signState({ workspaceId })
   const params = new URLSearchParams({
     client_id: process.env.FACEBOOK_APP_ID!,
     redirect_uri: `${process.env.APP_BASE_URL}/api/social/callback/facebook`,

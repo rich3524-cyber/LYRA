@@ -17,6 +17,15 @@ export async function POST(req: Request) {
     })
     if (!access) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+    // Plan gate — AI responses require Pro or Agency
+    const workspace = await prisma.workspace.findUnique({
+      where:  { id: comment.workspaceId },
+      select: { plan: true, aiResponseMode: true },
+    })
+    if (!workspace || workspace.plan === 'STARTER') {
+      return NextResponse.json({ error: 'AI responses require a Pro or Agency plan.' }, { status: 403 })
+    }
+
     const [brandProfile, guardrails] = await Promise.all([
       prisma.brandProfile.findUnique({ where: { workspaceId: comment.workspaceId } }),
       prisma.guardrail.findMany({ where: { workspaceId: comment.workspaceId } }),

@@ -1,9 +1,11 @@
+import { signState } from '@/lib/oauth-state'
+
 const GSC_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 const GSC_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const GSC_API_URL = 'https://searchconsole.googleapis.com/webmasters/v3'
 
 export function getAuthUrl(workspaceId: string): string {
-  const state = Buffer.from(JSON.stringify({ workspaceId })).toString('base64')
+  const state = signState({ workspaceId })
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_ID!,

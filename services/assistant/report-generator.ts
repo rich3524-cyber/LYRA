@@ -1,5 +1,6 @@
+import { parseClaudeJson } from '@/lib/parse-claude-json'
 import { prisma } from '@/lib/prisma'
-import { anthropic } from '@/lib/anthropic'
+import { anthropic, CLAUDE_MODEL } from '@/lib/anthropic'
 import type { ReportData, ReportMetrics, PlatformPerformance } from './report-types'
 
 export function getQuarterLabel(date: Date): string {
@@ -201,7 +202,7 @@ Generate a JSON response with exactly this structure (no markdown, no explanatio
 Only include platforms in recommendedFrequency that appeared in the performance data. Key dates must be real dates for ${region}. Return ONLY the JSON object.`
 
   const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
+    model: CLAUDE_MODEL,
     max_tokens: 3000,
     messages: [{ role: 'user', content: prompt }],
   })

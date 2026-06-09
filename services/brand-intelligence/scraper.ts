@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio'
+import { assertSafeUrl } from '@/lib/ssrf'
 
 export interface ScrapedWebsite {
   title:        string
@@ -9,6 +10,7 @@ export interface ScrapedWebsite {
 }
 
 export async function scrapeWebsite(url: string): Promise<ScrapedWebsite> {
+  assertSafeUrl(url)  // Throws if URL is private/internal — SSRF protection
   const res = await fetch(url, {
     headers: { 'User-Agent': 'LyraBot/1.0 (brand intelligence crawler)' },
     signal: AbortSignal.timeout(10000),

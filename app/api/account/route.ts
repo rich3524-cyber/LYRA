@@ -6,19 +6,16 @@ export async function DELETE() {
   try {
     const user = await requireAuth()
 
-    const workspaceIds = user.workspaceAccess.map((wa) => wa.workspaceId)
+    // Only delete workspaces this user actually OWNS (admin/SMB owner roles).
+    // Members and clients with VIEW/APPROVE access should not trigger workspace deletion.
+    const ownedRoles = ['AGENCY_ADMIN', 'SMB_OWNER', 'PLATFORM_OWNER']
+    const workspaceIds = user.workspaceAccess
+      .filter(wa => ownedRoles.includes(wa.role))
+      .map(wa => wa.workspaceId)
 
+    // Schema-level onDelete: Cascade handles all child records when workspace is deleted.
+    // Remove membership from workspaces the user doesn't own before deleting their account.
     await prisma.$transaction([
-      prisma.commentResponse.deleteMany({ where: { comment: { workspaceId: { in: workspaceIds } } } }),
-      prisma.comment.deleteMany({ where: { workspaceId: { in: workspaceIds } } }),
-      prisma.postMetrics.deleteMany({ where: { post: { workspaceId: { in: workspaceIds } } } }),
-      prisma.postApproval.deleteMany({ where: { post: { workspaceId: { in: workspaceIds } } } }),
-      prisma.post.deleteMany({ where: { workspaceId: { in: workspaceIds } } }),
-      prisma.socialAccount.deleteMany({ where: { workspaceId: { in: workspaceIds } } }),
-      prisma.brandProfile.deleteMany({ where: { workspaceId: { in: workspaceIds } } }),
-      prisma.guardrail.deleteMany({ where: { workspaceId: { in: workspaceIds } } }),
-      prisma.onboardingToken.deleteMany({ where: { workspaceId: { in: workspaceIds } } }),
-      prisma.workspaceAccess.deleteMany({ where: { workspaceId: { in: workspaceIds } } }),
       prisma.workspace.deleteMany({ where: { id: { in: workspaceIds } } }),
       prisma.workspaceAccess.deleteMany({ where: { userId: user.id } }),
       prisma.user.delete({ where: { id: user.id } }),

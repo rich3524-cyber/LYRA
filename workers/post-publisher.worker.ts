@@ -1,7 +1,7 @@
 import { Worker } from 'bullmq'
 import { redis } from '@/lib/redis'
 import { prisma } from '@/lib/prisma'
-import { decrypt } from '@/lib/encrypt'
+import { getValidToken } from '@/lib/token-refresh'
 
 const worker = new Worker(
   'post-publishing',
@@ -31,7 +31,7 @@ const worker = new Worker(
 
     await prisma.post.update({ where: { id: postId }, data: { status: 'PUBLISHING' } })
 
-    const token = decrypt(post.socialAccount.accessToken)
+    const token = await getValidToken(post.socialAccount)
     let platformPostId: string | undefined
 
     try {
@@ -59,19 +59,22 @@ const worker = new Worker(
               body:    JSON.stringify({ caption: post.content, access_token: token }),
             }
           )
-          const container = await containerRes.json() as { id?: string }
-          if (container.id) {
-            const publishRes = await fetch(
-              `https://graph.facebook.com/v19.0/${post.socialAccount.platformId}/media_publish`,
-              {
-                method:  'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body:    JSON.stringify({ creation_id: container.id, access_token: token }),
-              }
-            )
-            const published = await publishRes.json() as { id?: string }
-            platformPostId = published.id
-          }
+          const container = await containerRes.json() as { id?: string; error?: { message: string } }
+          // Graph API can return HTTP 200 with an error body — check explicitly
+          if (container.error) throw new Error(`Instagram container creation failed: ${container.error.message}`)
+          if (!container.id) throw new Error('Instagram container creation returned no ID')
+
+          const publishRes = await fetch(
+            `https://graph.facebook.com/v19.0/${post.socialAccount.platformId}/media_publish`,
+            {
+              method:  'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body:    JSON.stringify({ creation_id: container.id, access_token: token }),
+            }
+          )
+          const published = await publishRes.json() as { id?: string; error?: { message: string } }
+          if (published.error) throw new Error(`Instagram publish failed: ${published.error.message}`)
+          platformPostId = published.id
           break
         }
         case 'LINKEDIN': {
@@ -112,7 +115,13 @@ const worker = new Worker(
         data:  { status: 'PUBLISHED', publishedAt: new Date(), platformPostId },
       })
     } catch (err) {
-      await prisma.post.update({ where: { id: postId }, data: { status: 'FAILED' } })
+      // Only permanently mark FAILED after all retries are exhausted.
+      // Setting FAILED before rethrowing would make BullMQ re-enter and skip on retry
+      // (post.status !== 'SCHEDULED' guard at line 15).
+      const maxAttempts = job.opts.attempts ?? 1
+      if (job.attemptsMade >= maxAttempts) {
+        await prisma.post.update({ where: { id: postId }, data: { status: 'FAILED' } })
+      }
       throw err
     }
   },
