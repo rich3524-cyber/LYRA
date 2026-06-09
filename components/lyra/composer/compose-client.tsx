@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { PostComposer } from './post-composer'
 import { PostPreview } from './post-preview'
 import { DraftList } from './draft-list'
@@ -11,12 +11,22 @@ interface ComposeClientProps {
   workspaceId: string
   connectedPlatforms: string[]
   postingPatterns: PostingPatterns | null
+  trendEnabled?: boolean
 }
 
-export function ComposeClient({ workspaceId, connectedPlatforms, postingPatterns }: ComposeClientProps) {
+export function ComposeClient({ workspaceId, connectedPlatforms, postingPatterns, trendEnabled }: ComposeClientProps) {
   const [content, setContent]             = useState('')
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
   const [mobileTab, setMobileTab]         = useState<'compose' | 'preview'>('compose')
+  const [initialTrend, setInitialTrend] = useState<{ trendId: string; title: string; sourcePlatform: string } | null>(null)
+
+  useEffect(() => {
+    const raw = sessionStorage.getItem('lyra_active_trend')
+    if (raw) {
+      try { setInitialTrend(JSON.parse(raw) as { trendId: string; title: string; sourcePlatform: string }) } catch {}
+      sessionStorage.removeItem('lyra_active_trend')
+    }
+  }, [])
 
   return (
     <>
@@ -48,6 +58,8 @@ export function ComposeClient({ workspaceId, connectedPlatforms, postingPatterns
             postingPatterns={postingPatterns}
             onContentChange={setContent}
             onPlatformsChange={setSelectedPlatforms}
+            trendEnabled={trendEnabled}
+            initialTrend={initialTrend}
           />
           {connectedPlatforms.length === 0 && (
             <p className="font-sans text-xs text-text-tertiary text-center">

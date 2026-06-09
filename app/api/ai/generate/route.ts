@@ -6,12 +6,16 @@ import { generateCaption } from '@/services/ai/caption-generator'
 export async function POST(req: Request) {
   try {
     const user = await requireAuth()
-    const { workspaceId, platforms, topic } = await req.json()
+    const { workspaceId, platforms, topic, trendContext } = await req.json()
 
     const workspace = await prisma.workspace.findFirst({
-      where: { id: workspaceId, access: { some: { userId: user.id } } },
+      where:  { id: workspaceId, access: { some: { userId: user.id } } },
+      select: { id: true, plan: true },
     })
     if (!workspace) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    if (workspace.plan === 'STARTER') {
+      return NextResponse.json({ error: 'AI caption generation requires a Pro or Agency plan.' }, { status: 403 })
+    }
 
     const brandProfile = await prisma.brandProfile.findUnique({ where: { workspaceId } })
     if (!brandProfile) {
@@ -21,7 +25,7 @@ export async function POST(req: Request) {
       )
     }
 
-    const content = await generateCaption(brandProfile, platforms ?? [], topic)
+    const content = await generateCaption(brandProfile, platforms ?? [], topic, trendContext)
     return NextResponse.json({ content })
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
