@@ -32,9 +32,13 @@ export async function POST(req: Request) {
       const sub = event.data.object
       const meta = sub.metadata as Record<string, string>
       if (meta.type === 'trend_addon' && meta.workspaceId) {
+        const isActive = sub.status === 'active' || sub.status === 'trialing'
         await prisma.workspace.update({
           where: { id: meta.workspaceId },
-          data:  { trendEnabled: true, trendStripeSubscriptionId: sub.id },
+          data:  {
+            trendEnabled: isActive,
+            trendStripeSubscriptionId: isActive ? sub.id : null,
+          },
         })
         break
       }

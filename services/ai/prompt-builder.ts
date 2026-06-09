@@ -12,7 +12,8 @@ const PLATFORM_LENGTH: Record<string, string> = {
 export function buildCaptionPrompt(
   brandProfile: BrandProfile,
   platforms: string[],
-  topic?: string
+  topic?: string,
+  trendContext?: string
 ): string {
   const postingGuidelines =
     (brandProfile.postingPatterns as Record<string, unknown> | null)?.guidelines as string | undefined
@@ -45,6 +46,7 @@ ${postingGuidelines ?? 'None specified'}
 
 PLATFORMS: ${platformList}
 ${topic ? `\nTOPIC / BRIEF: ${topic}` : ''}
+${trendContext ? `\nTREND CONTEXT: The user wants to angle this post around the following trend: "${trendContext}". Incorporate it naturally and on-brand — do not force it.` : ''}
 
 QUALITY REQUIREMENTS — optimise for all six dimensions:
 1. HOOK: Open with a line that compels reading. The first 10 words decide whether someone stops scrolling.

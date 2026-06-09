@@ -21,6 +21,7 @@ export default async function ComposePage({ params }: Props) {
       name: true,
       brandProfile: { select: { postingPatterns: true } },
       socialAccounts: { where: { isActive: true }, select: { platform: true } },
+      trendEnabled: true,
     },
   })
 
@@ -40,6 +41,7 @@ export default async function ComposePage({ params }: Props) {
         workspaceId={workspaceId}
         connectedPlatforms={connectedPlatforms}
         postingPatterns={postingPatterns}
+        trendEnabled={workspace.trendEnabled}
       />
     </div>
   )

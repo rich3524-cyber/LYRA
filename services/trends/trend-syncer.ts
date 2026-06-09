@@ -119,8 +119,7 @@ export async function syncTrendsForWorkspace(workspaceId: string): Promise<void>
   // 2. Parse into candidates
   const candidates = parseCandidatesFromText(content)
   if (candidates.length === 0) {
-    console.log(`[trend-sync] workspace ${workspaceId}: no candidates parsed`)
-    return
+    throw new Error(`[trend-sync] workspace ${workspaceId}: Perplexity returned no parseable candidates`)
   }
 
   // 3. Claude scores each candidate

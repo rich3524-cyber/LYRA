@@ -38,9 +38,9 @@ export function TrendAddonCard({ workspaceId, enabled, subscriptionId }: TrendAd
   const handleManage = async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/stripe/create-checkout', { method: 'GET' })
-      const data = await res.json() as { url?: string }
-      if (data.url) window.location.href = data.url
+      // TODO: wire up Stripe billing portal for subscription management
+      // Requires User.stripeCustomerId on the schema (currently on Agency/Workspace only).
+      // Once added: POST /api/stripe/portal → { url } → window.location.href = url
     } catch {
       // silent
     } finally {
@@ -56,7 +56,7 @@ export function TrendAddonCard({ workspaceId, enabled, subscriptionId }: TrendAd
           <div className="flex items-center gap-2">
             <p className="text-sm font-medium font-sans text-text-primary">LYRA Trend</p>
             {enabled && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-medium font-sans uppercase tracking-[0.1em] text-status-success">
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium font-sans uppercase tracking-[0.1em] text-status-success">
                 <CheckCircle2 size={10} strokeWidth={2} /> Active
               </span>
             )}
