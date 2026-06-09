@@ -27,13 +27,12 @@ const SENTIMENT_TOKENS: Record<string, string> = {
 const LIVE_REPLY_PLATFORMS = new Set(['FACEBOOK', 'INSTAGRAM'])
 
 interface Props {
-  comment:        CommentData
-  plan:           string
-  aiResponseMode: string
-  onUpdate:       (id: string, nextStatus: string) => void
+  comment:  CommentData
+  plan:     string
+  onUpdate: (id: string, nextStatus: string) => void
 }
 
-export function CommentCard({ comment, plan, aiResponseMode, onUpdate }: Props) {
+export function CommentCard({ comment, plan, onUpdate }: Props) {
   const [draft, setDraft]         = useState(comment.aiDraftResponse ?? '')
   const [generating, setGen]      = useState(false)
   const [approving, setApproving] = useState(false)

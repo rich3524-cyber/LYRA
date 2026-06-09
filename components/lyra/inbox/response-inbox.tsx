@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { CommentCard } from './comment-card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
+import { RefreshCw, Zap, CheckCheck } from 'lucide-react'
+import { formatDistanceToNow } from 'date-fns'
 
 export interface CommentData {
   id:                string
@@ -32,16 +34,27 @@ interface Props {
 }
 
 export function ResponseInbox({ workspaceId, plan, aiResponseMode }: Props) {
-  const [comments, setComments]           = useState<CommentData[]>([])
-  const [loading, setLoading]             = useState(true)
+  const [comments, setComments]             = useState<CommentData[]>([])
+  const [loading, setLoading]               = useState(true)
+  const [refreshing, setRefreshing]         = useState(false)
+  const [lastRefreshed, setLastRefreshed]   = useState<Date | null>(null)
   const [platformFilter, setPlatformFilter] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetch(`/api/comments?workspaceId=${workspaceId}`)
-      .then(r => r.json())
-      .then((data: CommentData[]) => { setComments(data); setLoading(false) })
-      .catch(() => setLoading(false))
+  const fetchComments = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true)
+    try {
+      const data: CommentData[] = await fetch(`/api/comments?workspaceId=${workspaceId}`).then(r => r.json())
+      setComments(data)
+      setLastRefreshed(new Date())
+    } catch {
+      // silent — existing data remains visible
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
   }, [workspaceId])
+
+  useEffect(() => { fetchComments() }, [fetchComments])
 
   function handleUpdate(id: string, nextStatus: string) {
     setComments(prev => prev.map(c => c.id === id ? { ...c, status: nextStatus } : c))
@@ -64,7 +77,7 @@ export function ResponseInbox({ workspaceId, plan, aiResponseMode }: Props) {
 
   return (
     <div className="space-y-4">
-      {/* Stats + platform filter row */}
+      {/* Stats + platform filter + refresh row */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           {loading ? (
@@ -82,38 +95,76 @@ export function ResponseInbox({ workspaceId, plan, aiResponseMode }: Props) {
                   </span>
                 </>
               )}
+              {lastRefreshed && (
+                <>
+                  <span className="text-background-border-mid">·</span>
+                  <span className="font-sans text-xs text-text-tertiary">
+                    Updated {formatDistanceToNow(lastRefreshed, { addSuffix: true })}
+                  </span>
+                </>
+              )}
             </>
           )}
         </div>
 
-        {activePlatforms.length > 1 && (
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <button
-              onClick={() => setPlatformFilter(null)}
-              className={`px-2.5 py-1 rounded-md font-sans text-xs transition-colors ${
-                platformFilter === null
-                  ? 'bg-background-tertiary border border-background-border-mid text-text-primary'
-                  : 'text-text-tertiary hover:text-text-secondary'
-              }`}
-            >
-              All
-            </button>
-            {activePlatforms.map(p => (
+        <div className="flex items-center gap-2 flex-wrap">
+          {activePlatforms.length > 1 && (
+            <div className="flex items-center gap-1.5">
               <button
-                key={p}
-                onClick={() => setPlatformFilter(prev => prev === p ? null : p)}
+                onClick={() => setPlatformFilter(null)}
                 className={`px-2.5 py-1 rounded-md font-sans text-xs transition-colors ${
-                  platformFilter === p
+                  platformFilter === null
                     ? 'bg-background-tertiary border border-background-border-mid text-text-primary'
                     : 'text-text-tertiary hover:text-text-secondary'
                 }`}
               >
-                {PLATFORM_LABELS[p] ?? p}
+                All
               </button>
-            ))}
-          </div>
-        )}
+              {activePlatforms.map(p => (
+                <button
+                  key={p}
+                  onClick={() => setPlatformFilter(prev => prev === p ? null : p)}
+                  className={`px-2.5 py-1 rounded-md font-sans text-xs transition-colors ${
+                    platformFilter === p
+                      ? 'bg-background-tertiary border border-background-border-mid text-text-primary'
+                      : 'text-text-tertiary hover:text-text-secondary'
+                  }`}
+                >
+                  {PLATFORM_LABELS[p] ?? p}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <button
+            onClick={() => fetchComments(true)}
+            disabled={refreshing || loading}
+            aria-label="Refresh inbox"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-sans text-xs text-text-tertiary hover:text-text-secondary border border-background-border hover:border-background-border-mid transition-colors disabled:opacity-40"
+          >
+            <RefreshCw size={11} strokeWidth={1.5} className={refreshing ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+        </div>
       </div>
+
+      {/* Autonomy mode banner */}
+      {plan !== 'STARTER' && aiResponseMode === 'FULL' && (
+        <div className="rounded-lg border border-status-success/20 bg-status-success/5 px-4 py-3 flex items-center gap-2">
+          <Zap size={13} strokeWidth={1.5} className="text-status-success shrink-0" />
+          <p className="font-sans text-xs text-status-success">
+            Autonomous mode active — AI is responding to comments in real time.
+          </p>
+        </div>
+      )}
+      {plan !== 'STARTER' && aiResponseMode === 'DRAFT_APPROVE' && (
+        <div className="rounded-lg border border-background-border bg-background-secondary px-4 py-3 flex items-center gap-2">
+          <CheckCheck size={13} strokeWidth={1.5} className="text-text-secondary shrink-0" />
+          <p className="font-sans text-xs text-text-secondary">
+            Draft mode — AI drafts responses for your review before sending.
+          </p>
+        </div>
+      )}
 
       {/* AI mode notice for Starter */}
       {plan === 'STARTER' && (
@@ -157,7 +208,6 @@ export function ResponseInbox({ workspaceId, plan, aiResponseMode }: Props) {
                 key={c.id}
                 comment={c}
                 plan={plan}
-                aiResponseMode={aiResponseMode}
                 onUpdate={handleUpdate}
               />
             ))
@@ -175,7 +225,6 @@ export function ResponseInbox({ workspaceId, plan, aiResponseMode }: Props) {
                 key={c.id}
                 comment={c}
                 plan={plan}
-                aiResponseMode={aiResponseMode}
                 onUpdate={handleUpdate}
               />
             ))
@@ -193,7 +242,6 @@ export function ResponseInbox({ workspaceId, plan, aiResponseMode }: Props) {
                 key={c.id}
                 comment={c}
                 plan={plan}
-                aiResponseMode={aiResponseMode}
                 onUpdate={handleUpdate}
               />
             ))
