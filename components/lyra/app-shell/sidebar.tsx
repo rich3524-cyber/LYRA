@@ -62,7 +62,9 @@ export function Sidebar({
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
-  const base = `/workspace/${workspaceId}`
+  // Derive active workspace from URL — layout always passes workspaceAccess[0]
+  const activeWorkspaceId = pathname.match(/\/workspace\/([^/]+)/)?.[1] ?? workspaceId
+  const base = `/workspace/${activeWorkspaceId}`
 
   // Close mobile drawer when navigating
   useEffect(() => {
@@ -222,7 +224,7 @@ export function Sidebar({
         {/* Workspace Switcher */}
         {!isCollapsed && (
           <div className="px-3 py-3 border-b border-background-border">
-            <WorkspaceSwitcher workspaceId={workspaceId} />
+            <WorkspaceSwitcher workspaceId={activeWorkspaceId} />
           </div>
         )}
 
