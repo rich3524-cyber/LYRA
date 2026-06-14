@@ -1,3 +1,5 @@
+export const dynamic = 'force-dynamic'
+
 import { redirect, notFound } from 'next/navigation'
 import { Zap, Globe, Share2, Lock } from 'lucide-react'
 import Link from 'next/link'

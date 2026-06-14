@@ -62,7 +62,6 @@ export function Sidebar({
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
-  // Derive active workspace from URL — layout always passes workspaceAccess[0]
   const activeWorkspaceId = pathname.match(/\/workspace\/([^/]+)/)?.[1] ?? workspaceId
   const base = `/workspace/${activeWorkspaceId}`
 
@@ -75,7 +74,7 @@ export function Sidebar({
     return navItems.map(({ href, label, icon: Icon, proOnly }) => {
       const isBrandAI   = href === '/brand'
       const isAssistant = href === '/assistant'
-      const locked = (isBrandAI && !brandReady) || (proOnly && plan === 'STARTER')
+      const locked = proOnly && plan === 'STARTER'
 
       if (locked) {
         const lockTitle = isBrandAI

@@ -30,7 +30,12 @@ export default async function DashboardLayout({
     )
   }
 
-  const workspaceId = user.workspaceAccess[0]?.workspaceId ?? ''
+  // Use highest-plan workspace as the layout fallback (AGENCY > PRO > STARTER)
+  const PLAN_PRIORITY: Record<string, number> = { AGENCY: 3, PRO: 2, STARTER: 1 }
+  const sortedAccess = [...user.workspaceAccess].sort(
+    (a, b) => (PLAN_PRIORITY[b.workspace.plan] ?? 0) - (PLAN_PRIORITY[a.workspace.plan] ?? 0)
+  )
+  const workspaceId = sortedAccess[0]?.workspaceId ?? ''
 
   // Check whether Brand AI is unlocked and compute setup progress for the active workspace
   let brandReady = false
