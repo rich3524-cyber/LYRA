@@ -60,6 +60,20 @@ export default async function BrandPage({ params }: Props) {
   const hasSocial   = connectedPlatforms.length > 0
   const brandReady  = hasWebsite && hasSocial
   const profile     = workspace.brandProfile
+
+  // When this workspace isn't brand-ready, find others that are — so we can break the redirect loop
+  let readyWorkspaces: { id: string; name: string }[] = []
+  if (!brandReady) {
+    readyWorkspaces = await prisma.workspace.findMany({
+      where: {
+        access: { some: { userId: user.id } },
+        id: { not: workspaceId },
+        websiteUrl: { not: null },
+        socialAccounts: { some: { isActive: true } },
+      },
+      select: { id: true, name: true },
+    })
+  }
   const audience    = profile?.audienceProfile as AudienceProfile | null
   const patternsJson = profile?.postingPatterns as BrandPatternsJson | null
   const guidelines  = patternsJson?.guidelines ?? null
@@ -116,42 +130,73 @@ export default async function BrandPage({ params }: Props) {
 
       {!brandReady ? (
         /* Setup gate */
-        <div className="py-16 space-y-6">
-          <div className="space-y-3">
-            <Lock size={24} strokeWidth={1.5} className="text-text-tertiary" />
-            <div className="space-y-1">
-              <p className="font-sans text-sm text-text-secondary">Brand AI is not yet available.</p>
-              <p className="font-sans text-sm text-text-tertiary max-w-sm leading-relaxed">
-                Complete the steps below in Settings, then return here to build your brand profile.
+        <div className="py-12 space-y-8">
+          {/* If another workspace has Brand AI ready, surface it first */}
+          {readyWorkspaces.length > 0 && (
+            <div className="p-5 rounded-xl bg-background-secondary border border-background-border space-y-3">
+              <p className="font-sans text-xs text-text-tertiary">
+                Brand AI is ready in another workspace.
               </p>
-            </div>
-          </div>
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${hasWebsite ? 'border-status-success bg-status-success' : 'border-background-border-mid'}`}>
-                {hasWebsite && <Check size={10} strokeWidth={1.5} className="text-background-primary" />}
+              <div className="space-y-2">
+                {readyWorkspaces.map((ws) => (
+                  <Link
+                    key={ws.id}
+                    href={`/workspace/${ws.id}/brand`}
+                    className="flex items-center justify-between px-4 py-3 rounded-lg bg-background-tertiary border border-background-border-mid hover:border-accent-silver transition-all duration-150 group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Zap size={14} strokeWidth={1.5} className="text-accent-platinum shrink-0" />
+                      <span className="font-sans text-sm text-text-primary">{ws.name}</span>
+                    </div>
+                    <span className="font-sans text-xs text-text-tertiary group-hover:text-text-secondary transition-colors">
+                      Open Brand AI →
+                    </span>
+                  </Link>
+                ))}
               </div>
-              <Globe size={14} strokeWidth={1.5} className="text-text-tertiary" />
-              <span className="font-sans text-sm text-text-tertiary">Website URL added</span>
             </div>
-            <div className="flex items-center gap-3">
-              <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${hasSocial ? 'border-status-success bg-status-success' : 'border-background-border-mid'}`}>
-                {hasSocial && (
-                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                    <path d="M2 5l2 2 4-4" stroke="#080808" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                )}
+          )}
+
+          {/* Setup requirements for this workspace */}
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <Lock size={24} strokeWidth={1.5} className="text-text-tertiary" />
+              <div className="space-y-1">
+                <p className="font-sans text-sm text-text-secondary">
+                  Brand AI is not yet configured for {workspace.name}.
+                </p>
+                <p className="font-sans text-sm text-text-tertiary max-w-sm leading-relaxed">
+                  Complete the steps below in Settings, then return here to build your brand profile.
+                </p>
               </div>
-              <Share2 size={14} strokeWidth={1.5} className="text-text-tertiary" />
-              <span className="font-sans text-sm text-text-tertiary">At least one social account connected</span>
             </div>
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${hasWebsite ? 'border-status-success bg-status-success' : 'border-background-border-mid'}`}>
+                  {hasWebsite && <Check size={10} strokeWidth={1.5} className="text-background-primary" />}
+                </div>
+                <Globe size={14} strokeWidth={1.5} className="text-text-tertiary" />
+                <span className="font-sans text-sm text-text-tertiary">Website URL added</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${hasSocial ? 'border-status-success bg-status-success' : 'border-background-border-mid'}`}>
+                  {hasSocial && (
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                      <path d="M2 5l2 2 4-4" stroke="#080808" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </div>
+                <Share2 size={14} strokeWidth={1.5} className="text-text-tertiary" />
+                <span className="font-sans text-sm text-text-tertiary">At least one social account connected</span>
+              </div>
+            </div>
+            <Link
+              href={`/workspace/${workspaceId}/settings`}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-background-secondary border border-background-border-mid font-sans text-sm text-text-secondary hover:text-text-primary hover:border-accent-silver transition-colors duration-150"
+            >
+              Go to Settings
+            </Link>
           </div>
-          <Link
-            href={`/workspace/${workspaceId}/settings`}
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-accent-platinum text-background-primary font-sans text-sm font-medium hover:bg-accent-white transition-colors duration-150"
-          >
-            Go to Settings
-          </Link>
         </div>
       ) : !profile ? (
         /* Ready but no profile built yet */
