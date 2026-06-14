@@ -1,6 +1,6 @@
 [build]
   base    = "LYRA/lyra"
-  command = "npx prisma generate && DIRECT_URL=\"$DATABASE_URL\" npx prisma db push --accept-data-loss && npm run build"
+  command = "echo '=== NEW FILES CHECK ===' && ls components/lyra/brand/ && ls app/api/debug/ 2>&1 || echo 'MISSING: debug dir' && echo '=== END CHECK ===' && npx prisma generate && DIRECT_URL=\"$DATABASE_URL\" npx prisma db push --accept-data-loss && npm run build"
   publish = ".next"
 
 [build.environment]
