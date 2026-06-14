@@ -193,6 +193,16 @@ export function PostComposer({ workspaceId, connectedPlatforms, onContentChange,
             <BarChart2 size={14} strokeWidth={1.5} />
             Score
           </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            type="button"
+            onClick={() => handleSubmit('DRAFT')}
+            disabled={isSubmitting}
+            className="text-text-tertiary hover:text-text-primary text-xs"
+          >
+            Save draft
+          </Button>
         </div>
 
         <div className="flex items-center gap-2">
@@ -225,17 +235,6 @@ export function PostComposer({ workspaceId, connectedPlatforms, onContentChange,
               </div>
             </PopoverContent>
           </Popover>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            type="button"
-            onClick={() => handleSubmit('DRAFT')}
-            disabled={isSubmitting}
-            className="text-text-tertiary hover:text-text-primary text-xs"
-          >
-            Save draft
-          </Button>
 
           <Button
             variant="ghost"
