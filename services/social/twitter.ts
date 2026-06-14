@@ -5,7 +5,7 @@ const AUTH_URL = 'https://twitter.com/i/oauth2/authorize'
 const TOKEN_URL = 'https://api.twitter.com/2/oauth2/token'
 const API_URL = 'https://api.twitter.com/2'
 
-const SCOPES = ['tweet.read', 'tweet.write', 'users.read', 'offline.access'].join(' ')
+const SCOPES = ['tweet.read', 'tweet.write', 'users.read'].join(' ')
 
 export interface TwitterAccount {
   id: string
@@ -67,8 +67,8 @@ export async function exchangeCode(
   if (data.error) throw new Error(data.error_description ?? data.error)
   return {
     accessToken: data.access_token as string,
-    refreshToken: data.refresh_token as string,
-    expiresIn: data.expires_in as number,
+    refreshToken: (data.refresh_token ?? '') as string,
+    expiresIn: (data.expires_in ?? 7200) as number,
   }
 }
 
