@@ -30,19 +30,23 @@ export default async function DashboardLayout({
     )
   }
 
-  // Determine the active workspace: URL → last-visited cookie → highest-plan workspace
+  // Determine the active workspace: URL param → highest-plan workspace → cookie
+  // Plan-priority fallback is before cookie because the cookie may have been set
+  // by a stale/buggy navigation to a lower-capability workspace.
   const h = await headers()
   const pathname = h.get('x-pathname') ?? ''
   const urlWorkspaceId = pathname.match(/\/workspace\/([^/?]+)/)?.[1] ?? ''
+
+  const PLAN_PRIORITY: Record<string, number> = { AGENCY: 3, PRO: 2, STARTER: 1 }
+  const sortedAccess = [...user.workspaceAccess].sort(
+    (a, b) => (PLAN_PRIORITY[b.workspace.plan] ?? 0) - (PLAN_PRIORITY[a.workspace.plan] ?? 0)
+  )
+  const planFallbackId = sortedAccess[0]?.workspaceId ?? ''
+
   const c = await cookies()
   const cookieWorkspaceId = c.get('lyra-active-workspace')?.value ?? ''
 
-  const PLAN_PRIORITY: Record<string, number> = { AGENCY: 3, PRO: 2, STARTER: 1 }
-  const fallbackWorkspaceId = [...user.workspaceAccess]
-    .sort((a, b) => (PLAN_PRIORITY[b.workspace.plan] ?? 0) - (PLAN_PRIORITY[a.workspace.plan] ?? 0))[0]
-    ?.workspaceId ?? ''
-
-  const workspaceId = urlWorkspaceId || cookieWorkspaceId || fallbackWorkspaceId
+  const workspaceId = urlWorkspaceId || planFallbackId || cookieWorkspaceId
 
   // Resolve plan for the active workspace
   let brandReady = false
