@@ -11,13 +11,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { Sparkles, CalendarIcon, Send, BarChart2, TrendingUp, X } from 'lucide-react'
+import { Sparkles, CalendarIcon, Send, Zap, BarChart2 } from 'lucide-react'
 import { PlatformSelector } from './platform-selector'
 import { MediaUploader } from './media-uploader'
 import { ContentScorePanel } from './content-score-panel'
 import type { ScoringResult } from '@/services/ai/content-scorer'
-import { TrendPickerPanel } from '@/components/lyra/trends/trend-picker-panel'
-import type { TrendItem } from '@prisma/client'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -29,11 +27,9 @@ interface PostComposerProps {
   postingPatterns?: any
   onContentChange?: (content: string) => void
   onPlatformsChange?: (platforms: string[]) => void
-  trendEnabled?: boolean
-  initialTrend?: { trendId: string; title: string; sourcePlatform: string } | null
 }
 
-export function PostComposer({ workspaceId, connectedPlatforms, onContentChange, onPlatformsChange, trendEnabled, initialTrend }: PostComposerProps) {
+export function PostComposer({ workspaceId, connectedPlatforms, onContentChange, onPlatformsChange }: PostComposerProps) {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
   const [scheduledAt, setScheduledAt] = useState<Date | undefined>()
   const [mediaUrls, setMediaUrls] = useState<string[]>([])
@@ -44,16 +40,6 @@ export function PostComposer({ workspaceId, connectedPlatforms, onContentChange,
   const [scoring, setScoring] = useState(false)
   const [scoreResult, setScoreResult] = useState<ScoringResult | null>(null)
   const scoreDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [trendOpen, setTrendOpen]     = useState(false)
-  const [activeTrend, setActiveTrend] = useState<Pick<TrendItem, 'id' | 'title' | 'sourcePlatform'> | null>(
-    initialTrend ? { id: initialTrend.trendId, title: initialTrend.title, sourcePlatform: initialTrend.sourcePlatform } : null
-  )
-
-  useEffect(() => {
-    if (initialTrend) {
-      setActiveTrend({ id: initialTrend.trendId, title: initialTrend.title, sourcePlatform: initialTrend.sourcePlatform })
-    }
-  }, [initialTrend])
 
   const editor = useEditor({
     extensions: [
@@ -104,32 +90,33 @@ export function PostComposer({ workspaceId, connectedPlatforms, onContentChange,
       const res = await fetch('/api/ai/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, platforms: selectedPlatforms, trendContext: activeTrend?.title }),
+        body: JSON.stringify({ workspaceId, platforms: selectedPlatforms }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Generation failed')
       editor?.commands.setContent(data.content)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to generate content')
+    } catch {
+      toast.error('Failed to generate content')
     } finally {
       setIsGenerating(false)
     }
   }
 
-  const handleSubmit = async (status: 'DRAFT' | 'SCHEDULED') => {
+  const handleSubmit = async (status: 'DRAFT' | 'SCHEDULED', dateOverride?: Date) => {
+    const content = editor?.getText()
     if (!content?.trim()) { toast.error('Post content is required'); return }
     if (selectedPlatforms.length === 0) { toast.error('Select at least one platform'); return }
-    if (status === 'SCHEDULED' && !scheduledAt) { toast.error('Set a schedule time'); return }
+    const publishAt = dateOverride ?? scheduledAt
+    if (status === 'SCHEDULED' && !publishAt) { toast.error('Set a schedule time'); return }
 
     setIsSubmitting(true)
     try {
       const res = await fetch('/api/posts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, content, platforms: selectedPlatforms, scheduledAt, mediaUrls, status }),
+        body: JSON.stringify({ workspaceId, content, platforms: selectedPlatforms, scheduledAt: publishAt, mediaUrls, status }),
       })
       if (!res.ok) throw new Error('Failed to save post')
-      toast.success(status === 'SCHEDULED' ? 'Post scheduled!' : 'Draft saved!')
+      toast.success(status === 'SCHEDULED' ? (dateOverride ? 'Post queued for publishing.' : 'Post scheduled.') : 'Draft saved.')
       editor?.commands.clearContent()
       setSelectedPlatforms([])
       setScheduledAt(undefined)
@@ -142,8 +129,7 @@ export function PostComposer({ workspaceId, connectedPlatforms, onContentChange,
   }
 
   return (
-    <div className="flex rounded-xl overflow-hidden border border-background-border">
-      <div className="flex-1 relative bg-background-secondary">
+    <div className="relative bg-background-secondary border border-background-border rounded-xl overflow-hidden">
       {/* Platform selector */}
       <div className="px-5 py-4 border-b border-background-border">
         <p className="text-xs text-text-tertiary mb-3 tracking-wider uppercase">Post to</p>
@@ -159,21 +145,6 @@ export function PostComposer({ workspaceId, connectedPlatforms, onContentChange,
 
       {/* Editor */}
       <div className="px-5 py-4">
-        {activeTrend && (
-          <div className="flex items-center gap-2 pb-3">
-            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-background-hover border border-background-border text-xs font-sans text-text-secondary">
-              <TrendingUp size={10} strokeWidth={1.5} />
-              {activeTrend.title} ({activeTrend.sourcePlatform.charAt(0) + activeTrend.sourcePlatform.slice(1).toLowerCase()})
-              <button
-                onClick={() => setActiveTrend(null)}
-                aria-label="Remove trend"
-                className="ml-1 text-text-tertiary hover:text-text-primary transition-colors"
-              >
-                <X size={10} strokeWidth={1.5} />
-              </button>
-            </span>
-          </div>
-        )}
         <EditorContent editor={editor} />
       </div>
 
@@ -194,65 +165,76 @@ export function PostComposer({ workspaceId, connectedPlatforms, onContentChange,
         </div>
       )}
 
-      {/* Toolbar */}
+      {/* Toolbar — row 1: content tools */}
+      <div className="flex items-center gap-3 px-5 py-3 border-t border-background-border">
+        <Button
+          variant="ghost"
+          size="sm"
+          type="button"
+          onClick={handleAIGenerate}
+          disabled={isGenerating}
+          className="text-text-secondary hover:text-text-primary gap-2 text-xs"
+        >
+          <Sparkles size={14} className={cn(isGenerating && 'animate-pulse')} />
+          {isGenerating ? 'Generating…' : 'AI Generate'}
+        </Button>
+        <MediaUploader
+          workspaceId={workspaceId}
+          onUpload={(url) => setMediaUrls((prev) => [...prev, url])}
+        />
+        <Button
+          variant="ghost"
+          size="sm"
+          type="button"
+          onClick={() => setScoreOpen(!scoreOpen)}
+          className={cn('gap-2 text-xs', scoreOpen ? 'text-text-primary' : 'text-text-secondary hover:text-text-primary')}
+        >
+          <BarChart2 size={14} strokeWidth={1.5} />
+          Score
+        </Button>
+      </div>
+
+      {/* Toolbar — row 2: publish actions */}
       <div className="flex items-center justify-between px-5 py-3 border-t border-background-border">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            type="button"
-            onClick={handleAIGenerate}
-            disabled={isGenerating}
-            className="text-text-secondary hover:text-text-primary gap-2 text-xs"
-          >
-            <Sparkles size={14} className={cn(isGenerating && 'animate-pulse')} />
-            {isGenerating ? 'Generating…' : 'AI Generate'}
-          </Button>
-          <MediaUploader
-            workspaceId={workspaceId}
-            onUpload={(url) => setMediaUrls((prev) => [...prev, url])}
-          />
-          <Button
-            variant="ghost"
-            size="sm"
-            type="button"
-            onClick={() => {
-              const newOpen = !scoreOpen
-              setScoreOpen(newOpen)
-              if (newOpen && content.length >= 10) setScoring(true)
-            }}
-            className={cn('gap-2 text-xs', scoreOpen ? 'text-text-primary' : 'text-text-secondary hover:text-text-primary')}
-          >
-            <BarChart2 size={14} strokeWidth={1.5} />
-            Score
-          </Button>
-          {trendEnabled && (
-            <Button
-              variant="ghost"
-              size="sm"
-              type="button"
-              onClick={() => setTrendOpen(prev => !prev)}
-              className={cn('gap-2 text-xs', trendOpen ? 'text-text-primary' : 'text-text-secondary hover:text-text-primary')}
-              aria-label="Toggle trends panel"
-            >
-              <TrendingUp size={14} strokeWidth={1.5} />
-              Trends
-            </Button>
-          )}
-        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          type="button"
+          onClick={() => handleSubmit('DRAFT')}
+          disabled={isSubmitting}
+          className="text-text-tertiary hover:text-text-primary text-xs"
+        >
+          Save draft
+        </Button>
 
         <div className="flex items-center gap-2">
-          {/* Schedule picker — PopoverTrigger styled directly (no asChild — @base-ui limitation) */}
+          {/* Schedule picker */}
           <Popover>
             <PopoverTrigger
               className="inline-flex items-center gap-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors h-8 px-2 rounded-md hover:bg-background-hover bg-transparent border-0 cursor-pointer"
               aria-label="Set schedule time"
             >
               <CalendarIcon size={14} />
-              {scheduledAt ? format(scheduledAt, 'MMM d, h:mm a') : 'Schedule'}
+              {scheduledAt ? format(scheduledAt, 'MMM d, h:mm a') : 'Pick date & time'}
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0 bg-background-tertiary border-background-border">
               <Calendar mode="single" selected={scheduledAt} onSelect={setScheduledAt} />
+              <div className="px-4 pb-4 pt-3 border-t border-background-border space-y-1.5">
+                <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">Time</p>
+                <input
+                  type="time"
+                  value={scheduledAt ? format(scheduledAt, 'HH:mm') : ''}
+                  onChange={(e) => {
+                    if (!e.target.value) return
+                    const [hours, minutes] = e.target.value.split(':').map(Number)
+                    const base = scheduledAt ?? new Date()
+                    const updated = new Date(base)
+                    updated.setHours(hours, minutes, 0, 0)
+                    setScheduledAt(updated)
+                  }}
+                  className="w-full bg-background-secondary border border-background-border rounded-lg px-3 py-2 font-mono text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-silver/40"
+                />
+              </div>
             </PopoverContent>
           </Popover>
 
@@ -260,11 +242,12 @@ export function PostComposer({ workspaceId, connectedPlatforms, onContentChange,
             variant="ghost"
             size="sm"
             type="button"
-            onClick={() => handleSubmit('DRAFT')}
+            onClick={() => handleSubmit('SCHEDULED', new Date())}
             disabled={isSubmitting}
-            className="text-text-tertiary hover:text-text-primary text-xs"
+            className="text-text-secondary hover:text-text-primary text-xs gap-1.5"
           >
-            Save draft
+            <Zap size={12} strokeWidth={1.5} />
+            Post now
           </Button>
 
           <Button
@@ -280,17 +263,7 @@ export function PostComposer({ workspaceId, connectedPlatforms, onContentChange,
         </div>
       </div>
 
-      <ContentScorePanel open={scoreOpen} onClose={() => setScoreOpen(false)} scoring={scoring} result={scoreResult} />
-      </div>
-      <TrendPickerPanel
-        open={trendEnabled ? trendOpen : false}
-        workspaceId={workspaceId}
-        onClose={() => setTrendOpen(false)}
-        onSelectTrend={(trend) => {
-          setActiveTrend({ id: trend.id, title: trend.title, sourcePlatform: trend.sourcePlatform })
-          setTrendOpen(false)
-        }}
-      />
+      <ContentScorePanel open={scoreOpen} scoring={scoring} result={scoreResult} />
     </div>
   )
 }
