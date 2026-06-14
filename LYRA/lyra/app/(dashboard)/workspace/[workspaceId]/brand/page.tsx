@@ -329,7 +329,7 @@ export default async function BrandPage({ params }: Props) {
                 Brand guidelines
               </p>
               <p className="font-sans text-xs text-text-tertiary">
-                Paste your brand guidelines below. LYRA uses this text when rebuilding the profile.
+                Paste your brand voice, tone, messaging rules, and audience details below. LYRA uses this when building your profile.
               </p>
             </div>
             <BrandGuidelinesPanel
