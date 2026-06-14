@@ -26,9 +26,10 @@ export interface FacebookPage {
 export function getAuthUrl(workspaceId: string, rerequest = false): string {
   const state = Buffer.from(JSON.stringify({ workspaceId })).toString('base64')
   const params = new URLSearchParams({
-    client_id: process.env.FACEBOOK_APP_ID!,
+    client_id:    process.env.FACEBOOK_APP_ID!,
     redirect_uri: `${process.env.APP_BASE_URL}/api/social/callback/facebook`,
-    scope: SCOPES,
+    config_id:    '2019464152262932',
+    scope:        SCOPES,
     state,
     response_type: 'code',
     ...(rerequest && { auth_type: 'rerequest' }),
