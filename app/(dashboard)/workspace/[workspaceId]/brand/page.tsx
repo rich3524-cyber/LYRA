@@ -320,6 +320,19 @@ export default async function BrandPage({ params }: Props) {
             connectedPlatforms={connectedPlatforms}
             postCounts={postCounts}
           />
+
+          {/* Brand guidelines — upload docs to improve AI profile accuracy */}
+          <section className="p-5 rounded-xl bg-background-secondary border border-background-border space-y-3">
+            <div className="space-y-0.5">
+              <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
+                Brand guidelines
+              </p>
+              <p className="font-sans text-xs text-text-tertiary">
+                Upload PDF or DOCX files. LYRA uses these when building or rebuilding your brand profile.
+              </p>
+            </div>
+            <GuidelinesUploader workspaceId={workspaceId} guidelineUrls={profile.guidelineUrls} />
+          </section>
         </div>
       )}
     </div>
