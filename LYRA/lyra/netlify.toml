@@ -8,3 +8,24 @@
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+# Prevent Netlify's CDN from caching any authenticated dashboard routes.
+# These headers are applied at the edge before caching decisions are made,
+# unlike Next.js response headers which arrive too late to stop a CDN cache hit.
+[[headers]]
+  for = "/workspace/*"
+  [headers.values]
+    Netlify-CDN-Cache-Control = "no-store"
+    Cache-Control = "no-store, no-cache, must-revalidate, proxy-revalidate"
+
+[[headers]]
+  for = "/agency/*"
+  [headers.values]
+    Netlify-CDN-Cache-Control = "no-store"
+    Cache-Control = "no-store, no-cache, must-revalidate, proxy-revalidate"
+
+[[headers]]
+  for = "/account/*"
+  [headers.values]
+    Netlify-CDN-Cache-Control = "no-store"
+    Cache-Control = "no-store, no-cache, must-revalidate, proxy-revalidate"
