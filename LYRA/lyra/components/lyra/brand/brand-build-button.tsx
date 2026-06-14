@@ -7,9 +7,10 @@ import { Zap, RefreshCw } from 'lucide-react'
 interface Props {
   workspaceId: string
   hasProfile: boolean
+  manualGuidelines?: string
 }
 
-export function BrandBuildButton({ workspaceId, hasProfile }: Props) {
+export function BrandBuildButton({ workspaceId, hasProfile, manualGuidelines }: Props) {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -21,7 +22,7 @@ export function BrandBuildButton({ workspaceId, hasProfile }: Props) {
       const res = await fetch('/api/brand-intelligence/build', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId }),
+        body: JSON.stringify({ workspaceId, manualGuidelines: manualGuidelines || undefined }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))

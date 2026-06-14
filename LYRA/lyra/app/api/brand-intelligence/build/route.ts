@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 export async function POST(req: Request) {
   try {
     const user = await requireAuth()
-    const { workspaceId } = await req.json()
+    const { workspaceId, manualGuidelines } = await req.json()
 
     const workspace = await prisma.workspace.findFirst({
       where: { id: workspaceId, access: { some: { userId: user.id } } },
@@ -30,10 +30,13 @@ export async function POST(req: Request) {
       }
     }
 
-    // Parse brand guidelines from S3 (if any uploaded)
-    const guidelinesText = workspace.brandProfile?.guidelineUrls?.length
-      ? await parseWorkspaceGuidelines(workspace.brandProfile.guidelineUrls)
-      : ''
+    // Guidelines: use manualGuidelines from request, or previously saved text, or S3 files
+    const savedUserGuidelines = (workspace.brandProfile?.postingPatterns as Record<string, unknown> | null)?.userGuidelines as string | undefined
+    const guidelinesText = (manualGuidelines as string | undefined)?.trim()
+      || savedUserGuidelines
+      || (workspace.brandProfile?.guidelineUrls?.length
+          ? await parseWorkspaceGuidelines(workspace.brandProfile.guidelineUrls)
+          : '')
 
     // Use published/scheduled posts from DB as social content signal
     const recentPosts = await prisma.post.findMany({
@@ -58,7 +61,7 @@ export async function POST(req: Request) {
         toneAttributes:  profileData.toneAttributes,
         contentThemes:   profileData.contentThemes,
         audienceProfile: profileData.audienceProfile,
-        postingPatterns: JSON.parse(JSON.stringify({ guidelines: profileData.postingGuidelines, socialInsights: insights })),
+        postingPatterns: JSON.parse(JSON.stringify({ guidelines: profileData.postingGuidelines, socialInsights: insights, userGuidelines: guidelinesText || undefined })),
         websiteData:     JSON.parse(JSON.stringify(websiteData)),
         lastScrapedAt:   new Date(),
         lastUpdatedAt:   new Date(),
@@ -68,7 +71,7 @@ export async function POST(req: Request) {
         toneAttributes:  profileData.toneAttributes,
         contentThemes:   profileData.contentThemes,
         audienceProfile: profileData.audienceProfile,
-        postingPatterns: JSON.parse(JSON.stringify({ guidelines: profileData.postingGuidelines, socialInsights: insights })),
+        postingPatterns: JSON.parse(JSON.stringify({ guidelines: profileData.postingGuidelines, socialInsights: insights, userGuidelines: guidelinesText || undefined })),
         websiteData:     JSON.parse(JSON.stringify(websiteData)),
         lastScrapedAt:   new Date(),
         lastUpdatedAt:   new Date(),
