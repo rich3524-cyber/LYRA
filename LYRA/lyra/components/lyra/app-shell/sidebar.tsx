@@ -38,7 +38,8 @@ const navItems = [
 export function Sidebar({ workspaceId, brandReady, plan }: { workspaceId: string; brandReady: boolean; plan?: string }) {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
-  const base = `/workspace/${workspaceId}`
+  const activeWorkspaceId = pathname.match(/\/workspace\/([^/]+)/)?.[1] ?? workspaceId
+  const base = `/workspace/${activeWorkspaceId}`
 
   return (
     <motion.aside
@@ -86,7 +87,7 @@ export function Sidebar({ workspaceId, brandReady, plan }: { workspaceId: string
       {/* Workspace Switcher */}
       {!collapsed && (
         <div className="px-3 py-3 border-b border-background-border">
-          <WorkspaceSwitcher workspaceId={workspaceId} />
+          <WorkspaceSwitcher workspaceId={activeWorkspaceId} />
         </div>
       )}
 
