@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
+import { headers, cookies } from 'next/headers'
 import { auth0 } from '@/lib/auth0'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -29,9 +30,15 @@ export default async function DashboardLayout({
     )
   }
 
-  const workspaceId = user.workspaceAccess[0]?.workspaceId ?? ''
+  // Determine the active workspace: URL param → last-visited cookie → first workspace
+  const h = await headers()
+  const pathname = h.get('x-pathname') ?? ''
+  const urlWorkspaceId = pathname.match(/\/workspace\/([^/?]+)/)?.[1] ?? ''
+  const c = await cookies()
+  const cookieWorkspaceId = c.get('lyra-active-workspace')?.value ?? ''
+  const workspaceId = urlWorkspaceId || cookieWorkspaceId || (user.workspaceAccess[0]?.workspaceId ?? '')
 
-  // Check whether Brand AI is unlocked for the active workspace
+  // Resolve plan for the active workspace
   let brandReady = false
   let workspacePlan: string | undefined
   if (workspaceId) {
