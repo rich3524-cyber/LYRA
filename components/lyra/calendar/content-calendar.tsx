@@ -8,7 +8,7 @@ import {
   eachDayOfInterval,
   isSameDay,
   isToday,
-  setDate,
+  isSameMonth,
 } from 'date-fns'
 import {
   DndContext,
@@ -19,69 +19,44 @@ import {
   useSensors,
 } from '@dnd-kit/core'
 import { useDroppable } from '@dnd-kit/core'
-import { ChevronLeft, ChevronRight, Mail } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react'
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { PostPreviewCard, CalendarPost, PLATFORM_COLORS, PLATFORM_LABELS } from './post-preview-card'
+import { PostDetailPanel } from './post-detail-panel'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
-// ── Email campaign types ───────────────────────────────────────────────────────
+type FilterValue = 'ALL' | 'SCHEDULED' | 'DRAFT' | 'PUBLISHED' | 'FAILED'
 
-interface EmailCampaign {
-  id:          string
-  name:        string
-  subjectLine: string
-  status:      'DRAFT' | 'SCHEDULED' | 'SENT'
-  scheduledAt: string | null
-  sentAt:      string | null
-  emailConnection: { provider: 'KLAVIYO' | 'MAILCHIMP' }
-}
+const FILTER_TABS: { value: FilterValue; label: string }[] = [
+  { value: 'ALL',       label: 'All' },
+  { value: 'SCHEDULED', label: 'Scheduled' },
+  { value: 'DRAFT',     label: 'Drafts' },
+  { value: 'PUBLISHED', label: 'Published' },
+  { value: 'FAILED',    label: 'Failed' },
+]
 
-const EMAIL_STATUS_LABEL: Record<EmailCampaign['status'], string> = {
-  DRAFT:     'Draft',
-  SCHEDULED: 'Scheduled',
-  SENT:      'Sent',
-}
-
-function EmailCampaignChip({ campaign }: { campaign: EmailCampaign }) {
-  const sendTime = campaign.scheduledAt ?? campaign.sentAt
+function SkeletonCell() {
   return (
-    <div className="flex items-start gap-1.5 px-2 py-1.5 rounded-md bg-background-primary border-l-2 border-l-violet-500/50 border border-background-border text-[11px] font-sans leading-tight">
-      <Mail size={10} strokeWidth={1.5} className="text-violet-400 mt-0.5 shrink-0" />
-      <div className="min-w-0">
-        <p className="text-text-secondary truncate" title={campaign.name}>{campaign.name}</p>
-        <div className="flex items-center gap-1 mt-0.5">
-          {sendTime && (
-            <span className="text-text-tertiary font-mono">
-              {format(new Date(sendTime), 'h:mm a')}
-            </span>
-          )}
-          <span className={cn(
-            'font-sans',
-            campaign.status === 'SCHEDULED' && 'text-status-info',
-            campaign.status === 'SENT'      && 'text-text-tertiary',
-            campaign.status === 'DRAFT'     && 'text-text-tertiary',
-          )}>
-            {EMAIL_STATUS_LABEL[campaign.status]}
-          </span>
-        </div>
-      </div>
+    <div className="bg-background-secondary min-h-[120px] p-2 space-y-2">
+      <div className="h-3 w-4 rounded bg-background-hover animate-pulse" />
+      <div className="h-8 rounded bg-background-hover animate-pulse" />
+      <div className="h-8 rounded bg-background-hover animate-pulse" />
     </div>
   )
 }
 
-// ── DayCell ───────────────────────────────────────────────────────────────────
-
 function DayCell({
   day,
   posts,
-  emailCampaigns,
   isCurrentDay,
+  onSelect,
 }: {
-  day:           Date
-  posts:         CalendarPost[]
-  emailCampaigns: EmailCampaign[]
-  isCurrentDay:  boolean
+  day: Date
+  posts: CalendarPost[]
+  isCurrentDay: boolean
+  onSelect: (post: CalendarPost) => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: day.toISOString() })
 
@@ -96,18 +71,25 @@ function DayCell({
         isOver && 'bg-background-hover'
       )}
     >
-      {/* Date row */}
       <div className="flex items-center justify-between gap-1 mb-1">
-        <span className={cn('text-xs', isCurrentDay ? 'text-accent-platinum font-medium' : 'text-text-tertiary')}>
+        <span
+          className={cn(
+            'font-sans text-xs',
+            isCurrentDay ? 'text-accent-platinum font-medium' : 'text-text-tertiary'
+          )}
+        >
           {format(day, 'd')}
         </span>
         {platforms.length > 0 && (
-          <div className="flex items-center gap-0.5" aria-label={`Platforms: ${platforms.map((p) => PLATFORM_LABELS[p] ?? p).join(', ')}`}>
+          <div
+            className="flex items-center gap-0.5"
+            aria-label={`Platforms: ${platforms.map((p) => PLATFORM_LABELS[p] ?? p).join(', ')}`}
+          >
             {platforms.map((platform) => (
               <span
                 key={platform}
                 className="rounded-full shrink-0"
-                style={{ width: 6, height: 6, backgroundColor: PLATFORM_COLORS[platform] ?? '#555555' }}
+                style={{ width: 6, height: 6, backgroundColor: PLATFORM_COLORS[platform] ?? PLATFORM_COLORS['TWITTER'] }}
                 title={PLATFORM_LABELS[platform] ?? platform}
                 aria-hidden="true"
               />
@@ -115,61 +97,65 @@ function DayCell({
           </div>
         )}
       </div>
-
-      {/* Social post chips */}
       {posts.map((post) => (
-        <PostPreviewCard key={post.id} post={post} />
-      ))}
-
-      {/* Email campaign chips — non-draggable */}
-      {emailCampaigns.map((campaign) => (
-        <EmailCampaignChip key={campaign.id} campaign={campaign} />
+        <PostPreviewCard key={post.id} post={post} onSelect={onSelect} />
       ))}
     </div>
   )
 }
 
-// ── ContentCalendar ───────────────────────────────────────────────────────────
-
-export function ContentCalendar({ workspaceId }: { workspaceId: string }) {
-  const [currentMonth, setCurrentMonth]     = useState(new Date())
-  const [posts, setPosts]                   = useState<CalendarPost[]>([])
-  const [emailCampaigns, setEmailCampaigns] = useState<EmailCampaign[]>([])
-  const [activePost, setActivePost]         = useState<CalendarPost | null>(null)
+export function ContentCalendar({ workspaceId, plan }: { workspaceId: string; plan: 'STARTER' | 'PRO' | 'AGENCY' }) {
+  const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [posts, setPosts]               = useState<CalendarPost[]>([])
+  const [loading, setLoading]           = useState(true)
+  const [activePost, setActivePost]     = useState<CalendarPost | null>(null)
+  const [selectedPost, setSelectedPost] = useState<CalendarPost | null>(null)
+  const [activeFilter, setActiveFilter] = useState<FilterValue>('ALL')
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   )
 
-  const monthParam = format(currentMonth, 'yyyy-MM')
+  const fetchPosts = useCallback(async (signal?: AbortSignal) => {
+    const res = await fetch(
+      `/api/posts?workspaceId=${workspaceId}&month=${format(currentMonth, 'yyyy-MM')}`,
+      { signal }
+    )
+    const data: CalendarPost[] = await res.json()
+    return Array.isArray(data) ? data : []
+  }, [workspaceId, currentMonth])
 
-  // Keep a revert function for drag-and-drop failures
-  const reloadPosts = useCallback(() => {
-    fetch(`/api/posts?workspaceId=${workspaceId}&month=${monthParam}`)
-      .then(r => r.json())
-      .then((data: CalendarPost[]) => setPosts(Array.isArray(data) ? data : []))
-      .catch(() => {})
-  }, [workspaceId, monthParam])
-
-  useEffect(() => {
-    let ignore = false
-    fetch(`/api/posts?workspaceId=${workspaceId}&month=${monthParam}`)
-      .then(r => r.json())
-      .then((data: CalendarPost[]) => { if (!ignore) setPosts(Array.isArray(data) ? data : []) })
-      .catch(() => { if (!ignore) setPosts([]) })
-    return () => { ignore = true }
-  }, [workspaceId, monthParam])
-
-  useEffect(() => {
-    let ignore = false
-    fetch(`/api/email/campaigns?workspaceId=${workspaceId}&month=${monthParam}`)
-      .then(r => r.json())
-      .then((data: { campaigns: EmailCampaign[] }) => {
-        if (!ignore) setEmailCampaigns(Array.isArray(data.campaigns) ? data.campaigns : [])
+  const loadPosts = useCallback(() => {
+    setLoading(true)
+    fetchPosts()
+      .then((data) => setPosts(data))
+      .catch(() => {
+        setPosts([])
+        toast.error('Failed to load posts')
       })
-      .catch(() => { if (!ignore) setEmailCampaigns([]) })
-    return () => { ignore = true }
-  }, [workspaceId, monthParam])
+      .finally(() => setLoading(false))
+  }, [fetchPosts])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    fetchPosts(controller.signal)
+      .then((data) => {
+        if (controller.signal.aborted) return
+        setPosts(data)
+        setLoading(false)
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return
+        setPosts([])
+        setLoading(false)
+        toast.error('Failed to load posts')
+      })
+    return () => controller.abort()
+  }, [fetchPosts])
+
+  const filteredPosts = activeFilter === 'ALL'
+    ? posts
+    : posts.filter((p) => p.status === activeFilter)
 
   const days     = eachDayOfInterval({ start: startOfMonth(currentMonth), end: endOfMonth(currentMonth) })
   const startDay = startOfMonth(currentMonth).getDay()
@@ -184,10 +170,18 @@ export function ContentCalendar({ workspaceId }: { workspaceId: string }) {
 
     const targetDay      = new Date(over.id as string)
     const originalDate   = post.scheduledAt ? new Date(post.scheduledAt) : new Date()
-    const newScheduledAt = setDate(originalDate, targetDay.getDate())
+    const newScheduledAt = new Date(
+      targetDay.getFullYear(),
+      targetDay.getMonth(),
+      targetDay.getDate(),
+      originalDate.getHours(),
+      originalDate.getMinutes(),
+    )
 
     setPosts((prev) =>
-      prev.map((p) => p.id === post.id ? { ...p, scheduledAt: newScheduledAt.toISOString() } : p)
+      prev.map((p) =>
+        p.id === post.id ? { ...p, scheduledAt: newScheduledAt.toISOString() } : p
+      )
     )
 
     try {
@@ -200,83 +194,223 @@ export function ContentCalendar({ workspaceId }: { workspaceId: string }) {
       toast.success('Post rescheduled')
     } catch {
       toast.error('Failed to reschedule post')
-      reloadPosts()
+      loadPosts()
     }
   }
 
+  function handlePostDeleted(id: string) {
+    setPosts((prev) => prev.filter((p) => p.id !== id))
+    setSelectedPost(null)
+  }
+
+  function handlePostUpdated(updated: CalendarPost) {
+    setPosts((prev) => prev.map((p) => (p.id === updated.id ? updated : p)))
+    setSelectedPost(updated)
+  }
+
   return (
-    <DndContext
-      sensors={sensors}
-      onDragStart={(e) => {
-        const post = posts.find((p) => p.id === e.active.id)
-        setActivePost(post ?? null)
-      }}
-      onDragEnd={handleDragEnd}
-    >
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium text-text-secondary tracking-widest uppercase">
-            {format(currentMonth, 'MMMM yyyy')}
-          </h2>
-          <div className="flex gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setCurrentMonth((d) => new Date(d.getFullYear(), d.getMonth() - 1))}
-              aria-label="Previous month"
-            >
-              <ChevronLeft size={14} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setCurrentMonth((d) => new Date(d.getFullYear(), d.getMonth() + 1))}
-              aria-label="Next month"
-            >
-              <ChevronRight size={14} />
-            </Button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-7 gap-px bg-background-border rounded-xl overflow-hidden">
-          {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
-            <div key={d} className="bg-background-secondary px-3 py-2 text-xs text-text-tertiary text-center tracking-widest">
-              {d}
+    <>
+      <DndContext
+        sensors={sensors}
+        onDragStart={(e) => {
+          const post = posts.find((p) => p.id === e.active.id)
+          setActivePost(post ?? null)
+        }}
+        onDragEnd={handleDragEnd}
+      >
+        <div className="space-y-4">
+          {/* Month navigation */}
+          <div className="flex items-center justify-between">
+            <h2 className="font-sans text-sm font-medium text-text-secondary uppercase tracking-[0.1em]">
+              {format(currentMonth, 'MMMM yyyy')}
+            </h2>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setCurrentMonth(new Date())}
+                className={cn(
+                  'font-sans text-xs h-7 px-2',
+                  isSameMonth(currentMonth, new Date()) ? 'opacity-40 pointer-events-none' : ''
+                )}
+                aria-label="Go to today"
+              >
+                Today
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setCurrentMonth((d) => new Date(d.getFullYear(), d.getMonth() - 1))}
+                aria-label="Previous month"
+              >
+                <ChevronLeft size={14} />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setCurrentMonth((d) => new Date(d.getFullYear(), d.getMonth() + 1))}
+                aria-label="Next month"
+              >
+                <ChevronRight size={14} />
+              </Button>
             </div>
-          ))}
-
-          {Array.from({ length: startDay }).map((_, i) => (
-            <div key={`empty-${i}`} className="bg-background-secondary min-h-[120px]" />
-          ))}
-
-          {days.map((day) => {
-            const dayPosts = posts.filter(
-              (p) => p.scheduledAt && isSameDay(new Date(p.scheduledAt), day)
-            )
-            const dayCampaigns = emailCampaigns.filter((c) => {
-              const date = c.scheduledAt ?? c.sentAt
-              return date && isSameDay(new Date(date), day)
-            })
-            return (
-              <DayCell
-                key={day.toISOString()}
-                day={day}
-                posts={dayPosts}
-                emailCampaigns={dayCampaigns}
-                isCurrentDay={isToday(day)}
-              />
-            )
-          })}
-        </div>
-      </div>
-
-      <DragOverlay>
-        {activePost ? (
-          <div className="opacity-90 rotate-1 scale-105">
-            <PostPreviewCard post={activePost} />
           </div>
-        ) : null}
-      </DragOverlay>
-    </DndContext>
+
+          {/* Status filter tabs */}
+          <div className="flex items-center gap-1 flex-wrap">
+            {FILTER_TABS.map(({ value, label }) => {
+              const count = value === 'ALL'
+                ? posts.length
+                : posts.filter((p) => p.status === value).length
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setActiveFilter(value)}
+                  aria-pressed={activeFilter === value}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 px-3 py-2 rounded-md font-sans text-xs transition-colors',
+                    activeFilter === value
+                      ? 'bg-background-hover text-text-primary border border-background-border-mid'
+                      : 'text-text-tertiary hover:text-text-secondary border border-transparent'
+                  )}
+                >
+                  {label}
+                  {count > 0 && (
+                    <span className="font-mono text-[10px] text-text-tertiary">{count}</span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Mobile agenda view */}
+          <div className="md:hidden space-y-3">
+            {loading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-16 rounded-xl bg-background-secondary border border-background-border animate-pulse" />
+              ))
+            ) : filteredPosts.length === 0 ? (
+              <div className="flex flex-col items-center gap-3 py-12 text-center">
+                <CalendarIcon size={24} className="text-text-tertiary" />
+                <p className="font-sans text-sm text-text-secondary">No posts scheduled this month.</p>
+                <div className="flex flex-col gap-1.5">
+                  <Link href={`/workspace/${workspaceId}/compose`} className="font-sans text-xs text-accent-silver hover:text-text-primary transition-colors">
+                    Compose a post
+                  </Link>
+                </div>
+              </div>
+            ) : (
+              days.filter((day) => filteredPosts.some((p) => p.scheduledAt && isSameDay(new Date(p.scheduledAt), day))).map((day) => {
+                const dayPosts = filteredPosts.filter((p) => p.scheduledAt && isSameDay(new Date(p.scheduledAt), day))
+                return (
+                  <div key={day.toISOString()}>
+                    <p className={cn(
+                      'font-sans text-xs font-medium uppercase tracking-[0.1em] mb-2',
+                      isToday(day) ? 'text-accent-platinum' : 'text-text-tertiary'
+                    )}>
+                      {format(day, 'EEE, MMM d')}
+                    </p>
+                    <div className="space-y-1.5">
+                      {dayPosts.map((post) => (
+                        <button
+                          key={post.id}
+                          onClick={() => setSelectedPost(post)}
+                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-background-secondary border border-background-border hover:bg-background-hover transition-colors text-left"
+                        >
+                          <span
+                            className="rounded-full shrink-0"
+                            style={{ width: 8, height: 8, backgroundColor: PLATFORM_COLORS[post.socialAccount.platform] ?? PLATFORM_COLORS['TWITTER'] }}
+                            aria-hidden="true"
+                          />
+                          {post.scheduledAt && (
+                            <span className="font-mono text-[10px] text-text-tertiary shrink-0">
+                              {format(new Date(post.scheduledAt), 'HH:mm')}
+                            </span>
+                          )}
+                          <span className="font-sans text-xs text-text-secondary truncate">
+                            {post.content?.slice(0, 80) ?? 'No content'}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+          {/* Desktop calendar grid */}
+          <div className="hidden md:grid grid-cols-7 gap-px bg-background-border rounded-xl overflow-hidden">
+            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((d) => (
+              <div
+                key={d}
+                className="bg-background-secondary px-3 py-2 font-sans text-xs text-text-tertiary text-center uppercase tracking-[0.1em]"
+              >
+                {d}
+              </div>
+            ))}
+
+            {Array.from({ length: startDay }).map((_, i) =>
+              loading
+                ? <SkeletonCell key={`empty-skel-${i}`} />
+                : <div key={`empty-${i}`} className="bg-background-secondary min-h-[120px]" />
+            )}
+
+            {loading
+              ? days.map((day) => <SkeletonCell key={day.toISOString()} />)
+              : days.map((day) => {
+                  const dayPosts = filteredPosts.filter(
+                    (p) => p.scheduledAt && isSameDay(new Date(p.scheduledAt), day)
+                  )
+                  return (
+                    <DayCell
+                      key={day.toISOString()}
+                      day={day}
+                      posts={dayPosts}
+                      isCurrentDay={isToday(day)}
+                      onSelect={setSelectedPost}
+                    />
+                  )
+                })}
+          </div>
+
+          {/* Desktop empty state */}
+          {!loading && filteredPosts.length === 0 && (
+            <div className="hidden md:flex flex-col items-center gap-3 py-12 text-center">
+              <CalendarIcon size={24} className="text-text-tertiary" />
+              <p className="font-sans text-sm text-text-secondary">No posts scheduled this month.</p>
+              <div className="flex items-center gap-4">
+                <Link href={`/workspace/${workspaceId}/compose`} className="font-sans text-xs text-accent-silver hover:text-text-primary transition-colors">
+                  Compose a post
+                </Link>
+                <span className="text-text-tertiary text-xs">or</span>
+                <span className="font-sans text-xs text-accent-silver hover:text-text-primary transition-colors cursor-pointer">
+                  Use AI Schedule Generator
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <DragOverlay>
+          {activePost ? (
+            <div className="opacity-90 rotate-1 scale-105">
+              <PostPreviewCard post={activePost} onSelect={() => {}} />
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+
+      {/* Detail panel — outside DndContext to avoid z-index conflicts */}
+      <PostDetailPanel
+        post={selectedPost}
+        workspaceId={workspaceId}
+        plan={plan}
+        onClose={() => setSelectedPost(null)}
+        onDeleted={handlePostDeleted}
+        onUpdated={handlePostUpdated}
+      />
+    </>
   )
 }

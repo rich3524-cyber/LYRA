@@ -1,4 +1,4 @@
-import { anthropic, CLAUDE_MODEL } from '@/lib/anthropic'
+import { anthropic } from '@/lib/anthropic'
 
 export type DimensionScore = {
   score: number
@@ -64,13 +64,12 @@ ${content}
 `
 
   const response = await anthropic.messages.create({
-    model: CLAUDE_MODEL,
+    model: 'claude-sonnet-4-6',
     max_tokens: 600,
     messages: [{ role: 'user', content: prompt }],
   })
 
-  const raw = response.content[0].type === 'text' ? response.content[0].text : ''
-  const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
+  const text = response.content[0].type === 'text' ? response.content[0].text : ''
   const parsed: ScoringResult = JSON.parse(text)
 
   if (!parsed.dimensions?.hook || typeof parsed.overallScore !== 'number') {

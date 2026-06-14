@@ -3,12 +3,16 @@ import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { format, subDays, eachDayOfInterval } from 'date-fns'
 
+export const dynamic = 'force-dynamic'
+
+
 export async function GET(req: Request) {
   try {
     const user = await requireAuth()
     const { searchParams } = new URL(req.url)
     const workspaceId = searchParams.get('workspaceId')
-    const period      = parseInt(searchParams.get('period') ?? '30', 10)
+    const rawPeriod    = parseInt(searchParams.get('period') ?? '30', 10)
+    const period      = Number.isFinite(rawPeriod) ? Math.min(Math.max(rawPeriod, 1), 365) : 30
 
     if (!workspaceId) return NextResponse.json({ error: 'workspaceId required' }, { status: 400 })
 

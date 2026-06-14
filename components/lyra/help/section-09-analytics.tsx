@@ -1,4 +1,4 @@
-import { SectionHeader, Subsection, Strong, MetricRow, Note } from './primitives'
+import { SectionHeader, Subsection, Strong, MetricRow } from './primitives'
 
 export function AnalyticsSection() {
   return (
@@ -128,67 +128,6 @@ export function AnalyticsSection() {
           up to 2 years of post-level metrics. LinkedIn provides 12 months. X (Twitter)
           provides 30 days via the standard API.
         </p>
-      </Subsection>
-
-      <Subsection title="Competitor intelligence (Agency)">
-        <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Track up to 5 competitor brands per workspace. LYRA scrapes competitor websites and
-          public social profiles on a regular schedule to build a performance benchmark — giving
-          your clients context beyond their own numbers.
-        </p>
-        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          To add a competitor, click <Strong>Add competitor</Strong> on the Analytics page.
-          Enter the competitor&apos;s name, website URL, Twitter handle, and Facebook Page ID.
-          LYRA begins tracking immediately.
-        </p>
-        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          Tracked data per competitor:
-        </p>
-        <ul className="space-y-1 font-sans text-sm text-text-secondary list-disc list-inside pl-2">
-          <li>Estimated posts per week across detected channels</li>
-          <li>Engagement benchmarks derived from public post data</li>
-          <li>Recurring content topics and themes</li>
-          <li>Website content signals from the most recent crawl</li>
-        </ul>
-        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          Competitor snapshots are taken on a weekly schedule. The Analytics page shows a
-          summary comparison card for each tracked competitor alongside the workspace&apos;s own
-          metrics. Competitor data is also included automatically in client performance reports.
-        </p>
-        <Note>
-          Competitor intelligence is available on the Agency plan. Only publicly accessible
-          data is collected — private posts, stories, and ads data is not available.
-        </Note>
-      </Subsection>
-
-      <Subsection title="Client performance reports (Agency)">
-        <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Generate a branded PDF performance report for any workspace, ready to send directly
-          to the client. Reports are generated from the Analytics page and can be produced in
-          minutes.
-        </p>
-        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          Click <Strong>Generate report</Strong> at the top right of the Analytics page.
-          Choose either a 7-day or 30-day reporting period, then click <Strong>Generate</Strong>.
-          LYRA compiles the report and a download link appears within a few seconds.
-        </p>
-        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          Each report includes:
-        </p>
-        <ul className="space-y-1.5 font-sans text-sm text-text-secondary list-disc list-inside pl-2">
-          <li>Summary metrics: reach, impressions, engagements, engagement rate, follower growth</li>
-          <li>Platform-by-platform breakdown with the same metrics per channel</li>
-          <li>Best-performing post of the period (highest total engagements)</li>
-          <li>AI-written performance narrative — a concise paragraph interpreting the results in plain language</li>
-          <li>Competitor benchmark comparisons where competitor tracking is enabled</li>
-        </ul>
-        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          Reports download as a PDF with LYRA branding applied. The client&apos;s workspace name
-          appears on the cover page.
-        </p>
-        <Note>
-          Client performance reports are available on the Agency plan.
-        </Note>
       </Subsection>
     </section>
   )

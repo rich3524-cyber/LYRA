@@ -5,10 +5,9 @@ import { buildCaptionPrompt } from './prompt-builder'
 export async function generateCaption(
   brandProfile: BrandProfile,
   platforms: string[],
-  topic?: string,
-  trendContext?: string
+  topic?: string
 ): Promise<string> {
-  const prompt = buildCaptionPrompt(brandProfile, platforms, topic, trendContext)
+  const prompt = buildCaptionPrompt(brandProfile, platforms, topic)
 
   const response = await anthropic.messages.create({
     model:      CLAUDE_MODEL,

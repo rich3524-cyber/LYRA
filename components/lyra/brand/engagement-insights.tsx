@@ -16,7 +16,7 @@ interface Props {
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const GRID_DAYS = [1, 2, 3, 4, 5, 6, 0] // Mon–Sun in JS dayOfWeek convention
 const HOURS = Array.from({ length: 17 }, (_, i) => i + 6) // 6am–10pm
-const THRESHOLD = 15
+const THRESHOLD = 20
 
 function fmtHour(h: number): string {
   return h === 0 ? '12am' : h < 12 ? `${h}am` : h === 12 ? '12pm' : `${h - 12}pm`
@@ -173,7 +173,7 @@ export function EngagementInsights({
             })}
           </div>
           <p className="font-sans text-xs text-text-tertiary leading-relaxed">
-            LYRA tracks engagement on every published post. Once you reach {THRESHOLD} posts per platform, your optimal posting windows appear here automatically.
+            LYRA tracks engagement on every published post. Once you reach the threshold, your optimal posting windows appear here automatically.
           </p>
         </div>
       ) : (

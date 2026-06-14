@@ -1,250 +1,217 @@
 'use client'
-
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { CommentCard } from './comment-card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
-import { RefreshCw, Zap, CheckCheck } from 'lucide-react'
-import { formatDistanceToNow } from 'date-fns'
+import { cn } from '@/lib/utils'
 
-export interface CommentData {
-  id:                string
-  authorName:        string
-  authorHandle?:     string | null
-  content:           string
-  sentiment?:        string | null
-  status:            string
-  aiDraftResponse:   string | null
-  finalResponse:     string | null
-  escalationReason:  string | null
-  platformCreatedAt: string
-  createdAt:         string
-  socialAccount:     { platform: string; name: string }
+interface CommentData {
+  id:              string
+  authorName:      string
+  authorHandle?:   string | null
+  content:         string
+  sentiment?:      string | null
+  status:          string
+  aiDraftResponse: string | null
+  finalResponse:   string | null
+  createdAt:       string
+  socialAccount:   { platform: string; name: string }
 }
 
 const PLATFORM_LABELS: Record<string, string> = {
-  FACEBOOK: 'Facebook', INSTAGRAM: 'Instagram', LINKEDIN: 'LinkedIn',
-  TIKTOK: 'TikTok', TWITTER: 'X', GOOGLE_BUSINESS: 'Google Business',
+  FACEBOOK: 'FB', INSTAGRAM: 'IG', LINKEDIN: 'LI',
+  TIKTOK: 'TT', TWITTER: 'X', GOOGLE_BUSINESS: 'GBP',
 }
 
-interface Props {
-  workspaceId:    string
-  plan:           string
-  aiResponseMode: string
+function CountBadge({ count, variant }: { count: number; variant?: 'warning' | 'default' }) {
+  if (count === 0) {
+    return (
+      <span className="font-mono text-[10px] text-text-tertiary ml-1">{count}</span>
+    )
+  }
+  return (
+    <Badge
+      variant="secondary"
+      className={cn(
+        'text-xs px-1.5 py-0',
+        variant === 'warning'
+          ? 'bg-status-warning/20 text-status-warning'
+          : 'bg-background-hover'
+      )}
+    >
+      {count}
+    </Badge>
+  )
 }
 
-export function ResponseInbox({ workspaceId, plan, aiResponseMode }: Props) {
+export function ResponseInbox({
+  workspaceId,
+  aiResponseMode,
+  plan,
+}: {
+  workspaceId:     string
+  aiResponseMode:  'OFF' | 'DRAFT_APPROVE' | 'FULL'
+  plan:            'STARTER' | 'PRO' | 'AGENCY'
+}) {
   const [comments, setComments]             = useState<CommentData[]>([])
   const [loading, setLoading]               = useState(true)
-  const [refreshing, setRefreshing]         = useState(false)
-  const [lastRefreshed, setLastRefreshed]   = useState<Date | null>(null)
-  const [platformFilter, setPlatformFilter] = useState<string | null>(null)
+  const [error, setError]                   = useState<string | null>(null)
+  const [platformFilter, setPlatformFilter] = useState<string>('ALL')
 
-  const fetchComments = useCallback(async (isRefresh = false) => {
-    if (isRefresh) setRefreshing(true)
-    try {
-      const data: CommentData[] = await fetch(`/api/comments?workspaceId=${workspaceId}`).then(r => r.json())
-      setComments(data)
-      setLastRefreshed(new Date())
-    } catch {
-      // silent — existing data remains visible
-    } finally {
-      setLoading(false)
-      setRefreshing(false)
-    }
+  useEffect(() => {
+    setLoading(true)
+    setError(null)
+    fetch(`/api/comments?workspaceId=${workspaceId}`)
+      .then(r => {
+        if (!r.ok) throw new Error('Failed to load comments')
+        return r.json()
+      })
+      .then((data: unknown) => {
+        if (!Array.isArray(data)) throw new Error('Unexpected response shape')
+        setComments(data as CommentData[])
+      })
+      .catch(() => setError('Comments failed to load. Refresh to try again.'))
+      .finally(() => setLoading(false))
   }, [workspaceId])
 
-  useEffect(() => { fetchComments() }, [fetchComments])
+  const platforms = [...new Set(comments.map(c => c.socialAccount.platform))]
+  const filtered  = platformFilter === 'ALL'
+    ? comments
+    : comments.filter(c => c.socialAccount.platform === platformFilter)
 
-  function handleUpdate(id: string, nextStatus: string) {
-    setComments(prev => prev.map(c => c.id === id ? { ...c, status: nextStatus } : c))
-  }
-
-  const filtered = platformFilter
-    ? comments.filter(c => c.socialAccount.platform === platformFilter)
-    : comments
-
-  const pending   = filtered.filter(c => c.status === 'PENDING' || c.status === 'AI_DRAFTED' || c.status === 'AWAITING_APPROVAL')
+  const pending   = filtered.filter(c => ['PENDING', 'AI_DRAFTED', 'AWAITING_APPROVAL'].includes(c.status))
   const escalated = filtered.filter(c => c.status === 'ESCALATED')
-  const responded = filtered.filter(c => c.status === 'RESPONDED' || c.status === 'IGNORED')
+  const responded = filtered.filter(c => c.status === 'RESPONDED')
 
-  // Platforms that have at least one comment
-  const activePlatforms = Array.from(new Set(comments.map(c => c.socialAccount.platform)))
-
-  const skeletons = Array.from({ length: 3 }).map((_, i) => (
-    <div key={i} className="h-28 rounded-xl bg-background-secondary border border-background-border animate-pulse" />
-  ))
+  function handleUpdate(id: string, newStatus: string) {
+    setComments(prev => prev.map(c => c.id === id ? { ...c, status: newStatus } : c))
+  }
 
   return (
     <div className="space-y-4">
-      {/* Stats + platform filter + refresh row */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
-          {loading ? (
-            <div className="h-5 w-32 rounded bg-background-secondary animate-pulse" />
-          ) : (
-            <>
-              <span className="font-mono text-sm text-text-secondary">
-                {comments.filter(c => c.status === 'PENDING' || c.status === 'AI_DRAFTED').length} pending
-              </span>
-              {comments.filter(c => c.status === 'ESCALATED').length > 0 && (
-                <>
-                  <span className="text-background-border-mid">·</span>
-                  <span className="font-mono text-sm text-status-warning">
-                    {comments.filter(c => c.status === 'ESCALATED').length} escalated
-                  </span>
-                </>
-              )}
-              {lastRefreshed && (
-                <>
-                  <span className="text-background-border-mid">·</span>
-                  <span className="font-sans text-xs text-text-tertiary">
-                    Updated {formatDistanceToNow(lastRefreshed, { addSuffix: true })}
-                  </span>
-                </>
-              )}
-            </>
-          )}
-        </div>
+      {error && (
+        <p className="text-sm text-status-error text-center py-6">{error}</p>
+      )}
 
-        <div className="flex items-center gap-2 flex-wrap">
-          {activePlatforms.length > 1 && (
-            <div className="flex items-center gap-1.5">
+      {/* Platform filter — reserved height prevents layout shift */}
+      <div className="h-7 flex items-center">
+        {loading ? (
+          <div className="h-7 w-48 rounded-full bg-background-secondary border border-background-border animate-pulse" />
+        ) : platforms.length > 1 ? (
+          <div className="flex items-center gap-2">
+            {(['ALL', ...platforms] as string[]).map(p => (
               <button
-                onClick={() => setPlatformFilter(null)}
-                className={`px-2.5 py-1 rounded-md font-sans text-xs transition-colors ${
-                  platformFilter === null
-                    ? 'bg-background-tertiary border border-background-border-mid text-text-primary'
-                    : 'text-text-tertiary hover:text-text-secondary'
+                key={p}
+                onClick={() => setPlatformFilter(p)}
+                aria-pressed={platformFilter === p}
+                className={`text-xs px-3 py-1 rounded-full border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-silver focus-visible:ring-offset-2 focus-visible:ring-offset-background-primary ${
+                  platformFilter === p
+                    ? 'bg-accent-platinum text-background-primary border-accent-platinum'
+                    : 'bg-background-secondary border-background-border text-text-secondary hover:border-background-border-mid'
                 }`}
               >
-                All
+                {p === 'ALL' ? 'All' : (PLATFORM_LABELS[p] ?? p)}
               </button>
-              {activePlatforms.map(p => (
-                <button
-                  key={p}
-                  onClick={() => setPlatformFilter(prev => prev === p ? null : p)}
-                  className={`px-2.5 py-1 rounded-md font-sans text-xs transition-colors ${
-                    platformFilter === p
-                      ? 'bg-background-tertiary border border-background-border-mid text-text-primary'
-                      : 'text-text-tertiary hover:text-text-secondary'
-                  }`}
-                >
-                  {PLATFORM_LABELS[p] ?? p}
-                </button>
-              ))}
-            </div>
-          )}
-
-          <button
-            onClick={() => fetchComments(true)}
-            disabled={refreshing || loading}
-            aria-label="Refresh inbox"
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md font-sans text-xs text-text-tertiary hover:text-text-secondary border border-background-border hover:border-background-border-mid transition-colors disabled:opacity-40"
-          >
-            <RefreshCw size={11} strokeWidth={1.5} className={refreshing ? 'animate-spin' : ''} />
-            Refresh
-          </button>
-        </div>
+            ))}
+          </div>
+        ) : null}
       </div>
-
-      {/* Autonomy mode banner */}
-      {plan !== 'STARTER' && aiResponseMode === 'FULL' && (
-        <div className="rounded-lg border border-status-success/20 bg-status-success/5 px-4 py-3 flex items-center gap-2">
-          <Zap size={13} strokeWidth={1.5} className="text-status-success shrink-0" />
-          <p className="font-sans text-xs text-status-success">
-            Autonomous mode active — AI is responding to comments in real time.
-          </p>
-        </div>
-      )}
-      {plan !== 'STARTER' && aiResponseMode === 'DRAFT_APPROVE' && (
-        <div className="rounded-lg border border-background-border bg-background-secondary px-4 py-3 flex items-center gap-2">
-          <CheckCheck size={13} strokeWidth={1.5} className="text-text-secondary shrink-0" />
-          <p className="font-sans text-xs text-text-secondary">
-            Draft mode — AI drafts responses for your review before sending.
-          </p>
-        </div>
-      )}
-
-      {/* AI mode notice for Starter */}
-      {plan === 'STARTER' && (
-        <div className="rounded-lg border border-background-border bg-background-secondary px-4 py-3">
-          <p className="font-sans text-xs text-text-secondary">
-            AI response generation is available on Pro and Agency plans. You can read comments and escalate or ignore them.
-          </p>
-        </div>
-      )}
 
       <Tabs defaultValue="pending" className="space-y-4">
         <TabsList className="bg-background-secondary border border-background-border">
-          <TabsTrigger value="pending" className="font-sans text-xs gap-2">
+          <TabsTrigger value="pending" className="text-xs gap-2">
             Pending
-            {!loading && pending.length > 0 && (
-              <Badge variant="secondary" className="font-mono text-xs px-1.5 py-0 bg-background-hover text-text-secondary">
-                {pending.length}
-              </Badge>
-            )}
+            <CountBadge count={pending.length} />
           </TabsTrigger>
-          <TabsTrigger value="escalated" className="font-sans text-xs gap-2">
+          <TabsTrigger value="escalated" className="text-xs gap-2">
             Escalated
-            {!loading && escalated.length > 0 && (
-              <Badge variant="secondary" className="font-mono text-xs px-1.5 py-0 bg-status-warning/20 text-status-warning">
-                {escalated.length}
-              </Badge>
-            )}
+            <CountBadge count={escalated.length} variant="warning" />
           </TabsTrigger>
-          <TabsTrigger value="responded" className="font-sans text-xs">Done</TabsTrigger>
+          <TabsTrigger value="responded" className="text-xs gap-2">
+            Done
+            <CountBadge count={responded.length} />
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="pending" className="space-y-3">
-          {loading ? skeletons : pending.length === 0 ? (
-            <div className="py-16 text-center space-y-2">
-              <p className="font-sans text-sm text-text-secondary">Inbox clear.</p>
-              <p className="font-sans text-xs text-text-tertiary">New comments appear here within 5 minutes.</p>
-            </div>
-          ) : (
-            pending.map(c => (
-              <CommentCard
-                key={c.id}
-                comment={c}
-                plan={plan}
-                onUpdate={handleUpdate}
-              />
+          {loading ? (
+            Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-24 rounded-xl bg-background-secondary border border-background-border animate-pulse" />
             ))
+          ) : pending.length === 0 ? (
+            <p className="text-sm text-text-tertiary text-center py-12">All caught up.</p>
+          ) : (
+            <AnimatePresence>
+              {pending.map(c => (
+                <motion.div
+                  key={c.id}
+                  exit={{ opacity: 0, x: -16 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <CommentCard
+                    comment={c}
+                    aiResponseMode={aiResponseMode}
+                    plan={plan}
+                    onUpdate={(s) => handleUpdate(c.id, s)}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
           )}
         </TabsContent>
 
         <TabsContent value="escalated" className="space-y-3">
-          {loading ? skeletons : escalated.length === 0 ? (
-            <div className="py-16 text-center">
-              <p className="font-sans text-sm text-text-secondary">No escalated comments.</p>
-            </div>
-          ) : (
-            escalated.map(c => (
-              <CommentCard
-                key={c.id}
-                comment={c}
-                plan={plan}
-                onUpdate={handleUpdate}
-              />
+          {loading ? (
+            Array.from({ length: 2 }).map((_, i) => (
+              <div key={i} className="h-24 rounded-xl bg-background-secondary border border-background-border animate-pulse" />
             ))
+          ) : escalated.length === 0 ? (
+            <p className="text-sm text-text-tertiary text-center py-12">No escalated comments.</p>
+          ) : (
+            <AnimatePresence>
+              {escalated.map(c => (
+                <motion.div
+                  key={c.id}
+                  exit={{ opacity: 0, x: -16 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <CommentCard
+                    comment={c}
+                    aiResponseMode={aiResponseMode}
+                    plan={plan}
+                    onUpdate={() => {}}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
           )}
         </TabsContent>
 
         <TabsContent value="responded" className="space-y-3">
-          {loading ? skeletons : responded.length === 0 ? (
-            <div className="py-16 text-center">
-              <p className="font-sans text-sm text-text-secondary">No responses sent yet.</p>
-            </div>
-          ) : (
-            responded.map(c => (
-              <CommentCard
-                key={c.id}
-                comment={c}
-                plan={plan}
-                onUpdate={handleUpdate}
-              />
+          {loading ? (
+            Array.from({ length: 2 }).map((_, i) => (
+              <div key={i} className="h-24 rounded-xl bg-background-secondary border border-background-border animate-pulse" />
             ))
+          ) : responded.length === 0 ? (
+            <p className="text-sm text-text-tertiary text-center py-12">No responses sent yet.</p>
+          ) : (
+            <AnimatePresence>
+              {responded.map(c => (
+                <motion.div
+                  key={c.id}
+                  exit={{ opacity: 0, x: -16 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <CommentCard
+                    comment={c}
+                    aiResponseMode={aiResponseMode}
+                    plan={plan}
+                    onUpdate={() => {}}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
           )}
         </TabsContent>
       </Tabs>

@@ -1,13 +1,15 @@
-import { signState } from '@/lib/oauth-state'
-
 const AUTH_URL = 'https://www.linkedin.com/oauth/v2/authorization'
 const TOKEN_URL = 'https://www.linkedin.com/oauth/v2/accessToken'
 const API_URL = 'https://api.linkedin.com/v2'
 
+// Base scopes — available via "Sign In with LinkedIn using OpenID Connect" + "Share on LinkedIn" products
+// After LinkedIn Community Management API is approved, add:
+//   'r_organization_social', 'w_organization_social', 'rw_organization_admin'
 const SCOPES = [
   'openid',
   'profile',
   'email',
+  'w_member_social',
 ].join(' ')
 
 export interface LinkedInOrg {
@@ -17,7 +19,7 @@ export interface LinkedInOrg {
 }
 
 export function getAuthUrl(workspaceId: string): string {
-  const state = signState({ workspaceId })
+  const state = Buffer.from(JSON.stringify({ workspaceId })).toString('base64')
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: process.env.LINKEDIN_CLIENT_ID!,

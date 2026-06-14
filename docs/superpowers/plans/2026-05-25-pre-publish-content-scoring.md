@@ -1,7 +1,5 @@
 # Pre-Publish Content Scoring Implementation Plan
 
-> **STATUS: ✅ COMPLETE — shipped in commit `49a5113` (26 May 2026)**
-
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a slide-out score panel to the post composer. As the user types, Claude scores their content on 6 dimensions (hook, clarity, CTA, length, hashtags, emotional resonance) and shows a score per dimension plus one actionable suggestion for anything below 7.

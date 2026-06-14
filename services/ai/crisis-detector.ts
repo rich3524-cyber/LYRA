@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { anthropic, CLAUDE_MODEL } from '@/lib/anthropic'
+import { anthropic } from '@/lib/anthropic'
 
 type Comment = { id: string; content: string }
 
@@ -40,7 +40,7 @@ ${JSON.stringify(comments.map((c) => ({ id: c.id, content: c.content })))}
 `
 
     const response = await anthropic.messages.create({
-      model: CLAUDE_MODEL,
+      model: 'claude-sonnet-4-6',
       max_tokens: 1000,
       messages: [{ role: 'user', content: prompt }],
     })

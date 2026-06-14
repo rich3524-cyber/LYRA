@@ -48,55 +48,42 @@ const worker = new Worker(
       return
     }
 
-    // Batch deduplication — 1 query instead of N per comment
-    const incomingIds = rawComments.map(c => c.id)
-    const existing = await prisma.comment.findMany({
-      where:  { socialAccountId: account.id, platformCommentId: { in: incomingIds } },
-      select: { platformCommentId: true },
-    })
-    const existingSet = new Set(existing.map(e => e.platformCommentId))
-    const newRaw = rawComments.filter(c => !existingSet.has(c.id))
+    const savedComments: Array<{ id: string; content: string }> = []
 
-    if (newRaw.length === 0) return
+    for (const comment of rawComments) {
+      const existing = await prisma.comment.findFirst({
+        where: { platformCommentId: comment.id },
+      })
+      if (existing) continue
 
-    // Single bulk insert
-    await prisma.comment.createMany({
-      data: newRaw.map(c => ({
-        workspaceId:       account.workspaceId,
-        socialAccountId:   account.id,
-        platformCommentId: c.id,
-        authorName:        c.from?.name ?? 'Unknown',
-        content:           c.message,
-        platformCreatedAt: new Date(c.created_time),
-        status:            'PENDING' as const,
-      })),
-      skipDuplicates: true,
-    })
+      const newComment = await prisma.comment.create({
+        data: {
+          workspaceId:       account.workspaceId,
+          socialAccountId:   account.id,
+          platformCommentId: comment.id,
+          authorName:        comment.from?.name ?? 'Unknown',
+          content:           comment.message,
+          platformCreatedAt: new Date(comment.created_time),
+          status:            'PENDING',
+        },
+      })
 
-    // Fetch the newly created IDs for downstream processing
-    const savedComments = await prisma.comment.findMany({
-      where:  { socialAccountId: account.id, platformCommentId: { in: newRaw.map(c => c.id) } },
-      select: { id: true, content: true },
-    })
+      savedComments.push({ id: newComment.id, content: newComment.content })
 
-    const mode = account.workspace.aiResponseMode
-    if (mode === 'FULL' || mode === 'DRAFT_APPROVE') {
-      await Promise.all(
-        savedComments.map(c =>
-          aiRespondQueue.add(
-            'generate-response',
-            { commentId: c.id, autoPost: mode === 'FULL' },
-            { jobId: `respond-${c.id}` }
-          )
+      const mode = account.workspace.aiResponseMode
+      if (mode === 'FULL' || mode === 'DRAFT_APPROVE') {
+        await aiRespondQueue.add(
+          'generate-response',
+          { commentId: newComment.id, autoPost: mode === 'FULL' },
+          { jobId: `respond-${newComment.id}` }
         )
-      )
+      }
     }
 
     if (savedComments.length > 0) {
       try {
-        // Re-read workspace crisis state — it may have changed since the job started
         const workspaceMeta = await prisma.workspace.findUnique({
-          where:  { id: account.workspaceId },
+          where: { id: account.workspaceId },
           select: { crisisAware: true, crisisActive: true },
         })
 

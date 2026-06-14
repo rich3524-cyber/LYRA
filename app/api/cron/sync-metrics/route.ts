@@ -1,7 +1,16 @@
-import { checkCronAuth } from '@/lib/auth'
 import { NextResponse } from 'next/server'
+import { timingSafeEqual } from 'crypto'
 import { prisma } from '@/lib/prisma'
 import { subDays } from 'date-fns'
+
+function checkCronAuth(req: Request): boolean {
+  const secret = process.env.CRON_SECRET
+  if (!secret) return false
+  const auth = req.headers.get('authorization') ?? ''
+  const expected = `Bearer ${secret}`
+  if (auth.length !== expected.length) return false
+  return timingSafeEqual(Buffer.from(auth), Buffer.from(expected))
+}
 
 export async function GET(req: Request) {
   if (!checkCronAuth(req)) {
@@ -21,26 +30,21 @@ export async function GET(req: Request) {
         { metrics: { lastSyncedAt: { lt: staleSync } } },
       ],
     },
-    select: { id: true, socialAccountId: true, metrics: { select: { postId: true } } },
+    select: { id: true, socialAccountId: true },
     take:   200,
   })
 
-  const now = new Date()
-
-  // Create placeholder rows for posts with no metrics yet — single query
-  await prisma.postMetrics.createMany({
-    data:         posts.filter(p => !p.metrics).map(p => ({ postId: p.id, lastSyncedAt: now })),
-    skipDuplicates: true,
-  })
-
-  // Stamp lastSyncedAt on rows that already exist — single query
-  const existingIds = posts.filter(p => p.metrics).map(p => p.id)
-  if (existingIds.length > 0) {
-    await prisma.postMetrics.updateMany({
-      where: { postId: { in: existingIds } },
-      data:  { lastSyncedAt: now },
+  // Upsert placeholder metrics rows so they exist — real platform polling
+  // will be implemented per-platform as social API access is granted
+  let upserted = 0
+  for (const post of posts) {
+    await prisma.postMetrics.upsert({
+      where:  { postId: post.id },
+      create: { postId: post.id, lastSyncedAt: new Date() },
+      update: { lastSyncedAt: new Date() },
     })
+    upserted++
   }
 
-  return NextResponse.json({ synced: posts.length })
+  return NextResponse.json({ synced: upserted })
 }

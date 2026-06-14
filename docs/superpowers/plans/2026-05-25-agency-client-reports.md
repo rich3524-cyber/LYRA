@@ -1,7 +1,5 @@
 # Agency Client Reports Implementation Plan
 
-> **STATUS: ✅ COMPLETE — shipped across 9 commits ending `abaebe4` (May 2026)**
-
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a "Generate report" button to the analytics page that produces a branded PDF (cover, stats, platform breakdown, top posts, AI narrative) for 7-day or 30-day periods — PRO/AGENCY only.

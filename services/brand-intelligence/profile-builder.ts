@@ -1,5 +1,4 @@
 import { anthropic, CLAUDE_MODEL } from '@/lib/anthropic'
-import { parseClaudeJson } from '@/lib/parse-claude-json'
 import { ScrapedWebsite } from './scraper'
 
 export interface BrandProfileData {
@@ -57,5 +56,5 @@ Return ONLY valid JSON. No markdown, no explanation.`
   })
 
   const text = response.content[0].type === 'text' ? response.content[0].text : ''
-  return parseClaudeJson<BrandProfileData>(text, 'brand profile')
+  return JSON.parse(text) as BrandProfileData
 }

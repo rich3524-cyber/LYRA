@@ -1,4 +1,4 @@
-import { SectionHeader, Subsection, Strong, Steps, Step, Note } from './primitives'
+import { SectionHeader, Subsection, Strong } from './primitives'
 
 export function SettingsSection() {
   return (
@@ -103,43 +103,6 @@ export function SettingsSection() {
         </ul>
       </Subsection>
 
-      <Subsection title="Workspace settings — Email Marketing">
-        <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Connect an email marketing platform to display your scheduled and sent campaigns
-          directly on the LYRA content calendar alongside social posts. Two providers are
-          supported at launch: <Strong>Klaviyo</Strong> and <Strong>Mailchimp</Strong>.
-        </p>
-        <Steps>
-          <Step n={1}>
-            Scroll to the <Strong>Email Marketing</Strong> section in workspace Settings.
-            Select your email platform from the provider dropdown.
-          </Step>
-          <Step n={2}>
-            Enter your API key. For Klaviyo, use a Private API Key from your Klaviyo account
-            under <Strong>Account → API Keys</Strong>. For Mailchimp, use your API key from
-            <Strong> Account → Extras → API keys</Strong> — the key includes a server prefix
-            at the end (e.g. <code className="font-mono text-xs text-accent-silver bg-background-secondary px-1.5 py-0.5 rounded-md">abc123-us6</code>)
-            which LYRA detects automatically.
-          </Step>
-          <Step n={3}>
-            Click <Strong>Connect</Strong>. LYRA encrypts and stores your credentials and
-            runs an initial sync. Within 30 seconds, your scheduled and sent campaigns will
-            appear on the calendar.
-          </Step>
-        </Steps>
-        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-1">
-          Once connected, the section shows the provider name, last sync time, a
-          <Strong> Sync now</Strong> button to pull changes immediately, and a
-          <Strong> Disconnect</Strong> button. Disconnecting removes the credentials and
-          hides all email campaigns from the calendar.
-        </p>
-        <Note>
-          Email campaigns are read-only in LYRA. The calendar shows them for planning
-          context — to create, edit, or send campaigns, use Klaviyo or Mailchimp directly.
-          Campaigns sync automatically every 15 minutes.
-        </Note>
-      </Subsection>
-
       <Subsection title="Workspace settings — Integrations">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
           Shows the status of third-party integrations for this workspace. Currently includes:
@@ -150,23 +113,9 @@ export function SettingsSection() {
             Shows the connected property URL and last sync timestamp.
           </li>
         </ul>
-      </Subsection>
-
-      <Subsection title="Workspace settings — Add-ons">
-        <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          The <Strong>Add-ons</Strong> section shows optional paid features that can be
-          activated per workspace, billed separately from your main LYRA subscription.
+        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
+          Additional integrations will appear here as they are added in future LYRA updates.
         </p>
-        <ul className="space-y-2 font-sans text-sm text-text-secondary">
-          <li>
-            <Strong>LYRA Trend</Strong> — AI-powered trend discovery. Surfaces what is
-            currently trending across social platforms and news sources, scored for relevance
-            to this workspace&apos;s brand. Unlocks the Trend Hub in the sidebar and the Trend
-            picker in the composer. Click <Strong>Activate</Strong> to subscribe, or
-            <Strong> Manage</Strong> to access the Stripe billing portal. Available on all
-            plans. See the <Strong>LYRA Trend</Strong> section for full details.
-          </li>
-        </ul>
       </Subsection>
 
       <Subsection title="Workspace settings — Danger Zone">

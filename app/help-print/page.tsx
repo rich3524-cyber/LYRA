@@ -10,7 +10,6 @@ import { SeoSection } from '@/components/lyra/help/section-08-seo'
 import { AnalyticsSection } from '@/components/lyra/help/section-09-analytics'
 import { SettingsSection } from '@/components/lyra/help/section-10-settings'
 import { BillingSection } from '@/components/lyra/help/section-11-billing'
-import { AssistantSection } from '@/components/lyra/help/section-12-assistant'
 
 export default function HelpPrintPage() {
   return (
@@ -60,8 +59,6 @@ export default function HelpPrintPage() {
           <SettingsSection />
           <Divider />
           <BillingSection />
-          <Divider />
-          <AssistantSection />
         </div>
 
         {/* Footer */}

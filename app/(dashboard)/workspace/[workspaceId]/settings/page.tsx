@@ -6,14 +6,11 @@ import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { DeleteWorkspaceButton } from '@/components/lyra/settings/delete-workspace-button'
 import { CrisisAwareToggle } from '@/components/lyra/settings/crisis-aware-toggle'
-import { CrisisHistory } from '@/components/lyra/crisis/crisis-history'
-import { BrandingTab } from '@/components/lyra/settings/branding-tab'
-import { EmailMarketingSection } from '@/components/lyra/settings/email-marketing-section'
-import { TrendAddonCard } from '@/components/lyra/settings/trend-addon-card'
+import { FacebookPagePicker } from '@/components/lyra/settings/facebook-page-picker'
 
 interface Props {
   params: Promise<{ workspaceId: string }>
-  searchParams: Promise<{ connected?: string; trend?: string }>
+  searchParams: Promise<{ connected?: string; fbpending?: string }>
 }
 
 interface PlatformConfig {
@@ -70,11 +67,11 @@ export default async function SettingsPage({ params, searchParams }: Props) {
   if (!user) redirect('/auth/login')
 
   const { workspaceId } = await params
-  const { connected, trend } = await searchParams
+  const { connected, fbpending } = await searchParams
 
   const workspace = await prisma.workspace.findFirst({
     where: { id: workspaceId, access: { some: { userId: user.id } } },
-    select: { id: true, name: true, crisisAware: true, plan: true, clientLogoS3Key: true, trendEnabled: true, trendStripeSubscriptionId: true },
+    select: { id: true, name: true, crisisAware: true, plan: true },
   })
   if (!workspace) notFound()
 
@@ -82,11 +79,6 @@ export default async function SettingsPage({ params, searchParams }: Props) {
     where: { workspaceId, isActive: true },
     select: { id: true, platform: true, name: true, handle: true },
     orderBy: { platform: 'asc' },
-  })
-
-  const emailConnection = await prisma.emailConnection.findUnique({
-    where:  { workspaceId },
-    select: { id: true, provider: true, isActive: true, lastSyncAt: true, lastSyncError: true },
   })
 
   async function disconnectAccount(formData: FormData) {
@@ -117,22 +109,17 @@ export default async function SettingsPage({ params, searchParams }: Props) {
         <p className="font-sans text-sm text-text-secondary">{workspace.name}</p>
       </div>
 
+      {/* Facebook Page picker — shown after OAuth redirect with ?fbpending= */}
+      {fbpending && (
+        <FacebookPagePicker pendingKey={fbpending} workspaceId={workspaceId} />
+      )}
+
       {/* Success banner */}
       {connectedPlatformLabel && (
         <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-background-secondary border border-background-border">
           <CheckCircle size={16} strokeWidth={1.5} className="text-status-success shrink-0" />
           <p className="font-sans text-sm text-text-primary">
             {connectedPlatformLabel} connected successfully.
-          </p>
-        </div>
-      )}
-
-      {/* Trend activation success banner */}
-      {trend === 'activated' && (
-        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-background-secondary border border-background-border">
-          <CheckCircle size={16} strokeWidth={1.5} className="text-status-success shrink-0" />
-          <p className="font-sans text-sm text-text-primary">
-            LYRA Trend activated. Your first trend sync will run tonight.
           </p>
         </div>
       )}
@@ -219,46 +206,6 @@ export default async function SettingsPage({ params, searchParams }: Props) {
           workspaceId={workspace.id}
           enabled={workspace.crisisAware}
           isPro={workspace.plan === 'PRO' || workspace.plan === 'AGENCY'}
-        />
-        <TrendAddonCard
-          workspaceId={workspace.id}
-          enabled={workspace.trendEnabled}
-          subscriptionId={workspace.trendStripeSubscriptionId ?? null}
-        />
-        {(workspace.plan === 'PRO' || workspace.plan === 'AGENCY') && (
-          <div className="space-y-3">
-            <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
-              Crisis History
-            </p>
-            <CrisisHistory workspaceId={workspace.id} />
-          </div>
-        )}
-      </section>
-
-      {/* Branding */}
-      <section className="space-y-3">
-        <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
-          Branding
-        </p>
-        <div className="p-5 rounded-xl bg-background-secondary border border-background-border">
-          <BrandingTab workspaceId={workspace.id} hasLogo={!!workspace.clientLogoS3Key} />
-        </div>
-      </section>
-
-      {/* Email marketing */}
-      <section className="space-y-3">
-        <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
-          Email Marketing
-        </p>
-        <EmailMarketingSection
-          workspaceId={workspaceId}
-          initialConnection={emailConnection ? {
-            id:           emailConnection.id,
-            provider:     emailConnection.provider,
-            isActive:     emailConnection.isActive,
-            lastSyncAt:   emailConnection.lastSyncAt?.toISOString() ?? null,
-            lastSyncError: emailConnection.lastSyncError,
-          } : null}
         />
       </section>
 

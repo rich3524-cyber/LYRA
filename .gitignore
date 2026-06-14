@@ -1,5 +1,11 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# Nested repo duplicate — created by cross-repo merges, should never exist here
+/LYRA/
+
+# Visual brainstorming companion sessions
+.superpowers/
+
 # dependencies
 /node_modules
 /.pnp
@@ -42,6 +48,3 @@ next-env.d.ts
 
 # Local Netlify folder
 .netlify
-
-# OneDrive circular symlink (LYRA/lyra/LYRA → parent directory)
-/LYRA

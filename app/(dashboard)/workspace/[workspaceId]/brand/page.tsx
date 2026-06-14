@@ -1,12 +1,13 @@
 export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
+import { unstable_noStore as noStore } from 'next/cache'
 import { redirect, notFound } from 'next/navigation'
 import { Zap, Globe, Share2, Lock } from 'lucide-react'
 import Link from 'next/link'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { BrandBuildButton } from '@/components/lyra/brand/brand-build-button'
-import { GuidelinesUploader } from '@/components/lyra/brand/guidelines-uploader'
+import { BrandBuildButton, BrandGuidelinesPanel } from '@/components/lyra/brand/brand-build-button'
 import { EngagementInsights } from '@/components/lyra/brand/engagement-insights'
 import type { PostingPatterns } from '@/services/ai/engagement-analyzer'
 
@@ -23,6 +24,7 @@ interface AudienceProfile {
 
 interface BrandPatternsJson {
   guidelines?: string
+  userGuidelines?: string
   [key: string]: unknown
 }
 
@@ -37,6 +39,7 @@ function timeAgo(date: Date): string {
 }
 
 export default async function BrandPage({ params }: Props) {
+  noStore()
   const user = await getCurrentUser()
   if (!user) redirect('/auth/login')
 
@@ -174,12 +177,12 @@ export default async function BrandPage({ params }: Props) {
             </div>
           </div>
 
-          {/* Guidelines upload — useful when the website has limited content */}
+          {/* Brand guidelines text — used by Claude during profile build */}
           <div className="space-y-2">
             <p className="font-sans text-xs text-text-tertiary">
-              Upload brand guidelines to help LYRA build a more accurate profile.
+              Paste brand guidelines below. LYRA uses this text when building the profile.
             </p>
-            <GuidelinesUploader workspaceId={workspaceId} guidelineUrls={workspace.brandProfile?.guidelineUrls ?? []} />
+            <BrandGuidelinesPanel workspaceId={workspaceId} hasProfile={false} />
           </div>
         </div>
       ) : (
@@ -321,17 +324,21 @@ export default async function BrandPage({ params }: Props) {
             postCounts={postCounts}
           />
 
-          {/* Brand guidelines — upload docs to improve AI profile accuracy */}
+          {/* Brand guidelines — edit text to improve AI profile accuracy */}
           <section className="p-5 rounded-xl bg-background-secondary border border-background-border space-y-3">
             <div className="space-y-0.5">
               <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
                 Brand guidelines
               </p>
               <p className="font-sans text-xs text-text-tertiary">
-                Upload PDF or DOCX files. LYRA uses these when building or rebuilding your brand profile.
+                Paste your brand voice, tone, messaging rules, and audience details below. LYRA uses this when building your profile.
               </p>
             </div>
-            <GuidelinesUploader workspaceId={workspaceId} guidelineUrls={profile.guidelineUrls} />
+            <BrandGuidelinesPanel
+              workspaceId={workspaceId}
+              hasProfile={true}
+              savedGuidelines={patternsJson?.userGuidelines ?? ''}
+            />
           </section>
         </div>
       )}

@@ -1,9 +1,26 @@
 import * as cheerio from 'cheerio'
-import { anthropic, CLAUDE_MODEL } from '@/lib/anthropic'
-import { assertSafeUrl } from '@/lib/ssrf'
+import { anthropic } from '@/lib/anthropic'
+
+// SSRF protection
+function isPrivateAddress(hostname: string): boolean {
+  const privatePatterns = [
+    /^localhost$/i, /^127\./, /^10\./, /^172\.(1[6-9]|2\d|3[01])\./, /^192\.168\./,
+    /^::1$/, /^0\.0\.0\.0$/,
+  ]
+  return privatePatterns.some((p) => p.test(hostname))
+}
 
 export async function extractArticleText(url: string): Promise<string> {
-  assertSafeUrl(url)  // Throws on invalid URL or private/internal host
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    throw new Error('Invalid URL')
+  }
+
+  if (isPrivateAddress(parsed.hostname)) {
+    throw new Error('URL not allowed')
+  }
 
   const res = await fetch(url, {
     headers: { 'User-Agent': 'Mozilla/5.0 (compatible; LYRABot/1.0)' },
@@ -69,7 +86,7 @@ ${sourceText}
 `
 
   const response = await anthropic.messages.create({
-    model: CLAUDE_MODEL,
+    model: 'claude-sonnet-4-6',
     max_tokens: 3000,
     messages: [{ role: 'user', content: prompt }],
     stream: true,

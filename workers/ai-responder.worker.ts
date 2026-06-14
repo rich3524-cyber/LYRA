@@ -2,33 +2,16 @@ import { Worker } from 'bullmq'
 import { redis } from '@/lib/redis'
 import { prisma } from '@/lib/prisma'
 import { generateCommentResponse } from '@/services/ai/response-generator'
-import { getValidToken } from '@/lib/token-refresh'
+import { decrypt } from '@/lib/encrypt'
+import { replyToComment } from '@/services/social/facebook'
 
 const worker = new Worker(
   'ai-responding',
   async (job) => {
-    const { commentId } = job.data as { commentId: string; autoPost: boolean }
+    const { commentId, autoPost } = job.data as { commentId: string; autoPost: boolean }
 
-    const comment = await prisma.comment.findUnique({
-      where:   { id: commentId },
-      include: { socialAccount: true },
-    })
+    const comment = await prisma.comment.findUnique({ where: { id: commentId } })
     if (!comment || comment.status === 'ESCALATED' || comment.status === 'RESPONDED') return
-
-    // Re-derive autoPost from the live DB — never trust the job payload for autonomy level
-    const workspace = await prisma.workspace.findUnique({
-      where:  { id: comment.workspaceId },
-      select: { aiResponseMode: true, plan: true },
-    })
-    if (!workspace) return
-
-    // Plan gate — Full Autonomy requires Agency plan
-    const canAutoPost =
-      workspace.aiResponseMode === 'FULL' && workspace.plan === 'AGENCY'
-    const canDraft =
-      workspace.aiResponseMode !== 'OFF' && workspace.plan !== 'STARTER'
-
-    if (!canDraft) return
 
     const [brandProfile, guardrails] = await Promise.all([
       prisma.brandProfile.findUnique({ where: { workspaceId: comment.workspaceId } }),
@@ -49,69 +32,41 @@ const worker = new Worker(
       return
     }
 
-    if (!result.response) return
-
-    if (canAutoPost && comment.socialAccount) {
-      // Full Autonomy — post directly to the platform with no human review
+    if (autoPost && result.response) {
       try {
-        const token    = await getValidToken(comment.socialAccount)
-        const platform = comment.socialAccount.platform
-
-        if (platform === 'FACEBOOK' || platform === 'INSTAGRAM') {
-          const res = await fetch(
-            `https://graph.facebook.com/v19.0/${comment.platformCommentId}/comments`,
-            {
-              method:  'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body:    JSON.stringify({ message: result.response, access_token: token }),
-            }
-          )
-          if (!res.ok) throw new Error(`Graph API error ${res.status}`)
-        } else if (platform === 'GOOGLE_BUSINESS') {
-          // Google Business Profile review reply
-          const locationName = comment.socialAccount.platformId
-          const res = await fetch(
-            `https://mybusiness.googleapis.com/v4/${locationName}/reviews/${comment.platformCommentId}/reply`,
-            {
-              method:  'PUT',
-              headers: {
-                Authorization:  `Bearer ${token}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({ comment: result.response }),
-            }
-          )
-          if (!res.ok) throw new Error(`GBP API error ${res.status}`)
+        const account = await prisma.socialAccount.findUnique({
+          where: { id: comment.socialAccountId },
+        })
+        if (account && (account.platform === 'FACEBOOK' || account.platform === 'INSTAGRAM')) {
+          const token = decrypt(account.accessToken)
+          await replyToComment(comment.platformCommentId, result.response, token)
+          await prisma.comment.update({
+            where: { id: commentId },
+            data:  {
+              status:        'RESPONDED',
+              finalResponse: result.response,
+              respondedAt:   new Date(),
+            },
+          })
         } else {
-          // Platform not yet supported for auto-reply — fall back to draft
+          // Platform not supported for auto-reply — fall back to draft for human review
           await prisma.comment.update({
             where: { id: commentId },
             data:  { status: 'AI_DRAFTED', aiDraftResponse: result.response },
           })
-          return
         }
-
-        await prisma.comment.update({
-          where: { id: commentId },
-          data: {
-            status:        'RESPONDED',
-            finalResponse: result.response,
-            respondedAt:   new Date(),
-          },
-        })
       } catch (err) {
         console.error(`Auto-reply failed for comment ${commentId}:`, err)
-        // Fall back to draft so the response is not lost
+        // Fall back to draft so it appears in Pending tab for manual approval
         await prisma.comment.update({
           where: { id: commentId },
           data:  { status: 'AI_DRAFTED', aiDraftResponse: result.response },
         })
       }
     } else {
-      // Draft + Approve — human reviews before posting
       await prisma.comment.update({
         where: { id: commentId },
-        data:  { status: 'AI_DRAFTED', aiDraftResponse: result.response },
+        data: { status: 'AI_DRAFTED', aiDraftResponse: result.response },
       })
     }
   },

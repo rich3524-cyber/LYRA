@@ -1,14 +1,12 @@
 'use client'
 
 import { motion, AnimatePresence } from 'framer-motion'
-import { X } from 'lucide-react'
 import type { ScoringResult } from '@/services/ai/content-scorer'
 
 interface ContentScorePanelProps {
   open: boolean
   scoring: boolean
   result: ScoringResult | null
-  onClose: () => void
 }
 
 const DIMENSION_LABELS: Record<string, string> = {
@@ -74,28 +72,19 @@ function ScoreRing({ score }: { score: number }) {
   )
 }
 
-export function ContentScorePanel({ open, scoring, result, onClose }: ContentScorePanelProps) {
+export function ContentScorePanel({ open, scoring, result }: ContentScorePanelProps) {
   return (
     <AnimatePresence>
       {open && (
         <motion.div
-          initial={{ x: '100%' }}
-          animate={{ x: 0 }}
-          exit={{ x: '100%' }}
+          initial={{ x: '100%', opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          exit={{ x: '100%', opacity: 0 }}
           transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-          className="fixed top-16 right-0 h-[calc(100vh-4rem)] w-72 bg-background-secondary border-l border-background-border overflow-y-auto z-20"
+          className="absolute top-0 right-0 h-full w-72 bg-background-secondary border-l border-background-border overflow-y-auto z-10"
         >
           <div className="p-4 space-y-4">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-sans font-medium text-text-tertiary uppercase tracking-widest">Content score</p>
-              <button
-                onClick={onClose}
-                aria-label="Close score panel"
-                className="text-text-tertiary hover:text-text-primary transition-colors"
-              >
-                <X size={14} strokeWidth={1.5} />
-              </button>
-            </div>
+            <p className="text-xs font-sans font-medium text-text-tertiary uppercase tracking-widest">Content score</p>
 
             {scoring && (
               <div className="space-y-3">

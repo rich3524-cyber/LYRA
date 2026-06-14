@@ -1,7 +1,5 @@
 # Competitor Intelligence Implementation Plan
 
-> **STATUS: ✅ COMPLETE — shipped across 8 commits ending `f3eb923` (May 2026)**
-
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a Competitors page to each workspace where PRO/AGENCY users can add up to 10 competitors (name + website URL + optional social handles). A daily BullMQ worker scrapes competitor content, calls Claude for theme extraction, and saves snapshots. The page shows posting frequency, recent topics, and post excerpts.

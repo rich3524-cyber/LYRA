@@ -1,5 +1,4 @@
-import { parseClaudeJson } from '@/lib/parse-claude-json'
-import { anthropic, CLAUDE_MODEL } from '@/lib/anthropic'
+import { anthropic } from '@/lib/anthropic'
 
 export async function extractThemes(posts: string[]): Promise<string[]> {
   if (posts.length === 0) return []
@@ -14,7 +13,7 @@ ${posts.map((p, i) => `${i + 1}. ${p}`).join('\n')}
 
   try {
     const response = await anthropic.messages.create({
-      model: CLAUDE_MODEL,
+      model: 'claude-sonnet-4-6',
       max_tokens: 200,
       messages: [{ role: 'user', content: prompt }],
     })

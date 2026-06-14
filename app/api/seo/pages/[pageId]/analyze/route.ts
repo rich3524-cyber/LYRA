@@ -3,6 +3,9 @@ import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { analyzePage } from '@/services/seo/on-page-analyzer'
 
+export const dynamic = 'force-dynamic'
+
+
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ pageId: string }> }

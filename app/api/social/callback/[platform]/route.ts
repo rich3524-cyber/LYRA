@@ -1,16 +1,30 @@
 import { NextResponse } from 'next/server'
+import { randomUUID } from 'crypto'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { encrypt } from '@/lib/encrypt'
-import { verifyState } from '@/lib/oauth-state'
+import { redisClient } from '@/lib/redis'
 import * as facebook from '@/services/social/facebook'
 import * as instagram from '@/services/social/instagram'
 import * as linkedin from '@/services/social/linkedin'
 import * as google from '@/services/social/google-business'
 import * as twitter from '@/services/social/twitter'
 import * as tiktok from '@/services/social/tiktok'
+import * as youtube from '@/services/social/youtube'
+
+export const dynamic = 'force-dynamic'
+
 
 const BASE_URL = process.env.APP_BASE_URL!
+
+function parseState(raw: string | null): Record<string, string> {
+  if (!raw) return {}
+  try {
+    return JSON.parse(Buffer.from(raw, 'base64').toString('utf8'))
+  } catch {
+    return {}
+  }
+}
 
 export async function GET(
   req: Request,
@@ -21,19 +35,20 @@ export async function GET(
     const { platform } = await params
     const { searchParams } = new URL(req.url)
     const code = searchParams.get('code')
-    const state = verifyState(searchParams.get('state'))
+    const state = parseState(searchParams.get('state'))
     const { workspaceId } = state
 
     if (!code || !workspaceId) {
       return NextResponse.redirect(`${BASE_URL}?error=oauth_failed`)
     }
 
-    // Verify the authenticated user has access to this workspace before writing any tokens.
-    const access = await prisma.workspaceAccess.findFirst({
+    // Verify the authenticated user actually has access to the target workspace.
+    // Without this check, any logged-in user could forge the state parameter and
+    // inject social tokens into another tenant's workspace.
+    const workspaceAccess = await prisma.workspaceAccess.findFirst({
       where: { workspaceId, userId: user.id },
-      select: { id: true },
     })
-    if (!access) {
+    if (!workspaceAccess) {
       return NextResponse.redirect(`${BASE_URL}?error=oauth_failed`)
     }
 
@@ -42,51 +57,26 @@ export async function GET(
         const shortToken = await facebook.exchangeCode(code)
         const longToken = await facebook.getLongLivedToken(shortToken)
         const pages = await facebook.getPages(longToken)
+        const adAccountId = await facebook.fetchAdAccountId(longToken)
 
-        for (const page of pages) {
-          await prisma.socialAccount.upsert({
-            where: { workspaceId_platform_platformId: { workspaceId, platform: 'FACEBOOK', platformId: page.id } },
-            create: {
-              workspaceId,
-              platform: 'FACEBOOK',
-              platformId: page.id,
-              handle: page.name,
-              name: page.name,
-              avatarUrl: page.avatarUrl,
-              accessToken: encrypt(page.accessToken),
-            },
-            update: {
-              accessToken: encrypt(page.accessToken),
-              isActive: true,
-            },
-          })
-
-          // Also connect any linked Instagram Business Account
-          try {
-            const igAccount = await instagram.getConnectedAccount(page.id, page.accessToken)
-            if (igAccount) {
-              await prisma.socialAccount.upsert({
-                where: { workspaceId_platform_platformId: { workspaceId, platform: 'INSTAGRAM', platformId: igAccount.id } },
-                create: {
-                  workspaceId,
-                  platform: 'INSTAGRAM',
-                  platformId: igAccount.id,
-                  handle: igAccount.username,
-                  name: igAccount.name,
-                  avatarUrl: igAccount.avatarUrl,
-                  accessToken: encrypt(page.accessToken), // IG uses the page token
-                },
-                update: {
-                  accessToken: encrypt(page.accessToken),
-                  isActive: true,
-                },
-              })
-            }
-          } catch {
-            // IG account not connected to this page — skip silently
-          }
+        // Store pending Page-picker state in Redis (10-minute TTL).
+        // Tokens are encrypted before storage; the complete route decrypts and writes to DB.
+        const pendingKey = randomUUID()
+        const pendingData = {
+          workspaceId,
+          adAccountId,
+          pages: pages.map((p) => ({
+            id: p.id,
+            name: p.name,
+            avatarUrl: p.avatarUrl ?? null,
+            encryptedToken: encrypt(p.accessToken),
+          })),
         }
-        break
+        await redisClient.set(`fb_pending:${pendingKey}`, JSON.stringify(pendingData), 'EX', 600)
+
+        return NextResponse.redirect(
+          `${BASE_URL}/workspace/${workspaceId}/settings?fbpending=${pendingKey}`
+        )
       }
 
       case 'linkedin': {
@@ -217,6 +207,33 @@ export async function GET(
             accessToken: encrypt(accessToken),
             refreshToken: encrypt(refreshToken),
             tokenExpiry: new Date(Date.now() + expiresIn * 1000),
+            isActive: true,
+          },
+        })
+        break
+      }
+
+      case 'youtube': {
+        const { accessToken, refreshToken, expiresIn } = await youtube.exchangeCode(code)
+        const channel = await youtube.getChannel(accessToken, refreshToken, expiresIn)
+
+        await prisma.socialAccount.upsert({
+          where: { workspaceId_platform_platformId: { workspaceId, platform: 'YOUTUBE', platformId: channel.id } },
+          create: {
+            workspaceId,
+            platform: 'YOUTUBE',
+            platformId: channel.id,
+            handle: channel.handle,
+            name: channel.name,
+            avatarUrl: channel.avatarUrl,
+            accessToken: encrypt(accessToken),
+            refreshToken: encrypt(refreshToken),
+            tokenExpiry: channel.tokenExpiry,
+          },
+          update: {
+            accessToken: encrypt(accessToken),
+            refreshToken: encrypt(refreshToken),
+            tokenExpiry: channel.tokenExpiry,
             isActive: true,
           },
         })

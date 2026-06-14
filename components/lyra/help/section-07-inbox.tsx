@@ -204,47 +204,6 @@ export function InboxSection() {
           the response is blocked and the comment is escalated automatically.
         </p>
       </Subsection>
-
-      <Subsection title="Crisis Aware (Pro and Agency)">
-        <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Crisis Aware monitors incoming comment sentiment in real time. When a surge of negative
-          or urgent comments is detected — indicating a potential PR crisis — LYRA acts immediately
-          to protect the brand: all scheduled posts are paused and the inbox is flagged for urgent
-          review.
-        </p>
-        <Steps>
-          <Step n={1}>
-            Enable Crisis Aware from <Strong>Settings → Crisis Aware</Strong>. The toggle is
-            off by default. Once enabled, LYRA begins monitoring sentiment patterns continuously.
-          </Step>
-          <Step n={2}>
-            When the rate of Negative or Urgent comments exceeds the detection threshold within
-            a short window, Crisis Mode activates automatically. A prominent banner appears across
-            the workspace and you receive an immediate email notification.
-          </Step>
-          <Step n={3}>
-            While Crisis Mode is active, all posts with <Strong>Scheduled</Strong> status are
-            paused. No content publishes until you resolve the crisis. Drafts and pending-approval
-            posts are unaffected.
-          </Step>
-          <Step n={4}>
-            Open the inbox. The triggering comments are surfaced at the top, flagged with
-            <StatusBadge color="text-status-error border-status-error/30">Escalated</StatusBadge> status.
-            Review them, respond to the most critical ones, and assess whether the situation
-            warrants further action.
-          </Step>
-          <Step n={5}>
-            Once you are satisfied the situation is managed, return to <Strong>Settings → Crisis Aware</Strong>
-            and click <Strong>Disable Crisis Mode</Strong>. Scheduled posts resume immediately
-            from their original times.
-          </Step>
-        </Steps>
-        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          Every crisis event is logged in the Crisis Aware audit trail with its trigger type,
-          activation timestamp, and the comment IDs that caused it. Access the audit log from
-          <Strong> Settings → Crisis Aware → Event history</Strong>.
-        </p>
-      </Subsection>
     </section>
   )
 }

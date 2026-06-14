@@ -30,13 +30,13 @@ export default async function CalendarPage({ params }: Props) {
   if (!workspace) notFound()
 
   const hasBrandProfile    = workspace.brandProfile !== null
-  const connectedPlatforms = [...new Set(workspace.socialAccounts.map(a => a.platform as string))]
+  const connectedPlatforms = [...new Set(workspace.socialAccounts.map(a => a.platform))]
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-display text-2xl text-text-primary">Calendar</h2>
+          <h2 className="font-display text-4xl text-text-primary">Calendar</h2>
           <p className="text-text-secondary text-sm mt-1">{workspace.name}</p>
         </div>
         <div className="flex items-center gap-2">
@@ -55,7 +55,7 @@ export default async function CalendarPage({ params }: Props) {
         </div>
       </div>
 
-      <ContentCalendar workspaceId={workspaceId} />
+      <ContentCalendar workspaceId={workspaceId} plan={workspace.plan} />
     </div>
   )
 }

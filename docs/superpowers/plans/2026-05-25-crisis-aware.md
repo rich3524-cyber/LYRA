@@ -1,7 +1,5 @@
 # Crisis Aware Implementation Plan
 
-> **STATUS: ✅ COMPLETE — shipped across 14 commits ending `c11d1b2` (May 2026)**
-
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add Crisis Aware — a sentiment/keyword monitor that auto-pauses scheduled posts when a comment crisis is detected, with a persistent in-app banner and resolve flow.

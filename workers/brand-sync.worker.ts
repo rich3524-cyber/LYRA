@@ -1,10 +1,12 @@
 import { Worker, Queue } from 'bullmq'
+import type { Prisma } from '@prisma/client'
 import { redis } from '@/lib/redis'
 import { prisma } from '@/lib/prisma'
 import { scrapeWebsite } from '@/services/brand-intelligence/scraper'
 import { buildBrandProfile } from '@/services/brand-intelligence/profile-builder'
 import { parseWorkspaceGuidelines } from '@/services/brand-intelligence/document-parser'
 import { analyzeSocialPosts } from '@/services/brand-intelligence/social-analyzer'
+import { analyzeEngagement } from '@/services/ai/engagement-analyzer'
 
 export const brandSyncQueue = new Queue('brand-sync', {
   connection: redis,
@@ -28,6 +30,23 @@ const worker = new Worker(
   'brand-sync',
   async (job) => {
     const { workspaceId } = job.data as { workspaceId: string }
+
+    if (job.name === 'analyze-engagement') {
+      const profile = await prisma.brandProfile.findUnique({
+        where:  { workspaceId },
+        select: { postingPatterns: true },
+      })
+      if (!profile) return
+      const result = await analyzeEngagement(workspaceId)
+      if (result !== null) {
+        const existing = (profile.postingPatterns as Record<string, unknown>) ?? {}
+        await prisma.brandProfile.update({
+          where: { workspaceId },
+          data:  { postingPatterns: { ...existing, ...result } as Prisma.InputJsonValue },
+        })
+      }
+      return
+    }
 
     const workspace = await prisma.workspace.findUnique({
       where:   { id: workspaceId },

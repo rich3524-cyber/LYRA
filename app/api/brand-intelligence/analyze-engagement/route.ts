@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
 
     const workspace = await prisma.workspace.findFirst({
       where: { id: workspaceId, access: { some: { userId: user.id } } },
-      select: { id: true, brandProfile: { select: { id: true } } },
+      select: { id: true, brandProfile: { select: { id: true, postingPatterns: true } } },
     })
     if (!workspace) {
       return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
@@ -29,9 +29,10 @@ export async function POST(req: NextRequest) {
     const result = await analyzeEngagement(workspaceId)
 
     if (result !== null) {
+      const existing = (workspace.brandProfile.postingPatterns as Record<string, unknown>) ?? {}
       await prisma.brandProfile.update({
         where: { workspaceId },
-        data: { postingPatterns: result as unknown as Prisma.InputJsonValue },
+        data: { postingPatterns: { ...existing, ...result } as Prisma.InputJsonValue },
       })
     }
 

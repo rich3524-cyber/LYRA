@@ -61,27 +61,5 @@ Write only the response — no explanation.`
     return { response: null, shouldEscalate: true, escalationReason: 'AI determined escalation required' }
   }
 
-  // Deterministic post-generation guardrail enforcement — cannot be overridden by the LLM.
-  // This is the safety gate for Full Autonomy mode.
-  const textLower = text.toLowerCase()
-
-  const bannedHit = neverUse.find(w => textLower.includes(w.toLowerCase()))
-  if (bannedHit) {
-    return {
-      response:         null,
-      shouldEscalate:   true,
-      escalationReason: `Generated response contained banned phrase: "${bannedHit}"`,
-    }
-  }
-
-  const topicHit = neverDiscuss.find(t => textLower.includes(t.toLowerCase()))
-  if (topicHit) {
-    return {
-      response:         null,
-      shouldEscalate:   true,
-      escalationReason: `Generated response touched restricted topic: "${topicHit}"`,
-    }
-  }
-
   return { response: text, shouldEscalate: false }
 }

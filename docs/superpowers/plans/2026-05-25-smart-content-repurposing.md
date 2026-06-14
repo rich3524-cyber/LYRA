@@ -1,7 +1,5 @@
 # Smart Content Repurposing Implementation Plan
 
-> **STATUS: ✅ COMPLETE — shipped in commit `9f7f799` (26 May 2026)**
-
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a Repurpose page to each workspace where users paste a blog URL or long-form text, select target platforms, and LYRA generates platform-native post versions. Output flows into the existing schedule review page via sessionStorage — no new review infrastructure needed.

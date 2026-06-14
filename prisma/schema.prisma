@@ -1,6 +1,6 @@
 generator client {
   provider      = "prisma-client-js"
-  binaryTargets = ["native", "debian-openssl-3.0.x"]
+  binaryTargets = ["native", "rhel-openssl-1.0.x", "debian-openssl-1.1.x"]
 }
 
 datasource db {
@@ -80,15 +80,6 @@ model Workspace {
   searchConsoleData SearchConsoleData[]
   crisisEvents      CrisisEvent[]
   competitors       Competitor[]
-  assistantReports    AssistantReport[]
-  clientLogoS3Key     String?
-  region              String              @default("AU")
-  emailConnection     EmailConnection?
-  aiVisibilityQueries AiVisibilityQuery[]
-  aiVisibilitySnapshots AiVisibilitySnapshot[]
-  trendEnabled              Boolean     @default(false)
-  trendStripeSubscriptionId String?
-  trendItems                TrendItem[]
 }
 
 enum Plan {
@@ -115,7 +106,7 @@ model WorkspaceAccess {
   workspaceId String
   role        UserRole
   user        User      @relation(fields: [userId], references: [id])
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
   createdAt   DateTime  @default(now())
 
   @@unique([userId, workspaceId])
@@ -125,7 +116,7 @@ model WorkspaceAccess {
 model SocialAccount {
   id           String    @id @default(cuid())
   workspaceId  String
-  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace    Workspace @relation(fields: [workspaceId], references: [id])
   platform     Platform
   platformId   String
   handle       String
@@ -145,7 +136,6 @@ model SocialAccount {
   comments Comment[]
 
   @@unique([workspaceId, platform, platformId])
-  @@index([workspaceId, isActive])
 }
 
 enum Platform {
@@ -164,7 +154,7 @@ enum Platform {
 model Post {
   id              String        @id @default(cuid())
   workspaceId     String
-  workspace       Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace       Workspace     @relation(fields: [workspaceId], references: [id])
   socialAccountId String
   socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id])
   authorId        String
@@ -278,7 +268,7 @@ model CommentResponse {
 model BrandProfile {
   id               String    @id @default(cuid())
   workspaceId      String    @unique
-  workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace        Workspace @relation(fields: [workspaceId], references: [id])
   voiceSummary     String?
   toneAttributes   String[]
   contentThemes    String[]
@@ -298,12 +288,10 @@ model BrandProfile {
 model Guardrail {
   id          String        @id @default(cuid())
   workspaceId String
-  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id])
   type        GuardrailType
   value       String
   createdAt   DateTime      @default(now())
-
-  @@index([workspaceId, type])
 }
 
 enum GuardrailType {
@@ -313,16 +301,10 @@ enum GuardrailType {
   APPROVED_ANSWER
 }
 
-enum TrendStatus {
-  NEW
-  USED
-  DISMISSED
-}
-
 model PostMetrics {
   id           String    @id @default(cuid())
   postId       String    @unique
-  post         Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  post         Post      @relation(fields: [postId], references: [id])
   likes        Int       @default(0)
   comments     Int       @default(0)
   shares       Int       @default(0)
@@ -333,8 +315,6 @@ model PostMetrics {
   lastSyncedAt DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
-
-  @@index([postId, lastSyncedAt])
 }
 
 model PostBoost {
@@ -367,7 +347,7 @@ enum BoostStatus {
 model OnboardingToken {
   id          String    @id @default(cuid())
   workspaceId String    @unique
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
   token       String    @unique @default(cuid())
   expiresAt   DateTime
   completedAt DateTime?
@@ -377,7 +357,7 @@ model OnboardingToken {
 model SeoConnection {
   id           String    @id @default(cuid())
   workspaceId  String    @unique
-  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace    Workspace @relation(fields: [workspaceId], references: [id])
   accessToken  String
   refreshToken String
   propertyUrl  String
@@ -395,7 +375,7 @@ enum SeoContentType {
 model SeoPage {
   id             String       @id @default(cuid())
   workspaceId    String
-  workspace      Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace      Workspace    @relation(fields: [workspaceId], references: [id])
   url            String
   seoScore       Int?
   lastAnalysedAt DateTime?
@@ -420,7 +400,7 @@ model SeoContent {
 model SearchConsoleData {
   id          String    @id @default(cuid())
   workspaceId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
   date        DateTime
   query       String
   page        String
@@ -431,7 +411,6 @@ model SearchConsoleData {
   createdAt   DateTime  @default(now())
 
   @@unique([workspaceId, date, query, page])
-  @@index([workspaceId, date])
 }
 
 model CrisisEvent {
@@ -442,8 +421,6 @@ model CrisisEvent {
   resolvedAt  DateTime?
   triggerType String    // "SENTIMENT_SPIKE" | "KEYWORD_MATCH"
   commentIds  String[]
-
-  @@index([workspaceId, triggeredAt])
 }
 
 model Competitor {
@@ -456,8 +433,6 @@ model Competitor {
   facebookPageId  String?
   createdAt       DateTime             @default(now())
   snapshots       CompetitorSnapshot[]
-
-  @@index([workspaceId])
 }
 
 model CompetitorSnapshot {
@@ -469,199 +444,4 @@ model CompetitorSnapshot {
   recentTopics        String[]
   engagementBenchmark Float?
   recentPosts         Json?
-}
-
-enum AssistantReportStatus {
-  GENERATING
-  READY
-  FAILED
-}
-
-model AssistantReport {
-  id          String                @id @default(cuid())
-  workspaceId String
-  workspace   Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  quarter     String
-  generatedAt DateTime              @default(now())
-  status      AssistantReportStatus @default(GENERATING)
-  reportData  Json?
-  pdfS3Key    String?
-  createdAt   DateTime              @default(now())
-  updatedAt   DateTime              @updatedAt
-
-  @@index([workspaceId, createdAt])
-}
-
-// ─── Beta feedback ────────────────────────────────────────────────────────────
-
-model BetaResponse {
-  id                  String              @id @default(cuid())
-  name                String
-  email               String?
-  disappointmentScore DisappointmentScore
-  alternativeTool     String?
-  mostUsedFeature     String?
-  unusedFeatures      String?
-  aiVoiceScore        Int
-  timeSavedScore      TimeSavedScore
-  confusingPart       String?
-  missingFeature      String?
-  priceTooExpensive   Float?
-  priceCheap          Float?
-  wouldPay            WouldPay
-  npsScore            Int
-  createdAt           DateTime            @default(now())
-
-  @@index([createdAt])
-}
-
-enum DisappointmentScore {
-  VERY
-  SOMEWHAT
-  NOT
-}
-
-enum TimeSavedScore {
-  SIGNIFICANT
-  SOME
-  NONE
-  MORE_WORK
-}
-
-enum WouldPay {
-  YES
-  NO
-  MAYBE
-}
-
-model FeedbackResponse {
-  id           String       @id @default(cuid())
-  name         String
-  feedbackType FeedbackType
-  description  String
-  rating       Int
-  createdAt    DateTime     @default(now())
-
-  @@index([createdAt])
-}
-
-enum FeedbackType {
-  BUG_REPORT
-  FEATURE_REQUEST
-  GENERAL
-  PRAISE
-}
-
-// ─── Email Marketing Integration ─────────────────────────────────────────────
-
-enum EmailProvider {
-  KLAVIYO
-  MAILCHIMP
-}
-
-enum EmailCampaignStatus {
-  DRAFT
-  SCHEDULED
-  SENT
-}
-
-model EmailConnection {
-  id            String        @id @default(cuid())
-  workspaceId   String        @unique
-  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  provider      EmailProvider
-  credentials   String        // AES-256-GCM encrypted JSON: { apiKey } | { apiKey, serverPrefix }
-  isActive      Boolean       @default(true)
-  lastSyncAt    DateTime?
-  lastSyncError String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
-
-  campaigns EmailCampaign[]
-
-  @@index([provider])
-}
-
-model EmailCampaign {
-  id                String              @id @default(cuid())
-  emailConnectionId String
-  emailConnection   EmailConnection     @relation(fields: [emailConnectionId], references: [id], onDelete: Cascade)
-  workspaceId       String
-  externalId        String
-  name              String
-  subjectLine       String
-  status            EmailCampaignStatus
-  scheduledAt       DateTime?
-  sentAt            DateTime?
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime            @updatedAt
-
-  @@unique([emailConnectionId, externalId])
-  @@index([workspaceId, scheduledAt])
-  @@index([workspaceId, sentAt])
-  @@index([emailConnectionId])
-}
-
-// ─── AI Search Visibility ─────────────────────────────────────────────────────
-
-enum AiVisibilityProvider {
-  PERPLEXITY
-}
-
-enum AiVisibilityCategory {
-  BRAND
-  PRODUCT
-  CATEGORY
-  COMPETITOR
-}
-
-model AiVisibilityQuery {
-  id          String               @id @default(cuid())
-  workspaceId String
-  workspace   Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  query       String
-  category    AiVisibilityCategory @default(BRAND)
-  isActive    Boolean              @default(true)
-  createdAt   DateTime             @default(now())
-  updatedAt   DateTime             @updatedAt
-
-  snapshots AiVisibilitySnapshot[]
-
-  @@index([workspaceId, isActive])
-}
-
-model AiVisibilitySnapshot {
-  id                String               @id @default(cuid())
-  workspaceId       String
-  workspace         Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  queryId           String
-  query             AiVisibilityQuery    @relation(fields: [queryId], references: [id], onDelete: Cascade)
-  provider          AiVisibilityProvider @default(PERPLEXITY)
-  responseText      String               @db.Text
-  brandMentioned    Boolean              @default(false)
-  brandMentionCount Int                  @default(0)
-  citedUrls         String[]
-  takenAt           DateTime             @default(now())
-
-  @@index([workspaceId, takenAt])
-  @@index([queryId, takenAt])
-}
-
-// ─── LYRA Trend ───────────────────────────────────────────────────────────────
-
-model TrendItem {
-  id             String      @id @default(cuid())
-  workspaceId    String
-  title          String
-  description    String      @db.Text
-  whyItFits      String      @db.Text
-  sourcePlatform String
-  relevanceScore Int         @default(0)
-  sourceUrl      String?
-  status         TrendStatus @default(NEW)
-  syncedAt       DateTime    @default(now())
-  workspace      Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-
-  @@index([workspaceId, relevanceScore])
-  @@index([workspaceId, syncedAt])
 }

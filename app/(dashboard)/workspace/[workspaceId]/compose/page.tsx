@@ -20,28 +20,37 @@ export default async function ComposePage({ params }: Props) {
       id: true,
       name: true,
       brandProfile: { select: { postingPatterns: true } },
-      socialAccounts: { where: { isActive: true }, select: { platform: true } },
-      trendEnabled: true,
     },
   })
-
   if (!workspace) notFound()
 
-  const connectedPlatforms = [...new Set(workspace.socialAccounts.map(a => a.platform as string))]
-  const postingPatterns = (workspace.brandProfile?.postingPatterns ?? null) as PostingPatterns | null
+  const rawPatterns = workspace.brandProfile?.postingPatterns as Record<string, unknown> | null
+  const postingPatterns: PostingPatterns = {}
+  if (rawPatterns) {
+    for (const [key, val] of Object.entries(rawPatterns)) {
+      if (key !== 'guidelines' && typeof val === 'object' && val !== null && 'topSlots' in val) {
+        postingPatterns[key] = val as PostingPatterns[string]
+      }
+    }
+  }
+
+  const socialAccounts = await prisma.socialAccount.findMany({
+    where: { workspaceId, isActive: true },
+    select: { platform: true },
+  })
+  const connectedPlatforms = [...new Set(socialAccounts.map((a) => a.platform as string))]
 
   return (
-    <div className="space-y-6">
+    <div className="max-w-3xl space-y-6">
       <div>
-        <h2 className="font-display text-2xl text-text-primary">Compose</h2>
-        <p className="text-text-secondary text-sm mt-1">{workspace.name}</p>
+        <h2 className="font-display text-4xl text-text-primary">Compose</h2>
+        <p className="font-sans text-sm text-text-secondary mt-1">{workspace.name}</p>
       </div>
 
       <ComposeClient
         workspaceId={workspaceId}
         connectedPlatforms={connectedPlatforms}
-        postingPatterns={postingPatterns}
-        trendEnabled={workspace.trendEnabled}
+        postingPatterns={Object.keys(postingPatterns).length > 0 ? postingPatterns : null}
       />
     </div>
   )

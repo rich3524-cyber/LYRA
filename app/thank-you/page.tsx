@@ -44,6 +44,7 @@ const SOCIAL_LINKS = [
 export default function ThankYouPage() {
   return (
     <div className="min-h-screen bg-background-primary flex flex-col items-center justify-center px-6 relative overflow-hidden">
+      {/* Ambient glow */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -54,6 +55,7 @@ export default function ThankYouPage() {
       />
 
       <div className="relative z-10 flex flex-col items-center text-center max-w-md w-full">
+        {/* Logo */}
         <Link href="/" className="flex items-center gap-2 mb-16">
           <div className="w-9 h-9 border border-accent-silver flex items-center justify-center">
             <span className="font-sans font-light text-text-primary text-base leading-none select-none">
@@ -65,16 +67,20 @@ export default function ThankYouPage() {
           </span>
         </Link>
 
+        {/* Divider */}
         <div className="w-px h-8 bg-background-border mb-12" aria-hidden="true" />
 
+        {/* Headline */}
         <h1 className="font-display text-4xl text-text-primary mb-5 leading-tight">
           You&apos;re on the list.
         </h1>
 
+        {/* Message */}
         <p className="font-sans font-light text-text-secondary text-sm leading-relaxed mb-10 max-w-xs">
           We&apos;ll be in touch before we launch. Founding member spots are limited — keep an eye on your inbox.
         </p>
 
+        {/* Social follow prompt */}
         <div className="w-full border border-background-border rounded-xl p-5 mb-10">
           <p className="font-sans text-xs text-text-tertiary uppercase tracking-[0.1em] mb-4">
             Follow us while you wait
@@ -95,6 +101,7 @@ export default function ThankYouPage() {
           </div>
         </div>
 
+        {/* Back link */}
         <Link
           href="/"
           className="font-sans text-xs text-text-tertiary hover:text-text-secondary transition-colors duration-150"
