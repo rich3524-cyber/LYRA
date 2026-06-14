@@ -6,10 +6,11 @@ import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { DeleteWorkspaceButton } from '@/components/lyra/settings/delete-workspace-button'
 import { CrisisAwareToggle } from '@/components/lyra/settings/crisis-aware-toggle'
+import { FacebookPagePicker } from '@/components/lyra/settings/facebook-page-picker'
 
 interface Props {
   params: Promise<{ workspaceId: string }>
-  searchParams: Promise<{ connected?: string }>
+  searchParams: Promise<{ connected?: string; fbpending?: string }>
 }
 
 interface PlatformConfig {
@@ -66,7 +67,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
   if (!user) redirect('/auth/login')
 
   const { workspaceId } = await params
-  const { connected } = await searchParams
+  const { connected, fbpending } = await searchParams
 
   const workspace = await prisma.workspace.findFirst({
     where: { id: workspaceId, access: { some: { userId: user.id } } },
@@ -107,6 +108,11 @@ export default async function SettingsPage({ params, searchParams }: Props) {
         <h1 className="font-display text-4xl text-text-primary">Settings</h1>
         <p className="font-sans text-sm text-text-secondary">{workspace.name}</p>
       </div>
+
+      {/* Facebook Page picker — shown after OAuth redirect with ?fbpending= */}
+      {fbpending && (
+        <FacebookPagePicker pendingKey={fbpending} workspaceId={workspaceId} />
+      )}
 
       {/* Success banner */}
       {connectedPlatformLabel && (
