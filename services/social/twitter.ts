@@ -1,7 +1,7 @@
 import crypto from 'crypto'
 import { signState } from '@/lib/oauth-state'
 
-const AUTH_URL = 'https://twitter.com/i/oauth2/authorize'
+const AUTH_URL = 'https://x.com/i/oauth2/authorize'
 const TOKEN_URL = 'https://api.twitter.com/2/oauth2/token'
 const API_URL = 'https://api.twitter.com/2'
 
