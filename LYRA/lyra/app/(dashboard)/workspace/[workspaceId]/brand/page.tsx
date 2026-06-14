@@ -1,5 +1,7 @@
 export const dynamic = 'force-dynamic'
+export const revalidate = 0
 
+import { unstable_noStore as noStore } from 'next/cache'
 import { redirect, notFound } from 'next/navigation'
 import { Zap, Globe, Share2, Lock } from 'lucide-react'
 import Link from 'next/link'
@@ -38,6 +40,7 @@ function timeAgo(date: Date): string {
 }
 
 export default async function BrandPage({ params }: Props) {
+  noStore()
   const user = await getCurrentUser()
   if (!user) redirect('/auth/login')
 

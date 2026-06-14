@@ -43,3 +43,10 @@ export async function requireAuth() {
   if (!user) throw new Error('Unauthorized')
   return user
 }
+
+export function checkCronAuth(req: Request): boolean {
+  const secret = process.env.CRON_SECRET
+  if (!secret) return false
+  const auth = req.headers.get('Authorization') ?? ''
+  return auth === `Bearer ${secret}`
+}
