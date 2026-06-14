@@ -1,9 +1,32 @@
 [build]
-  command = "npx prisma generate && npm run build"
+  base    = "LYRA/lyra"
+  command = "rm -rf .next && npx prisma generate && DIRECT_URL=\"$DATABASE_URL\" npx prisma db push --accept-data-loss && npm run build"
   publish = ".next"
 
 [build.environment]
-  NODE_VERSION = "20"
+  NODE_VERSION = "22"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+# Prevent Netlify CDN from caching authenticated dashboard routes
+[[headers]]
+  for = "/workspace/*"
+  [headers.values]
+    CDN-Cache-Control = "no-store"
+    Netlify-CDN-Cache-Control = "no-store"
+    Cache-Control = "no-store, no-cache, must-revalidate, proxy-revalidate"
+
+[[headers]]
+  for = "/agency/*"
+  [headers.values]
+    CDN-Cache-Control = "no-store"
+    Netlify-CDN-Cache-Control = "no-store"
+    Cache-Control = "no-store, no-cache, must-revalidate, proxy-revalidate"
+
+[[headers]]
+  for = "/account/*"
+  [headers.values]
+    CDN-Cache-Control = "no-store"
+    Netlify-CDN-Cache-Control = "no-store"
+    Cache-Control = "no-store, no-cache, must-revalidate, proxy-revalidate"
