@@ -11,7 +11,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { Sparkles, CalendarIcon, Send, BarChart2 } from 'lucide-react'
+import { Sparkles, CalendarIcon, Send, Zap, BarChart2 } from 'lucide-react'
 import { PlatformSelector } from './platform-selector'
 import { MediaUploader } from './media-uploader'
 import { ContentScorePanel } from './content-score-panel'
@@ -101,21 +101,22 @@ export function PostComposer({ workspaceId, connectedPlatforms, onContentChange,
     }
   }
 
-  const handleSubmit = async (status: 'DRAFT' | 'SCHEDULED') => {
+  const handleSubmit = async (status: 'DRAFT' | 'SCHEDULED', dateOverride?: Date) => {
     const content = editor?.getText()
     if (!content?.trim()) { toast.error('Post content is required'); return }
     if (selectedPlatforms.length === 0) { toast.error('Select at least one platform'); return }
-    if (status === 'SCHEDULED' && !scheduledAt) { toast.error('Set a schedule time'); return }
+    const publishAt = dateOverride ?? scheduledAt
+    if (status === 'SCHEDULED' && !publishAt) { toast.error('Set a schedule time'); return }
 
     setIsSubmitting(true)
     try {
       const res = await fetch('/api/posts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, content, platforms: selectedPlatforms, scheduledAt, mediaUrls, status }),
+        body: JSON.stringify({ workspaceId, content, platforms: selectedPlatforms, scheduledAt: publishAt, mediaUrls, status }),
       })
       if (!res.ok) throw new Error('Failed to save post')
-      toast.success(status === 'SCHEDULED' ? 'Post scheduled!' : 'Draft saved!')
+      toast.success(status === 'SCHEDULED' ? (dateOverride ? 'Post queued for publishing.' : 'Post scheduled.') : 'Draft saved.')
       editor?.commands.clearContent()
       setSelectedPlatforms([])
       setScheduledAt(undefined)
@@ -206,6 +207,22 @@ export function PostComposer({ workspaceId, connectedPlatforms, onContentChange,
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0 bg-background-tertiary border-background-border">
               <Calendar mode="single" selected={scheduledAt} onSelect={setScheduledAt} />
+              <div className="px-4 pb-4 pt-3 border-t border-background-border space-y-1.5">
+                <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">Time</p>
+                <input
+                  type="time"
+                  value={scheduledAt ? format(scheduledAt, 'HH:mm') : ''}
+                  onChange={(e) => {
+                    if (!e.target.value) return
+                    const [hours, minutes] = e.target.value.split(':').map(Number)
+                    const base = scheduledAt ?? new Date()
+                    const updated = new Date(base)
+                    updated.setHours(hours, minutes, 0, 0)
+                    setScheduledAt(updated)
+                  }}
+                  className="w-full bg-background-secondary border border-background-border rounded-lg px-3 py-2 font-mono text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-accent-silver/40"
+                />
+              </div>
             </PopoverContent>
           </Popover>
 
@@ -218,6 +235,18 @@ export function PostComposer({ workspaceId, connectedPlatforms, onContentChange,
             className="text-text-tertiary hover:text-text-primary text-xs"
           >
             Save draft
+          </Button>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            type="button"
+            onClick={() => handleSubmit('SCHEDULED', new Date())}
+            disabled={isSubmitting}
+            className="text-text-secondary hover:text-text-primary text-xs gap-1.5"
+          >
+            <Zap size={12} strokeWidth={1.5} />
+            Post now
           </Button>
 
           <Button
