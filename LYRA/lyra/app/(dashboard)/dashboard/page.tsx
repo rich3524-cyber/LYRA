@@ -22,7 +22,12 @@ export default async function DashboardHome() {
   const hasWorkspaces = workspaces.length > 0
   const firstName = user.name?.split(' ')[0] ?? null
 
-  const activeWorkspaceId = workspaces[0]?.id ?? ''
+  // Use highest-plan workspace as the primary context for KPIs and setup
+  const PLAN_PRIORITY: Record<string, number> = { AGENCY: 3, PRO: 2, STARTER: 1 }
+  const primaryWorkspace = [...workspaces].sort(
+    (a, b) => (PLAN_PRIORITY[b.plan] ?? 0) - (PLAN_PRIORITY[a.plan] ?? 0)
+  )[0]
+  const activeWorkspaceId = primaryWorkspace?.id ?? ''
 
   let brandReady = false
   let hasBrandProfile = false
