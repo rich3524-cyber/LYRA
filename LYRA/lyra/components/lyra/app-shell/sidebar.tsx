@@ -94,7 +94,7 @@ export function Sidebar({ workspaceId, brandReady, plan }: { workspaceId: string
       <nav className="flex-1 py-4 px-2 space-y-0.5 overflow-y-auto">
         {navItems.map(({ href, label, icon: Icon, proOnly }) => {
           const isBrandAI = href === '/brand'
-          const locked = (isBrandAI && !brandReady) || (proOnly && plan === 'STARTER')
+          const locked = proOnly && plan === 'STARTER'
 
           if (locked) {
             const lockTitle = isBrandAI
