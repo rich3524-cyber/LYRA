@@ -19,17 +19,22 @@ export async function POST(_req: Request) {
     const token = decrypt(account.accessToken)
     const pageId = account.platformId
 
+    const params = new URLSearchParams({
+      subscribed_fields: 'feed,comments',
+      access_token: token,
+    })
     const res = await fetch(`${BASE}/${pageId}/subscribed_apps`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        subscribed_fields: ['feed', 'comments'],
-        access_token: token,
-      }),
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
       signal: AbortSignal.timeout(15_000),
     })
-    const data = await res.json() as { success?: boolean; error?: { message: string } }
-    if (!res.ok || data.error) throw new Error(data.error?.message ?? `Subscribe error: ${res.status}`)
+    const text = await res.text()
+    let data: { success?: boolean; error?: { message: string } } = {}
+    try { data = JSON.parse(text) } catch { /* non-JSON response */ }
+    if (!res.ok || data.error) {
+      return NextResponse.json({ error: data.error?.message ?? text ?? `Subscribe error: ${res.status}` }, { status: 502 })
+    }
 
     return NextResponse.json({ ok: true, pageId, subscribed: true })
   } catch (error) {
