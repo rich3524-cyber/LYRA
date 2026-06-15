@@ -24,8 +24,6 @@ import {
   X,
 } from 'lucide-react'
 import { WorkspaceSwitcher } from './workspace-switcher'
-import { SetupProgress } from './setup-progress'
-import type { SetupProgressData } from '@/lib/setup-progress'
 import { cn } from '@/lib/utils'
 
 const navItems = [
@@ -45,7 +43,6 @@ interface SidebarProps {
   workspaceId: string
   brandReady: boolean
   plan?: string
-  setupProgress?: SetupProgressData
   mobileOpen?: boolean
   onMobileClose?: () => void
   trendEnabled?: boolean
@@ -55,7 +52,6 @@ export function Sidebar({
   workspaceId,
   brandReady,
   plan,
-  setupProgress,
   mobileOpen,
   onMobileClose,
   trendEnabled,
@@ -263,11 +259,6 @@ export function Sidebar({
             )
           })()}
         </nav>
-
-        {/* Setup Progress */}
-        {setupProgress && (
-          <SetupProgress data={setupProgress} collapsed={isCollapsed} />
-        )}
 
         {/* Bottom nav */}
         <div className="border-t border-background-border p-2 space-y-0.5">
