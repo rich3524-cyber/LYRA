@@ -39,7 +39,7 @@ export async function replyToComment(
   const res = await fetch(`${BASE_URL}/${platformCommentId}/replies`, {
     method:  'POST',
     headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ text, access_token: accessToken }),
+    body:    JSON.stringify({ message: text, access_token: accessToken }),
     signal:  AbortSignal.timeout(TIMEOUT_MS),
   })
   const data = await res.json() as { id?: string; error?: { message: string } }
