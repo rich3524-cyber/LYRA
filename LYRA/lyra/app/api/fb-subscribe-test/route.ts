@@ -19,24 +19,18 @@ export async function POST(_req: Request) {
     const token = decrypt(account.accessToken)
     const pageId = account.platformId
 
-    const params = new URLSearchParams({
-      subscribed_fields: 'feed,comments',
-      access_token: token,
-    })
-    const res = await fetch(`${BASE}/${pageId}/subscribed_apps`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString(),
-      signal: AbortSignal.timeout(15_000),
-    })
+    const res = await fetch(
+      `${BASE}/${pageId}/subscribed_apps?access_token=${encodeURIComponent(token)}`,
+      { signal: AbortSignal.timeout(10_000) }
+    )
     const text = await res.text()
-    let data: { success?: boolean; error?: { message: string } } = {}
+    let data: { data?: unknown[]; error?: { message: string } } = {}
     try { data = JSON.parse(text) } catch { /* non-JSON response */ }
     if (!res.ok || data.error) {
-      return NextResponse.json({ error: data.error?.message ?? text ?? `Subscribe error: ${res.status}` }, { status: 502 })
+      return NextResponse.json({ error: data.error?.message ?? text ?? `Error: ${res.status}` }, { status: 502 })
     }
 
-    return NextResponse.json({ ok: true, pageId, subscribed: true })
+    return NextResponse.json({ ok: true, pageId, subscriptions: data.data ?? [] })
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
