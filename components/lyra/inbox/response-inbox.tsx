@@ -5,6 +5,8 @@ import { CommentCard } from './comment-card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
+import { RefreshCw } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface CommentData {
   id:              string
@@ -58,6 +60,31 @@ export function ResponseInbox({
   const [loading, setLoading]               = useState(true)
   const [error, setError]                   = useState<string | null>(null)
   const [platformFilter, setPlatformFilter] = useState<string>('ALL')
+  const [syncing, setSyncing] = useState(false)
+
+  async function handleSync() {
+    setSyncing(true)
+    try {
+      const res = await fetch('/api/comments/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId }),
+      })
+      const data = await res.json() as { synced?: number; error?: string }
+      if (!res.ok) throw new Error(data.error ?? 'Sync failed')
+      toast.success(data.synced ? `${data.synced} new comment${data.synced !== 1 ? 's' : ''} synced.` : 'No new comments.')
+      // Reload comments
+      const r2 = await fetch(`/api/comments?workspaceId=${workspaceId}`)
+      if (r2.ok) {
+        const d2 = await r2.json() as unknown
+        if (Array.isArray(d2)) setComments(d2 as CommentData[])
+      }
+    } catch {
+      toast.error('Sync failed. Check your Facebook connection.')
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   useEffect(() => {
     setLoading(true)
@@ -94,7 +121,8 @@ export function ResponseInbox({
         <p className="text-sm text-status-error text-center py-6">{error}</p>
       )}
 
-      {/* Platform filter — reserved height prevents layout shift */}
+      {/* Platform filter + sync */}
+      <div className="flex items-center justify-between gap-3">
       <div className="h-7 flex items-center">
         {loading ? (
           <div className="h-7 w-48 rounded-full bg-background-secondary border border-background-border animate-pulse" />
@@ -116,6 +144,18 @@ export function ResponseInbox({
             ))}
           </div>
         ) : null}
+      </div>
+
+      <button
+        type="button"
+        onClick={handleSync}
+        disabled={syncing}
+        aria-label="Sync comments from connected accounts"
+        className="inline-flex items-center gap-1.5 text-xs text-text-tertiary hover:text-text-primary transition-colors disabled:opacity-50 shrink-0"
+      >
+        <RefreshCw size={13} strokeWidth={1.5} className={syncing ? 'animate-spin' : ''} />
+        {syncing ? 'Syncing…' : 'Sync'}
+      </button>
       </div>
 
       <Tabs defaultValue="pending" className="space-y-4">
