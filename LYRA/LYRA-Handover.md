@@ -1,12 +1,56 @@
 # LYRA — Project Handover Document
 
-**Date:** May 2026 (updated May 2026)  
+**Date:** May 2026 (updated June 2026)  
 **Prepared by:** Claude Code (Anthropic)  
 **Project owner:** Richard Unwin, Into The Wild Marketing
 
 ---
 
 ## Changelog
+
+### June 2026 — Netlify Build Fix + Brand Guidelines Textarea
+
+---
+
+#### Brand guidelines input replaced (commits `4abc043`, `8b474e8`, `5afa44b`)
+
+The `GuidelinesUploader` file-upload drag-and-drop widget on the Brand page has been replaced with a plain textarea (`BrandGuidelinesPanel`). Users paste their brand voice, tone, and messaging rules directly — no file upload or S3 required. The text is passed to Claude during a profile build or re-analysis.
+
+**What changed:**
+- `BrandGuidelinesPanel` component (textarea + build button) added to `components/lyra/brand/brand-build-button.tsx`
+- `app/(dashboard)/workspace/[workspaceId]/brand/page.tsx` — import changed from `brand-guidelines-panel.tsx` to `brand-build-button.tsx`
+- `brand-guidelines-panel.tsx` — still exists but is now dead code (unused)
+
+**How it works:**
+- User pastes guidelines text into the textarea
+- Text is sent as `manualGuidelines` in the `POST /api/brand-intelligence/build` body
+- Claude receives it alongside scraped website data when building the profile
+- Saved guidelines can be pre-populated from `BrandProfile.postingPatterns.userGuidelines` on page load
+
+---
+
+#### Netlify build configuration — root cause found and fixed permanently
+
+Multiple sessions were affected by the brand page deploying stale compiled code despite source changes. Root cause identified and fixed.
+
+**Root cause:** Netlify's `baseRelDir: true` flag (always enabled) causes it to read `LYRA/lyra/netlify.toml` as the **primary** config file. Any `[build]` section in the nested file overrides the root `netlify.toml` command. If the nested file exists with no `[build]` section (even just comments), Netlify falls back to the **Netlify UI stored command** — ignoring the root file entirely. The root `netlify.toml` command was never running.
+
+**Compounding factor:** `@netlify/plugin-nextjs` restores the Turbopack incremental cache (`.next/cache/`) in its `onPreBuild` hook before the build command runs. Without `rm -rf .next` in the command, changed source files were compiled against the cached output, producing stale bundles.
+
+**Fix (commit `8b474e8`):** `LYRA/lyra/netlify.toml` deleted entirely. With no nested file present, `baseRelDir` finds nothing and the root `netlify.toml` is used exclusively.
+
+**Fix (commit `5afa44b`):** `prisma db push` removed from the build command. It was hanging because `DATABASE_URL` points to the Supabase PgBouncer pooler (port 6543) which cannot handle DDL operations. The hang was causing builds to time out at ~10 minutes.
+
+**Final build command (root `netlify.toml` — do not add a nested one):**
+```
+rm -rf .next && npx prisma generate && npm run build
+```
+
+**Schema changes are no longer auto-applied on deploy.** Apply schema changes manually via Supabase SQL Editor when needed.
+
+**Critical rule:** Never create `LYRA/lyra/netlify.toml` again. The only `netlify.toml` in the repo is at the root (`c:\Users\Rich\OneDrive - Into The Wild Marketing\netlify.toml`). Root-level files do not need `git add -f`; files under `LYRA/` do.
+
+---
 
 ### May 2026 — Sessions 11–17+ (Security Audit + Feature Sprint)
 
@@ -475,14 +519,16 @@ LYRA (lyraonline.ai) is a premium AI-powered social media management SaaS platfo
 ### 4.1 Netlify (App Host)
 
 - **Site name:** lyra-online-app
-- **Build command:** `npx prisma generate && DIRECT_URL="$DATABASE_URL" npx prisma db push --accept-data-loss && npm run build`
+- **Build command:** `rm -rf .next && npx prisma generate && npm run build`
 - **Publish directory:** `.next`
 - **Node version:** 20
 - **Plugin:** `@netlify/plugin-nextjs`
 
-The build now runs `prisma db push` automatically on every deploy — schema changes are applied to the production database as part of the build. No separate manual schema step is needed.
+`rm -rf .next` is essential — it clears the Turbopack incremental cache that the plugin restores before each build. Without it, changed source files can be compiled against cached output, producing stale bundles that survive multiple deploys.
 
-**Note on `DIRECT_URL` override:** The `DIRECT_URL` env var currently has an invalid scheme in Netlify, so the build forces it to `DATABASE_URL` inline. Once `DIRECT_URL` is corrected to a valid Supabase Session Pooler URL (port 5432), remove the `DIRECT_URL="$DATABASE_URL"` prefix from the build command and rely on the env var directly.
+**Schema changes are NOT auto-applied on deploy.** Apply them manually via Supabase SQL Editor when the schema changes. See Section 8 for the current approach.
+
+**Important: never create `LYRA/lyra/netlify.toml`.** Netlify's `baseRelDir: true` flag reads that file as the primary config, overriding or ignoring the root `netlify.toml` build command. The only `netlify.toml` in the repo is at the repo root.
 
 ### 4.2 Supabase (Database)
 
@@ -756,10 +802,11 @@ One workspace is currently active in production:
 - Company page posting requires the LinkedIn Community Management API — this requires a separate LinkedIn Developer application and approval process
 - Personal posting (`w_member_social` scope) requires LinkedIn to verify and approve the app — apply at [LinkedIn Developer Portal](https://developer.linkedin.com)
 
-**Facebook / Instagram:**
-- OAuth flow is built and the Facebook app (App ID: 1480576426774303) is created
-- The Facebook redirect URI must be set to: `https://lyra-online-app.netlify.app/api/social/callback/facebook`
-- Facebook apps in development mode only allow connections from users listed as app Testers or Developers. To allow any user to connect, the app must go through Facebook App Review.
+**Facebook / Instagram — Meta App Review required:**
+- OAuth flow is built. App ID: `1480576426774303`. Full 11-scope OAuth with page-picker is implemented in code.
+- **App is currently in Development Mode.** Only users with a role on the app (Admin, Developer, Tester) can connect. Real customers cannot connect their Pages until the app passes Meta App Review and moves to Live Mode.
+- The detailed step-by-step submission guide is at `LYRA/docs/meta-app-review-guide.md` — read this before starting.
+- See the dedicated Meta App Review section below for full current status.
 
 **Google Business, Twitter, TikTok:**
 - OAuth service files and routes exist in the codebase
@@ -787,13 +834,76 @@ One workspace is currently active in production:
 - `railway.toml` specifies `buildCommand = "npm install"` (overrides Railway's default Next.js build) and `startCommand = "npx tsx workers/index.ts"`
 - All four cron-job.org jobs are active and returning 200 responses
 
-### Post Boosting — `ads_management` scope pending Meta App Review
+### Meta App Review — Full Status (as of June 2026)
 
-- The boost UI, API routes, and database table are all live
-- `adAccountId` will not be auto-populated on Facebook reconnect until Meta approves the `ads_management` scope for the app
-- **Workaround for testing:** set `adAccountId` directly in Supabase: `UPDATE "SocialAccount" SET "adAccountId" = 'YOUR_AD_ACCOUNT_ID' WHERE platform = 'FACEBOOK'`
-- Ad account IDs can be found in Meta Business Manager → Ad Accounts
-- **Proper fix:** submit `ads_management` for Meta App Review, then re-add `'ads_management'` to the SCOPES array in `lyra/services/social/facebook.ts` — users will get it stored automatically on next Facebook reconnect
+**App:** LYRA — App ID `1480576426774303`  
+**App type:** Business (required — must not be Consumer)  
+**Current mode:** Development (only roles on the app can connect)  
+**Guide:** `LYRA/docs/meta-app-review-guide.md`
+
+---
+
+#### What the review unlocks
+
+Until the app passes App Review and enters Live Mode, only users with Admin/Developer/Tester roles on the LYRA Meta app can connect Facebook Pages or Instagram accounts. Every real customer currently sees an OAuth flow that either fails or only returns personal profile data — not Pages. Live Mode fixes this permanently.
+
+---
+
+#### Permissions requiring Advanced Access (11 total)
+
+| Permission | Purpose | Status |
+|---|---|---|
+| `pages_show_list` | List Pages a user manages — without this, `/me/accounts` returns empty | Pending |
+| `pages_manage_posts` | Publish posts to Facebook Pages | Pending |
+| `pages_read_engagement` | Read comments and reactions from Pages | Pending |
+| `pages_manage_engagement` | Post replies to comments — core of the AI response feature | Pending |
+| `pages_manage_metadata` | Subscribe to Page webhooks for real-time comment alerts | Pending |
+| `pages_read_user_content` | Read visitor-generated content (comments, visitor posts) | Pending |
+| `business_management` | Access Pages/ad accounts via Meta Business Manager | Pending |
+| `instagram_basic` | Link the Instagram Business/Creator account attached to a Page | Pending |
+| `instagram_content_publish` | Publish posts to Instagram via Content Publishing API | Pending |
+| `instagram_manage_comments` | Read and reply to comments on Instagram media | Pending |
+| `ads_management` | Create and manage boost campaigns (Post Boosting feature) | **Blocked — see below** |
+
+---
+
+#### `ads_management` — special situation
+
+This scope was temporarily added to the Facebook OAuth flow during development. Meta immediately blocked Facebook Login for the entire app with the error **"Facebook Login is currently unavailable for this app"**. The scope was removed and the app was restored.
+
+`ads_management` requires its own separate review process — it is a higher-risk permission and Meta often wants to see significant API usage (internal Meta metric, not publicly documented) before granting it.
+
+**Current state:** `ads_management` is NOT in the OAuth scope array in `services/social/facebook.ts`. Post Boosting UI, API routes, and DB schema are all live and ready. The only missing piece is `adAccountId` being populated on `SocialAccount` at OAuth time.
+
+**Workaround for testing right now:** Set `adAccountId` manually in Supabase:
+```sql
+UPDATE "SocialAccount" SET "adAccountId" = 'YOUR_AD_ACCOUNT_ID' WHERE platform = 'FACEBOOK';
+```
+Find your ad account ID in Meta Business Manager → Ad Accounts.
+
+**Fix when `ads_management` is approved:** Re-add `'ads_management'` to the SCOPES array in `lyra/services/social/facebook.ts`. On next Facebook reconnect, `adAccountId` will be stored automatically.
+
+---
+
+#### Steps remaining before submission (Richard's actions)
+
+1. **Complete Meta Business Verification** — go to Meta Business Manager → Security Centre → Start Verification. Need: ABN, Australian business address, lyraonline.ai website. Takes 1–5 business days. **Must be verified before submitting App Review.**
+2. **Add Facebook Login for Business product** — App Dashboard → Add Product → Facebook Login for Business. This replaces standard Facebook Login.
+3. **Create a Login for Business Configuration** — add all 11 permissions above + Page and Instagram asset types. Note the Configuration ID and pass to developer.
+4. **Developer action:** Add `config_id` parameter to `getAuthUrl()` in `services/social/facebook.ts` once Configuration ID is received.
+5. **Create a test Facebook account and Page** — App Dashboard → Roles → Test Users. Create dummy posts and comments on the test Page for use in screencasts.
+6. **Record 11 screencasts** — one per permission, showing the full user journey through LYRA. Requirements: MP4/MOV, under 50MB, min 720p, must show LYRA UI → Facebook consent screen → result. Full instructions in `docs/meta-app-review-guide.md`.
+7. **Request Advanced Access for all 11 permissions** with justification text (full text in the guide).
+8. **Submit for App Review** — Notes to Reviewer template is in the guide.
+9. **Monitor email daily** — Meta reviewers respond with follow-up questions. Respond within 24 hours to keep the review moving. Total timeline: 2–6 weeks after submission.
+
+---
+
+#### After approval
+
+- Test with a Facebook account that has no role on the app — confirm Pages appear in the OAuth flow
+- No code changes needed for core Page permissions
+- For `ads_management` (if approved separately): re-add to SCOPES array in `facebook.ts`
 
 ### Mobile Responsiveness
 
@@ -825,7 +935,7 @@ Until those workers are live, the panel will remain in cold-start state. This is
 
 ### Schema Changes Applied
 
-**Schema is now auto-synced on every Netlify deploy** via `prisma db push --accept-data-loss` in the build command. No manual schema steps are needed after any deploy.
+**Schema is NOT auto-synced on deploy.** `prisma db push` was removed from the build command in June 2026 because it hangs when `DATABASE_URL` points to the Supabase PgBouncer pooler (port 6543). Apply schema changes manually via **Supabase SQL Editor** when needed.
 
 **All models and columns through the most recent session are in production**, including:
 - `Post.topic` (Session 6)
@@ -866,7 +976,7 @@ NODE_OPTIONS="--use-system-ca" npx netlify ...
 
 ### Applying Schema Changes
 
-**Production:** schema changes are applied automatically by `prisma db push` as part of the Netlify build — push your code and the schema syncs on deploy.
+**Production:** apply schema changes manually via Supabase SQL Editor (write the SQL equivalent of the schema change, paste into Supabase → SQL Editor, run). `prisma db push` was removed from the Netlify build command in June 2026 — see Section 4.1.
 
 **Local/development database:** still requires a manual push:
 
@@ -935,8 +1045,8 @@ LYRA uses a strict dark near-black design system defined in `lyra/lib/design-tok
 | `lyra/components/lyra/app-shell/sidebar.tsx` | Sidebar with brand lock logic |
 | `lyra/components/lyra/calendar/content-calendar.tsx` | Monthly calendar with filters, DnD, and detail panel |
 | `lyra/components/lyra/calendar/post-detail-panel.tsx` | Slide-in post detail + status editor |
-| `lyra/components/lyra/brand/brand-build-button.tsx` | Brand profile build trigger |
-| `lyra/components/lyra/brand/guidelines-uploader.tsx` | Drag-and-drop brand guidelines uploader |
+| `lyra/components/lyra/brand/brand-build-button.tsx` | `BrandBuildButton` (build/re-analyze CTA) + `BrandGuidelinesPanel` (brand guidelines textarea) |
+| `lyra/components/lyra/brand/guidelines-uploader.tsx` | Dead code — S3 file uploader, superseded by `BrandGuidelinesPanel` textarea. Can be deleted. |
 | `lyra/components/lyra/settings/delete-workspace-button.tsx` | Delete with confirmation |
 | `lyra/services/ai/engagement-analyzer.ts` | Engagement pattern analysis — weighted scoring, thresholds, normalisation |
 | `lyra/services/ai/schedule-generator.ts` | AI schedule generator — Claude prompt builder, accepts `postingPatterns` |
@@ -972,14 +1082,14 @@ LYRA uses a strict dark near-black design system defined in `lyra/lib/design-tok
 | `lyra/components/lyra/repurpose/repurpose-form.tsx` | Repurpose UI — URL/text toggle, platform chips, SSE reader |
 | `lyra/app/(dashboard)/workspace/[workspaceId]/repurpose/page.tsx` | Repurpose page (server, auth-guarded) |
 | `lyra/app/(dashboard)/workspace/[workspaceId]/competitors/page.tsx` | Competitor Intelligence page |
-| `lyra/netlify.toml` | Build config — now includes `prisma db push` for automatic schema sync |
+| `netlify.toml` (repo root, NOT under `lyra/`) | Build config — `rm -rf .next && npx prisma generate && npm run build`. Never create a nested `lyra/netlify.toml`. |
 
 ---
 
 ## 12. Immediate Next Steps (Recommended Order)
 
-**Deployment (do first):**
-1. **Fix `DIRECT_URL` in Netlify** — set it to the Supabase Session Pooler URL (port 5432): `postgresql://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:5432/postgres`. Once fixed, remove the `DIRECT_URL="$DATABASE_URL"` prefix from the `netlify.toml` build command and push.
+**Housekeeping:**
+1. **Delete `lyra/components/lyra/brand/guidelines-uploader.tsx`** — dead code, superseded by the textarea in `brand-build-button.tsx`. Also delete `lyra/components/lyra/brand/brand-guidelines-panel.tsx` if it exists.
 
 **New features (ready to build):**
 2. **Inbox UI** — comments API exists (`/api/comments`), inbox page at `/workspace/[id]/inbox` needs a UI. Workers are live and populating `Comment` rows.
@@ -989,8 +1099,8 @@ LYRA uses a strict dark near-black design system defined in `lyra/lib/design-tok
 **Platform / integrations:**
 5. **Test GSC OAuth end-to-end** — navigate to SEO → connect Search Console → verify property auto-selects → add a page → Analyse → Generate
 6. **Test YouTube connection** — connect a Google account in Settings → YouTube, verify the channel saves correctly
-7. **Connect Facebook** — reconnect Facebook in Settings; then set `adAccountId` manually in Supabase to test post boosting end-to-end
-8. **Apply for Meta App Review** — submit `ads_management` scope. Once approved, re-add `'ads_management'` to SCOPES in `facebook.ts` — `adAccountId` will populate automatically on next reconnect.
+7. **Connect Facebook (for testing)** — you can connect as an app admin/tester now. Set `adAccountId` manually in Supabase to test post boosting end-to-end.
+8. **Progress Meta App Review** — full current status and step-by-step checklist in Section 8 (Meta App Review). Immediate next action: complete Meta Business Verification in Business Manager.
 9. **Apply for LinkedIn company page access** — submit LinkedIn Community Management API application so pages (not personal profiles) can be connected
 10. **Apply for LinkedIn app verification** — enables `w_member_social` scope for posting
 11. **Create Google Business, Twitter, TikTok developer apps** — add credentials to Netlify env vars so those OAuth flows work

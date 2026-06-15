@@ -26,10 +26,9 @@ export interface FacebookPage {
 export function getAuthUrl(workspaceId: string, rerequest = false): string {
   const state = Buffer.from(JSON.stringify({ workspaceId })).toString('base64')
   const params = new URLSearchParams({
-    client_id:    process.env.FACEBOOK_APP_ID!,
-    redirect_uri: `${process.env.APP_BASE_URL}/api/social/callback/facebook`,
-    config_id:    process.env.FACEBOOK_LOGIN_CONFIG_ID!,
-    scope:        SCOPES,
+    client_id:     process.env.FACEBOOK_APP_ID!,
+    redirect_uri:  `${process.env.APP_BASE_URL}/api/social/callback/facebook`,
+    scope:         SCOPES,
     state,
     response_type: 'code',
     ...(rerequest && { auth_type: 'rerequest' }),
@@ -94,6 +93,28 @@ export async function fetchAdAccountId(accessToken: string): Promise<string | nu
   // account_status 1 = ACTIVE
   const active = (data.data ?? []).find((a) => a.account_status === 1)
   return active ? active.id.replace('act_', '') : null
+}
+
+export async function publishPost(
+  pageId: string,
+  message: string,
+  accessToken: string,
+  scheduledPublishTime?: Date
+): Promise<string> {
+  const body: Record<string, unknown> = { message, access_token: accessToken }
+  if (scheduledPublishTime && scheduledPublishTime > new Date()) {
+    body.scheduled_publish_time = Math.floor(scheduledPublishTime.getTime() / 1000)
+    body.published = false
+  }
+  const res = await fetch(`${BASE_URL}/${pageId}/feed`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(body),
+    signal:  AbortSignal.timeout(TIMEOUT_MS),
+  })
+  const data = await res.json() as { id?: string; error?: { message: string } }
+  if (!res.ok || data.error) throw new Error(data.error?.message ?? `Facebook API error: ${res.status}`)
+  return data.id!
 }
 
 export async function replyToComment(

@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { decrypt } from '@/lib/encrypt'
-import { replyToComment } from '@/services/social/facebook'
+import { replyToComment as facebookReply } from '@/services/social/facebook'
+import { replyToComment as instagramReply } from '@/services/social/instagram'
 
 export const dynamic = 'force-dynamic'
 
@@ -43,7 +44,11 @@ export async function POST(req: Request, { params }: RouteContext) {
     }
 
     const accessToken = decrypt(comment.socialAccount.accessToken)
-    await replyToComment(comment.platformCommentId, response.trim(), accessToken)
+    if (platform === 'INSTAGRAM') {
+      await instagramReply(comment.platformCommentId, response.trim(), accessToken)
+    } else {
+      await facebookReply(comment.platformCommentId, response.trim(), accessToken)
+    }
 
     await prisma.comment.update({
       where: { id: commentId },

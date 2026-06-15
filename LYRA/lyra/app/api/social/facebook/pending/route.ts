@@ -1,22 +1,8 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { redisClient } from '@/lib/redis'
 
 export const dynamic = 'force-dynamic'
-
-interface PendingPage {
-  id: string
-  name: string
-  avatarUrl: string | null
-  encryptedToken: string
-}
-
-interface PendingData {
-  workspaceId: string
-  adAccountId: string | null
-  pages: PendingPage[]
-}
 
 export async function GET(req: Request) {
   try {
@@ -28,24 +14,24 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'key required' }, { status: 400 })
     }
 
-    const raw = await redisClient.get(`fb_pending:${pendingKey}`)
-    if (!raw) {
-      return NextResponse.json({ error: 'Pending session expired or not found' }, { status: 404 })
+    const pending = await prisma.facebookPending.findUnique({ where: { key: pendingKey } })
+    if (!pending || pending.expiresAt < new Date()) {
+      return NextResponse.json({ error: 'Pending session expired. Please reconnect Facebook.' }, { status: 404 })
     }
-
-    const data: PendingData = JSON.parse(raw)
 
     // Verify the requesting user has access to the workspace in the pending data
     const access = await prisma.workspaceAccess.findFirst({
-      where: { workspaceId: data.workspaceId, userId: user.id },
+      where: { workspaceId: pending.workspaceId, userId: user.id },
     })
     if (!access) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
+    const data = pending.data as { adAccountId: string | null; pages: Array<{ id: string; name: string; avatarUrl: string | null; encryptedToken: string }> }
+
     // Return display data only — never expose tokens
     return NextResponse.json({
-      workspaceId: data.workspaceId,
+      workspaceId: pending.workspaceId,
       pages: data.pages.map((p) => ({
         id: p.id,
         name: p.name,

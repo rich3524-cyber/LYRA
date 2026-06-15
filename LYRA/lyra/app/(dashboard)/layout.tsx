@@ -31,8 +31,6 @@ export default async function DashboardLayout({
   }
 
   // Determine the active workspace: URL param → highest-plan workspace → cookie
-  // Plan-priority fallback is before cookie because the cookie may have been set
-  // by a stale/buggy navigation to a lower-capability workspace.
   const h = await headers()
   const pathname = h.get('x-pathname') ?? ''
   const urlWorkspaceId = pathname.match(/\/workspace\/([^/?]+)/)?.[1] ?? ''
@@ -48,7 +46,6 @@ export default async function DashboardLayout({
 
   const workspaceId = urlWorkspaceId || planFallbackId || cookieWorkspaceId
 
-  // Resolve plan for the active workspace
   let brandReady = false
   let workspacePlan: string | undefined
   if (workspaceId) {

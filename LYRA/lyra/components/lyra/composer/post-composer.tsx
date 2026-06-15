@@ -165,55 +165,57 @@ export function PostComposer({ workspaceId, connectedPlatforms, onContentChange,
         </div>
       )}
 
-      {/* Toolbar */}
+      {/* Toolbar — row 1: content tools */}
+      <div className="flex items-center gap-3 px-5 py-3 border-t border-background-border">
+        <Button
+          variant="ghost"
+          size="sm"
+          type="button"
+          onClick={handleAIGenerate}
+          disabled={isGenerating}
+          className="text-text-secondary hover:text-text-primary gap-2 text-xs"
+        >
+          <Sparkles size={14} className={cn(isGenerating && 'animate-pulse')} />
+          {isGenerating ? 'Generating…' : 'AI Generate'}
+        </Button>
+        <MediaUploader
+          workspaceId={workspaceId}
+          onUpload={(url) => setMediaUrls((prev) => [...prev, url])}
+        />
+        <Button
+          variant="ghost"
+          size="sm"
+          type="button"
+          onClick={() => setScoreOpen(!scoreOpen)}
+          className={cn('gap-2 text-xs', scoreOpen ? 'text-text-primary' : 'text-text-secondary hover:text-text-primary')}
+        >
+          <BarChart2 size={14} strokeWidth={1.5} />
+          Score
+        </Button>
+      </div>
+
+      {/* Toolbar — row 2: publish actions */}
       <div className="flex items-center justify-between px-5 py-3 border-t border-background-border">
-        <div className="flex items-center gap-3">
-          <Button
-            variant="ghost"
-            size="sm"
-            type="button"
-            onClick={handleAIGenerate}
-            disabled={isGenerating}
-            className="text-text-secondary hover:text-text-primary gap-2 text-xs"
-          >
-            <Sparkles size={14} className={cn(isGenerating && 'animate-pulse')} />
-            {isGenerating ? 'Generating…' : 'AI Generate'}
-          </Button>
-          <MediaUploader
-            workspaceId={workspaceId}
-            onUpload={(url) => setMediaUrls((prev) => [...prev, url])}
-          />
-          <Button
-            variant="ghost"
-            size="sm"
-            type="button"
-            onClick={() => setScoreOpen(!scoreOpen)}
-            className={cn('gap-2 text-xs', scoreOpen ? 'text-text-primary' : 'text-text-secondary hover:text-text-primary')}
-          >
-            <BarChart2 size={14} strokeWidth={1.5} />
-            Score
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            type="button"
-            onClick={() => handleSubmit('DRAFT')}
-            disabled={isSubmitting}
-            className="text-text-tertiary hover:text-text-primary text-xs"
-          >
-            Save draft
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          type="button"
+          onClick={() => handleSubmit('DRAFT')}
+          disabled={isSubmitting}
+          className="text-text-tertiary hover:text-text-primary text-xs"
+        >
+          Save draft
+        </Button>
 
         <div className="flex items-center gap-2">
-          {/* Schedule picker — PopoverTrigger styled directly (no asChild — @base-ui limitation) */}
+          {/* Schedule picker */}
           <Popover>
             <PopoverTrigger
               className="inline-flex items-center gap-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors h-8 px-2 rounded-md hover:bg-background-hover bg-transparent border-0 cursor-pointer"
               aria-label="Set schedule time"
             >
               <CalendarIcon size={14} />
-              {scheduledAt ? format(scheduledAt, 'MMM d, h:mm a') : 'Schedule'}
+              {scheduledAt ? format(scheduledAt, 'MMM d, h:mm a') : 'Pick date & time'}
             </PopoverTrigger>
             <PopoverContent className="w-auto p-0 bg-background-tertiary border-background-border">
               <Calendar mode="single" selected={scheduledAt} onSelect={setScheduledAt} />

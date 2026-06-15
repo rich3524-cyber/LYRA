@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server'
-import { randomUUID } from 'crypto'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { encrypt } from '@/lib/encrypt'
-import { redisClient } from '@/lib/redis'
 import * as facebook from '@/services/social/facebook'
 import * as instagram from '@/services/social/instagram'
 import * as linkedin from '@/services/social/linkedin'
@@ -59,23 +57,26 @@ export async function GET(
         const pages = await facebook.getPages(longToken)
         const adAccountId = await facebook.fetchAdAccountId(longToken)
 
-        // Store pending Page-picker state in Redis (10-minute TTL).
+        // Store pending Page-picker state in DB (10-minute TTL).
         // Tokens are encrypted before storage; the complete route decrypts and writes to DB.
-        const pendingKey = randomUUID()
-        const pendingData = {
-          workspaceId,
-          adAccountId,
-          pages: pages.map((p) => ({
-            id: p.id,
-            name: p.name,
-            avatarUrl: p.avatarUrl ?? null,
-            encryptedToken: encrypt(p.accessToken),
-          })),
-        }
-        await redisClient.set(`fb_pending:${pendingKey}`, JSON.stringify(pendingData), 'EX', 600)
+        const pending = await prisma.facebookPending.create({
+          data: {
+            workspaceId,
+            expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+            data: {
+              adAccountId,
+              pages: pages.map((p) => ({
+                id: p.id,
+                name: p.name,
+                avatarUrl: p.avatarUrl ?? null,
+                encryptedToken: encrypt(p.accessToken),
+              })),
+            },
+          },
+        })
 
         return NextResponse.redirect(
-          `${BASE_URL}/workspace/${workspaceId}/settings?fbpending=${pendingKey}`
+          `${BASE_URL}/workspace/${workspaceId}/settings?fbpending=${pending.key}`
         )
       }
 

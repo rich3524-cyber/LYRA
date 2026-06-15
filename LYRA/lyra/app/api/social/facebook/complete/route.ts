@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { decrypt } from '@/lib/encrypt'
-import { redisClient } from '@/lib/redis'
 import * as instagram from '@/services/social/instagram'
 import { encrypt } from '@/lib/encrypt'
 
@@ -16,7 +15,6 @@ interface PendingPage {
 }
 
 interface PendingData {
-  workspaceId: string
   adAccountId: string | null
   pages: PendingPage[]
 }
@@ -31,21 +29,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'key and selectedPageIds required' }, { status: 400 })
     }
 
-    const raw = await redisClient.get(`fb_pending:${key}`)
-    if (!raw) {
+    const pending = await prisma.facebookPending.findUnique({ where: { key } })
+    if (!pending || pending.expiresAt < new Date()) {
       return NextResponse.json({ error: 'Pending session expired. Please reconnect Facebook.' }, { status: 404 })
     }
 
-    const data: PendingData = JSON.parse(raw)
-
     // Verify the requesting user has access to the workspace in the pending data
     const access = await prisma.workspaceAccess.findFirst({
-      where: { workspaceId: data.workspaceId, userId: user.id },
+      where: { workspaceId: pending.workspaceId, userId: user.id },
     })
     if (!access) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
+    const data = pending.data as unknown as PendingData
     const selectedPages = data.pages.filter((p) => selectedPageIds.includes(p.id))
 
     for (const page of selectedPages) {
@@ -54,13 +51,13 @@ export async function POST(req: Request) {
       await prisma.socialAccount.upsert({
         where: {
           workspaceId_platform_platformId: {
-            workspaceId: data.workspaceId,
+            workspaceId: pending.workspaceId,
             platform: 'FACEBOOK',
             platformId: page.id,
           },
         },
         create: {
-          workspaceId: data.workspaceId,
+          workspaceId: pending.workspaceId,
           platform: 'FACEBOOK',
           platformId: page.id,
           handle: page.name,
@@ -83,13 +80,13 @@ export async function POST(req: Request) {
           await prisma.socialAccount.upsert({
             where: {
               workspaceId_platform_platformId: {
-                workspaceId: data.workspaceId,
+                workspaceId: pending.workspaceId,
                 platform: 'INSTAGRAM',
                 platformId: igAccount.id,
               },
             },
             create: {
-              workspaceId: data.workspaceId,
+              workspaceId: pending.workspaceId,
               platform: 'INSTAGRAM',
               platformId: igAccount.id,
               handle: igAccount.username,
@@ -110,8 +107,8 @@ export async function POST(req: Request) {
       }
     }
 
-    // Clean up Redis key — no longer needed
-    await redisClient.del(`fb_pending:${key}`)
+    // Clean up — delete the pending record
+    await prisma.facebookPending.delete({ where: { key } })
 
     return NextResponse.json({ connected: selectedPages.length })
   } catch (error) {

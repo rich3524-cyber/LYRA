@@ -1,11 +1,10 @@
 import crypto from 'crypto'
 
-const AUTH_URL = 'https://twitter.com/i/oauth2/authorize'
+const AUTH_URL = 'https://x.com/i/oauth2/authorize'
 const TOKEN_URL = 'https://api.twitter.com/2/oauth2/token'
 const API_URL = 'https://api.twitter.com/2'
 
 const SCOPES = ['tweet.read', 'tweet.write', 'users.read'].join(' ')
-
 
 export interface TwitterAccount {
   id: string

@@ -16,7 +16,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 
 interface Workspace {
   id: string
@@ -28,18 +28,23 @@ export function WorkspaceSwitcher({ workspaceId }: { workspaceId: string }) {
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [current, setCurrent] = useState<Workspace | null>(null)
   const router = useRouter()
+  const pathname = usePathname()
+
+  // Derive active workspace from URL — the layout always passes workspaceAccess[0]
+  // so we can't rely on the prop when the user has switched workspaces.
+  const activeWorkspaceId = pathname.match(/\/workspace\/([^/]+)/)?.[1] ?? workspaceId
 
   useEffect(() => {
     fetch('/api/workspaces')
       .then((r) => r.json())
       .then((data: Workspace[]) => {
         setWorkspaces(data)
-        setCurrent(data.find((w) => w.id === workspaceId) ?? null)
+        setCurrent(data.find((w) => w.id === activeWorkspaceId) ?? null)
       })
       .catch(() => {
         // Silently ignore — workspaces API not yet configured
       })
-  }, [workspaceId])
+  }, [activeWorkspaceId])
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -76,7 +81,7 @@ export function WorkspaceSwitcher({ workspaceId }: { workspaceId: string }) {
               >
                 <Check
                   size={12}
-                  className={cn('mr-2', w.id === workspaceId ? 'opacity-100' : 'opacity-0')}
+                  className={cn('mr-2', w.id === activeWorkspaceId ? 'opacity-100' : 'opacity-0')}
                 />
                 {w.name}
               </CommandItem>

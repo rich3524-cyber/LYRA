@@ -1,4 +1,5 @@
 const BASE_URL = 'https://graph.facebook.com/v19.0'
+const TIMEOUT_MS = 10_000
 
 export interface InstagramAccount {
   id: string
@@ -28,4 +29,19 @@ export async function getConnectedAccount(
     username: ig.username as string,
     avatarUrl: ig.profile_picture_url as string | undefined,
   }
+}
+
+export async function replyToComment(
+  platformCommentId: string,
+  text: string,
+  accessToken: string
+): Promise<void> {
+  const res = await fetch(`${BASE_URL}/${platformCommentId}/replies`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ message: text, access_token: accessToken }),
+    signal:  AbortSignal.timeout(TIMEOUT_MS),
+  })
+  const data = await res.json() as { id?: string; error?: { message: string } }
+  if (!res.ok || data.error) throw new Error(data.error?.message ?? `Instagram API error: ${res.status}`)
 }
