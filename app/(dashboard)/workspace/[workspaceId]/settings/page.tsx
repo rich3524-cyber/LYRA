@@ -153,7 +153,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
                   </div>
 
                   <Link
-                    href={`/api/social/connect/${platform.id}?workspaceId=${workspaceId}`}
+                    href={`/api/social/connect/${platform.id}?workspaceId=${workspaceId}${platform.id === 'facebook' ? '&rerequest=true' : ''}`}
                     prefetch={false}
                     className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-sans font-medium transition-all duration-150 bg-background-tertiary border border-background-border-mid text-text-secondary hover:text-text-primary hover:border-accent-silver"
                   >
