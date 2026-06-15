@@ -1,12 +1,12 @@
 export const dynamic = 'force-dynamic'
 
 import { redirect } from 'next/navigation'
+import { headers, cookies } from 'next/headers'
 import { auth0 } from '@/lib/auth0'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { AppShell } from '@/components/lyra/app-shell/app-shell'
-import { computeSetupProgress } from '@/lib/setup-progress'
-import type { SetupProgressData } from '@/lib/setup-progress'
+import { Sidebar } from '@/components/lyra/app-shell/sidebar'
+import { Header } from '@/components/lyra/app-shell/header'
 
 export default async function DashboardLayout({
   children,
@@ -30,51 +30,46 @@ export default async function DashboardLayout({
     )
   }
 
-  // Use highest-plan workspace as the layout fallback (AGENCY > PRO > STARTER)
+  // Determine the active workspace: URL param → highest-plan workspace → cookie
+  const h = await headers()
+  const pathname = h.get('x-pathname') ?? ''
+  const urlWorkspaceId = pathname.match(/\/workspace\/([^/?]+)/)?.[1] ?? ''
+
   const PLAN_PRIORITY: Record<string, number> = { AGENCY: 3, PRO: 2, STARTER: 1 }
   const sortedAccess = [...user.workspaceAccess].sort(
     (a, b) => (PLAN_PRIORITY[b.workspace.plan] ?? 0) - (PLAN_PRIORITY[a.workspace.plan] ?? 0)
   )
-  const workspaceId = sortedAccess[0]?.workspaceId ?? ''
+  const planFallbackId = sortedAccess[0]?.workspaceId ?? ''
 
-  // Check whether Brand AI is unlocked and compute setup progress for the active workspace
+  const c = await cookies()
+  const cookieWorkspaceId = c.get('lyra-active-workspace')?.value ?? ''
+
+  const workspaceId = urlWorkspaceId || planFallbackId || cookieWorkspaceId
+
   let brandReady = false
   let workspacePlan: string | undefined
-  let setupProgress: SetupProgressData | undefined
-  let trendEnabled = false
   if (workspaceId) {
     const ws = await prisma.workspace.findFirst({
       where: { id: workspaceId },
       select: {
         plan: true,
         websiteUrl: true,
-        aiResponseMode: true,
-        trendEnabled: true,
-        brandProfile: { select: { voiceSummary: true } },
-        _count: {
-          select: {
-            socialAccounts: { where: { isActive: true } },
-            posts: { where: { status: { in: ['SCHEDULED', 'PUBLISHED', 'APPROVED'] as const } } },
-          },
-        },
+        _count: { select: { socialAccounts: { where: { isActive: true } } } },
       },
     }).catch(() => null)
     brandReady = !!(ws?.websiteUrl && (ws._count?.socialAccounts ?? 0) > 0)
     workspacePlan = ws?.plan ?? undefined
-    trendEnabled = ws?.trendEnabled ?? false
-    setupProgress = computeSetupProgress(ws)
   }
 
   return (
-    <AppShell
-      user={user}
-      plan={workspacePlan}
-      workspaceId={workspaceId}
-      brandReady={brandReady}
-      setupProgress={setupProgress}
-      trendEnabled={trendEnabled}
-    >
-      {children}
-    </AppShell>
+    <div className="flex h-screen overflow-hidden bg-background-primary">
+      <Sidebar workspaceId={workspaceId} brandReady={brandReady} plan={workspacePlan} />
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <Header user={user} title="" plan={workspacePlan} />
+        <main className="flex-1 overflow-y-auto p-6 animate-fade-in">
+          {children}
+        </main>
+      </div>
+    </div>
   )
 }
