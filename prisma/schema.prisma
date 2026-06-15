@@ -445,3 +445,13 @@ model CompetitorSnapshot {
   engagementBenchmark Float?
   recentPosts         Json?
 }
+
+model FacebookPending {
+  key         String   @id @default(cuid())
+  workspaceId String
+  data        Json
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([expiresAt])
+}
