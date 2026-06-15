@@ -95,6 +95,28 @@ export async function fetchAdAccountId(accessToken: string): Promise<string | nu
   return active ? active.id.replace('act_', '') : null
 }
 
+export async function publishPost(
+  pageId: string,
+  message: string,
+  accessToken: string,
+  scheduledPublishTime?: Date
+): Promise<string> {
+  const body: Record<string, unknown> = { message, access_token: accessToken }
+  if (scheduledPublishTime && scheduledPublishTime > new Date()) {
+    body.scheduled_publish_time = Math.floor(scheduledPublishTime.getTime() / 1000)
+    body.published = false
+  }
+  const res = await fetch(`${BASE_URL}/${pageId}/feed`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify(body),
+    signal:  AbortSignal.timeout(TIMEOUT_MS),
+  })
+  const data = await res.json() as { id?: string; error?: { message: string } }
+  if (!res.ok || data.error) throw new Error(data.error?.message ?? `Facebook API error: ${res.status}`)
+  return data.id!
+}
+
 export async function replyToComment(
   platformCommentId: string,
   message: string,
