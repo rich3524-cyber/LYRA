@@ -53,7 +53,7 @@ export async function PATCH(
     }
 
     const body = await req.json()
-    const { name, industry, websiteUrl, clientAccessLevel, aiResponseMode, crisisAware } = body
+    const { name, industry, websiteUrl, clientAccessLevel, aiResponseMode, crisisAware, timezone } = body
 
     // Plan gate: Starter users cannot enable crisisAware
     if (crisisAware === true && existing.plan === 'STARTER') {
@@ -69,6 +69,7 @@ export async function PATCH(
         ...(clientAccessLevel !== undefined && { clientAccessLevel }),
         ...(aiResponseMode !== undefined && { aiResponseMode }),
         ...(crisisAware !== undefined && { crisisAware: crisisAware === true }),
+        ...(timezone !== undefined && { timezone }),
       },
     })
 

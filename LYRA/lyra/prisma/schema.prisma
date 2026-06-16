@@ -63,6 +63,7 @@ model Workspace {
   stripeCustomerId String?      @unique
   clientAccessLevel ClientAccess @default(NONE)
   aiResponseMode   Autonomy     @default(OFF)
+  timezone          String    @default("UTC")
   crisisAware       Boolean   @default(false)
   crisisActive      Boolean   @default(false)
   crisisTriggeredAt DateTime?
