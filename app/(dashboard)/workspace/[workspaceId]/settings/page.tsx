@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { DeleteWorkspaceButton } from '@/components/lyra/settings/delete-workspace-button'
 import { CrisisAwareToggle } from '@/components/lyra/settings/crisis-aware-toggle'
 import { FacebookPagePicker } from '@/components/lyra/settings/facebook-page-picker'
+import { TimezoneSelector } from '@/components/lyra/settings/timezone-selector'
 
 interface Props {
   params: Promise<{ workspaceId: string }>
@@ -51,6 +52,12 @@ const PLATFORMS: PlatformConfig[] = [
     description: 'Publish video content and monitor engagement.',
     dbPlatforms: ['TIKTOK'],
   },
+  {
+    id: 'youtube',
+    name: 'YouTube',
+    description: 'Publish videos and monitor comments on your YouTube channel.',
+    dbPlatforms: ['YOUTUBE'],
+  },
 ]
 
 const PLATFORM_LABELS: Record<string, string> = {
@@ -60,6 +67,7 @@ const PLATFORM_LABELS: Record<string, string> = {
   GOOGLE_BUSINESS: 'Google Business',
   TWITTER: 'X (Twitter)',
   TIKTOK: 'TikTok',
+  YOUTUBE: 'YouTube',
 }
 
 export default async function SettingsPage({ params, searchParams }: Props) {
@@ -71,7 +79,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
 
   const workspace = await prisma.workspace.findFirst({
     where: { id: workspaceId, access: { some: { userId: user.id } } },
-    select: { id: true, name: true, crisisAware: true, plan: true },
+    select: { id: true, name: true, crisisAware: true, plan: true, timezone: true },
   })
   if (!workspace) notFound()
 
@@ -196,6 +204,22 @@ export default async function SettingsPage({ params, searchParams }: Props) {
               </div>
             )
           })}
+        </div>
+      </section>
+
+      {/* Timezone */}
+      <section className="space-y-3">
+        <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
+          Timezone
+        </p>
+        <div className="p-5 rounded-xl bg-background-secondary border border-background-border space-y-1">
+          <p className="font-sans text-xs text-text-tertiary leading-relaxed mb-3">
+            Post scheduling uses this timezone. Set it to match your audience or client location.
+          </p>
+          <TimezoneSelector
+            workspaceId={workspace.id}
+            currentTimezone={workspace.timezone}
+          />
         </div>
       </section>
 
