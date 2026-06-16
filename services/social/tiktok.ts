@@ -2,7 +2,7 @@ const AUTH_URL = 'https://www.tiktok.com/v2/auth/authorize/'
 const TOKEN_URL = 'https://open.tiktok.com/v2/oauth/token/'
 const API_URL = 'https://open.tiktok.com/v2'
 
-const SCOPES = ['user.info.profile', 'user.info.stats'].join(',')
+const SCOPES = ['user.info.basic'].join(',')
 
 export interface TikTokAccount {
   id: string
