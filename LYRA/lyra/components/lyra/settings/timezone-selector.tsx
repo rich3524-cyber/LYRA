@@ -3,7 +3,6 @@
 import { useState, useTransition, useMemo } from 'react'
 import { Check, ChevronsUpDown, Globe } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { Button } from '@/components/ui/button'
 import {
   Command,
   CommandEmpty,
@@ -88,17 +87,13 @@ export function TimezoneSelector({ workspaceId, currentTimezone }: Props) {
       </div>
 
       <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            role="combobox"
-            aria-expanded={open}
-            aria-label="Select timezone"
-            className="shrink-0 h-8 gap-1.5 px-3 text-xs font-sans font-medium bg-background-tertiary border-background-border-mid text-text-secondary hover:text-text-primary hover:border-accent-silver"
-          >
-            Change
-            <ChevronsUpDown size={12} strokeWidth={1.5} />
-          </Button>
+        <PopoverTrigger
+          aria-expanded={open}
+          aria-label="Select timezone"
+          className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-xs font-sans font-medium bg-background-tertiary border border-background-border-mid text-text-secondary hover:text-text-primary hover:border-accent-silver transition-colors"
+        >
+          Change
+          <ChevronsUpDown size={12} strokeWidth={1.5} />
         </PopoverTrigger>
         <PopoverContent className="w-80 p-0 bg-background-secondary border-background-border" align="end">
           <Command className="bg-transparent">
