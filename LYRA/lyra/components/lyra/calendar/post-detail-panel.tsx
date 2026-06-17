@@ -25,14 +25,48 @@ const STATUS_LABEL: Record<string, string> = {
   CANCELLED:        'Cancelled',
 }
 
-const NEXT_STATUSES: Record<string, { value: string; label: string }[]> = {
-  DRAFT:      [{ value: 'SCHEDULED', label: 'Mark as scheduled' }],
-  SCHEDULED:  [
-    { value: 'DRAFT',     label: 'Move back to draft' },
-    { value: 'CANCELLED', label: 'Cancel post' },
-  ],
-  FAILED:     [{ value: 'DRAFT', label: 'Move back to draft' }],
-  CANCELLED:  [{ value: 'DRAFT', label: 'Move back to draft' }],
+function getNextStatuses(
+  status: string,
+  userRole: string,
+  clientAccessLevel: string,
+): { value: string; label: string; variant?: 'approve' | 'reject' }[] {
+  const isClientApprover = userRole === 'CLIENT_APPROVE'
+  const hasApprovalFlow  = clientAccessLevel === 'APPROVE'
+
+  if (isClientApprover) {
+    if (status === 'PENDING_APPROVAL') {
+      return [
+        { value: 'APPROVED', label: 'Approve',           variant: 'approve' },
+        { value: 'DRAFT',    label: 'Request changes',   variant: 'reject'  },
+      ]
+    }
+    return []
+  }
+
+  switch (status) {
+    case 'DRAFT':
+      return [
+        ...(hasApprovalFlow ? [{ value: 'PENDING_APPROVAL', label: 'Submit for approval' }] : []),
+        { value: 'SCHEDULED', label: 'Mark as scheduled' },
+      ]
+    case 'PENDING_APPROVAL':
+      return [{ value: 'DRAFT', label: 'Recall for editing' }]
+    case 'APPROVED':
+      return [
+        { value: 'SCHEDULED', label: 'Schedule post' },
+        { value: 'DRAFT',     label: 'Move back to draft' },
+      ]
+    case 'SCHEDULED':
+      return [
+        { value: 'DRAFT',     label: 'Move back to draft' },
+        { value: 'CANCELLED', label: 'Cancel post' },
+      ]
+    case 'FAILED':
+    case 'CANCELLED':
+      return [{ value: 'DRAFT', label: 'Move back to draft' }]
+    default:
+      return []
+  }
 }
 
 const BUDGET_OPTIONS = [1000, 2500, 5000, 10000] // cents
@@ -55,12 +89,14 @@ interface Props {
   post: CalendarPost | null
   workspaceId: string
   plan: 'STARTER' | 'PRO' | 'AGENCY'
+  userRole: string
+  clientAccessLevel: string
   onClose: () => void
   onDeleted: (id: string) => void
   onUpdated: (updated: CalendarPost) => void
 }
 
-export function PostDetailPanel({ post, workspaceId, plan, onClose, onDeleted, onUpdated }: Props) {
+export function PostDetailPanel({ post, workspaceId, plan, userRole, clientAccessLevel, onClose, onDeleted, onUpdated }: Props) {
   const [deleting, setDeleting]             = useState(false)
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [boosting, setBoosting]             = useState(false)
@@ -178,7 +214,7 @@ export function PostDetailPanel({ post, workspaceId, plan, onClose, onDeleted, o
 
   const date          = post?.scheduledAt
   const platformColor = post ? (PLATFORM_COLORS[post.socialAccount.platform] ?? PLATFORM_COLORS['TWITTER']) : PLATFORM_COLORS['TWITTER']
-  const nextStatuses  = post ? (NEXT_STATUSES[post.status] ?? []) : []
+  const nextStatuses  = post ? getNextStatuses(post.status, userRole, clientAccessLevel) : []
 
   const canBoost = post &&
     post.status === 'PUBLISHED' &&
@@ -297,13 +333,18 @@ export function PostDetailPanel({ post, workspaceId, plan, onClose, onDeleted, o
                   <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
                     Actions
                   </p>
-                  {nextStatuses.map(({ value, label }) => (
+                  {nextStatuses.map(({ value, label, variant }) => (
                     <button
                       key={value}
                       type="button"
                       onClick={() => handleStatusChange(value)}
                       disabled={updatingStatus}
-                      className="inline-flex items-center gap-2 w-full text-left px-3 py-2.5 rounded-lg border border-background-border font-sans text-xs text-text-secondary hover:border-background-border-mid hover:text-text-primary transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-background-secondary"
+                      className={cn(
+                        'inline-flex items-center gap-2 w-full text-left px-3 py-2.5 rounded-lg border font-sans text-xs transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-background-secondary',
+                        variant === 'approve'
+                          ? 'border-status-success/30 text-status-success hover:border-status-success/60 hover:bg-status-success/5'
+                          : 'border-background-border text-text-secondary hover:border-background-border-mid hover:text-text-primary',
+                      )}
                     >
                       {updatingStatus && <Loader2 size={10} strokeWidth={1.5} className="animate-spin shrink-0" />}
                       {label}

@@ -1,44 +1,43 @@
-import { NextResponse } from 'next/server'
+﻿import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { getUploadPresignedUrl } from '@/lib/s3'
+import { randomUUID } from 'crypto'
 
-const ALLOWED_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/gif',
-  'image/webp',
-  'video/mp4',
-  'video/quicktime',
-  'video/webm',
-]
+export const dynamic = 'force-dynamic'
+
+const BUCKET = process.env.AWS_S3_BUCKET!
+const REGION = process.env.AWS_REGION ?? 'ap-southeast-2'
+
+const ALLOWED_MIME_TYPES: Record<string, string> = {
+  'image/jpeg':      'jpg',
+  'image/png':       'png',
+  'image/gif':       'gif',
+  'image/webp':      'webp',
+  'video/mp4':       'mp4',
+  'video/quicktime': 'mov',
+  'video/webm':      'webm',
+}
 
 export async function POST(req: Request) {
   try {
-    await requireAuth()
+    const user = await requireAuth()
 
-    const { filename, contentType } = await req.json() as {
+    const { filename: _filename, contentType, workspaceId } = await req.json() as {
       filename: string
       contentType: string
+      workspaceId?: string
     }
 
-    if (!filename || !contentType) {
-      return NextResponse.json(
-        { error: 'filename and contentType required' },
-        { status: 400 }
-      )
+    const ext = ALLOWED_MIME_TYPES[contentType]
+    if (!ext) {
+      return NextResponse.json({ error: 'File type not permitted' }, { status: 415 })
     }
 
-    if (!ALLOWED_TYPES.includes(contentType)) {
-      return NextResponse.json(
-        { error: 'File type not allowed' },
-        { status: 400 }
-      )
-    }
+    const folder = workspaceId ?? user.id
+    const key = `media/${folder}/${randomUUID()}.${ext}`
 
-    const ext          = filename.split('.').pop() ?? 'bin'
-    const key          = `media/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
     const presignedUrl = await getUploadPresignedUrl(key, contentType)
-    const publicUrl    = `https://${process.env.AWS_S3_BUCKET}.s3.${process.env.AWS_REGION ?? 'ap-southeast-2'}.amazonaws.com/${key}`
+    const publicUrl = `https://${BUCKET}.s3.${REGION}.amazonaws.com/${key}`
 
     return NextResponse.json({ presignedUrl, publicUrl })
   } catch (error) {

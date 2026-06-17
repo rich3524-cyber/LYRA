@@ -27,14 +27,15 @@ import { PostDetailPanel } from './post-detail-panel'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
-type FilterValue = 'ALL' | 'SCHEDULED' | 'DRAFT' | 'PUBLISHED' | 'FAILED'
+type FilterValue = 'ALL' | 'SCHEDULED' | 'DRAFT' | 'PUBLISHED' | 'PENDING_APPROVAL' | 'FAILED'
 
 const FILTER_TABS: { value: FilterValue; label: string }[] = [
-  { value: 'ALL',       label: 'All' },
-  { value: 'SCHEDULED', label: 'Scheduled' },
-  { value: 'DRAFT',     label: 'Drafts' },
-  { value: 'PUBLISHED', label: 'Published' },
-  { value: 'FAILED',    label: 'Failed' },
+  { value: 'ALL',              label: 'All' },
+  { value: 'SCHEDULED',        label: 'Scheduled' },
+  { value: 'DRAFT',            label: 'Drafts' },
+  { value: 'PENDING_APPROVAL', label: 'Pending' },
+  { value: 'PUBLISHED',        label: 'Published' },
+  { value: 'FAILED',           label: 'Failed' },
 ]
 
 function SkeletonCell() {
@@ -104,7 +105,14 @@ function DayCell({
   )
 }
 
-export function ContentCalendar({ workspaceId, plan }: { workspaceId: string; plan: 'STARTER' | 'PRO' | 'AGENCY' }) {
+interface ContentCalendarProps {
+  workspaceId: string
+  plan: 'STARTER' | 'PRO' | 'AGENCY'
+  userRole: string
+  clientAccessLevel: string
+}
+
+export function ContentCalendar({ workspaceId, plan, userRole, clientAccessLevel }: ContentCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [posts, setPosts]               = useState<CalendarPost[]>([])
   const [loading, setLoading]           = useState(true)
@@ -407,6 +415,8 @@ export function ContentCalendar({ workspaceId, plan }: { workspaceId: string; pl
         post={selectedPost}
         workspaceId={workspaceId}
         plan={plan}
+        userRole={userRole}
+        clientAccessLevel={clientAccessLevel}
         onClose={() => setSelectedPost(null)}
         onDeleted={handlePostDeleted}
         onUpdated={handlePostUpdated}

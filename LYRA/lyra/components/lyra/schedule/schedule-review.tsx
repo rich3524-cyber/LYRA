@@ -90,7 +90,7 @@ export function ScheduleReview({ workspaceId, workspaceName }: Props) {
       const presignRes = await fetch('/api/upload/presign', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ filename: file.name, contentType: file.type }),
+        body:    JSON.stringify({ filename: file.name, contentType: file.type, workspaceId }),
       })
       if (!presignRes.ok) throw new Error('Failed to get upload URL')
 

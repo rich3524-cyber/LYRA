@@ -22,8 +22,10 @@ export default async function CalendarPage({ params }: Props) {
       id: true,
       name: true,
       plan: true,
+      clientAccessLevel: true,
       brandProfile: { select: { id: true } },
       socialAccounts: { where: { isActive: true }, select: { platform: true } },
+      access: { where: { userId: user.id }, select: { role: true } },
     },
   })
 
@@ -31,6 +33,7 @@ export default async function CalendarPage({ params }: Props) {
 
   const hasBrandProfile    = workspace.brandProfile !== null
   const connectedPlatforms = [...new Set(workspace.socialAccounts.map(a => a.platform))]
+  const userRole           = workspace.access[0]?.role ?? 'SMB_OWNER'
 
   return (
     <div className="space-y-6">
@@ -55,7 +58,12 @@ export default async function CalendarPage({ params }: Props) {
         </div>
       </div>
 
-      <ContentCalendar workspaceId={workspaceId} plan={workspace.plan} />
+      <ContentCalendar
+        workspaceId={workspaceId}
+        plan={workspace.plan}
+        userRole={userRole}
+        clientAccessLevel={workspace.clientAccessLevel}
+      />
     </div>
   )
 }

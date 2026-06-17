@@ -21,6 +21,7 @@ export async function PATCH(
         id,
         workspace: { access: { some: { userId: user.id } } },
       },
+      select: { id: true, status: true },
     })
 
     if (!existing) {
@@ -36,6 +37,27 @@ export async function PATCH(
         ...(mediaUrls !== undefined && { mediaUrls }),
       },
     })
+
+    // Manage PostApproval record on approval-related status transitions
+    if (status === 'PENDING_APPROVAL') {
+      await prisma.postApproval.upsert({
+        where:  { postId: id },
+        create: { postId: id, status: 'PENDING' },
+        update: { status: 'PENDING', reviewedAt: null, reviewerId: null },
+      })
+    } else if (status === 'APPROVED') {
+      await prisma.postApproval.upsert({
+        where:  { postId: id },
+        create: { postId: id, status: 'APPROVED', reviewerId: user.id, reviewedAt: new Date() },
+        update: { status: 'APPROVED', reviewerId: user.id, reviewedAt: new Date() },
+      })
+    } else if (status === 'DRAFT' && existing.status === 'PENDING_APPROVAL') {
+      await prisma.postApproval.upsert({
+        where:  { postId: id },
+        create: { postId: id, status: 'REJECTED', reviewedAt: new Date() },
+        update: { status: 'REJECTED', reviewedAt: new Date() },
+      })
+    }
 
     return NextResponse.json(post)
   } catch (error) {

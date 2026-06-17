@@ -19,15 +19,26 @@ export function MediaUploader({ workspaceId, onUpload }: MediaUploaderProps) {
 
     setUploading(true)
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('workspaceId', workspaceId)
+      const presignRes = await fetch('/api/upload/presign', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ filename: file.name, contentType: file.type, workspaceId }),
+      })
+      if (!presignRes.ok) throw new Error('Failed to get upload URL')
 
-      const res = await fetch('/api/upload', { method: 'POST', body: formData })
-      if (!res.ok) throw new Error('Upload failed')
+      const { presignedUrl, publicUrl } = await presignRes.json() as {
+        presignedUrl: string
+        publicUrl: string
+      }
 
-      const { url } = await res.json()
-      onUpload(url)
+      const uploadRes = await fetch(presignedUrl, {
+        method:  'PUT',
+        headers: { 'Content-Type': file.type },
+        body:    file,
+      })
+      if (!uploadRes.ok) throw new Error('Upload failed')
+
+      onUpload(publicUrl)
     } catch {
       toast.error('Failed to upload media')
     } finally {
