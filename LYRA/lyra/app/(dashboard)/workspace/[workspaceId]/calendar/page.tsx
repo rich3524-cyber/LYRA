@@ -37,12 +37,12 @@ export default async function CalendarPage({ params }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="font-display text-4xl text-text-primary">Calendar</h2>
+          <h2 className="font-display text-3xl sm:text-4xl text-text-primary">Calendar</h2>
           <p className="text-text-secondary text-sm mt-1">{workspace.name}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <ScheduleGenerator
             workspaceId={workspaceId}
             hasBrandProfile={hasBrandProfile}

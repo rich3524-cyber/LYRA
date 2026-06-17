@@ -127,7 +127,7 @@ export function ResponseInbox({
         {loading ? (
           <div className="h-7 w-48 rounded-full bg-background-secondary border border-background-border animate-pulse" />
         ) : platforms.length > 1 ? (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {(['ALL', ...platforms] as string[]).map(p => (
               <button
                 key={p}

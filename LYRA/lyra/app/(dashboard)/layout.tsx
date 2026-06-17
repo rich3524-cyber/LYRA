@@ -5,8 +5,7 @@ import { headers, cookies } from 'next/headers'
 import { auth0 } from '@/lib/auth0'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { Sidebar } from '@/components/lyra/app-shell/sidebar'
-import { Header } from '@/components/lyra/app-shell/header'
+import { AppShellClient } from '@/components/lyra/app-shell/app-shell-client'
 
 export default async function DashboardLayout({
   children,
@@ -62,14 +61,13 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background-primary">
-      <Sidebar workspaceId={workspaceId} brandReady={brandReady} plan={workspacePlan} />
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <Header user={user} title="" plan={workspacePlan} />
-        <main className="flex-1 overflow-y-auto p-6 animate-fade-in">
-          {children}
-        </main>
-      </div>
-    </div>
+    <AppShellClient
+      user={user}
+      workspaceId={workspaceId}
+      brandReady={brandReady}
+      plan={workspacePlan}
+    >
+      {children}
+    </AppShellClient>
   )
 }

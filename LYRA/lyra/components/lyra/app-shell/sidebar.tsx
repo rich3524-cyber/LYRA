@@ -81,7 +81,7 @@ export function Sidebar({
             key={label}
             href={`${base}/settings`}
             title={lockTitle}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-text-tertiary hover:bg-background-hover transition-all duration-150"
+            className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm text-text-tertiary hover:bg-background-hover transition-all duration-150"
             aria-label={isCollapsed ? `${label} (locked)` : undefined}
           >
             <Lock size={16} className="shrink-0" strokeWidth={1.5} />
@@ -110,7 +110,7 @@ export function Sidebar({
             <Link
               href={fullHref}
               className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150 group border',
+                'flex items-center gap-3 px-3 py-3 rounded-lg text-sm transition-all duration-150 group border',
                 isActive
                   ? 'bg-purple-500/10 border-purple-500/70 text-purple-300'
                   : 'border-purple-500/30 text-purple-400 hover:bg-purple-500/10 hover:border-purple-500/60 hover:text-purple-300',
@@ -140,7 +140,7 @@ export function Sidebar({
           key={label}
           href={fullHref}
           className={cn(
-            'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150 group',
+            'flex items-center gap-3 px-3 py-3 rounded-lg text-sm transition-all duration-150 group',
             isActive
               ? 'bg-background-hover text-text-primary'
               : 'text-text-secondary hover:text-text-primary hover:bg-background-hover',
@@ -234,7 +234,7 @@ export function Sidebar({
                 <Link
                   href={fullHref}
                   className={cn(
-                    'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all duration-150 group',
+                    'flex items-center gap-3 px-3 py-3 rounded-lg text-sm transition-all duration-150 group',
                     isActive
                       ? 'bg-background-hover text-text-primary'
                       : 'text-text-secondary hover:text-text-primary hover:bg-background-hover',
@@ -264,7 +264,7 @@ export function Sidebar({
         <div className="border-t border-background-border p-2 space-y-0.5">
           <Link
             href={`${base}/settings`}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-text-secondary hover:text-text-primary hover:bg-background-hover transition-all duration-150"
+            className="flex items-center gap-3 px-3 py-3 rounded-lg text-sm text-text-secondary hover:text-text-primary hover:bg-background-hover transition-all duration-150"
             aria-label={isCollapsed ? 'Settings' : undefined}
           >
             <Settings size={16} strokeWidth={1.5} className="shrink-0" />

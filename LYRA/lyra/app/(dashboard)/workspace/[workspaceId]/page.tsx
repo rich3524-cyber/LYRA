@@ -180,7 +180,7 @@ export default async function WorkspaceOverviewPage({ params }: Props) {
               const statusLabel = STATUS_LABEL[post.status] ?? post.status
 
               return (
-                <div key={post.id} className="flex items-center justify-between gap-4 px-5 py-3">
+                <div key={post.id} className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3">
                   <div className="min-w-0 flex items-center gap-3">
                     {platform && (
                       <span className="font-mono text-xs text-text-tertiary shrink-0 w-7">
@@ -191,8 +191,8 @@ export default async function WorkspaceOverviewPage({ params }: Props) {
                       {preview || '—'}
                     </p>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="font-sans text-xs text-text-tertiary">
+                  <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                    <span className="hidden sm:inline font-sans text-xs text-text-tertiary">
                       {format(new Date(date), 'MMM d')}
                     </span>
                     <span className={`font-sans text-xs px-2 py-0.5 rounded-md font-medium ${statusColour}`}>
