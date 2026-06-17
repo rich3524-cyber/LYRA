@@ -51,9 +51,6 @@ export async function exchangeCode(code: string): Promise<{
   }
   if (data.error) throw new Error(`TikTok token error: ${(data.error_description as string) ?? (data.error as string)}`)
   const tokenData = (data.data ?? data) as Record<string, unknown>
-  if (!tokenData.access_token) {
-    throw new Error(`TikTok token missing access_token. Response: ${JSON.stringify(data).slice(0, 400)}`)
-  }
   return {
     accessToken: tokenData.access_token as string,
     refreshToken: tokenData.refresh_token as string,
