@@ -42,8 +42,14 @@ export async function exchangeCode(code: string): Promise<{
       redirect_uri: `${process.env.APP_BASE_URL}/api/social/callback/tiktok`,
     }),
   })
-  const data = await res.json()
-  if (data.error) throw new Error(data.error_description ?? data.error)
+  const rawToken = await res.text()
+  let data: Record<string, unknown>
+  try {
+    data = JSON.parse(rawToken) as Record<string, unknown>
+  } catch {
+    throw new Error(`TikTok token endpoint returned non-JSON (HTTP ${res.status}): ${rawToken.slice(0, 300)}`)
+  }
+  if (data.error) throw new Error(`TikTok token error: ${(data.error_description as string) ?? (data.error as string)}`)
   return {
     accessToken: data.data.access_token as string,
     refreshToken: data.data.refresh_token as string,
@@ -61,8 +67,15 @@ export async function getUser(
       Authorization: `Bearer ${accessToken}`,
     },
   })
-  const data = await res.json()
-  if (data.error && data.error.code !== 'ok') throw new Error(data.error.message ?? 'TikTok API error')
+  const rawUser = await res.text()
+  let data: Record<string, unknown>
+  try {
+    data = JSON.parse(rawUser) as Record<string, unknown>
+  } catch {
+    throw new Error(`TikTok user/info returned non-JSON (HTTP ${res.status}): ${rawUser.slice(0, 300)}`)
+  }
+  const errObj = data.error as Record<string, string> | undefined
+  if (errObj && errObj.code !== 'ok') throw new Error(errObj.message ?? 'TikTok API error')
   return {
     name: data.data.user.display_name as string,
     avatarUrl: data.data.user.avatar_url as string | undefined,
