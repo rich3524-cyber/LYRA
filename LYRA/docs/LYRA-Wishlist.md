@@ -54,7 +54,56 @@ These items were on the original Phase 2 plan. Most are built; the ones below ar
 
 ## New Ideas
 
-*Add future wishlist items here.*
+Sorted by importance — prerequisites first, differentiators second, polish last.
+
+---
+
+### 🔴 Critical — Prerequisites for Agencies at Scale
+
+**1. Notifications**
+LYRA's autonomy promise breaks without this. When a crisis triggers, a post fails, an approval is needed, or a comment is escalated — there is currently no way to tell anyone. Two layers needed: (a) urgent alerts sent immediately (crisis, post failure, escalation) and (b) a daily or weekly digest summarising posts published, comments responded to, drafts waiting, and top-performing content. Email is the minimum; push notifications via browser or mobile would be the full solution.
+
+**2. Client portal**
+The client approval workflow was built (Session 38) but clients have no interface to use it from. Agencies need a stripped-down client-facing view where clients can see their content calendar, approve or reject pending posts, and read AI draft responses — without accessing the full LYRA dashboard. The data model (`ClientAccess`, `WorkspaceAccess`, `PostApproval`) is already in place. This is the UI layer that makes the approval workflow usable in the real world.
+
+**3. Team member invitations**
+The schema supports roles (`AGENCY_ADMIN`, `CLIENT_APPROVE`, `SMB_OWNER`) and `WorkspaceAccess` records, but there is no UI to invite someone to a workspace or grant them a role. Currently the only way to add a team member is a direct database insert. Agencies have teams. This needs an invite-by-email flow with role selection.
+
+---
+
+### 🟠 High Value — Differentiators
+
+**4. Best time to post**
+LYRA already collects `PostMetrics` (likes, comments, shares, reach) for every published post. The engagement heat map on the Brand page is phase one. Phase two: close the loop in the composer by surfacing AI-generated posting time recommendations per platform, based on each workspace's own historical data — not generic industry averages. "Your last 30 LinkedIn posts suggest Tuesday 9am gets 3× your average engagement." No other scheduling tool does this with client-specific data.
+
+**5. Bulk scheduling / CSV import**
+Agencies plan content in spreadsheets. Every post currently has to be created individually in the composer. A CSV upload — columns: date, time, platform, caption, media URL — would let an agency upload an entire month's content in one step. The scheduled posts would appear in the calendar immediately. Standard agency workflow; frequently requested by social media managers.
+
+**6. Email digest**
+Weekly (or configurable) summary email per workspace sent to the workspace owner: posts published, comments responded to by AI, drafts waiting for review, crisis events, and the top-performing post of the week. Keeps agency owners and their clients informed without requiring a login. Pairs directly with the autonomous mode value proposition — if LYRA is working while you sleep, you need a morning report.
+
+---
+
+### 🟡 Medium Priority — Worth Building Post-Launch
+
+**7. Post recycling / evergreen content**
+Mark a post as evergreen and have LYRA auto-reshare it on a configurable schedule (e.g., every 90 days). Useful for high-performing content, product announcements, and seasonal campaigns. Simple to implement on top of the existing scheduler — just re-enqueue with a future `scheduledAt` date when a post is marked as evergreen.
+
+**8. Hashtag intelligence**
+When composing a post, LYRA analyses the content and the workspace brand profile and suggests platform-appropriate hashtags. LinkedIn hashtags differ from Instagram hashtags in style, count, and intent. Claude can generate these with a short prompt. Could also track which hashtags historically drive the most engagement for that workspace.
+
+**9. White-labeling**
+Agency tier upsell: custom domain (e.g., `social.agencyname.com`), logo replacement, and colour scheme override. Agencies that resell LYRA to clients under their own brand would pay a premium for this. Significant additional revenue per Agency seat.
+
+**10. UTM parameter automation**
+When a post contains a URL, automatically append UTM parameters (`utm_source`, `utm_medium`, `utm_campaign`) based on configurable workspace defaults. Links then flow into Google Analytics with correct attribution. Agencies tracking campaign ROI will want this.
+
+---
+
+### 🔵 Compliance — Needed Before Scaling to Europe
+
+**11. GDPR tools**
+Data export (all data held for a user/workspace as a downloadable ZIP) and deletion requests (purge a workspace and all its data on request). Required for any EU customers. Also needed: a visible data processing agreement and a cookie consent banner on the marketing site. Low effort to build; high risk to skip.
 
 ---
 
