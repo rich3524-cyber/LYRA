@@ -52,6 +52,12 @@ const PLATFORMS: PlatformConfig[] = [
     description: 'Publish video content and monitor engagement.',
     dbPlatforms: ['TIKTOK'],
   },
+  {
+    id: 'youtube',
+    name: 'YouTube',
+    description: 'Publish videos and monitor comments on your YouTube channel.',
+    dbPlatforms: ['YOUTUBE'],
+  },
 ]
 
 const PLATFORM_LABELS: Record<string, string> = {
@@ -61,6 +67,7 @@ const PLATFORM_LABELS: Record<string, string> = {
   GOOGLE_BUSINESS: 'Google Business',
   TWITTER: 'X (Twitter)',
   TIKTOK: 'TikTok',
+  YOUTUBE: 'YouTube',
 }
 
 export default async function SettingsPage({ params, searchParams }: Props) {

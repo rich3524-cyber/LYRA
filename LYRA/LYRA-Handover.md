@@ -1,12 +1,157 @@
 # LYRA — Project Handover Document
 
-**Date:** May 2026 (updated June 2026)  
+**Date:** May 2026 (updated June 2026 — Meta App Review submission ready)  
 **Prepared by:** Claude Code (Anthropic)  
 **Project owner:** Richard Unwin, Into The Wild Marketing
 
 ---
 
 ## Changelog
+
+### June 2026 — Meta App Review submission ready + TikTok app setup
+
+---
+
+#### Meta App Review — all API calls registered, submit tomorrow (latest session)
+
+All permissions now have green ticks except API call counts, which propagate within 24 hours. Submit for review once they appear in the dashboard.
+
+**All API calls now registered:**
+- `pages_manage_posts` — `POST /api/posts/meta-review-publish-test-002/publish` → published to Page `984761128056168`
+- `pages_read_user_content` — `POST /api/comments/sync` with `workspaceId: 'cmqdfm4ay0002l509z4babj2m'`
+- `pages_manage_metadata` — new `GET /api/fb-subscribe-test` endpoint calling `/{pageId}/subscribed_apps`
+- `instagram_basic`, `instagram_manage_comments`, `instagram_content_publish` — new `POST /api/ig-permissions-test` endpoint (all three in one call, IG account `17841444009821314`)
+- `pages_read_engagement`, `pages_manage_engagement` — registered during screencast recordings
+
+**New endpoints added this session:**
+- `app/api/fb-subscribe-test/route.ts` — GET `/{pageId}/subscribed_apps` for `pages_manage_metadata`
+- `app/api/ig-permissions-test/route.ts` — combined: IG profile (instagram_basic) + media/comments read (instagram_manage_comments) + two-step publish (instagram_content_publish)
+
+**Descriptions written and submitted for:** `pages_read_user_content`, `pages_manage_posts`, `pages_manage_metadata`, `pages_read_engagement`
+
+**Data handling section completed:**
+- Data processors listed: Supabase, Netlify, Railway, Auth0, Anthropic, AWS
+- Controller: Into The Wild Marketing, Australia
+- No national security data disclosures (new app, no users)
+- All four data request policies checked
+
+**Facebook Page change:** User reconnected Facebook with a different Page. Active Page is now `984761128056168` (new page). Previous test page `1187426017779644` is now inactive.
+
+**Note for post-approval:** All test endpoints (`/api/ig-test`, `/api/ig-permissions-test`, `/api/fb-subscribe-test`) can be deleted once App Review is approved — they exist only for API call registration.
+
+---
+
+#### TikTok developer app setup (this session)
+
+- TikTok app created in TikTok Developer Portal
+- **DNS verification:** lyraonline.ai DNS is managed by **Cloudflare** (not Netlify — adding records in Netlify has no effect). Added TXT record `tiktok-developers-site-verification=E2wJoAu60THV59eiSxET1B0RtuhUD2Wh` to Cloudflare → verified.
+- **Redirect URI added:** `https://lyraonline.ai/api/social/callback/tiktok`
+- **Env vars added to Netlify:** `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`
+- **App Review submission text written** — see below
+- **OAuth error:** `unauthorized_client / error_type=client_key` — expected in sandbox mode. Only users added as Testers in TikTok Developer Portal → Tester Management can authenticate until the app passes review.
+- **App Review status:** Submitted (screencasts + description). Awaiting TikTok review. Timeline: 1–7 business days.
+
+**TikTok App Review description (on file):**
+> LYRA is an AI-powered social media management platform for agencies, freelancers, and businesses. Users connect their TikTok Business Account to LYRA to schedule and publish video content directly to TikTok. Content Posting API (video.upload, video.publish): Users create posts in LYRA's composer, attach a video, and set a publish time. LYRA's background scheduler publishes the video to TikTok automatically at the scheduled time using the stored access token. Login Kit (user.info.basic): Used during OAuth to authenticate the user's TikTok account and display the connected account name and avatar within the LYRA workspace settings.
+
+---
+
+#### DNS management — Cloudflare (discovered this session)
+
+lyraonline.ai nameservers point to Cloudflare (`johnathan.ns.cloudflare.com`, `daniella.ns.cloudflare.com`). All DNS records must be managed in **Cloudflare dashboard**, not Netlify. Existing records confirmed:
+- TXT: `MS=ms59571944` (Microsoft verification)
+- TXT: `v=spf1 include:spf.efwd.registrar-servers.com include:spf.protection.outlook.com -all` (SPF)
+- TXT: `tiktok-developers-site-verification=E2wJoAu60THV59eiSxET1B0RtuhUD2Wh` (TikTok)
+
+Any future platform DNS verifications (LinkedIn, Google, etc.) must go into Cloudflare.
+
+---
+
+### June 2026 — Meta App Review prep + Facebook/Instagram API fixes
+
+---
+
+#### Meta App Review — submission ready (prior session)
+
+All 8 permission screencasts recorded and uploaded. Justification text written and added. Test reviewer account created (`metareviewLYRA2026@proton.me`, ProtonMail signup via lyraonline.ai, added to LYRA workspace as AGENCY_ADMIN, `aiResponseMode` set to DRAFT_APPROVE). Test credentials added to the submission.
+
+**API call requirements resolved (prior session):**
+- `pages_manage_posts` — registered via `POST /api/posts/[id]/publish` calling `/1187426017779644/feed` with the stored page access token
+- `instagram_content_publish` — registered via `POST /api/ig-test` using the two-step container create → media_publish flow
+- `pages_read_engagement`, `pages_manage_engagement`, `instagram_basic`, `instagram_manage_comments` — API calls made during screen recordings; propagation expected overnight (same pattern as earlier permissions that appeared after ~24 hours)
+
+**Submission status:** All API calls registered across all permissions. All green ticks except API call counts (propagate within 24 hours). Submit once counts appear in the dashboard.
+
+Key IDs:
+- Facebook Page ID: `1187426017779644`
+- Instagram Business Account ID: `17841415730537255`
+- Reviewer workspace: `cmqdfm4ay0002l509z4babj2m`
+
+---
+
+#### Facebook OAuth fixes (this session)
+
+- **Removed `config_id` from `getAuthUrl()`** — `config_id` overrides the `scope` parameter entirely, silently dropping all Instagram permissions from the OAuth dialog. Removed; scope list now takes effect correctly.
+- **Removed `ads_management` from SCOPES** — was causing Meta to block Facebook Login for the entire app.
+- **Added `auth_type=rerequest`** to the Facebook reconnect link in Workspace Settings — forces the permission dialog to appear even when Facebook has cached a prior grant.
+
+---
+
+#### Redis replaced with DB for Facebook page-picker (this session)
+
+The OAuth page-picker flow (user selects which Facebook Pages to connect) previously stored pending state in Redis. Redis is unavailable on Netlify serverless (falls back to localhost:6379 which doesn't exist), causing "Failed to load Pages" errors.
+
+**Fix:** Added `FacebookPending` Prisma model; replaced Redis in 3 routes:
+- `app/api/social/callback/[platform]/route.ts` — creates DB record instead of Redis key
+- `app/api/social/facebook/pending/route.ts` — reads from DB instead of Redis
+- `app/api/social/facebook/complete/route.ts` — reads + deletes DB record instead of Redis
+
+**Schema (applied via Supabase SQL):**
+```sql
+CREATE TABLE "FacebookPending" (
+  "key"         TEXT PRIMARY KEY,
+  "workspaceId" TEXT NOT NULL,
+  "data"        JSONB NOT NULL,
+  "expiresAt"   TIMESTAMP(3) NOT NULL,
+  "createdAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX "FacebookPending_expiresAt_idx" ON "FacebookPending"("expiresAt");
+```
+
+---
+
+#### Instagram comment reply fixed (this session)
+
+Reply route was calling `facebookReply()` for Instagram comments. Fixed:
+- Added `replyToComment()` to `services/social/instagram.ts` using `/{comment-id}/replies` endpoint
+- Field is `message` (not `text`) — Instagram comment replies use `message` same as Facebook
+- `app/api/comments/[id]/reply/route.ts` now routes by platform (INSTAGRAM → instagram service, FACEBOOK → facebook service)
+
+---
+
+#### New API endpoints (this session)
+
+- **`POST /api/posts/[id]/publish`** — direct Facebook + Instagram publish bypassing BullMQ workers. Facebook: posts to `/{pageId}/feed`. Instagram: two-step container create → `media_publish`. Updates post status to PUBLISHED on success. Used for testing and for manual publish when Railway workers are not reachable.
+- **`POST /api/comments/sync`** — direct comment sync bypassing BullMQ. Calls Graph API for FACEBOOK and INSTAGRAM accounts, upserts Comment rows. Triggered by the Sync button in the response inbox UI.
+- **`POST /api/ig-test`** — one-shot Instagram test publish using the stored page token. Created for Meta App Review API call verification. Can be deleted post-review.
+
+---
+
+#### Netlify base directory was wrong (this session)
+
+**Problem:** New API routes (new directories) returned 404 while existing routes worked. Root cause: Netlify UI base directory was set to `/` (git repo root = OneDrive folder) instead of `LYRA/lyra`. Next.js was building from the wrong directory. Existing routes worked only because they were in a stale `.next` cache from when the base was correctly set.
+
+**Fix:** Changed Netlify → Site configuration → Build & deploy → Build settings → Base directory from `/` to `LYRA/lyra`. Triggered "Clear cache and deploy site" to force a full rebuild.
+
+**Note on git force-add:** Files under `LYRA/` require `git add -f` because the root `.gitignore` contains `/LYRA`. Once committed with `-f`, files are in git normally and Netlify clones them correctly. Modified files (already tracked) also require `git add -f` when run from within the LYRA directory. Without `-f`, git silently ignores the add command.
+
+---
+
+#### Response Inbox — Sync button added (this session)
+
+Added a **Sync** button (RefreshCw icon) to the response inbox toolbar (`components/lyra/inbox/response-inbox.tsx`). Calls `POST /api/comments/sync` for the current workspace. Shows disabled + spinner state during sync. Refreshes the comment list on completion.
+
+---
 
 ### June 2026 — Netlify Build Fix + Brand Guidelines Textarea
 
@@ -519,10 +664,13 @@ LYRA (lyraonline.ai) is a premium AI-powered social media management SaaS platfo
 ### 4.1 Netlify (App Host)
 
 - **Site name:** lyra-online-app
+- **Base directory:** `LYRA/lyra` ← **critical — must be set in Netlify UI**
 - **Build command:** `rm -rf .next && npx prisma generate && npm run build`
 - **Publish directory:** `.next`
 - **Node version:** 20
 - **Plugin:** `@netlify/plugin-nextjs`
+
+**Base directory is critical.** The git repo root is the entire OneDrive folder (`C:/Users/Rich/OneDrive - Into The Wild Marketing`), not the LYRA app. If the Netlify UI base directory is set to `/` (the default when connecting the repo), Next.js builds from the wrong directory. Existing routes will appear to work (from stale `.next` cache) but any new route in a new directory will return 404. The base directory must be `LYRA/lyra`. Verify this in Netlify → Site configuration → Build & deploy → Build settings.
 
 `rm -rf .next` is essential — it clears the Turbopack incremental cache that the plugin restores before each build. Without it, changed source files can be compiled against cached output, producing stale bundles that survive multiple deploys.
 
@@ -557,7 +705,7 @@ LYRA (lyraonline.ai) is a premium AI-powered social media management SaaS platfo
 | Facebook/Instagram | LYRA (App ID: 1480576426774303) | OAuth flow built — needs testing |
 | Google Business | Not created yet | Flow built, untested |
 | X (Twitter) | Not created yet | Flow built, untested |
-| TikTok | Not created yet | Flow built, untested |
+| TikTok | `TIKTOK_CLIENT_KEY` + `TIKTOK_CLIENT_SECRET` in Netlify env vars | App created. App Review submitted. Sandbox mode — only Tester accounts can connect until approved. Redirect URI: `https://lyraonline.ai/api/social/callback/tiktok` |
 | YouTube | Uses GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET | OAuth flow built — YouTube Data API v3 must be enabled in Google Cloud |
 
 ### 4.6 Google Search Console
@@ -799,8 +947,8 @@ One workspace is currently active in production:
 
 **LinkedIn:**
 - Only personal profiles can be connected with current approved scopes (`openid profile email`)
-- Company page posting requires the LinkedIn Community Management API — this requires a separate LinkedIn Developer application and approval process
-- Personal posting (`w_member_social` scope) requires LinkedIn to verify and approve the app — apply at [LinkedIn Developer Portal](https://developer.linkedin.com)
+- Company page posting requires the LinkedIn Community Management API — **application submitted 2026-06-17, awaiting approval email**
+- Personal posting (`w_member_social` scope) also applied for — awaiting approval
 
 **Facebook / Instagram — Meta App Review required:**
 - OAuth flow is built. App ID: `1480576426774303`. Full 11-scope OAuth with page-picker is implemented in code.
@@ -808,10 +956,30 @@ One workspace is currently active in production:
 - The detailed step-by-step submission guide is at `LYRA/docs/meta-app-review-guide.md` — read this before starting.
 - See the dedicated Meta App Review section below for full current status.
 
-**Google Business, Twitter, TikTok:**
+**Google Business:**
 - OAuth service files and routes exist in the codebase
-- Developer apps have not been created for these platforms yet
-- Connection will fail until the respective developer apps are created and credentials added to Netlify env vars
+- Google Cloud project already has `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` configured (shared with YouTube)
+- YouTube Data API v3 enabled ✅; YouTube redirect URI added ✅; YouTube card added to settings page ✅
+- Google Business redirect URI (`https://lyraonline.ai/api/social/callback/google`) added to OAuth client ✅ (2026-06-17)
+- My Business Account Management API + My Business Business Information API enabled ✅ (2026-06-17)
+- **GBP API access request submitted 2026-06-17 — Case ID `5-5485000041034`** — review takes 7–10 business days (~2026-06-30). Check approval via Cloud Console → APIs & Services → Quotas → filter "My Business" → 300 QPM = approved.
+- No code changes needed post-approval — connection will work immediately once access is granted
+
+**TikTok:**
+- App ID `7651492968678934535` — created 2026-06-17
+- Login Kit + Content Posting API products added
+- Scopes: `user.info.profile`, `user.info.stats`, `video.publish`, `video.upload`
+- Redirect URI: `https://lyraonline.ai/api/social/callback/tiktok`
+- `TIKTOK_CLIENT_KEY` + `TIKTOK_CLIENT_SECRET` added to Netlify ✅
+- App is in **sandbox mode** — add TikTok account as sandbox tester in app dashboard before testing
+- Production access requires TikTok app review submission after sandbox testing is complete
+- Code scope updated from `user.info.basic` → `user.info.profile` to match TikTok v2 API
+
+**Twitter:**
+- OAuth service files and routes exist in the codebase
+- Developer app not yet created — in progress 2026-06-17
+- `offline.access` scope added to code (required for refresh tokens — was missing)
+- Connection will fail until `TWITTER_CLIENT_ID` + `TWITTER_CLIENT_SECRET` are added to Netlify env vars
 
 **YouTube:**
 - OAuth flow built using Google OAuth 2.0 with `youtube` and `youtube.upload` scopes
@@ -837,9 +1005,11 @@ One workspace is currently active in production:
 ### Meta App Review — Full Status (as of June 2026)
 
 **App:** LYRA — App ID `1480576426774303`  
-**App type:** Business (required — must not be Consumer)  
-**Current mode:** Development (only roles on the app can connect)  
-**Guide:** `LYRA/docs/meta-app-review-guide.md`
+**App type:** Business  
+**Current mode:** Development (only roles on the app can connect — Live Mode pending App Review)  
+**Review status:** Submitted 2026-06-17 — **Review in progress** (up to 20 days; decision expected ~2026-07-07)  
+**Guide:** `LYRA/docs/meta-app-review-guide.md`  
+**Submission status:** All API calls registered. Submit once API call counts appear in the dashboard (expected within 24 hours of 15 June 2026 session).
 
 ---
 
@@ -853,16 +1023,16 @@ Until the app passes App Review and enters Live Mode, only users with Admin/Deve
 
 | Permission | Purpose | Status |
 |---|---|---|
-| `pages_show_list` | List Pages a user manages — without this, `/me/accounts` returns empty | Pending |
-| `pages_manage_posts` | Publish posts to Facebook Pages | Pending |
-| `pages_read_engagement` | Read comments and reactions from Pages | Pending |
-| `pages_manage_engagement` | Post replies to comments — core of the AI response feature | Pending |
-| `pages_manage_metadata` | Subscribe to Page webhooks for real-time comment alerts | Pending |
-| `pages_read_user_content` | Read visitor-generated content (comments, visitor posts) | Pending |
-| `business_management` | Access Pages/ad accounts via Meta Business Manager | Pending |
-| `instagram_basic` | Link the Instagram Business/Creator account attached to a Page | Pending |
-| `instagram_content_publish` | Publish posts to Instagram via Content Publishing API | Pending |
-| `instagram_manage_comments` | Read and reply to comments on Instagram media | Pending |
+| `pages_show_list` | List Pages a user manages — without this, `/me/accounts` returns empty | Submitted |
+| `pages_manage_posts` | Publish posts to Facebook Pages | Submitted — API calls registered ✅ |
+| `pages_read_engagement` | Read comments and reactions from Pages | Submitted — API calls registered ✅ |
+| `pages_manage_engagement` | Post replies to comments — core of the AI response feature | Submitted — API calls registered ✅ |
+| `pages_manage_metadata` | Subscribe to Page webhooks for real-time comment alerts | Submitted |
+| `pages_read_user_content` | Read visitor-generated content (comments, visitor posts) | Submitted |
+| `business_management` | Access Pages/ad accounts via Meta Business Manager | Removed — not required for core features |
+| `instagram_basic` | Link the Instagram Business/Creator account attached to a Page | Submitted — API calls pending propagation ⏳ |
+| `instagram_content_publish` | Publish posts to Instagram via Content Publishing API | Submitted — API calls registered ✅ |
+| `instagram_manage_comments` | Read and reply to comments on Instagram media | Submitted — API calls pending propagation ⏳ |
 | `ads_management` | Create and manage boost campaigns (Post Boosting feature) | **Blocked — see below** |
 
 ---
@@ -885,17 +1055,26 @@ Find your ad account ID in Meta Business Manager → Ad Accounts.
 
 ---
 
-#### Steps remaining before submission (Richard's actions)
+#### Submission checklist — status as of June 2026
 
-1. **Complete Meta Business Verification** — go to Meta Business Manager → Security Centre → Start Verification. Need: ABN, Australian business address, lyraonline.ai website. Takes 1–5 business days. **Must be verified before submitting App Review.**
-2. **Add Facebook Login for Business product** — App Dashboard → Add Product → Facebook Login for Business. This replaces standard Facebook Login.
-3. **Create a Login for Business Configuration** — add all 11 permissions above + Page and Instagram asset types. Note the Configuration ID and pass to developer.
-4. **Developer action:** Add `config_id` parameter to `getAuthUrl()` in `services/social/facebook.ts` once Configuration ID is received.
-5. **Create a test Facebook account and Page** — App Dashboard → Roles → Test Users. Create dummy posts and comments on the test Page for use in screencasts.
-6. **Record 11 screencasts** — one per permission, showing the full user journey through LYRA. Requirements: MP4/MOV, under 50MB, min 720p, must show LYRA UI → Facebook consent screen → result. Full instructions in `docs/meta-app-review-guide.md`.
-7. **Request Advanced Access for all 11 permissions** with justification text (full text in the guide).
-8. **Submit for App Review** — Notes to Reviewer template is in the guide.
-9. **Monitor email daily** — Meta reviewers respond with follow-up questions. Respond within 24 hours to keep the review moving. Total timeline: 2–6 weeks after submission.
+- [x] Meta Business Verification complete
+- [x] Facebook Login for Business product added (App Dashboard)
+- [x] Login for Business Configuration created
+- [x] `config_id` removed from `getAuthUrl()` — scope list now controls permissions directly (config_id was overriding scope, silently dropping Instagram permissions)
+- [x] Test Facebook account + Page created with dummy posts and comments
+- [x] 8 screencasts recorded and uploaded (one per non-blocked permission)
+- [x] Justification text written and submitted for all permissions
+- [x] Test reviewer account created — `metareviewLYRA2026@proton.me` (ProtonMail, password in 1Password)
+  - Added to workspace `cmqdfm4ay0002l509z4babj2m` as AGENCY_ADMIN
+  - `aiResponseMode` set to DRAFT_APPROVE so reviewer can see AI draft workflow
+- [x] App icon uploaded
+- [x] Privacy policy URL added
+- [x] `business_management` scope removed (was unnecessary, simplified the submission)
+- [x] API calls registered for: `pages_manage_posts`, `pages_read_engagement`, `pages_manage_engagement`, `instagram_content_publish`
+- [ ] API call counts for `instagram_basic` and `instagram_manage_comments` to propagate overnight
+- [ ] **Submit for App Review** — the one remaining step
+
+**After submitting:** Monitor email daily. Meta reviewers respond with follow-up questions. Respond within 24 hours. Total timeline: 2–6 weeks after submission. Notes to Reviewer template is in `docs/meta-app-review-guide.md`.
 
 ---
 
@@ -1100,10 +1279,11 @@ LYRA uses a strict dark near-black design system defined in `lyra/lib/design-tok
 5. **Test GSC OAuth end-to-end** — navigate to SEO → connect Search Console → verify property auto-selects → add a page → Analyse → Generate
 6. **Test YouTube connection** — connect a Google account in Settings → YouTube, verify the channel saves correctly
 7. **Connect Facebook (for testing)** — you can connect as an app admin/tester now. Set `adAccountId` manually in Supabase to test post boosting end-to-end.
-8. **Progress Meta App Review** — full current status and step-by-step checklist in Section 8 (Meta App Review). Immediate next action: complete Meta Business Verification in Business Manager.
-9. **Apply for LinkedIn company page access** — submit LinkedIn Community Management API application so pages (not personal profiles) can be connected
-10. **Apply for LinkedIn app verification** — enables `w_member_social` scope for posting
-11. **Create Google Business, Twitter, TikTok developer apps** — add credentials to Netlify env vars so those OAuth flows work
+8. **Submit Meta App Review** — all prerequisites complete. Wait for `instagram_basic` and `instagram_manage_comments` API call counts to appear in the dashboard (expected overnight after June 2026 session), then submit. Full status in Section 8.
+9. **LinkedIn API approval** — application submitted 2026-06-17, awaiting email response. No code changes needed until approved.
+11. **Google Business API** — access request submitted 2026-06-17 (case `5-5485000041034`), awaiting approval (~2026-06-30). No code changes needed — test connection once 300 QPM quota appears in Cloud Console.
+12. **TikTok** — credentials in Netlify ✅. Add sandbox tester in TikTok dev portal, test connect flow, then submit for production app review.
+13. **Create Twitter developer app** — developer.twitter.com → OAuth 2.0 → scopes: `tweet.read tweet.write users.read offline.access` → callback: `https://lyraonline.ai/api/social/callback/twitter` → add `TWITTER_CLIENT_ID` + `TWITTER_CLIENT_SECRET` to Netlify
 
 **UX / business:**
 12. **Mobile sidebar** — add a hamburger menu / bottom nav for mobile viewports

@@ -4,7 +4,7 @@ const AUTH_URL = 'https://x.com/i/oauth2/authorize'
 const TOKEN_URL = 'https://api.twitter.com/2/oauth2/token'
 const API_URL = 'https://api.twitter.com/2'
 
-const SCOPES = ['tweet.read', 'tweet.write', 'users.read'].join(' ')
+const SCOPES = ['tweet.read', 'tweet.write', 'users.read', 'offline.access'].join(' ')
 
 export interface TwitterAccount {
   id: string
