@@ -1,12 +1,80 @@
 # LYRA — Project Handover Document
 
-**Date:** May 2026 (updated June 2026 — Session 38: media upload fix, client approval workflow, tsconfig dedup fix)  
+**Date:** May 2026 (updated June 2026 — Session 39: full mobile UI/UX audit + fixes; Session 38: media upload fix, client approval workflow, tsconfig dedup fix)  
 **Prepared by:** Claude Code (Anthropic)  
 **Project owner:** Richard Unwin, Into The Wild Marketing
 
 ---
 
 ## Changelog
+
+### June 2026 — Session 39: Full mobile UI/UX audit + fixes
+
+---
+
+#### Root cause: why mobile was broken
+
+The app shell was built as a Next.js server component (`layout.tsx`) which fetches DB data at request time. Server components cannot hold `useState`. The mobile drawer infrastructure was fully built inside `sidebar.tsx` (Framer Motion slide-in, dark backdrop, X close button, auto-close on navigate) but required `mobileOpen` and `onMobileClose` props that were never passed — because no parent could hold the state. The hamburger button in `header.tsx` also required an `onMenuOpen` callback that never existed. Mobile users had a header with no working menu button and a sidebar drawer that could never open.
+
+This was never caught because every session built and tested on desktop. The sidebar worked perfectly on `lg` and above without those props.
+
+#### Fix: `AppShellClient` — new file
+
+Created `components/lyra/app-shell/app-shell-client.tsx` as a `'use client'` wrapper that sits between the server layout and the sidebar/header. It holds `mobileNavOpen` state and threads it to both `Sidebar` (`mobileOpen` / `onMobileClose`) and `Header` (`onMenuOpen`). Also implements responsive main content padding (`p-4 md:p-6`).
+
+`app/(dashboard)/layout.tsx` now delegates the full JSX shell to `<AppShellClient>`, keeping its own DB fetch as a server component.
+
+#### Header rewrites
+
+- Added hamburger `<button>` (visible `< lg`) that calls `onMenuOpen` → opens the mobile drawer
+- Added mobile page title derived from `usePathname()` via a `PAGE_TITLES: [RegExp, string][]` lookup — shows the current page name in the header on mobile in place of the desktop breadcrumb
+- Made Upgrade CTA `hidden sm:inline-flex` (still accessible via avatar dropdown on mobile with `sm:hidden`)
+- Removed the non-functional Search button entirely
+- Header height: `h-14 md:h-16`
+
+#### Sidebar touch targets
+
+All nav item links changed from `py-2.5` (~36px) to `py-3` (~40px+) across all five variants: regular links, active links, locked (STARTER) links, assistant link, settings link. Meets the 44px touch target standard from CLAUDE.md.
+
+#### Calendar page — mobile header stack
+
+Calendar header changed from a single `flex justify-between` row to `flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`. The `text-4xl` heading scales to `text-3xl sm:text-4xl`. Button group gets `shrink-0`. Prevents heading + two buttons colliding at 375px.
+
+#### Workspace overview — date hidden on mobile
+
+In the recent posts table, the date `<span>` changed to `hidden sm:inline`. Post platform tag, content preview, and status badge still show on all sizes. Prevents overflow on narrow screens.
+
+#### Inbox — platform filter pills wrap
+
+Platform filter container changed from `flex items-center gap-2` to `flex flex-wrap items-center gap-2`. Pills wrap to a second row when more than 3 platforms are connected, rather than overflowing off-screen.
+
+#### Analytics — design token compliance
+
+`performance-dashboard.tsx` was written with hardcoded hex values throughout (`#0f0f0f`, `#1a1a1a`, `#222`, `#333`, `#555`, `#888`, `#e2e2e2`). Rewrote all to use Tailwind design tokens (`bg-background-secondary`, `bg-background-hover`, `border-background-border`, etc.). Also added `strokeWidth={1.5}` to all Lucide icons and `font-sans`/`font-mono` classes per design system.
+
+#### Files changed (commit `bbac5d5`)
+
+| File | Change |
+|---|---|
+| `components/lyra/app-shell/app-shell-client.tsx` | **New file** — client wrapper holding mobile nav state |
+| `app/(dashboard)/layout.tsx` | Replaced full JSX shell with `<AppShellClient>` |
+| `components/lyra/app-shell/header.tsx` | Hamburger, page title, hidden Upgrade, removed Search |
+| `components/lyra/app-shell/sidebar.tsx` | `py-2.5` → `py-3` on all 5 nav item variants |
+| `app/(dashboard)/workspace/[workspaceId]/calendar/page.tsx` | Stacked header on mobile |
+| `app/(dashboard)/workspace/[workspaceId]/page.tsx` | Date hidden on mobile in recent posts |
+| `components/lyra/inbox/response-inbox.tsx` | `flex-wrap` on platform filter pills |
+| `components/lyra/analytics/performance-dashboard.tsx` | All hardcoded hex → design tokens |
+
+#### Netlify build fix (same session — commit `fb693e2`)
+
+Two help page component files existed locally but were never committed (`git add -f` required for all files under the gitignored `LYRA/` directory):
+
+- `components/lyra/help/section-13-trends.tsx`
+- `components/lyra/help/section-14-data-deletion.tsx`
+
+Both were imported in `app/help/page.tsx`. Netlify failed with `Module not found` until these were force-added and committed. **Lesson:** every new file under `LYRA/lyra/` requires `git add -f` — the outer repo's `.gitignore` has `/LYRA/` which silently excludes new files.
+
+---
 
 ### June 2026 — Session 38: Media upload fix + client approval workflow + tsconfig dedup
 
@@ -1280,8 +1348,17 @@ Find your ad account ID in Meta Business Manager → Ad Accounts.
 
 ### Mobile Responsiveness
 
-- **Mobile sidebar is complete.** The app shell has a hamburger button in the header (visible on `< lg` viewports), a Framer Motion slide-in drawer, a dark backdrop that closes the drawer on tap, auto-close on navigation, and an X close button inside the drawer.
-- All other pages use responsive Tailwind classes and work acceptably on mobile.
+**Status: fully audited and fixed (Session 39).**
+
+The mobile experience is now first-class across all core pages. Key changes:
+
+- **Mobile sidebar** — fully wired end-to-end. The `AppShellClient` wrapper holds `mobileNavOpen` state and threads it to `Sidebar` (drawer) and `Header` (hamburger). The Framer Motion slide-in drawer, dark backdrop, X close button, and auto-close on navigate are all live.
+- **Header** — hamburger visible on `< lg`; mobile page title derived from pathname; Upgrade button hidden on mobile (accessible via avatar dropdown); non-functional Search button removed.
+- **Touch targets** — all sidebar nav items upgraded from `py-2.5` (~36px) to `py-3` (~40px+).
+- **Calendar** — header stacks vertically on mobile (`flex-col` → `sm:flex-row`), heading scales from `text-4xl` to `text-3xl sm:text-4xl`.
+- **Workspace overview** — post date hidden on mobile (`hidden sm:inline`) to prevent overflow.
+- **Inbox** — platform filter pills wrap (`flex-wrap`) when more than 3 platforms are connected.
+- **Analytics** — all hardcoded hex values replaced with Tailwind design tokens; all Lucide icons get `strokeWidth={1.5}`.
 
 ### Cron Jobs
 
@@ -1411,7 +1488,8 @@ LYRA uses a strict dark near-black design system defined in `lyra/lib/design-tok
 | `lyra/services/social/meta-ads.ts` | Meta Marketing API — `createBoost()`, `cancelBoost()`, `getBoostReach()` |
 | `lyra/services/social/linkedin.ts` | LinkedIn API helpers |
 | `lyra/services/social/youtube.ts` | YouTube OAuth + channel fetch |
-| `lyra/app/(dashboard)/layout.tsx` | Authenticated app shell |
+| `lyra/app/(dashboard)/layout.tsx` | Authenticated app shell (server component — fetches DB data, delegates JSX to AppShellClient) |
+| `lyra/components/lyra/app-shell/app-shell-client.tsx` | Client wrapper — holds `mobileNavOpen` state, threads it to Sidebar and Header |
 | `lyra/app/api/workspaces/[id]/route.ts` | Workspace CRUD including cascade delete |
 | `lyra/app/api/brand-intelligence/build/route.ts` | Brand profile build endpoint |
 | `lyra/app/api/social/callback/[platform]/route.ts` | OAuth callback handler |
