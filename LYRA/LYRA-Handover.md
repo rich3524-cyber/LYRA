@@ -45,7 +45,15 @@
 
 YouTube was missing from the PLATFORMS array in `settings/page.tsx`. Added. YouTube uses the same Google OAuth credentials (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`) as Google Business — both platforms connect via the `google` connect route.
 
-**Status:** Card visible in settings. Connection not yet tested (Google Business API access pending — Case 5-5485000041034).
+**Google OAuth setup:**
+- OAuth 2.0 client created in Google Cloud Console (dedicated to LYRA social connections)
+- YouTube Data API v3 already enabled
+- Both redirect URIs registered: `/api/social/callback/youtube` and `/api/social/callback/google`
+- Env vars added to Netlify: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+- OAuth consent screen is in **Testing** mode — test user added (owner's Google account)
+- For production: will need Google verification for sensitive YouTube scopes
+
+**Status:** YouTube connected successfully ✅. Google Business connection ready but awaiting API access approval — Case 5-5485000041034.
 
 ---
 
