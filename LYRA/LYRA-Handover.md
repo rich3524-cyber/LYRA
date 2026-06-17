@@ -8,6 +8,47 @@
 
 ## Changelog
 
+### June 2026 — TikTok connected (sandbox) + Twitter/X connected + YouTube card added
+
+---
+
+#### TikTok OAuth — fully connected in sandbox (this session)
+
+**Root cause of scope errors:** All tiktok.ts commits were going to an inner git repo (`LYRA/lyra/`) but Netlify is connected to the **outer OneDrive git repo**. Changes never deployed until committed from the outer repo root.
+
+**API fixes discovered during debugging:**
+- Correct token/API domain: `open.tiktokapis.com` (not `open.tiktok.com` — 404s)
+- Token response fields are at the **top level**, not nested under `data`
+- TikTok v2 `/user/info/` always returns an `error` object with `code: "ok"` on success — must check `code !== 'ok'`, not just `if (data.error)`
+- Auth URL (`www.tiktok.com`) is separate from API endpoints (`open.tiktokapis.com`)
+
+**Sandbox tester:** `lyrasocialonline` added and verified. Connect flow works end-to-end.
+
+**Scopes in use:** `user.info.basic`, `user.info.profile`, `user.info.stats` (video scopes deferred until Content Posting API approved via App Review)
+
+**Production:** TikTok App Review submitted. Awaiting approval (1–7 business days).
+
+---
+
+#### Twitter/X OAuth — connected first attempt (this session)
+
+- App created: `LYRAOnline` (App ID: `2065992296558903296`)
+- OAuth 2.0 with PKCE configured in developer portal
+- Callback URL: `https://lyraonline.ai/api/social/callback/twitter`
+- Scopes: `tweet.read`, `tweet.write`, `users.read`, `offline.access`
+- Env vars added to Netlify: `TWITTER_CLIENT_ID`, `TWITTER_CLIENT_SECRET`
+- Connected successfully — stores access token + refresh token (offline.access required for refresh)
+
+---
+
+#### YouTube — card added to settings page (this session)
+
+YouTube was missing from the PLATFORMS array in `settings/page.tsx`. Added. YouTube uses the same Google OAuth credentials (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`) as Google Business — both platforms connect via the `google` connect route.
+
+**Status:** Card visible in settings. Connection not yet tested (Google Business API access pending — Case 5-5485000041034).
+
+---
+
 ### June 2026 — Meta App Review submission ready + TikTok app setup
 
 ---
