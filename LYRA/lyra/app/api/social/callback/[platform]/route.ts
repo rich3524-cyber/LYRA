@@ -250,7 +250,8 @@ export async function GET(
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    const detail = error instanceof Error ? error.message : String(error)
     console.error(`GET /api/social/callback/[platform] error:`, error)
-    return NextResponse.redirect(`${BASE_URL}?error=oauth_failed`)
+    return NextResponse.redirect(`${BASE_URL}/dashboard?error=oauth_failed&detail=${encodeURIComponent(detail)}`)
   }
 }
