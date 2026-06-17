@@ -1,6 +1,6 @@
 const AUTH_URL = 'https://www.tiktok.com/v2/auth/authorize/'
-const TOKEN_URL = 'https://open.tiktok.com/v2/oauth/token'
-const API_URL = 'https://open.tiktok.com/v2'
+const TOKEN_URL = 'https://open.tiktokapis.com/v2/oauth/token/'
+const API_URL = 'https://open.tiktokapis.com/v2'
 
 const SCOPES = ['user.info.basic', 'user.info.profile', 'user.info.stats'].join(',')
 
