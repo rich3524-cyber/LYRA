@@ -1461,9 +1461,6 @@ LYRA uses a strict dark near-black design system defined in `lyra/lib/design-tok
 
 ## 12. Immediate Next Steps (Recommended Order)
 
-**Housekeeping:**
-1. **Delete `lyra/components/lyra/brand/guidelines-uploader.tsx`** — dead code, superseded by the textarea in `brand-build-button.tsx`. Also delete `lyra/components/lyra/brand/brand-guidelines-panel.tsx` if it exists.
-
 **Already built (verified 2026-06-17):**
 - **Inbox UI** ✅ — `response-inbox.tsx` has Pending/Escalated/Done tabs, AI draft, Approve & send, Escalate, Ignore. All API routes live (`/api/comments`, `/api/comments/[id]`, `/api/comments/[id]/reply`, `/api/comments/sync`). Sidebar link active.
 - **Crisis Aware** ✅ — Banner in workspace layout when active; toggle in settings (Pro/Agency); `crisis-detector.ts` uses keyword guardrails + Claude sentiment; resolve API clears the event.
