@@ -1469,14 +1469,17 @@ LYRA uses a strict dark near-black design system defined in `lyra/lib/design-tok
 3. **Media Library** (Phase 3) — S3 upload, AI topic tagging, media picker in composer and schedule review. Spec: `lyra/docs/superpowers/specs/2026-05-19-ai-content-schedule-design.md` section 3.
 4. **Crisis Aware UI** — the data model and detection logic exist; build the workspace settings toggle and the in-app crisis alert/resolve UI.
 
-**Platform / integrations:**
+**Platform / integrations — all submitted, awaiting third-party decisions:**
+- **Twitter/X** — Connected ✅. No approval needed. Working in production.
+- **YouTube** — Connected ✅. OAuth consent in Testing mode; will need Google verification for public launch.
+- **Meta (Facebook + Instagram)** — App Review submitted 2026-06-17. Decision expected ~2026-07-07. Monitor email.
+- **TikTok** — App Review submitted 2026-06-17. Decision expected within 1–7 business days. Monitor email.
+- **Google Business** — API access request submitted 2026-06-17 (case `5-5485000041034`). Check Cloud Console quota page (~2026-06-30). No code changes needed.
+- **LinkedIn** — API application submitted 2026-06-17. Awaiting email response. No code changes needed.
+
+**No action required on any platform until approvals arrive.**
+
 5. **Test GSC OAuth end-to-end** — navigate to SEO → connect Search Console → verify property auto-selects → add a page → Analyse → Generate
-6. **Test YouTube connection** — connect a Google account in Settings → YouTube, verify the channel saves correctly
-7. **Connect Facebook (for testing)** — you can connect as an app admin/tester now. Set `adAccountId` manually in Supabase to test post boosting end-to-end.
-8. **Monitor Meta App Review** — submitted ✅. Meta responds by email; total timeline 2–6 weeks. Full status in Section 8.
-9. **LinkedIn API approval** — application submitted 2026-06-17, awaiting email response. No code changes needed until approved.
-10. **Google Business API** — access request submitted 2026-06-17 (case `5-5485000041034`), awaiting approval (~2026-06-30). No code changes needed — test connection once 300 QPM quota appears in Cloud Console.
-11. **TikTok** — sandbox tester added ✅, app review submitted ✅. Awaiting TikTok approval (1–7 business days). No code changes needed.
 **UX / business:**
 13. **Stripe billing / marketing page** — create Stripe products/prices, wire up checkout flow, build public marketing landing page (plan saved: `lyra/docs/superpowers/plans/2026-05-19-marketing-landing-page.md`)
 
