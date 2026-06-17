@@ -1464,10 +1464,13 @@ LYRA uses a strict dark near-black design system defined in `lyra/lib/design-tok
 **Housekeeping:**
 1. **Delete `lyra/components/lyra/brand/guidelines-uploader.tsx`** — dead code, superseded by the textarea in `brand-build-button.tsx`. Also delete `lyra/components/lyra/brand/brand-guidelines-panel.tsx` if it exists.
 
+**Already built (verified 2026-06-17):**
+- **Inbox UI** ✅ — `response-inbox.tsx` has Pending/Escalated/Done tabs, AI draft, Approve & send, Escalate, Ignore. All API routes live (`/api/comments`, `/api/comments/[id]`, `/api/comments/[id]/reply`, `/api/comments/sync`). Sidebar link active.
+- **Crisis Aware** ✅ — Banner in workspace layout when active; toggle in settings (Pro/Agency); `crisis-detector.ts` uses keyword guardrails + Claude sentiment; resolve API clears the event.
+
 **New features (ready to build):**
-2. **Inbox UI** — comments API exists (`/api/comments`), inbox page at `/workspace/[id]/inbox` needs a UI. Workers are live and populating `Comment` rows.
-3. **Media Library** (Phase 3) — S3 upload, AI topic tagging, media picker in composer and schedule review. Spec: `lyra/docs/superpowers/specs/2026-05-19-ai-content-schedule-design.md` section 3.
-4. **Crisis Aware UI** — the data model and detection logic exist; build the workspace settings toggle and the in-app crisis alert/resolve UI.
+2. **Media Library** (Phase 3) — S3 upload, AI topic tagging, media picker in composer and schedule review. Spec: `lyra/docs/superpowers/specs/2026-05-19-ai-content-schedule-design.md` section 3.
+3. **Stripe billing + marketing page** — create Stripe products/prices, wire up checkout flow, build public landing page.
 
 **Platform / integrations — all submitted, awaiting third-party decisions:**
 - **Twitter/X** — Connected ✅. No approval needed. Working in production.
@@ -1480,9 +1483,10 @@ LYRA uses a strict dark near-black design system defined in `lyra/lib/design-tok
 **No action required on any platform until approvals arrive.**
 
 5. **Test GSC OAuth end-to-end** — navigate to SEO → connect Search Console → verify property auto-selects → add a page → Analyse → Generate
-**UX / business:**
-13. **Stripe billing / marketing page** — create Stripe products/prices, wire up checkout flow, build public marketing landing page (plan saved: `lyra/docs/superpowers/plans/2026-05-19-marketing-landing-page.md`)
 
 **Post boosting — low priority polish:**
-14. Add cron job or scheduled check to flip `PostBoost.status` from `ACTIVE` to `ENDED` when `endsAt` has passed (currently boosts stay ACTIVE in the DB after expiring on Meta's side)
-15. Pull `broad` audience country from workspace settings instead of hardcoded `'AU'` in `meta-ads.ts`
+**UX / business:**
+4. **Stripe billing / marketing page** — create Stripe products/prices, wire up checkout flow, build public marketing landing page (plan saved: `lyra/docs/superpowers/plans/2026-05-19-marketing-landing-page.md`)
+
+6. Add cron job or scheduled check to flip `PostBoost.status` from `ACTIVE` to `ENDED` when `endsAt` has passed (currently boosts stay ACTIVE in the DB after expiring on Meta's side)
+7. Pull `broad` audience country from workspace settings instead of hardcoded `'AU'` in `meta-ads.ts`
