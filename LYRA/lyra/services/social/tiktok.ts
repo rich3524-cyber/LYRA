@@ -62,7 +62,7 @@ export async function getUser(
     },
   })
   const data = await res.json()
-  if (data.error) throw new Error(data.error.message ?? 'TikTok API error')
+  if (data.error && data.error.code !== 'ok') throw new Error(data.error.message ?? 'TikTok API error')
   return {
     name: data.data.user.display_name as string,
     avatarUrl: data.data.user.avatar_url as string | undefined,
