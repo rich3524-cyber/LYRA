@@ -50,11 +50,12 @@ export async function exchangeCode(code: string): Promise<{
     throw new Error(`TikTok token endpoint returned non-JSON (HTTP ${res.status}): ${rawToken.slice(0, 300)}`)
   }
   if (data.error) throw new Error(`TikTok token error: ${(data.error_description as string) ?? (data.error as string)}`)
+  const tokenData = data.data as Record<string, unknown>
   return {
-    accessToken: data.data.access_token as string,
-    refreshToken: data.data.refresh_token as string,
-    openId: data.data.open_id as string,
-    expiresIn: data.data.expires_in as number,
+    accessToken: tokenData.access_token as string,
+    refreshToken: tokenData.refresh_token as string,
+    openId: tokenData.open_id as string,
+    expiresIn: tokenData.expires_in as number,
   }
 }
 
@@ -76,8 +77,9 @@ export async function getUser(
   }
   const errObj = data.error as Record<string, string> | undefined
   if (errObj && errObj.code !== 'ok') throw new Error(errObj.message ?? 'TikTok API error')
+  const userData = (data.data as Record<string, unknown>).user as Record<string, unknown>
   return {
-    name: data.data.user.display_name as string,
-    avatarUrl: data.data.user.avatar_url as string | undefined,
+    name: userData.display_name as string,
+    avatarUrl: userData.avatar_url as string | undefined,
   }
 }
