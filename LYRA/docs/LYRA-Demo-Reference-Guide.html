@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LYRA — Demo Reference Guide</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500&family=Instrument+Serif&family=Geist+Mono&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-primary:        #080808;
+      --bg-secondary:      #0f0f0f;
+      --bg-tertiary:       #141414;
+      --bg-hover:          #1a1a1a;
+      --bg-border:         #222222;
+      --bg-border-mid:     #333333;
+      --text-primary:      #e2e2e2;
+      --text-secondary:    #888888;
+      --text-tertiary:     #555555;
+      --accent-platinum:   #d8d8d8;
+      --accent-silver:     #aaaaaa;
+      --status-success:    #4ade80;
+      --status-error:      #f87171;
+      --status-warning:    #fbbf24;
+      --status-info:       #60a5fa;
+    }
+
+    html { background: var(--bg-primary); }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 400;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Layout ── */
+    .page { max-width: 860px; margin: 0 auto; padding: 64px 48px 96px; }
+
+    /* ── Header ── */
+    .header {
+      border-bottom: 1px solid var(--bg-border);
+      padding-bottom: 40px;
+      margin-bottom: 56px;
+    }
+    .header-top {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+    .wordmark {
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 300;
+      font-size: 13px;
+      letter-spacing: 0.25em;
+      color: var(--accent-silver);
+      text-transform: uppercase;
+    }
+    .doc-meta {
+      font-family: 'Geist Mono', monospace;
+      font-size: 11px;
+      color: var(--text-tertiary);
+      text-align: right;
+      line-height: 1.7;
+    }
+    .doc-title {
+      font-family: 'Instrument Serif', serif;
+      font-weight: 400;
+      font-size: 38px;
+      color: var(--text-primary);
+      line-height: 1.2;
+      margin-bottom: 10px;
+    }
+    .doc-subtitle {
+      font-size: 14px;
+      color: var(--text-secondary);
+    }
+
+    /* ── Sections ── */
+    .section { margin-bottom: 52px; }
+    .section + .section { border-top: 1px solid var(--bg-border); padding-top: 48px; }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 20px;
+    }
+
+    h2 {
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 500;
+      font-size: 18px;
+      color: var(--text-primary);
+      margin-bottom: 12px;
+      line-height: 1.3;
+    }
+
+    h3 {
+      font-family: 'DM Sans', sans-serif;
+      font-weight: 500;
+      font-size: 14px;
+      color: var(--text-primary);
+      margin-top: 28px;
+      margin-bottom: 10px;
+    }
+
+    p {
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.7;
+      margin-bottom: 12px;
+    }
+
+    p:last-child { margin-bottom: 0; }
+
+    strong {
+      font-weight: 500;
+      color: var(--text-primary);
+    }
+
+    /* ── Callout / pitch ── */
+    .callout {
+      background: var(--bg-secondary);
+      border: 1px solid var(--bg-border);
+      border-left: 3px solid var(--accent-silver);
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-bottom: 0;
+    }
+    .callout p {
+      font-size: 14px;
+      color: var(--text-primary);
+      line-height: 1.7;
+    }
+
+    /* ── Tables ── */
+    .table-wrap {
+      border: 1px solid var(--bg-border);
+      border-radius: 10px;
+      overflow: hidden;
+      margin-top: 16px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    thead tr {
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--bg-border);
+    }
+
+    th {
+      padding: 12px 16px;
+      text-align: left;
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    td {
+      padding: 12px 16px;
+      color: var(--text-secondary);
+      border-bottom: 1px solid var(--bg-border);
+      vertical-align: top;
+      line-height: 1.55;
+    }
+
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: var(--bg-hover); }
+
+    td strong {
+      color: var(--text-primary);
+      font-weight: 500;
+    }
+
+    td .mono {
+      font-family: 'Geist Mono', monospace;
+      font-size: 12px;
+      color: var(--accent-silver);
+    }
+
+    /* ── Demo steps ── */
+    .steps { list-style: none; margin-top: 12px; }
+
+    .steps li {
+      display: flex;
+      gap: 16px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--bg-border);
+    }
+
+    .steps li:last-child { border-bottom: none; }
+
+    .step-num {
+      font-family: 'Geist Mono', monospace;
+      font-size: 11px;
+      color: var(--text-tertiary);
+      flex-shrink: 0;
+      padding-top: 2px;
+      width: 20px;
+    }
+
+    .step-content { flex: 1; }
+
+    .step-title {
+      font-weight: 500;
+      font-size: 14px;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .step-body {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-bottom: 0;
+    }
+
+    /* ── Score dimensions ── */
+    .dimensions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .dimension-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--bg-border);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+
+    .dimension-name {
+      font-weight: 500;
+      font-size: 13px;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .dimension-desc {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.5;
+      margin: 0;
+    }
+
+    /* ── Numbers grid ── */
+    .numbers-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    .number-card {
+      background: var(--bg-secondary);
+      border: 1px solid var(--bg-border);
+      border-radius: 10px;
+      padding: 16px 18px;
+    }
+
+    .number-value {
+      font-family: 'Geist Mono', monospace;
+      font-size: 22px;
+      color: var(--accent-platinum);
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .number-label {
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.4;
+      margin: 0;
+    }
+
+    /* ── Objections ── */
+    .objection {
+      background: var(--bg-secondary);
+      border: 1px solid var(--bg-border);
+      border-radius: 10px;
+      padding: 18px 20px;
+      margin-bottom: 10px;
+    }
+
+    .objection:last-child { margin-bottom: 0; }
+
+    .objection-q {
+      font-weight: 500;
+      font-size: 13px;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .objection-a {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    /* ── Feature rows ── */
+    .feature-row {
+      display: flex;
+      gap: 14px;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--bg-border);
+      align-items: flex-start;
+    }
+
+    .feature-row:last-child { border-bottom: none; }
+
+    .feature-pnum {
+      font-family: 'Geist Mono', monospace;
+      font-size: 11px;
+      color: var(--text-tertiary);
+      flex-shrink: 0;
+      padding-top: 3px;
+      width: 22px;
+    }
+
+    .feature-title {
+      font-weight: 500;
+      font-size: 14px;
+      color: var(--text-primary);
+      margin-bottom: 4px;
+    }
+
+    .feature-desc {
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin: 0;
+    }
+
+    /* ── Plan tier colours ── */
+    .plan-starter { color: var(--text-secondary); }
+    .plan-pro     { color: var(--status-info); }
+    .plan-agency  { color: var(--accent-platinum); }
+
+    /* ── Footer ── */
+    .footer {
+      border-top: 1px solid var(--bg-border);
+      padding-top: 32px;
+      margin-top: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .footer p {
+      font-size: 12px;
+      color: var(--text-tertiary);
+      margin: 0;
+    }
+
+    /* ── Print ── */
+    @media print {
+      body { background: #fff; color: #111; }
+      :root {
+        --bg-primary: #fff;
+        --bg-secondary: #f5f5f5;
+        --bg-border: #ddd;
+        --bg-border-mid: #ccc;
+        --text-primary: #111;
+        --text-secondary: #444;
+        --text-tertiary: #888;
+        --accent-platinum: #333;
+        --accent-silver: #666;
+      }
+      .page { padding: 24px; }
+      .section + .section { break-before: page; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-top">
+      <span class="wordmark">LYRA</span>
+      <div class="doc-meta">
+        Demo Reference Guide<br>
+        17 Jun 2026<br>
+        lyraonline.ai
+      </div>
+    </div>
+    <h1 class="doc-title">Demo Reference Guide</h1>
+    <p class="doc-subtitle">Key talking points, demo flow, and quick facts for the LYRA platform walkthrough.</p>
+  </div>
+
+  <!-- 1. The Pitch -->
+  <div class="section">
+    <p class="section-label">The pitch</p>
+    <div class="callout">
+      <p>LYRA is the only social media management platform that responds to comments and reviews autonomously, 24/7 — with configurable AI autonomy and agency-controlled guardrails ensuring every response reflects the brand accurately. It also surfaces scheduled email campaigns from Klaviyo and Mailchimp directly on the social calendar, so agencies see every outbound channel in a single view. And with the LYRA Trend add-on, every workspace gets a daily AI-curated list of what's trending — scored for brand relevance, ready to drop into the composer in one click. Everything else — scheduling, captions, analytics — competitors do. The comment response engine, unified marketing calendar, and brand-filtered trend intelligence are why LYRA exists.</p>
+    </div>
+  </div>
+
+  <!-- 2. Platform Overview -->
+  <div class="section">
+    <p class="section-label">Platform overview</p>
+    <h2>What it does</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Section</th>
+            <th>Core purpose</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>LYRA Assistant</strong></td><td>Quarterly performance review + 3-month AI content strategy. One click to generate, one click to export as PDF.</td></tr>
+          <tr><td><strong>Brand Intelligence</strong></td><td>Analyses website + social feed to build a brand voice profile. Powers every AI feature in the platform.</td></tr>
+          <tr><td><strong>Compose</strong></td><td>Write, AI-generate, score, and schedule posts across all platforms simultaneously. Repurpose any URL or text into platform-native variants. Trend-aware AI captions when LYRA Trend is active.</td></tr>
+          <tr><td><strong>Calendar</strong></td><td>Monthly view of all scheduled and published social posts plus Klaviyo and Mailchimp email campaigns — the full marketing picture in one place. Drag to reschedule. AI schedule generator.</td></tr>
+          <tr><td><strong>Inbox</strong></td><td>Unified comment and review inbox. AI drafts or auto-posts responses 24/7.</td></tr>
+          <tr><td><strong>Trend Hub</strong></td><td>Add-on. Daily AI-curated trending topics scored for brand relevance. One click to carry a trend into the composer and angle AI captions around it.</td></tr>
+          <tr><td><strong>Analytics</strong></td><td>Cross-platform metrics, engagement charts, top posts. Competitor tracking. One-click client PDF reports.</td></tr>
+          <tr><td><strong>SEO</strong></td><td>Google Search Console integration. AI meta titles, descriptions, and on-page scoring.</td></tr>
+          <tr><td><strong>Settings</strong></td><td>Platform connections, email marketing integrations, AI autonomy, guardrails, crisis aware, client access levels, and add-ons.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 3. Demo Flow -->
+  <div class="section">
+    <p class="section-label">Recommended demo flow</p>
+    <h2>Walkthrough sequence</h2>
+    <ul class="steps">
+      <li>
+        <span class="step-num">01</span>
+        <div class="step-content">
+          <p class="step-title">LYRA Assistant — "Open with the Payoff"</p>
+          <p class="step-body">Start here — it lands immediately. Navigate to the Assistant tab and click <strong>Generate Report</strong>. In ~30 seconds LYRA analyses the last 90 days across every connected platform and produces: a <strong>Quarterly Review</strong> (total posts, avg engagement rate, best platform, top content theme, AI-written performance narrative, per-platform breakdown) and a <strong>3-Month Forward Strategy</strong> (content pillars, key dates with campaign ideas, recommended posting frequency per platform — for each of the next three months). Show the <strong>Export PDF</strong> button — one click and it's a client-ready document. <strong>Key point:</strong> no spreadsheets, no manual data pulls, no writing. A quarterly review that would take a junior account manager a day is done in 30 seconds.</p>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">02</span>
+        <div class="step-content">
+          <p class="step-title">Brand Intelligence — "The Foundation"</p>
+          <p class="step-body">Show the Voice Summary, Tone Attributes, Content Themes, and Audience Profile. Built by crawling the website and analysing the social feed. Takes 2 minutes. Refreshes weekly automatically. <strong>Key point:</strong> every AI feature downstream — captions, comment responses, content scoring, repurposing, quarterly reports — is grounded in this profile. Nothing is generic, everything is calibrated to the specific brand.</p>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">03</span>
+        <div class="step-content">
+          <p class="step-title">Compose — "Write Once, Post Everywhere"</p>
+          <p class="step-body">Select multiple platforms at the top, write once. Show <strong>AI caption generation</strong> — 3 variations calibrated to the brand voice profile. Show the <strong>Content Score</strong> panel updating live as you type — 6 dimensions, score of 7+ means ready to schedule, below 7 shows specific fix suggestions. Then show <strong>Repurpose Content</strong>: paste a blog URL, LYRA generates a LinkedIn article, Instagram caption, Twitter thread, and Facebook post simultaneously — each adapted for that platform's format, character limits, and tone.</p>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">04</span>
+        <div class="step-content">
+          <p class="step-title">Calendar — "The Full Marketing Picture"</p>
+          <p class="step-body">Monthly grid showing every scheduled and published social post — colour-coded by status, filterable by platform. <strong>New:</strong> Klaviyo and Mailchimp email campaigns appear directly on the calendar as violet entries alongside social posts — so you can see an email newsletter landing the same week as a social push without switching tools. Drag any social post to reschedule (time preserved). Click <strong>Generate schedule</strong>: set 3 or 6 weeks, pick platforms, set posts per week — LYRA writes the entire plan with AI-generated captions, streaming in real time. Every post goes through a review screen before it touches the calendar.</p>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">05</span>
+        <div class="step-content">
+          <p class="step-title">Inbox — "The Wow Moment" — spend the most time here</p>
+          <p class="step-body">Every comment, reply, and review from every connected platform, pulled in every 5 minutes. Each one sentiment-scored automatically. AI drafts a response for every single one using the brand voice profile and guardrails. Show all three autonomy modes: <strong>Off</strong> (inbox only, human writes everything) → <strong>Draft + Approve</strong> (AI drafts, human approves before posting) → <strong>Full Autonomy</strong> (AI generates and posts directly — responses live within ~2 minutes, no human step). Show an <strong>Always Escalate</strong> rule catching a sensitive keyword and routing to human review. Show an <strong>Approved Answer</strong> overriding AI generation for a pricing question with a pre-written factual response.</p>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">06</span>
+        <div class="step-content">
+          <p class="step-title">Crisis Aware — "The Safety Net"</p>
+          <p class="step-body">When a sentiment spike is detected, all scheduled posts pause automatically — nothing publishes during an active crisis. Triggering comments surface in the inbox. Every event is audit-logged with trigger type, timestamp, and comment IDs. Disable Crisis Mode once resolved; posts resume. <strong>The scenario to tell:</strong> client posts something controversial on a Friday night — LYRA pauses their entire scheduled queue automatically while you sleep. Nothing tone-deaf goes out.</p>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">07</span>
+        <div class="step-content">
+          <p class="step-title">Analytics + Reports — "Proving the Value"</p>
+          <p class="step-body">Cross-platform dashboard: reach, impressions, engagements, engagement rate. <strong>Competitor Intelligence:</strong> track up to 5 competitors per workspace — posts per week, engagement benchmarks, content topics, updated weekly automatically. <strong>Client Performance Reports:</strong> one click → branded PDF → summary metrics, platform breakdown, best post, AI-written performance narrative, competitor benchmarks. Ready in seconds. 7-day or 30-day period. Agency plan.</p>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">08</span>
+        <div class="step-content">
+          <p class="step-title">LYRA Trend — "Stay Ahead of the Conversation" (add-on)</p>
+          <p class="step-body">Open the <strong>Trend Hub</strong> from the sidebar. LYRA runs a daily AI pipeline — Perplexity surfaces what's trending across TikTok, Instagram, X, Reddit, and news; Claude then scores each trend for relevance to this workspace's brand profile. Up to 20 trends appear, ranked by relevance score. Click a trend to see the full description and the AI-written <strong>Why it fits</strong> explanation. Click <strong>Use this trend</strong> — LYRA marks it as used and opens the composer with an <strong>active trend chip</strong> set. Hit AI Generate and the caption is angled around the trend, still on-brand. <strong>Key point:</strong> every trend the client sees has already been filtered through their brand — no sifting through irrelevant noise. It's the difference between "what's trending" and "what's trending for you."</p>
+        </div>
+      </li>
+    </ul>
+  </div>
+
+  <!-- 4. Content Score -->
+  <div class="section">
+    <p class="section-label">Know these</p>
+    <h2>Content Score dimensions</h2>
+    <p>Every post is scored 0–10 across six dimensions. Score updates live as you type. <strong>7+ means ready to schedule.</strong></p>
+    <div class="dimensions">
+      <div class="dimension-card">
+        <p class="dimension-name">Clarity</p>
+        <p class="dimension-desc">Easy to understand at a single read</p>
+      </div>
+      <div class="dimension-card">
+        <p class="dimension-name">Brand Alignment</p>
+        <p class="dimension-desc">Matches this workspace's brand voice profile</p>
+      </div>
+      <div class="dimension-card">
+        <p class="dimension-name">Engagement Potential</p>
+        <p class="dimension-desc">Likely to generate meaningful interaction</p>
+      </div>
+      <div class="dimension-card">
+        <p class="dimension-name">Platform Fit</p>
+        <p class="dimension-desc">Right format, length, and style for the platform</p>
+      </div>
+      <div class="dimension-card">
+        <p class="dimension-name">CTA Strength</p>
+        <p class="dimension-desc">Clear, motivating call to action</p>
+      </div>
+      <div class="dimension-card">
+        <p class="dimension-name">Sentiment Safety</p>
+        <p class="dimension-desc">Free from phrasing that could be misread negatively</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Autonomy + Guardrails -->
+  <div class="section">
+    <p class="section-label">AI autonomy</p>
+    <h2>The three modes</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Mode</th>
+            <th>What happens</th>
+            <th>Plan</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Off</strong></td>
+            <td>Inbox only. All responses are written manually. AI does not draft anything.</td>
+            <td><span class="plan-starter mono">All plans</span></td>
+          </tr>
+          <tr>
+            <td><strong>Draft + Approve</strong></td>
+            <td>AI drafts a response for every comment. Agency or client reviews and approves before it posts. Nothing goes live without a human seeing it.</td>
+            <td><span class="plan-pro mono">Pro + Agency</span></td>
+          </tr>
+          <tr>
+            <td><strong>Full Autonomy</strong></td>
+            <td>AI generates and posts responses directly — no human review. Responses live within ~2 minutes. Guardrails and escalation rules are the control layer.</td>
+            <td><span class="plan-agency mono">Agency only</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:14px; font-size:13px;">Clients cannot set their own autonomy ceiling. The agency controls the maximum. A client workspace can only reach Draft + Approve — Full Autonomy requires the agency to explicitly enable it.</p>
+
+    <h3>Guardrails (Agency plan)</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Type</th>
+            <th>Effect</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>Never Discuss</strong></td><td>AI will never engage with this topic — e.g. competitor names, pricing, pending litigation.</td></tr>
+          <tr><td><strong>Never Use Word</strong></td><td>Specific words or phrases the AI must never use — e.g. "cheap", brand-specific language standards.</td></tr>
+          <tr><td><strong>Always Escalate</strong></td><td>Any comment matching this trigger routes to human review regardless of autonomy setting — e.g. "refund", "lawyer", "allergic reaction".</td></tr>
+          <tr><td><strong>Approved Answers</strong></td><td>Pre-written responses used verbatim when a specific question is asked — opening hours, pricing, FAQs. Ensures factual accuracy.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 6. Plans -->
+  <div class="section">
+    <p class="section-label">Pricing</p>
+    <h2>The three plans</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Plan</th>
+            <th>Workspaces</th>
+            <th>AI Autonomy</th>
+            <th>Key features</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong class="plan-starter">Starter</strong></td>
+            <td><span class="mono">1</span></td>
+            <td><span class="mono">Off</span></td>
+            <td>Post scheduling, brand profile, AI captions, 6 platforms, email marketing calendar</td>
+          </tr>
+          <tr>
+            <td><strong class="plan-pro">Pro</strong></td>
+            <td><span class="mono">Up to 5</span></td>
+            <td><span class="mono">Draft + Approve</span></td>
+            <td>Full brand intelligence, AI response drafts, content scoring, repurposing, SEO, LYRA Assistant, email marketing calendar</td>
+          </tr>
+          <tr>
+            <td><strong class="plan-agency">Agency</strong></td>
+            <td><span class="mono">Unlimited</span></td>
+            <td><span class="mono">Full Autonomy</span></td>
+            <td>Everything in Pro + full AI autonomy, guardrails, team members, client reports, competitor intelligence, crisis aware, post boosting</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 7. Quick Facts -->
+  <div class="section">
+    <p class="section-label">Quick facts</p>
+    <h2>Numbers worth knowing</h2>
+    <div class="numbers-grid">
+      <div class="number-card">
+        <p class="number-value">5 min</p>
+        <p class="number-label">Comment polling frequency</p>
+      </div>
+      <div class="number-card">
+        <p class="number-value">~2 min</p>
+        <p class="number-label">Brand profile build time</p>
+      </div>
+      <div class="number-card">
+        <p class="number-value">~2 min</p>
+        <p class="number-label">Full Autonomy response time</p>
+      </div>
+      <div class="number-card">
+        <p class="number-value">15 min</p>
+        <p class="number-label">Email campaign sync frequency (Klaviyo / Mailchimp)</p>
+      </div>
+      <div class="number-card">
+        <p class="number-value">6</p>
+        <p class="number-label">Content score dimensions (0–10 each, 7+ = ready)</p>
+      </div>
+      <div class="number-card">
+        <p class="number-value">3 or 6 wk</p>
+        <p class="number-label">AI Schedule Generator duration options</p>
+      </div>
+      <div class="number-card">
+        <p class="number-value">6 months</p>
+        <p class="number-label">Maximum scheduling window in advance</p>
+      </div>
+      <div class="number-card">
+        <p class="number-value">5</p>
+        <p class="number-label">Max competitor brands tracked per workspace</p>
+      </div>
+      <div class="number-card">
+        <p class="number-value">4</p>
+        <p class="number-label">Guardrail types available</p>
+      </div>
+      <div class="number-card">
+        <p class="number-value">Daily</p>
+        <p class="number-label">LYRA Trend sync frequency (add-on)</p>
+      </div>
+      <div class="number-card">
+        <p class="number-value">Up to 20</p>
+        <p class="number-label">Brand-scored trends surfaced per workspace per sync</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. What's New -->
+  <div class="section">
+    <p class="section-label">What's new — Jun 2026</p>
+    <h2>Latest sprint — 13 features shipped</h2>
+    <p>Lead with these if showing to anyone who has seen an earlier version of the platform.</p>
+    <div style="margin-top: 8px;">
+      <div class="feature-row">
+        <span class="feature-pnum" style="color: #4ade80;">★</span>
+        <div>
+          <p class="feature-title">X (Twitter) — Live connection</p>
+          <p class="feature-desc">X (Twitter) is now fully connected and live in production. OAuth 2.0 with PKCE. Publish posts and monitor replies directly from LYRA. No platform approval required — available immediately on all plans that support X.</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <span class="feature-pnum" style="color: #4ade80;">★</span>
+        <div>
+          <p class="feature-title">YouTube — Live connection</p>
+          <p class="feature-desc">YouTube is now connected via Google OAuth 2.0. Publish videos and monitor comments on your YouTube channel. Uses the same Google credentials as Google Business. YouTube Data API v3 enabled.</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <span class="feature-pnum" style="color: #4ade80;">★</span>
+        <div>
+          <p class="feature-title">TikTok — Sandbox live, App Review submitted</p>
+          <p class="feature-desc">TikTok connection is live in sandbox mode. Full production access pending TikTok App Review (submitted 17 Jun 2026). Once approved, supports publishing video content and monitoring engagement via the TikTok v2 API.</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <span class="feature-pnum" style="color: #60a5fa;">N</span>
+        <div>
+          <p class="feature-title">Client approval workflow — Calendar integrated</p>
+          <p class="feature-desc">The full agency → client approval loop is now wired into the content calendar. Agents submit posts for client approval (PENDING_APPROVAL status). Clients see Approve / Request changes buttons. Agents can recall drafts. All transitions are recorded in PostApproval records. Role-aware — CLIENT_APPROVE users only see approval actions, not scheduling controls.</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <span class="feature-pnum" style="color: #60a5fa;">N</span>
+        <div>
+          <p class="feature-title">Media upload via direct S3 presign</p>
+          <p class="feature-desc">Media attached in the composer and schedule review now uploads directly from the browser to S3 via a presigned PUT URL — bypassing the Netlify function entirely. Removes the 4.5 MB payload limit. Supports images (JPEG, PNG, GIF, WebP) and video (MP4, MOV, WebM). Files are stored in a workspace-scoped folder in S3.</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <span class="feature-pnum" style="color: #a78bfa;">★</span>
+        <div>
+          <p class="feature-title">LYRA Trend — Brand-Relevant Trend Discovery</p>
+          <p class="feature-desc">Paid à la carte add-on, available on all plans. Daily AI pipeline: Perplexity surfaces what's trending across social platforms and news; Claude scores each trend for relevance to the workspace's brand profile. Up to 20 trends per workspace, ranked by score. One click carries a trend into the composer — AI captions angle around it automatically. Trend picker also accessible directly from the composer toolbar without leaving the page.</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <span class="feature-pnum" style="color: #a78bfa;">★</span>
+        <div>
+          <p class="feature-title">LYRA Assistant — Quarterly Review &amp; Strategy</p>
+          <p class="feature-desc">One-click AI quarterly review: 90-day performance analysis across all platforms + a 3-month forward content strategy with content pillars, key dates, and per-platform posting frequency. Exportable as a client-ready PDF. Pro and Agency.</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <span class="feature-pnum" style="color: #a78bfa;">★</span>
+        <div>
+          <p class="feature-title">Email Marketing Calendar Integration — Klaviyo &amp; Mailchimp</p>
+          <p class="feature-desc">Connect Klaviyo or Mailchimp in workspace Settings. Scheduled and sent email campaigns appear directly on the LYRA content calendar alongside social posts — giving a complete view of all outbound marketing activity in one place. Campaigns sync every 15 minutes automatically. Provider-agnostic architecture means additional email platforms (Campaign Monitor, ActiveCampaign, etc.) can be added. All plans.</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <span class="feature-pnum">P1</span>
+        <div>
+          <p class="feature-title">Crisis Aware Detection</p>
+          <p class="feature-desc">Real-time sentiment monitoring. Automatic post queue pause on negative spike. Audit log with trigger type, timestamp, and comment IDs. Pro and Agency.</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <span class="feature-pnum">P2</span>
+        <div>
+          <p class="feature-title">Client Performance Reports</p>
+          <p class="feature-desc">One-click branded PDF reports. 7-day or 30-day period. Includes summary metrics, platform breakdown, best post, AI-written performance narrative, and competitor benchmarks. Agency only.</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <span class="feature-pnum">P3</span>
+        <div>
+          <p class="feature-title">Competitor Intelligence</p>
+          <p class="feature-desc">Track up to 5 competitors per workspace. Weekly snapshot of posts per week, engagement benchmarks, and content topics. Data feeds into client PDF reports automatically. Agency only.</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <span class="feature-pnum">P4</span>
+        <div>
+          <p class="feature-title">Pre-Publish Content Scoring</p>
+          <p class="feature-desc">Live 6-dimension quality scoring in the composer. No manual trigger — updates as you type. Score of 7+ indicates content ready to schedule. Pro and Agency.</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <span class="feature-pnum">P5</span>
+        <div>
+          <p class="feature-title">Smart Content Repurposing</p>
+          <p class="feature-desc">Paste a URL or existing text in the composer. LYRA generates platform-native variants for every connected channel simultaneously — each adapted for format, character limits, and audience. Results stream in real time and open in a review screen before calendar commitment. Pro and Agency.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9. Common Objections -->
+  <div class="section">
+    <p class="section-label">Common objections</p>
+    <h2>Quick answers</h2>
+    <div style="margin-top: 8px;">
+      <div class="objection">
+        <p class="objection-q">"We already use Hootsuite / Buffer / Sprout Social."</p>
+        <p class="objection-a">None of them respond to comments — and none show your email campaigns alongside your social posts in a single calendar. LYRA handles what they all ignore, and does the scheduling too.</p>
+      </div>
+      <div class="objection">
+        <p class="objection-q">"We already use Klaviyo / Mailchimp for email."</p>
+        <p class="objection-a">Good — LYRA connects to both. Your email campaigns appear on the LYRA calendar alongside your social posts. You keep using Klaviyo or Mailchimp to build and send campaigns; LYRA just gives you the unified view so you can see everything at once. No migration, no disruption.</p>
+      </div>
+      <div class="objection">
+        <p class="objection-q">"What if the AI says something wrong?"</p>
+        <p class="objection-a">Draft + Approve means nothing goes live without a human seeing it. Guardrails are a second layer — specific topics, words, and triggers are locked down at the agency level. Always Escalate rules catch anything sensitive before the AI touches it.</p>
+      </div>
+      <div class="objection">
+        <p class="objection-q">"Is it safe for clients to have Full Autonomy?"</p>
+        <p class="objection-a">Clients cannot set their own autonomy level. The agency controls the ceiling. A client workspace can only reach Draft + Approve — Full Autonomy requires the agency to explicitly enable it per workspace.</p>
+      </div>
+      <div class="objection">
+        <p class="objection-q">"What happens to scheduled posts during a crisis?"</p>
+        <p class="objection-a">They pause automatically the moment Crisis Mode activates. Nothing publishes. You resolve the situation, disable Crisis Mode, and posts resume from where they were.</p>
+      </div>
+      <div class="objection">
+        <p class="objection-q">"Can you customise responses per platform?"</p>
+        <p class="objection-a">Yes — the composer defaults to a shared caption but any platform tab can be unlocked and edited independently. The repurposing tool generates platform-native variants from the start, each adapted for that channel's format and audience.</p>
+      </div>
+      <div class="objection">
+        <p class="objection-q">"Do you just surface random trends — how is it relevant to our brand?"</p>
+        <p class="objection-a">Every trend the client sees has already been filtered through their brand intelligence profile. LYRA doesn't show what's trending globally — it shows what's trending <em>for this specific brand</em>. Each trend has a relevance score and an AI-written explanation of why it fits. Low-scoring trends are included for visibility but the high-confidence matches are ranked first. It's the difference between a fire hose and a briefing.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">
+    <p>LYRA — Internal Use Only</p>
+    <p>lyraonline.ai &nbsp;·&nbsp; 17 Jun 2026</p>
+  </div>
+
+</div>
+</body>
+</html>
