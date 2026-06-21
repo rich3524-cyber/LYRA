@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { decrypt } from '@/lib/encrypt'
 import { replyToComment as facebookReply } from '@/services/social/facebook'
 import { replyToComment as instagramReply } from '@/services/social/instagram'
+import { postCommentReply as linkedinReply } from '@/services/social/linkedin'
 
 export const dynamic = 'force-dynamic'
 
@@ -36,7 +37,8 @@ export async function POST(req: Request, { params }: RouteContext) {
     }
 
     const platform = comment.socialAccount.platform
-    if (platform !== 'FACEBOOK' && platform !== 'INSTAGRAM') {
+    const supportedPlatforms = ['FACEBOOK', 'INSTAGRAM', 'LINKEDIN'] as const
+    if (!supportedPlatforms.includes(platform as typeof supportedPlatforms[number])) {
       return NextResponse.json(
         { error: 'Platform not supported for live replies.' },
         { status: 400 }
@@ -46,6 +48,9 @@ export async function POST(req: Request, { params }: RouteContext) {
     const accessToken = decrypt(comment.socialAccount.accessToken)
     if (platform === 'INSTAGRAM') {
       await instagramReply(comment.platformCommentId, response.trim(), accessToken)
+    } else if (platform === 'LINKEDIN') {
+      // platformCommentId is the full comment URN; platformId is the org ID
+      await linkedinReply(accessToken, comment.platformCommentId, comment.socialAccount.platformId, response.trim())
     } else {
       await facebookReply(comment.platformCommentId, response.trim(), accessToken)
     }
