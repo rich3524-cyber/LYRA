@@ -3,6 +3,7 @@ import { redis } from '@/lib/redis'
 import { prisma } from '@/lib/prisma'
 import { decrypt } from '@/lib/encrypt'
 import { detectCrisis } from '@/services/ai/crisis-detector'
+import * as linkedin from '@/services/social/linkedin'
 
 const aiRespondQueue = new Queue('ai-responding', { connection: redis })
 
@@ -41,6 +42,21 @@ const worker = new Worker(
             rawComments.push({ id: c.id, message: c.text, from: { name: c.username }, created_time: c.timestamp })
           }
         }
+      } else if (platform === 'LINKEDIN') {
+        // Fetch recent org posts then gather comments.
+        // platformCommentId = full comment URN encodes post context for later replies.
+        const posts = await linkedin.getOrgPosts(token, account.platformId)
+        for (const post of posts.slice(0, 10)) {
+          const comments = await linkedin.getPostComments(token, post.urn)
+          for (const c of comments) {
+            rawComments.push({
+              id:           c.commentUrn,
+              message:      c.text,
+              from:         { name: 'LinkedIn Member' },
+              created_time: new Date(c.createdAt).toISOString(),
+            })
+          }
+        }
       }
       // Other platforms: add polling logic here as APIs are onboarded
     } catch (err) {
@@ -52,7 +68,7 @@ const worker = new Worker(
 
     for (const comment of rawComments) {
       const existing = await prisma.comment.findFirst({
-        where: { platformCommentId: comment.id },
+        where: { socialAccountId: account.id, platformCommentId: comment.id },
       })
       if (existing) continue
 

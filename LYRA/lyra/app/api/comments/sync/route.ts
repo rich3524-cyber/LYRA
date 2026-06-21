@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { decrypt } from '@/lib/encrypt'
+import * as linkedin from '@/services/social/linkedin'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,7 +19,7 @@ export async function POST(req: Request) {
     if (!workspace) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
     const accounts = await prisma.socialAccount.findMany({
-      where: { workspaceId, isActive: true, platform: { in: ['FACEBOOK', 'INSTAGRAM'] } },
+      where: { workspaceId, isActive: true, platform: { in: ['FACEBOOK', 'INSTAGRAM', 'LINKEDIN'] } },
       select: { id: true, platform: true, platformId: true, accessToken: true },
     })
 
@@ -49,13 +50,30 @@ export async function POST(req: Request) {
               rawComments.push({ id: c.id, message: c.text, from: { name: c.username }, created_time: c.timestamp })
             }
           }
+        } else if (account.platform === 'LINKEDIN') {
+          // Fetch recent org posts then gather comments on each.
+          // platformCommentId for LinkedIn = full comment URN (encodes post context for replies).
+          const posts = await linkedin.getOrgPosts(token, account.platformId)
+          for (const post of posts.slice(0, 10)) {
+            const comments = await linkedin.getPostComments(token, post.urn)
+            for (const c of comments) {
+              rawComments.push({
+                id:           c.commentUrn,
+                message:      c.text,
+                from:         { name: 'LinkedIn Member' },
+                created_time: new Date(c.createdAt).toISOString(),
+              })
+            }
+          }
         }
       } catch {
         continue
       }
 
       for (const comment of rawComments) {
-        const exists = await prisma.comment.findFirst({ where: { platformCommentId: comment.id } })
+        const exists = await prisma.comment.findFirst({
+          where: { socialAccountId: account.id, platformCommentId: comment.id },
+        })
         if (exists) continue
         await prisma.comment.create({
           data: {
