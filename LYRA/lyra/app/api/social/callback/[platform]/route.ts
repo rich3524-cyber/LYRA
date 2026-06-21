@@ -81,46 +81,24 @@ export async function GET(
       }
 
       case 'linkedin': {
-        let step = 'exchangeCode'
         const { accessToken, expiresIn } = await linkedin.exchangeCode(code)
-        step = 'getProfile'
-        const profile = await linkedin.getProfile(accessToken)
-        step = 'getOrganizations'
-        const orgs = await linkedin.getOrganizations(accessToken, profile.id)
-        step = 'upsert'
-        void step
+        const memberId = await linkedin.getMemberId(accessToken)
+        const orgs = await linkedin.getOrganizations(accessToken, memberId)
 
-        if (orgs.length > 0) {
-          for (const org of orgs) {
-            await prisma.socialAccount.upsert({
-              where: { workspaceId_platform_platformId: { workspaceId, platform: 'LINKEDIN', platformId: org.id } },
-              create: {
-                workspaceId,
-                platform: 'LINKEDIN',
-                platformId: org.id,
-                handle: org.name,
-                name: org.name,
-                avatarUrl: org.logoUrl,
-                accessToken: encrypt(accessToken),
-                tokenExpiry: new Date(Date.now() + expiresIn * 1000),
-              },
-              update: {
-                accessToken: encrypt(accessToken),
-                tokenExpiry: new Date(Date.now() + expiresIn * 1000),
-                isActive: true,
-              },
-            })
-          }
-        } else {
-          // No org pages — store personal profile as fallback
+        if (orgs.length === 0) {
+          return NextResponse.redirect(`${BASE_URL}/workspace/${workspaceId}/settings?error=linkedin_no_orgs`)
+        }
+
+        for (const org of orgs) {
           await prisma.socialAccount.upsert({
-            where: { workspaceId_platform_platformId: { workspaceId, platform: 'LINKEDIN', platformId: profile.id } },
+            where: { workspaceId_platform_platformId: { workspaceId, platform: 'LINKEDIN', platformId: org.id } },
             create: {
               workspaceId,
               platform: 'LINKEDIN',
-              platformId: profile.id,
-              handle: profile.name,
-              name: profile.name,
+              platformId: org.id,
+              handle: org.name,
+              name: org.name,
+              avatarUrl: org.logoUrl,
               accessToken: encrypt(accessToken),
               tokenExpiry: new Date(Date.now() + expiresIn * 1000),
             },
@@ -255,8 +233,7 @@ export async function GET(
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    const msg = error instanceof Error ? error.message : String(error)
     console.error(`GET /api/social/callback/[platform] error:`, error)
-    return NextResponse.redirect(`${BASE_URL}/dashboard?error=oauth_failed&detail=${encodeURIComponent(msg.slice(0, 200))}`)
+    return NextResponse.redirect(`${BASE_URL}/dashboard?error=oauth_failed`)
   }
 }

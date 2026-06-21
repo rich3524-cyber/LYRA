@@ -2,13 +2,9 @@ const AUTH_URL = 'https://www.linkedin.com/oauth/v2/authorization'
 const TOKEN_URL = 'https://www.linkedin.com/oauth/v2/accessToken'
 const API_URL = 'https://api.linkedin.com/v2'
 
-// Community Management API — Development Tier (Lyra Social app 86cwwy532ehm04)
-// r_organization_social_feed / w_organization_social_feed excluded — separate tier approval required
+// Community Management API — Development Tier (Lyra Pages app 86iuab2ytwlmaa)
+// No OIDC scopes — member ID resolved via token introspection instead of /v2/userinfo
 const SCOPES = [
-  'openid',
-  'profile',
-  'email',
-  'w_member_social',
   'r_organization_social',
   'w_organization_social',
   'rw_organization_admin',
@@ -65,15 +61,24 @@ export async function exchangeCode(code: string): Promise<{ accessToken: string;
   return { accessToken: data.access_token as string, expiresIn: data.expires_in as number }
 }
 
-export async function getProfile(accessToken: string): Promise<{ id: string; name: string }> {
-  const res = await fetch('https://api.linkedin.com/v2/userinfo', {
-    headers: { Authorization: `Bearer ${accessToken}` },
+// Resolve the LinkedIn member ID without requiring openid scope.
+// Uses OAuth token introspection — works with any access token regardless of scopes.
+export async function getMemberId(accessToken: string): Promise<string> {
+  const res = await fetch('https://www.linkedin.com/oauth/v2/introspectToken', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id:     process.env.LINKEDIN_CLIENT_ID!,
+      client_secret: process.env.LINKEDIN_CLIENT_SECRET!,
+      token:         accessToken,
+    }),
   })
   const data = await res.json()
-  return {
-    id: data.sub as string,
-    name: (data.name ?? `${data.given_name ?? ''} ${data.family_name ?? ''}`.trim()) as string,
-  }
+  // authorized_user = "urn:li:person:abc123"
+  const urn: string = data.authorized_user ?? ''
+  const memberId = urn.split(':').pop() ?? ''
+  if (!memberId) throw new Error(`LinkedIn token introspection failed: ${JSON.stringify(data)}`)
+  return memberId
 }
 
 export async function getOrganizations(accessToken: string, memberId: string): Promise<LinkedInOrg[]> {
