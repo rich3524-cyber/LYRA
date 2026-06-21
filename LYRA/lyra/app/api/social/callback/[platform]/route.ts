@@ -81,9 +81,14 @@ export async function GET(
       }
 
       case 'linkedin': {
+        let step = 'exchangeCode'
         const { accessToken, expiresIn } = await linkedin.exchangeCode(code)
+        step = 'getProfile'
         const profile = await linkedin.getProfile(accessToken)
+        step = 'getOrganizations'
         const orgs = await linkedin.getOrganizations(accessToken, profile.id)
+        step = 'upsert'
+        void step
 
         if (orgs.length > 0) {
           for (const org of orgs) {
@@ -250,7 +255,8 @@ export async function GET(
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    const msg = error instanceof Error ? error.message : String(error)
     console.error(`GET /api/social/callback/[platform] error:`, error)
-    return NextResponse.redirect(`${BASE_URL}/dashboard?error=oauth_failed`)
+    return NextResponse.redirect(`${BASE_URL}/dashboard?error=oauth_failed&detail=${encodeURIComponent(msg.slice(0, 200))}`)
   }
 }
