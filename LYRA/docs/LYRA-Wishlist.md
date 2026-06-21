@@ -37,7 +37,7 @@ These items were on the original Phase 2 plan. Most are built; the ones below ar
 
 | Feature | Spec | Notes |
 |---|---|---|
-| **Creative Studio** | `docs/superpowers/specs/2026-06-07-creative-studio-design.md` | AI image + video generation guided by Brand AI. Phase 1: images (Ideogram, FLUX). Phase 2: short-form video (Higgsfield, Runway). Do not build until core product is validated with paying users. |
+| **Creative Studio** | `docs/superpowers/specs/2026-06-07-creative-studio-design.md` | AI image + video generation guided by Brand AI. Phase 1: images (Ideogram, FLUX). Phase 2: short-form video (Higgsfield, Runway, ARCADS AI). Do not build until core product is validated with paying users. |
 
 ---
 
@@ -97,6 +97,41 @@ Agency tier upsell: custom domain (e.g., `social.agencyname.com`), logo replacem
 
 **10. UTM parameter automation**
 When a post contains a URL, automatically append UTM parameters (`utm_source`, `utm_medium`, `utm_campaign`) based on configurable workspace defaults. Links then flow into Google Analytics with correct attribution. Agencies tracking campaign ROI will want this.
+
+---
+
+### 🔵 Compliance — Needed Before Scaling to Europe
+
+**11. GDPR tools**
+Data export (all data held for a user/workspace as a downloadable ZIP) and deletion requests (purge a workspace and all its data on request). Required for any EU customers. Also needed: a visible data processing agreement and a cookie consent banner on the marketing site. Low effort to build; high risk to skip.
+
+---
+
+### 🟠 SEO — Active Intelligence (two-layer feature)
+
+**12. Proactive SEO keyword intelligence + auto-update**
+
+LYRA already sees every piece of content passing through the system — posts, repurposed articles, AI captions, and scheduled content. This positions it to do something no current SEO tool does: watch for emerging keyword and topic patterns in a client's own content, and use that intelligence to keep their SEO up to date automatically.
+
+**Layer 1 — Pattern detection + Indexing API (buildable now, no CMS needed)**
+
+- Watch posts, repurposed content, and AI captions for emerging keyword clusters. If a workspace publishes 6 pieces about "sustainable packaging" in a month, LYRA detects this as a new topic signal.
+- Automatically regenerate SEO metadata (meta title, meta description, schema markup suggestions) for the relevant tracked pages in the SEO module, using Claude with the brand profile + new keyword data as context.
+- When a new page or updated page is detected, call the **Google Indexing API** to submit it for immediate re-crawl — rather than waiting weeks for Googlebot to find it organically. This is a write-capable Google API (separate from GSC which is read-only).
+- Surface to the user: "We've detected you're publishing frequently about X. We've updated your SEO metadata for 2 pages — review and apply."
+- Repurpose is the strongest trigger: when a user repurposes an article, the keywords used are explicit signal. Capturing these at repurpose-time and feeding them into SEO is a zero-friction loop.
+
+**Layer 2 — CMS integration (Phase 2, requires integration work)**
+
+To actually push meta tag changes to the client's website rather than just suggesting them, LYRA needs a CMS connector:
+- **WordPress** — REST API or a lightweight LYRA plugin that receives meta update payloads and writes to Yoast/RankMath fields.
+- **Webflow** — Webflow CMS API supports updating page SEO fields directly.
+- **Squarespace / Wix** — more limited APIs; may require a middleman or manual apply step.
+
+With CMS access, the full loop closes: LYRA detects a keyword pattern → generates updated meta content → pushes it to the live website → submits the page to Google for re-indexing → GSC data confirms the ranking change. No human intervention required.
+
+**Why this matters**
+Current SEO tools tell clients what's wrong. LYRA would fix it, automatically, based on what the client is actually publishing. Competitors have neither the content context (they don't see the social posts) nor the autonomy model to act on it. This is a direct extension of LYRA's core differentiator into the SEO category.
 
 ---
 
