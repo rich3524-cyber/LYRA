@@ -31,36 +31,64 @@ export async function POST(req: Request) {
   switch (event.type) {
     case 'customer.subscription.created':
     case 'customer.subscription.updated': {
-      const sub = event.data.object
-      await prisma.agency.updateMany({
-        where: { stripeCustomerId: sub.customer as string },
-        data:  {
-          stripeSubId: sub.id,
-          plan:        toPlan((sub.metadata as Record<string, string>).plan),
-        },
+      const sub  = event.data.object
+      const plan = toPlan((sub.metadata as Record<string, string>).plan)
+      const agencies = await prisma.agency.findMany({
+        where:  { stripeCustomerId: sub.customer as string },
+        select: { id: true },
       })
+      await Promise.all(agencies.map(a =>
+        prisma.$transaction([
+          prisma.agency.update({
+            where: { id: a.id },
+            data:  { stripeSubId: sub.id, plan },
+          }),
+          prisma.workspace.updateMany({
+            where: { agencyId: a.id },
+            data:  { plan },
+          }),
+        ])
+      ))
       break
     }
     case 'customer.subscription.deleted': {
-      const sub = event.data.object
-      await prisma.agency.updateMany({
-        where: { stripeCustomerId: sub.customer as string },
-        data:  { plan: 'STARTER', stripeSubId: null },
+      const sub      = event.data.object
+      const agencies = await prisma.agency.findMany({
+        where:  { stripeCustomerId: sub.customer as string },
+        select: { id: true },
       })
+      await Promise.all(agencies.map(a =>
+        prisma.$transaction([
+          prisma.agency.update({
+            where: { id: a.id },
+            data:  { plan: 'STARTER', stripeSubId: null },
+          }),
+          prisma.workspace.updateMany({
+            where: { agencyId: a.id },
+            data:  { plan: 'STARTER' },
+          }),
+        ])
+      ))
       break
     }
     case 'checkout.session.completed': {
       const session = event.data.object
       if (session.mode === 'subscription' && session.customer && session.metadata?.agencyId) {
         const { agencyId, plan, userId } = session.metadata
+        const resolvedPlan = toPlan(plan)
         const agency = await prisma.agency.update({
           where:   { id: agencyId },
-          data:    { stripeCustomerId: session.customer as string },
+          data:    { stripeCustomerId: session.customer as string, plan: resolvedPlan },
           include: { workspaces: { take: 1 } },
+        })
+        // Sync plan onto existing workspaces
+        await prisma.workspace.updateMany({
+          where: { agencyId },
+          data:  { plan: resolvedPlan },
         })
         if (agency.workspaces.length === 0 && userId) {
           const workspace = await prisma.workspace.create({
-            data: { name: 'My Workspace', agencyId: agency.id, plan: toPlan(plan) },
+            data: { name: 'My Workspace', agencyId: agency.id, plan: resolvedPlan },
           })
           await prisma.workspaceAccess.create({
             data: { userId, workspaceId: workspace.id, role: 'AGENCY_ADMIN' },

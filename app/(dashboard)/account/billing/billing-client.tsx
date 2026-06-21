@@ -60,7 +60,7 @@ export function BillingClient({ currentPlan, hasStripeAccount, plans }: Props) {
       {/* Current plan banner */}
       <div className="rounded-xl border border-background-border-mid bg-background-secondary p-4 flex items-center justify-between">
         <div>
-          <p className="font-sans text-xs text-text-tertiary uppercase tracking-[0.1em] mb-0.5">Current plan</p>
+          <p className="font-sans text-xs text-text-tertiary uppercase tracking-widest mb-0.5">Current plan</p>
           <p className="font-sans text-lg font-medium text-text-primary">{currentPlan}</p>
         </div>
         {hasStripeAccount && (
