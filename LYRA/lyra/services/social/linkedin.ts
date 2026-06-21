@@ -2,16 +2,12 @@ const AUTH_URL = 'https://www.linkedin.com/oauth/v2/authorization'
 const TOKEN_URL = 'https://www.linkedin.com/oauth/v2/accessToken'
 const API_URL = 'https://api.linkedin.com/v2'
 
-// Community Management API — Development Tier (Lyra Pages app 86iuab2ytwlmaa)
-// r_organization_social_feed / w_organization_social_feed excluded — not in dev tier grant
+// Diagnostic: 4 basic scopes — testing if Lyra Pages app accepts any OAuth at all
 const SCOPES = [
   'openid',
   'profile',
   'email',
   'w_member_social',
-  'r_organization_social',
-  'w_organization_social',
-  'rw_organization_admin',
 ].join(' ')
 
 const RESTLI_HEADERS = {
