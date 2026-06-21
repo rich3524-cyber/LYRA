@@ -118,7 +118,7 @@ export function ResponseInbox({
   return (
     <div className="space-y-4">
       {error && (
-        <p className="text-sm text-status-error text-center py-6">{error}</p>
+        <p role="alert" className="text-sm text-status-error text-center py-6">{error}</p>
       )}
 
       {/* Platform filter + sync */}
@@ -127,7 +127,7 @@ export function ResponseInbox({
         {loading ? (
           <div className="h-7 w-48 rounded-full bg-background-secondary border border-background-border animate-pulse" />
         ) : platforms.length > 1 ? (
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {(['ALL', ...platforms] as string[]).map(p => (
               <button
                 key={p}
@@ -180,7 +180,7 @@ export function ResponseInbox({
               <div key={i} className="h-24 rounded-xl bg-background-secondary border border-background-border animate-pulse" />
             ))
           ) : pending.length === 0 ? (
-            <p className="text-sm text-text-tertiary text-center py-12">All caught up.</p>
+            <p className="text-sm text-text-secondary text-center py-12">All caught up.</p>
           ) : (
             <AnimatePresence>
               {pending.map(c => (
@@ -207,7 +207,7 @@ export function ResponseInbox({
               <div key={i} className="h-24 rounded-xl bg-background-secondary border border-background-border animate-pulse" />
             ))
           ) : escalated.length === 0 ? (
-            <p className="text-sm text-text-tertiary text-center py-12">No escalated comments.</p>
+            <p className="text-sm text-text-secondary text-center py-12">No escalated comments.</p>
           ) : (
             <AnimatePresence>
               {escalated.map(c => (
@@ -234,7 +234,7 @@ export function ResponseInbox({
               <div key={i} className="h-24 rounded-xl bg-background-secondary border border-background-border animate-pulse" />
             ))
           ) : responded.length === 0 ? (
-            <p className="text-sm text-text-tertiary text-center py-12">No responses sent yet.</p>
+            <p className="text-sm text-text-secondary text-center py-12">No responses sent yet.</p>
           ) : (
             <AnimatePresence>
               {responded.map(c => (

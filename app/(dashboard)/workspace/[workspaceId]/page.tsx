@@ -126,7 +126,7 @@ export default async function WorkspaceOverviewPage({ params }: Props) {
             className="group flex flex-col justify-between p-5 rounded-xl bg-background-secondary border border-background-border hover:border-background-border-mid transition-all duration-150"
           >
             <div className="flex items-center justify-between mb-4">
-              <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
+              <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-widest">
                 {label}
               </p>
               <Icon
@@ -145,7 +145,7 @@ export default async function WorkspaceOverviewPage({ params }: Props) {
       {/* Recent posts */}
       <div className="rounded-xl bg-background-secondary border border-background-border overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-background-border">
-          <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
+          <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-widest">
             Recent posts
           </p>
           <Link
@@ -159,7 +159,7 @@ export default async function WorkspaceOverviewPage({ params }: Props) {
 
         {recentPosts.length === 0 ? (
           <div className="px-5 py-12 text-center space-y-4">
-            <p className="font-sans text-sm text-text-tertiary">No posts yet.</p>
+            <p className="font-sans text-sm text-text-secondary">No posts yet.</p>
             <Link
               href={`/workspace/${workspaceId}/compose`}
               className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-accent-platinum text-background-primary font-sans text-xs font-medium hover:bg-accent-white transition-colors"
@@ -180,7 +180,7 @@ export default async function WorkspaceOverviewPage({ params }: Props) {
               const statusLabel = STATUS_LABEL[post.status] ?? post.status
 
               return (
-                <div key={post.id} className="flex items-center justify-between gap-4 px-5 py-3">
+                <div key={post.id} className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3">
                   <div className="min-w-0 flex items-center gap-3">
                     {platform && (
                       <span className="font-mono text-xs text-text-tertiary shrink-0 w-7">
@@ -191,8 +191,8 @@ export default async function WorkspaceOverviewPage({ params }: Props) {
                       {preview || '—'}
                     </p>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <span className="font-sans text-xs text-text-tertiary">
+                  <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                    <span className="hidden sm:inline font-sans text-xs text-text-tertiary">
                       {format(new Date(date), 'MMM d')}
                     </span>
                     <span className={`font-sans text-xs px-2 py-0.5 rounded-md font-medium ${statusColour}`}>
