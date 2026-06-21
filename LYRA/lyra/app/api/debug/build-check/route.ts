@@ -1,16 +1,21 @@
 import { NextResponse } from 'next/server'
-import { revalidatePath } from 'next/cache'
+import { getAuthUrl } from '@/services/social/linkedin'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET() {
-  // Broad cache bust — wipes Full Route Cache for all workspace pages
-  revalidatePath('/workspace', 'layout')
+  const testUrl = getAuthUrl('debug-test')
+  const url = new URL(testUrl)
+  const scope = url.searchParams.get('scope') ?? ''
+  const scopes = scope.split(' ').filter(Boolean)
 
   return NextResponse.json({
-    commit: '706362b',
+    commit: 'dcdd651',
     ts: new Date().toISOString(),
-    brand_component: 'BrandGuidelinesPanel',
-    revalidated: true,
+    linkedin_scope: scope,
+    scope_count: scopes.length,
+    scopes,
+    expected_count: 9,
+    ok: scopes.length === 9,
   })
 }
