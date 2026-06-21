@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  generateBuildId: async () => 'build-20260621-linkedin-scopes',
   async headers() {
     return [
       {
