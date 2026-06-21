@@ -1,12 +1,69 @@
 # LYRA — Project Handover Document
 
-**Date:** May 2026 (updated June 2026 — Session 39: full mobile UI/UX audit + fixes; Session 38: media upload fix, client approval workflow, tsconfig dedup fix)  
+**Date:** May 2026 (updated June 2026 — Session 40: LinkedIn Community Management API + token introspection; Session 39: full mobile UI/UX audit + fixes; Session 38: media upload fix, client approval workflow, tsconfig dedup fix)  
 **Prepared by:** Claude Code (Anthropic)  
 **Project owner:** Richard Unwin, Into The Wild Marketing
 
 ---
 
 ## Changelog
+
+### June 2026 — Session 40: LinkedIn Community Management API
+
+---
+
+#### Problem: LinkedIn only connected personal profiles
+
+Three LinkedIn developer apps existed but none could provide org page access:
+- **Lyra** (`86sr2pmkxi1n0q`) — had OIDC products, Community Management API greyed out
+- **Lyra Pages** (`86iuab2ytwlmaa`) — had Community Management API at Development Tier, but also had OIDC and Share on LinkedIn products; LinkedIn blocks OAuth with a "Bummer" error because Community Management API must be the **only product on the app** — a hard LinkedIn platform restriction ("This API product requires that it be the only product on the application for legal and security reasons.")
+- **LYRA Community** — new app created with no other products, dedicated to Community Management API
+
+#### Fix: new LYRA Community app + token introspection
+
+Created the **LYRA Community** developer app with no other products. Applied for Community Management API Development Tier access. Access form submitted to Microsoft Vetting Services (Into The Wild Marketing). Awaiting approval email — expected within 3–7 business days.
+
+While waiting, code was updated to work without OIDC scopes:
+
+**`services/social/linkedin.ts`**
+- Scopes reduced to 3: `r_organization_social`, `w_organization_social`, `rw_organization_admin`
+- `getProfile()` replaced by `getMemberId()` — resolves the LinkedIn member ID via `POST https://www.linkedin.com/oauth/v2/introspectToken` instead of `/v2/userinfo`. Token introspection returns `authorized_user = "urn:li:person:abc123"` — the member ID is extracted from the URN. This eliminates the OIDC dependency entirely.
+
+**`app/api/social/callback/[platform]/route.ts`** (LinkedIn case)
+- Uses `getMemberId()` instead of `getProfile()`
+- No personal profile fallback — redirects to `?error=linkedin_no_orgs` if `getOrganizations()` returns empty
+- Clean catch block (no debug artifacts)
+
+**Netlify configured** with LYRA Community app credentials (`LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET` env vars updated).
+
+#### What happens after LinkedIn approval
+
+Once Microsoft Vetting Services approves the LYRA Community app:
+1. Test the connect flow from workspace settings
+2. Verify org pages appear (not personal profile)
+3. No code changes needed — the 3-scope OAuth + token introspection approach is already deployed
+
+#### Deployment issue resolved: Netlify serving stale code
+
+Root cause: the `deploy-site` MCP tool was uploading a stale local `.next/` (built June 14) directly to Netlify on every "deploy" — bypassing the git build process entirely. Fix: deleted local `.next/`, switched to git-triggered builds from the outer OneDrive git repo.
+
+Also discovered the root `netlify.toml` was missing. Created it at repo root with:
+```toml
+[build]
+  command = "rm -rf .next && npx prisma generate && npm run build"
+```
+
+**Critical rule confirmed:** Never use the MCP `deploy-site` tool. Always deploy via `git push` to `main` from the outer OneDrive repo. Netlify auto-builds on push.
+
+#### Files changed
+
+| File | Change |
+|---|---|
+| `lyra/services/social/linkedin.ts` | Scopes: 3 only. `getProfile()` → `getMemberId()` via token introspection |
+| `lyra/app/api/social/callback/[platform]/route.ts` | LinkedIn case: uses `getMemberId`, redirects on no orgs |
+| `netlify.toml` (repo root) | Created — build command with `rm -rf .next` |
+
+---
 
 ### June 2026 — Session 39: Full mobile UI/UX audit + fixes
 
@@ -964,7 +1021,7 @@ LYRA (lyraonline.ai) is a premium AI-powered social media management SaaS platfo
 
 | Platform | App Name | Status |
 |---|---|---|
-| LinkedIn | LYRA (App ID: 863jh229lfqonh) | Connected — personal profile only |
+| LinkedIn | **LYRA Community** (new dedicated app) | Code deployed — awaiting Development Tier approval from Microsoft Vetting Services. Connects org pages (not personal profile). Token introspection used for member ID — no OIDC required. |
 | Facebook/Instagram | LYRA (App ID: 1480576426774303) | OAuth flow built — needs testing |
 | Google Business | Not created yet | Flow built, untested |
 | X (Twitter) | LYRAOnline (App ID: `2065992296558903296`) | Connected ✅ — OAuth 2.0 with PKCE, scopes: tweet.read/write, users.read, offline.access |
@@ -999,8 +1056,8 @@ All set in Netlify dashboard under Site Settings → Environment Variables.
 | `ENCRYPTION_KEY` | 64-character hex string for AES-256-GCM token encryption |
 | `FACEBOOK_APP_ID` | `1480576426774303` |
 | `FACEBOOK_APP_SECRET` | Facebook app secret |
-| `LINKEDIN_CLIENT_ID` | `863jh229lfqonh` |
-| `LINKEDIN_CLIENT_SECRET` | LinkedIn primary client secret |
+| `LINKEDIN_CLIENT_ID` | LYRA Community app client ID (new dedicated app — no other products) |
+| `LINKEDIN_CLIENT_SECRET` | LYRA Community app client secret |
 | `APP_BASE_URL` | `https://lyraonline.ai` |
 | `NEXT_PUBLIC_APP_NAME` | `LYRA` |
 | `STRIPE_STARTER_PRICE_ID` | Stripe price ID for Starter monthly |
@@ -1209,9 +1266,11 @@ One workspace is currently active in production:
 ### Social Platform Issues
 
 **LinkedIn:**
-- Only personal profiles can be connected with current approved scopes (`openid profile email`)
-- Company page posting requires the LinkedIn Community Management API — **application submitted 2026-06-17, awaiting approval email**
-- Personal posting (`w_member_social` scope) also applied for — awaiting approval
+- **LYRA Community app** — new dedicated LinkedIn developer app with no other products. Community Management API Development Tier access form submitted 2026-06-21 to Microsoft Vetting Services. Awaiting approval email (expected 3–7 business days).
+- **Three scopes in use:** `r_organization_social`, `w_organization_social`, `rw_organization_admin`
+- **Token introspection** (`POST /oauth/v2/introspectToken`) resolves the LinkedIn member ID — no OIDC dependency. `authorized_user` URN contains the person ID.
+- **After approval:** test the connect flow from workspace settings. Org pages should appear. No code changes needed.
+- **Previous apps (do not use):** Lyra (`86sr2pmkxi1n0q`) has OIDC but can't add Community Management API. Lyra Pages (`86iuab2ytwlmaa`) has Community Management API but also has OIDC products — LinkedIn blocks the OAuth with a "Bummer" error because Community Management API must be the only product on an app.
 
 **Facebook / Instagram — Meta App Review required:**
 - OAuth flow is built. App ID: `1480576426774303`. Full 11-scope OAuth with page-picker is implemented in code.
@@ -1553,7 +1612,7 @@ LYRA uses a strict dark near-black design system defined in `lyra/lib/design-tok
 - **Meta (Facebook + Instagram)** — App Review submitted 2026-06-17. Decision expected ~2026-07-07. Monitor email.
 - **TikTok** — App Review submitted 2026-06-17. Decision expected within 1–7 business days. Monitor email.
 - **Google Business** — API access request submitted 2026-06-17 (case `5-5485000041034`). Check Cloud Console quota page (~2026-06-30). No code changes needed.
-- **LinkedIn** — API application submitted 2026-06-17. Awaiting email response. No code changes needed.
+- **LinkedIn** — LYRA Community app submitted to Microsoft Vetting Services 2026-06-21. Code fully deployed (token introspection, 3 org scopes). No code changes needed on approval — just test the connect flow.
 
 **No action required on any platform until approvals arrive.**
 
