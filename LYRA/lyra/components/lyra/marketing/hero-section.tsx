@@ -1,24 +1,37 @@
 import HeroCarousel from '@/components/lyra/marketing/hero-carousel'
 
-export default function HeroSection() {
+interface HeroSectionProps {
+  slotsRemaining?: number
+}
+
+export default function HeroSection({ slotsRemaining = 0 }: HeroSectionProps) {
   return (
     <section className="relative overflow-hidden pt-32 pb-16 px-6">
-      {/* gradient glow — inline style required */}
+      {/* gradient glow — silver/platinum ambient */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            'radial-gradient(ellipse at 50% 0%, rgba(139, 92, 246, 0.30) 0%, rgba(59, 130, 246, 0.15) 35%, transparent 65%)',
+            'radial-gradient(ellipse 70% 40% at 50% 10%, rgba(170,170,170,0.05) 0%, transparent 65%)',
         }}
+        aria-hidden="true"
       />
 
       <div className="relative max-w-4xl mx-auto text-center">
-        {/* Eyebrow chip */}
-        <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-background-border bg-background-secondary mb-6">
-          <span className="font-sans text-xs text-text-secondary tracking-wide">
-            AI-Powered Social Intelligence
-          </span>
-        </div>
+        {/* Eyebrow: founding member badge or product label */}
+        {slotsRemaining > 0 ? (
+          <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full border border-background-border bg-background-secondary mb-6">
+            <span className="font-mono text-xs text-accent-platinum">{slotsRemaining}</span>
+            <span className="w-px h-3 bg-background-border-mid" aria-hidden="true" />
+            <span className="font-sans text-xs text-text-tertiary">founding member spots remaining</span>
+          </div>
+        ) : (
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-background-border bg-background-secondary mb-6">
+            <span className="font-sans text-xs text-text-secondary tracking-wide">
+              AI-Powered Social Intelligence
+            </span>
+          </div>
+        )}
 
         {/* H1 */}
         <h1 className="font-display text-[52px] leading-[1.1] text-text-primary mb-4">
@@ -48,7 +61,7 @@ export default function HeroSection() {
 
         {/* Trial note */}
         <p className="font-sans text-xs text-text-tertiary mb-0">
-          14-day free trial. Card required. Cancel any time.
+          14-day free trial. No credit card required.
         </p>
       </div>
 

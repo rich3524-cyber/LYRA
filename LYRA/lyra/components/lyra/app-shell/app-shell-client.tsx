@@ -25,6 +25,14 @@ export function AppShellClient({
 
   return (
     <div className="flex h-screen overflow-hidden bg-background-primary">
+      {/* Skip to main content — keyboard accessibility */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-200 focus:px-4 focus:py-2 focus:bg-accent-platinum focus:text-background-primary focus:rounded-lg focus:font-sans focus:text-sm focus:font-medium"
+      >
+        Skip to main content
+      </a>
+
       <Sidebar
         workspaceId={workspaceId}
         brandReady={brandReady}
@@ -39,7 +47,7 @@ export function AppShellClient({
           plan={plan}
           onMenuOpen={() => setMobileNavOpen(true)}
         />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6 animate-fade-in">
+        <main id="main-content" className="flex-1 overflow-y-auto p-4 md:p-6 animate-fade-in">
           {children}
         </main>
       </div>

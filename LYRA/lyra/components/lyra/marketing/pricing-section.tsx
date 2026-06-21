@@ -15,7 +15,11 @@ const ENTERPRISE_FEATURES = [
   'Priority onboarding',
 ]
 
-export default function PricingSection() {
+interface PricingSectionProps {
+  slotsRemaining?: number
+}
+
+export default function PricingSection({ slotsRemaining = 0 }: PricingSectionProps) {
   const [billing, setBilling] = useState<Billing>('monthly')
   const [loading, setLoading] = useState<string | null>(null)
   const { user } = useUser()
@@ -68,7 +72,7 @@ export default function PricingSection() {
     <section id="pricing" className="py-24 bg-background-secondary px-6">
       <div className="max-w-6xl mx-auto">
         {/* Section label */}
-        <p className="font-sans text-xs text-text-tertiary uppercase tracking-[0.1em] text-center mb-3">
+        <p className="font-sans text-xs text-text-tertiary uppercase tracking-widest text-center mb-3">
           Pricing
         </p>
 
@@ -99,10 +103,30 @@ export default function PricingSection() {
               }`}
             >
               Annual
-              <span className="font-sans text-[10px] text-status-success">Save 17%</span>
+              <span className="font-sans text-[10px] text-status-success tracking-widest">Save 17%</span>
             </button>
           </div>
         </div>
+
+        {/* Founding member offer */}
+        {slotsRemaining > 0 && (
+          <div className="rounded-xl border border-background-border-mid bg-background-secondary p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-8">
+            <div>
+              <p className="font-sans text-[11px] font-medium text-accent-silver uppercase tracking-widest mb-1">
+                Founding Member Offer
+              </p>
+              <p className="font-sans text-sm text-text-primary">
+                Lock in current pricing forever.
+              </p>
+              <p className="font-sans text-xs text-text-secondary mt-0.5">
+                Be among the first 100 to subscribe and your price never increases — even as LYRA grows.
+              </p>
+            </div>
+            <span className="shrink-0 font-mono text-sm text-accent-platinum whitespace-nowrap">
+              {slotsRemaining} of 100 spots remaining
+            </span>
+          </div>
+        )}
 
         {/* Pricing cards grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">

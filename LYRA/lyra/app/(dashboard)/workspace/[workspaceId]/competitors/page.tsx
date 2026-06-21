@@ -59,7 +59,7 @@ export default function CompetitorsPage() {
         <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
           <Crosshair className="h-8 w-8 text-text-tertiary" strokeWidth={1.5} />
           <p className="text-sm font-sans text-text-secondary">No competitors added.</p>
-          <p className="text-sm font-sans text-text-tertiary">Add a competitor to start tracking their content strategy.</p>
+          <p className="text-sm font-sans text-text-secondary">Add a competitor to start tracking their content strategy.</p>
         </div>
       ) : (
         <div className="space-y-4">

@@ -45,7 +45,7 @@ export default async function ClientsPage() {
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <Building2 size={40} className="text-text-tertiary mb-4" />
           <p className="text-text-secondary text-sm">No workspaces yet.</p>
-          <p className="text-text-tertiary text-xs mt-1">Create your first client workspace to get started.</p>
+          <p className="text-text-secondary text-xs mt-1">Create your first client workspace to get started.</p>
           <Link
             href="/agency/clients/new"
             className="mt-6 inline-flex items-center gap-1.5 text-xs font-medium bg-accent-platinum text-text-inverse hover:bg-accent-white px-3 h-8 rounded-md transition-colors"

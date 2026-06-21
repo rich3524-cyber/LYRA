@@ -126,7 +126,7 @@ export default async function WorkspaceOverviewPage({ params }: Props) {
             className="group flex flex-col justify-between p-5 rounded-xl bg-background-secondary border border-background-border hover:border-background-border-mid transition-all duration-150"
           >
             <div className="flex items-center justify-between mb-4">
-              <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
+              <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-widest">
                 {label}
               </p>
               <Icon
@@ -145,7 +145,7 @@ export default async function WorkspaceOverviewPage({ params }: Props) {
       {/* Recent posts */}
       <div className="rounded-xl bg-background-secondary border border-background-border overflow-hidden">
         <div className="flex items-center justify-between px-5 py-4 border-b border-background-border">
-          <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
+          <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-widest">
             Recent posts
           </p>
           <Link
@@ -159,7 +159,7 @@ export default async function WorkspaceOverviewPage({ params }: Props) {
 
         {recentPosts.length === 0 ? (
           <div className="px-5 py-12 text-center space-y-4">
-            <p className="font-sans text-sm text-text-tertiary">No posts yet.</p>
+            <p className="font-sans text-sm text-text-secondary">No posts yet.</p>
             <Link
               href={`/workspace/${workspaceId}/compose`}
               className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-accent-platinum text-background-primary font-sans text-xs font-medium hover:bg-accent-white transition-colors"

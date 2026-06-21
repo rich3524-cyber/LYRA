@@ -121,7 +121,7 @@ export function PerformanceDashboard({ workspaceId }: { workspaceId: string }) {
               ))}
             </div>
           ) : (data?.platformBreakdown.length ?? 0) === 0 ? (
-            <p className="font-sans text-sm text-text-tertiary">No published posts yet</p>
+            <p className="font-sans text-sm text-text-secondary">No published posts yet</p>
           ) : (
             <div className="space-y-3">
               {data?.platformBreakdown.map(({ platform, count }) => {
@@ -158,7 +158,7 @@ export function PerformanceDashboard({ workspaceId }: { workspaceId: string }) {
               ))}
             </div>
           ) : (data?.topPosts.length ?? 0) === 0 ? (
-            <p className="font-sans text-sm text-text-tertiary">No posts with metrics yet</p>
+            <p className="font-sans text-sm text-text-secondary">No posts with metrics yet</p>
           ) : (
             <div className="space-y-3">
               {data?.topPosts.map(post => (
@@ -168,9 +168,9 @@ export function PerformanceDashboard({ workspaceId }: { workspaceId: string }) {
                       {PLATFORM_LABELS[post.platform] ?? post.platform}
                     </span>
                     <div className="flex items-center gap-3 font-sans text-xs text-text-tertiary">
-                      <span className="flex items-center gap-1"><Eye size={10} />{post.reach.toLocaleString()}</span>
-                      <span className="flex items-center gap-1"><Heart size={10} />{post.likes}</span>
-                      <span className="flex items-center gap-1"><Share2 size={10} />{post.comments}</span>
+                      <span className="flex items-center gap-1"><Eye size={12} strokeWidth={1.5} />{post.reach.toLocaleString()}</span>
+                      <span className="flex items-center gap-1"><Heart size={12} strokeWidth={1.5} />{post.likes}</span>
+                      <span className="flex items-center gap-1"><Share2 size={12} strokeWidth={1.5} />{post.comments}</span>
                     </div>
                   </div>
                   <p className="font-sans text-xs text-text-secondary line-clamp-2 leading-relaxed">{post.content}</p>

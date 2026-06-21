@@ -1,9 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { usePathname } from 'next/navigation'
-import { Bell, Menu, Zap } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { usePathname, useRouter } from 'next/navigation'
+import { Menu, Zap } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
   DropdownMenu,
@@ -49,6 +48,7 @@ interface HeaderProps {
 export function Header({ user, plan, onMenuOpen }: HeaderProps) {
   const [upgradeOpen, setUpgradeOpen] = useState(false)
   const pathname = usePathname()
+  const router = useRouter()
   const showUpgrade = plan === 'STARTER' || plan === 'PRO'
   const mobileTitle = getPageTitle(pathname)
 
@@ -60,7 +60,7 @@ export function Header({ user, plan, onMenuOpen }: HeaderProps) {
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={onMenuOpen}
-            className="lg:hidden p-1.5 -ml-1 text-text-tertiary hover:text-text-primary transition-colors rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-silver"
+            className="lg:hidden -ml-2 h-11 w-11 flex items-center justify-center text-text-tertiary hover:text-text-primary transition-colors rounded-md cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-silver"
             aria-label="Open navigation"
           >
             <Menu size={18} strokeWidth={1.5} />
@@ -84,21 +84,12 @@ export function Header({ user, plan, onMenuOpen }: HeaderProps) {
             </button>
           )}
 
-          <Button
-            variant="ghost"
-            size="icon"
-            className="text-text-tertiary hover:text-text-primary"
-            aria-label="Notifications"
-          >
-            <Bell size={16} />
-          </Button>
-
           <DropdownMenu>
             <DropdownMenuTrigger
-              className="flex items-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-silver rounded-full cursor-pointer bg-transparent border-0 p-0"
+              className="h-10 w-10 flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-silver rounded-full cursor-pointer bg-transparent border-0 p-0"
               aria-label="User menu"
             >
-              <Avatar className="h-7 w-7">
+              <Avatar className="h-8 w-8">
                 <AvatarImage src={user.avatarUrl ?? undefined} />
                 <AvatarFallback className="bg-background-tertiary text-text-secondary text-xs">
                   {user.name?.[0] ?? user.email[0].toUpperCase()}
@@ -132,7 +123,7 @@ export function Header({ user, plan, onMenuOpen }: HeaderProps) {
 
               <DropdownMenuItem
                 className="text-text-secondary cursor-pointer"
-                onClick={() => { window.location.href = '/account' }}
+                onClick={() => router.push('/account')}
               >
                 Account
               </DropdownMenuItem>

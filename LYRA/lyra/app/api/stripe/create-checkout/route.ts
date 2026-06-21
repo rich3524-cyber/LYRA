@@ -29,8 +29,8 @@ export async function POST(req: Request) {
       line_items:         [{ price: PLANS[plan].priceId, quantity: 1 }],
       success_url:        `${process.env.APP_BASE_URL}/account/billing?success=1`,
       cancel_url:         `${process.env.APP_BASE_URL}/account/billing?cancelled=1`,
-      metadata:           { agencyId: agency.id, plan },
-      subscription_data:  { metadata: { agencyId: agency.id, plan } },
+      metadata:           { agencyId: agency.id, plan, userId: user.id },
+      subscription_data:  { metadata: { agencyId: agency.id, plan, userId: user.id } },
     })
 
     return NextResponse.json({ url: session.url })
