@@ -2,7 +2,7 @@ const AUTH_URL = 'https://www.linkedin.com/oauth/v2/authorization'
 const TOKEN_URL = 'https://www.linkedin.com/oauth/v2/accessToken'
 const API_URL = 'https://api.linkedin.com/v2'
 
-// Community Management API — Development Tier (Lyra Pages app 86iuab2ytwlmaa)
+// Community Management API — Development Tier (LYRA Community app — the only product on it)
 // No OIDC scopes — member ID resolved via token introspection instead of /v2/userinfo
 const SCOPES = [
   'r_organization_social',

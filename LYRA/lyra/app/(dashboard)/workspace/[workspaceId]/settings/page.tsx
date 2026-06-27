@@ -1,7 +1,7 @@
 import { redirect, notFound } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
 import Link from 'next/link'
-import { CheckCircle, Link2, Link2Off } from 'lucide-react'
+import { CheckCircle, Link2, Link2Off, AlertCircle } from 'lucide-react'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { DeleteWorkspaceButton } from '@/components/lyra/settings/delete-workspace-button'
@@ -11,7 +11,7 @@ import { TimezoneSelector } from '@/components/lyra/settings/timezone-selector'
 
 interface Props {
   params: Promise<{ workspaceId: string }>
-  searchParams: Promise<{ connected?: string; fbpending?: string }>
+  searchParams: Promise<{ connected?: string; fbpending?: string; error?: string }>
 }
 
 interface PlatformConfig {
@@ -75,7 +75,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
   if (!user) redirect('/auth/login')
 
   const { workspaceId } = await params
-  const { connected, fbpending } = await searchParams
+  const { connected, fbpending, error } = await searchParams
 
   const workspace = await prisma.workspace.findFirst({
     where: { id: workspaceId, access: { some: { userId: user.id } } },
@@ -109,6 +109,15 @@ export default async function SettingsPage({ params, searchParams }: Props) {
     ? PLATFORM_LABELS[connected.toUpperCase()] ?? connected
     : null
 
+  const CONNECT_ERRORS: Record<string, string> = {
+    linkedin_no_orgs:
+      'No LinkedIn company pages found. You must be an admin of at least one LinkedIn Page to connect. LYRA connects company pages, not personal profiles.',
+    oauth_failed: 'The connection could not be completed. Try again.',
+  }
+  const connectErrorMessage = error
+    ? CONNECT_ERRORS[error] ?? 'The connection could not be completed. Try again.'
+    : null
+
   return (
     <div className="space-y-8 max-w-2xl">
       {/* Header */}
@@ -128,6 +137,16 @@ export default async function SettingsPage({ params, searchParams }: Props) {
           <CheckCircle size={16} strokeWidth={1.5} className="text-status-success shrink-0" />
           <p className="font-sans text-sm text-text-primary">
             {connectedPlatformLabel} connected successfully.
+          </p>
+        </div>
+      )}
+
+      {/* Error banner — shown after a failed OAuth redirect with ?error= */}
+      {connectErrorMessage && (
+        <div className="flex items-start gap-3 px-4 py-3 rounded-xl bg-background-secondary border border-background-border">
+          <AlertCircle size={16} strokeWidth={1.5} className="text-status-error shrink-0 mt-0.5" />
+          <p className="font-sans text-sm text-text-primary">
+            {connectErrorMessage}
           </p>
         </div>
       )}
