@@ -1023,7 +1023,7 @@ LYRA (lyraonline.ai) is a premium AI-powered social media management SaaS platfo
 |---|---|---|
 | LinkedIn | **LYRA Community** (new dedicated app) | Code deployed — awaiting Development Tier approval from Microsoft Vetting Services. Connects org pages (not personal profile). Token introspection used for member ID — no OIDC required. |
 | Facebook/Instagram | LYRA (App ID: 1480576426774303) | OAuth flow built — needs testing |
-| Google Business | Not created yet | Flow built, untested |
+| Google Business | Shared Google project (GOOGLE_CLIENT_ID/SECRET) | Flow built. GBP API access ❌ REJECTED 2026-07-03 (website mismatch). Reapply as ITWM / intothewildmarketing.com.au — see Known Limitations. |
 | X (Twitter) | LYRAOnline (App ID: `2065992296558903296`) | Connected ✅ — OAuth 2.0 with PKCE, scopes: tweet.read/write, users.read, offline.access |
 | TikTok | `TIKTOK_CLIENT_KEY` + `TIKTOK_CLIENT_SECRET` in Netlify env vars | App created. App Review submitted. Sandbox mode — only Tester accounts can connect until approved. Redirect URI: `https://lyraonline.ai/api/social/callback/tiktok` |
 | YouTube | Uses GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET | OAuth flow built — YouTube Data API v3 must be enabled in Google Cloud |
@@ -1266,10 +1266,13 @@ One workspace is currently active in production:
 ### Social Platform Issues
 
 **LinkedIn:**
-- **LYRA Community app** — new dedicated LinkedIn developer app with no other products. Community Management API Development Tier access form submitted 2026-06-21 to Microsoft Vetting Services. Awaiting approval email (expected 3–7 business days).
+- **STATUS as of 2026-06-27:** Approval email received, BUT the LYRA Community app's Products page still shows Community Management API as **"Review in progress."** Connect attempt returns LinkedIn's **"Bummer, something went wrong"** page at the authorization step — this is expected while the product is still under review (the org scopes are not provisioned until the portal status flips to active). The email and the portal status are out of sync; this lag is normal (hours to ~48h). **No LYRA-side fix will resolve this — it is a pure LinkedIn provisioning wait.** Retest the connect flow once the Products page shows the product active (not "Review in progress").
+- **Already verified this session (all correct — do not re-investigate):** Netlify env vars `LINKEDIN_CLIENT_ID` / `LINKEDIN_CLIENT_SECRET` point at the LYRA Community app; callback code path audited clean; settings page now surfaces `?error=` redirects (commit `240820b`).
+- **Local `.env` / `.env.local` are STALE:** they still hold the dead Lyra Pages ID `86iuab2ytwlmaa`. Does not affect production (LinkedIn OAuth can't run on localhost). Update to the LYRA Community client ID when convenient to avoid confusion.
+- **LYRA Community app** — dedicated LinkedIn developer app with no other products. Community Management API Development Tier access form submitted 2026-06-21 to Microsoft Vetting Services.
 - **Three scopes in use:** `r_organization_social`, `w_organization_social`, `rw_organization_admin`
 - **Token introspection** (`POST /oauth/v2/introspectToken`) resolves the LinkedIn member ID — no OIDC dependency. `authorized_user` URN contains the person ID.
-- **After approval:** test the connect flow from workspace settings. Org pages should appear. No code changes needed.
+- **After approval flips active:** test the connect flow from workspace settings. Org pages should appear (personal profiles are rejected with the `linkedin_no_orgs` banner). No code changes needed.
 - **Previous apps (do not use):** Lyra (`86sr2pmkxi1n0q`) has OIDC but can't add Community Management API. Lyra Pages (`86iuab2ytwlmaa`) has Community Management API but also has OIDC products — LinkedIn blocks the OAuth with a "Bummer" error because Community Management API must be the only product on an app.
 
 **Facebook / Instagram — Meta App Review required:**
@@ -1284,8 +1287,22 @@ One workspace is currently active in production:
 - YouTube Data API v3 enabled ✅; YouTube redirect URI added ✅; YouTube card added to settings page ✅
 - Google Business redirect URI (`https://lyraonline.ai/api/social/callback/google`) added to OAuth client ✅ (2026-06-17)
 - My Business Account Management API + My Business Business Information API enabled ✅ (2026-06-17)
-- **GBP API access request submitted 2026-06-17 — Case ID `5-5485000041034`** — review takes 7–10 business days (~2026-06-30). Check approval via Cloud Console → APIs & Services → Quotas → filter "My Business" → 300 QPM = approved.
-- No code changes needed post-approval — connection will work immediately once access is granted
+
+- **❌ GBP API access REJECTED (email received 2026-07-03).** Case `5-5485000041034`. Rejection reason: *"your account did not pass our internal quality checks (The listing ID is associated with a different website)."*
+  - **Confirmed root cause:** the application declared the business website as **`lyraonline.ai`**, but the Google Business Profile listing on the account (Into The Wild Marketing) has its website field set to **`intothewildmarketing.com.au`**. Google requires the declared website to be the one *listed on the GBP* — the two didn't match, so it failed the quality check.
+  - **Verified against Google's official docs (2026-07-04):**
+    - GBP API prereq: *"Have a website representing the business listed on the GBP"* → the declared website MUST equal the listing's website. ([prereqs](https://developers.google.com/my-business/content/prereqs))
+    - GBP API prereq: *"Manage a Google Business Profile that is verified and active for 60+ days"* and apply from an owner/manager email.
+    - Eligibility: online-only / SaaS businesses are **explicitly ineligible** for a Business Profile ("Brands, organizations, artists, and other online-only businesses"). A business must make in-person contact with customers. ([eligibility](https://support.google.com/business/answer/13763036))
+  - **DECISION — do NOT create a separate "LYRA" Google Business Profile.** It was considered and rejected: (1) LYRA is online-only SaaS → ineligible; (2) even if created, the 60-day-active rule adds a 2+ month delay; (3) a second listing at the same sole-trader ABN/address as the ITWM listing risks duplicate-suspension. Both ITWM and LYRA currently sit under the owner's single sole-trader ABN; the only eligible, verified, 60+ day listing is **Into The Wild Marketing**.
+  - **REAPPLICATION PLAN (no code changes, nothing to build):**
+    1. Submit the GBP API contact form → *"Application for Basic API Access"*.
+    2. Use the Google account that is **owner/manager of the ITWM GBP listing**.
+    3. Declare business website = **`intothewildmarketing.com.au`** (must match the listing — this is the fix).
+    4. Provide the **same Cloud project number** (the shared LYRA project — approval attaches to the project, and the project being named "LYRA" is NOT a criterion Google checks).
+    5. Reviewed ~14 days. Status via Cloud Console → APIs & Services → Quotas → filter "My Business" → 300 QPM = approved.
+  - **Strategic note:** approval is granted at the *project* level. Once the LYRA project is approved (via ITWM's application), every LYRA customer who OAuths in can have their *own* Google Business Profile managed through it — the ITWM application does not limit the Customer Voice Hub to ITWM.
+  - No code changes needed post-approval — the connect flow works immediately once access is granted.
 
 **TikTok:**
 - App ID `7651492968678934535` — created 2026-06-17
@@ -1611,8 +1628,8 @@ LYRA uses a strict dark near-black design system defined in `lyra/lib/design-tok
 - **YouTube** — Connected ✅. OAuth consent in Testing mode; will need Google verification for public launch.
 - **Meta (Facebook + Instagram)** — App Review submitted 2026-06-17. Decision expected ~2026-07-07. Monitor email.
 - **TikTok** — App Review submitted 2026-06-17. Decision expected within 1–7 business days. Monitor email.
-- **Google Business** — API access request submitted 2026-06-17 (case `5-5485000041034`). Check Cloud Console quota page (~2026-06-30). No code changes needed.
-- **LinkedIn** — LYRA Community app submitted to Microsoft Vetting Services 2026-06-21. Code fully deployed (token introspection, 3 org scopes). No code changes needed on approval — just test the connect flow.
+- **Google Business** — ❌ API access **REJECTED** 2026-07-03 (case `5-5485000041034`): declared website `lyraonline.ai` didn't match the ITWM listing's website `intothewildmarketing.com.au`. **Action: reapply declaring `intothewildmarketing.com.au` from the ITWM listing's owner email — do NOT create a LYRA listing (SaaS is ineligible). Full plan in the Google Business section of Known Limitations above.**
+- **LinkedIn** — LYRA Community app submitted to Microsoft Vetting Services 2026-06-21. Approval email received but Products page still "Review in progress" as of 2026-06-27 → connect returns "Bummer" until the product goes active. Code fully deployed; env vars verified. No code changes needed — just retest once the portal flips. Full detail in the LinkedIn section of Known Limitations above.
 
 **No action required on any platform until approvals arrive.**
 
