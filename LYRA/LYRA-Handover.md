@@ -1328,6 +1328,38 @@ One workspace is currently active in production:
 - Fetches the connected Google account's YouTube channel (name, handle, avatar)
 - Stores channel as a `YOUTUBE` `SocialAccount` with encrypted access + refresh tokens
 
+### Zernio — unified social API (evaluated 2026-07-07 as a possible short-term workaround to reach beta faster)
+
+**Why this was raised:** LYRA's blocker to beta is per-platform app review (Meta, TikTok, LinkedIn, GBP). Zernio (`https://zernio.com`, formerly **Getlate.dev**) is a third-party unified social API that could let LYRA post/schedule/read across all platforms through **one** integration, potentially **skipping our own platform app reviews** and getting testers using the product sooner.
+
+**What it is:**
+- Developer-first REST API + hosted MCP server. One integration → **15+ platforms** (Instagram, TikTok, YouTube, X, LinkedIn, Facebook, Threads, Pinterest, Reddit, Bluesky, Google Business, etc.).
+- Capabilities: publishing/scheduling (text/image/video), analytics, comments + DMs "where platforms permit", and ads management.
+- Auth model (from their docs): end-users "link accounts via OAuth" and each account gets an ID referenced by an API key. This strongly implies **users authorise through Zernio's own pre-approved platform apps**, not LYRA's — which is the mechanism that would let us bypass our own app reviews for beta. **NOT explicitly confirmed in their public docs — must verify with Zernio support before relying on it.**
+- Pricing: free for first 2 accounts; ~$6/account/mo (3–10), $3 (11–100), $1 (101–2000). X/Twitter API fees passed through at cost. Usage-based on connected accounts.
+
+**Two unknowns that decide whether it's viable — CONFIRM WITH THEIR SUPPORT FIRST:**
+1. **Does it actually eliminate our platform app reviews?** Their docs don't state it outright. If end-users authorise *Zernio's* apps, yes (for beta). If it's bring-your-own-credentials, it does NOT solve our blocker.
+2. **Does it cover Google Business Profile *review management* (read reviews + post replies)?** GBP is listed as a supported platform, but their materials only describe *posting*, not review reading/replying. The Customer Voice Hub feature needs review management specifically — unconfirmed that Zernio provides it. (Our native GBP path was rejected — see Google Business section above — so this matters.)
+
+**Honest trade-offs for LYRA specifically:**
+- ✅ *Pro:* could unblock beta across all platforms immediately with one integration, sidestepping the Meta/TikTok/LinkedIn review queue.
+- ✅ *Pro:* cheap at low account volume; broad platform coverage (incl. platforms we haven't built: Threads, Pinterest, Bluesky, Reddit).
+- ❌ *Con — we're already ~90% native:* Twitter + YouTube connected; Meta decision due ~2026-07-07; TikTok in review; LinkedIn approved (propagating). Only GBP needs rework. Ripping out native integrations to adopt Zernio would discard mostly-approved work to save on approvals that are days away.
+- ❌ *Con — users OAuth into "Zernio", not "LYRA":* weaker branding/trust in the connect flow; acceptable for beta, not ideal for production.
+- ❌ *Con — data-processor risk:* all client social tokens + content route through a third party. For an agency handling client data this needs a DPA and a GDPR/privacy review (see GDPR tools in the Wishlist).
+- ❌ *Con — vendor stability flag:* rebranded Getlate.dev → Zernio and reportedly ~10×'d pricing on existing customers. Weigh lock-in before making it core infrastructure.
+
+**DECISION (2026-07-07 — owner):** Use Zernio as a **temporary beta bridge only.** We are **NOT** abandoning our own platform app reviews — those continue exactly as they are. Zernio's job is to get real testers using LYRA *now*, across platforms still waiting on review. As each native approval lands, we **pivot that platform back to our own integration** and stop routing it through Zernio. Zernio is additive and disposable — native remains the destination.
+
+**What this means in practice:**
+- **Keep all native work in place and progressing:** Meta (decision ~2026-07-07), TikTok (in review), LinkedIn (approved, propagating), GBP (reapply as ITWM — see Google Business section). Twitter + YouTube stay native (already connected — no reason to bridge them).
+- **The pivot is per-platform, not all-or-nothing** — approvals land on different dates. Design for a clean per-platform switch so flipping Zernio→native for one platform doesn't touch the others.
+- **Architecture note for whoever builds this:** introduce a provider abstraction over publishing + comment-sync (e.g. a `SocialProvider` interface with `native` and `zernio` implementations, selected per platform via config or a `provider` field on `SocialAccount`). The BullMQ workers and the `/api/posts/[id]/publish` + `/api/comments/sync` routes call the interface, not a hardcoded service. This is what makes "pivot back" a config flip instead of a rewrite. **Do NOT hardcode Zernio into the existing `services/social/*.ts` files** — add it alongside.
+- **Blocking pre-work — confirm with Zernio support before building anything** (see the two unknowns above): (1) does connecting via Zernio genuinely avoid our own platform review for beta? and (2) does it cover **Google Business review read + reply**? If GBP reviews aren't covered, the Customer Voice Hub stays blocked regardless of the bridge, and GBP still depends solely on the native reapplication.
+
+**Sources:** [zernio.com/social-media-api](https://zernio.com/social-media-api) · [docs.zernio.com](https://docs.zernio.com/) · [zernio.com/pricing](https://zernio.com/pricing)
+
 ### Brand AI Social Analysis
 
 - The `analyzeSocialPosts()` function returns an empty array — no platform API integration yet reads recent posts for analysis
