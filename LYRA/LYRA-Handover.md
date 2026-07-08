@@ -1328,35 +1328,171 @@ One workspace is currently active in production:
 - Fetches the connected Google account's YouTube channel (name, handle, avatar)
 - Stores channel as a `YOUTUBE` `SocialAccount` with encrypted access + refresh tokens
 
-### Zernio — unified social API (evaluated 2026-07-07 as a possible short-term workaround to reach beta faster)
+### Zernio — unified social API (evaluated 2026-07-07; support conversation 2026-07-08)
 
 **Why this was raised:** LYRA's blocker to beta is per-platform app review (Meta, TikTok, LinkedIn, GBP). Zernio (`https://zernio.com`, formerly **Getlate.dev**) is a third-party unified social API that could let LYRA post/schedule/read across all platforms through **one** integration, potentially **skipping our own platform app reviews** and getting testers using the product sooner.
 
 **What it is:**
 - Developer-first REST API + hosted MCP server. One integration → **15+ platforms** (Instagram, TikTok, YouTube, X, LinkedIn, Facebook, Threads, Pinterest, Reddit, Bluesky, Google Business, etc.).
 - Capabilities: publishing/scheduling (text/image/video), analytics, comments + DMs "where platforms permit", and ads management.
-- Auth model (from their docs): end-users "link accounts via OAuth" and each account gets an ID referenced by an API key. This strongly implies **users authorise through Zernio's own pre-approved platform apps**, not LYRA's — which is the mechanism that would let us bypass our own app reviews for beta. **NOT explicitly confirmed in their public docs — must verify with Zernio support before relying on it.**
-- Pricing: free for first 2 accounts; ~$6/account/mo (3–10), $3 (11–100), $1 (101–2000). X/Twitter API fees passed through at cost. Usage-based on connected accounts.
+- Pricing: free for first 2 accounts; $6/account/mo (1–10), $3 (11–100), $1 (101–2000). X/Twitter API fees passed through at cost. No per-call charges, no overage, no setup fees.
+- **Billing model (owner decision 2026-07-08):** Zernio cost is **absorbed as LYRA's COGS — NOT passed through to agencies/clients.** No per-account line item on customer invoices. The metric to watch is therefore *total connected accounts across all LYRA customers × per-account rate = LYRA's monthly Zernio burn*, which comes out of subscription margin.
+  - Because Zernio is a **temporary bridge**, this absorbed cost is mostly temporary: as each platform's native approval lands, migrate those accounts back to native (free) and the Zernio burn shrinks toward zero. The per-platform provider abstraction is the cost lever.
+  - **Do NOT bridge platforms that are already native** (Twitter, YouTube) — that would pay Zernio for accounts LYRA can publish to for free.
+  - **One candidate for PERMANENT COGS: Google Business reviews.** Native GBP was rejected and is hard to approve; if the reapplication also fails, Zernio may remain the permanent home for the Customer Voice Hub, making that slice ongoing COGS (reflect in LYRA pricing).
+- Rate limits: 60 req/min (0–2 accounts), 600 req/min (3–2000), 1200 req/min (2001+). Tighter per-second window on analytics endpoints.
+- MCP server: `https://mcp.zernio.com/mcp` — auth via Zernio API key as Bearer token (same key as REST).
 
-**Two unknowns that decide whether it's viable — CONFIRM WITH THEIR SUPPORT FIRST:**
-1. **Does it actually eliminate our platform app reviews?** Their docs don't state it outright. If end-users authorise *Zernio's* apps, yes (for beta). If it's bring-your-own-credentials, it does NOT solve our blocker.
-2. **Does it cover Google Business Profile *review management* (read reviews + post replies)?** GBP is listed as a supported platform, but their materials only describe *posting*, not review reading/replying. The Customer Voice Hub feature needs review management specifically — unconfirmed that Zernio provides it. (Our native GBP path was rejected — see Google Business section above — so this matters.)
+---
 
-**Honest trade-offs for LYRA specifically:**
-- ✅ *Pro:* could unblock beta across all platforms immediately with one integration, sidestepping the Meta/TikTok/LinkedIn review queue.
-- ✅ *Pro:* cheap at low account volume; broad platform coverage (incl. platforms we haven't built: Threads, Pinterest, Bluesky, Reddit).
-- ❌ *Con — we're already ~90% native:* Twitter + YouTube connected; Meta decision due ~2026-07-07; TikTok in review; LinkedIn approved (propagating). Only GBP needs rework. Ripping out native integrations to adopt Zernio would discard mostly-approved work to save on approvals that are days away.
-- ❌ *Con — users OAuth into "Zernio", not "LYRA":* weaker branding/trust in the connect flow; acceptable for beta, not ideal for production.
-- ❌ *Con — data-processor risk:* all client social tokens + content route through a third party. For an agency handling client data this needs a DPA and a GDPR/privacy review (see GDPR tools in the Wishlist).
-- ❌ *Con — vendor stability flag:* rebranded Getlate.dev → Zernio and reportedly ~10×'d pricing on existing customers. Weigh lock-in before making it core infrastructure.
+#### Two critical unknowns — NOW RESOLVED (support conversation 2026-07-08, contact: Ana)
 
-**DECISION (2026-07-07 — owner):** Use Zernio as a **temporary beta bridge only.** We are **NOT** abandoning our own platform app reviews — those continue exactly as they are. Zernio's job is to get real testers using LYRA *now*, across platforms still waiting on review. As each native approval lands, we **pivot that platform back to our own integration** and stop routing it through Zernio. Zernio is additive and disposable — native remains the destination.
+**Unknown 1 — does it eliminate our platform app reviews?**
+✅ **CONFIRMED YES.** OAuth connects through Zernio's own Meta/platform developer apps. LYRA does not need its own platform app approvals in order to use Zernio for beta. This is the mechanism.
+
+**Unknown 2 — does it cover Google Business Profile review management (read + reply)?**
+✅ **CONFIRMED YES.** GBP review read and programmatic reply is supported through Zernio's Inbox layer.
+
+---
+
+#### Platform capability matrix (confirmed by Zernio support, 2026-07-08)
+
+| Platform | Publish | Comment read | Comment reply | Reviews | Notes |
+|---|---|---|---|---|---|
+| Facebook (Pages) | ✅ | ✅ | ✅ | n/a | Full Graph API. Comment read+reply confirmed. |
+| Instagram Business | ✅ | ✅ | ✅ | n/a | Full comment read+reply confirmed. |
+| LinkedIn (Company Pages) | ✅ | ✅ | ✅ | n/a | Community Management permission handled by Zernio — LYRA does not apply separately. |
+| Google Business Profile | ✅ | n/a | n/a | ✅ read+reply | Review management confirmed. |
+| TikTok | ✅ | ❌ | ❌ | n/a | Hard platform limitation — TikTok API does not expose comment/DM read. Not a Zernio gap. |
+| X / Twitter | ✅ | TBC | TBC | n/a | OAuth via Zernio managed credentials. Exact API tier (Basic/Pro/Enterprise) to be confirmed by team. |
+| Pinterest | ✅ | ❌ | ❌ | n/a | Same as TikTok — no Inbox. |
+| Facebook Groups | ❌ | ❌ | ❌ | n/a | Meta discontinued the Groups API. Unavailable everywhere. |
+| Threads, Reddit, Bluesky | ✅ publish | Unknown | Unknown | n/a | Covered for publishing; Inbox capability not confirmed. |
+
+---
+
+#### White-label & OAuth (confirmed 2026-07-08)
+
+- **Fully white-labelled.** The OAuth flow shows "Social Media Connector" with no Zernio branding.
+- **Headless mode available** — LYRA can build its own account selection UI entirely. Docs: `https://docs.zernio.com/guides/connecting-accounts#standard-vs-headless-mode`
+- From the platform's perspective, the connection runs through Zernio's developer app (this is how the app review bypass works).
+- Disclosure requirements to end users about Zernio's role: **not yet confirmed** — flagged to their team.
+
+---
+
+#### Data usage (verbally confirmed 2026-07-08, written confirmation pending)
+
+Ana confirmed: storing comment data, passing it to an AI model, and writing the AI-generated response back via their API is **the intended use case** — no restrictions. Written confirmation requested; awaiting response.
+
+---
+
+#### Publish latency (confirmed 2026-07-08 — owner tested)
+
+Posts published through Zernio appear on-platform **near-instantly** — no meaningful delay vs native publishing. **Video** posts can take a little longer to process but are **mostly instant** too.
+
+**NOTE — this is *outbound publish* latency only.** It is distinct from *inbound comment-ingestion* latency (pending item 1: how fast a new comment on-platform reaches LYRA via webhook), which drives AI response speed and still needs a figure from Zernio's team.
+
+---
+
+#### What is still pending from Zernio team (as of 2026-07-08)
+
+Prioritised in order of operational importance:
+
+1. ~~**Webhooks vs. polling for Meta comment ingestion + end-to-end latency.**~~ **RESOLVED — see MCP tool list note below.** Webhook support confirmed.
+2. **Sandbox / test environment.** Need to validate the full comment read → AI process → write-back flow before going live with production accounts. *(Docs check 2026-07-08: the only sandbox Zernio documents is a **shared WhatsApp sandbox number**. No general Meta/GBP comment-flow sandbox was found in the docs — implying the comment read→reply flow is tested against real connected accounts. Confirm with their team whether any non-WhatsApp test path exists.)*
+3. **Data usage in writing.** Ana's verbal confirmation is enough to proceed in principle but we want it documented.
+4. **Uptime figures for Meta and LinkedIn integrations — past 12 months.** Required before routing production traffic through their layer.
+5. **Volume / annual pricing.** Published tiers go to $1/account at 101–2000. Enterprise and annual billing are a separate conversation — team to follow up.
+6. **X/Twitter API tier** (Basic, Pro, or Enterprise) — affects rate limits on read/write operations. *(Docs check 2026-07-08: X is billed as **metered pass-through at X's exact published per-operation rates, zero markup** — e.g. ~$0.005 Posts:Read, ~$0.015 Content:Create — and a **monthly X spend cap** is settable from the dashboard. That resolves the cost model; the exact underlying rate-limit tier is still TBC with their team. X charges apply only when an X account is connected.)*
+7. ~~**REST vs MCP capability parity**~~ **RESOLVED — see MCP tool list note below.** MCP server is live and comprehensive.
+8. **SLA, incident comms, and partnership stability** (questions 17–20 from original inquiry) — what notice period if a platform partnership changes, and what is their incident notification process?
+9. **Go-live timeline** — how quickly from sign-up to a working Meta comment read/write integration in test?
+
+#### Zernio MCP server — now connected (discovered 2026-07-08)
+
+The Zernio MCP server (`https://mcp.zernio.com/mcp`) is available and connected. Inspecting the live tool list resolves two of the nine pending questions:
+
+**Question 1 (webhooks) — CONFIRMED.** The following tools exist:
+- `webhooks_create_webhook_settings`
+- `webhooks_get_webhook_settings`
+- `webhooks_update_webhook_settings`
+- `webhooks_test_webhook`
+- `webhooks_get_webhook_logs`
+
+Zernio uses webhook push, not polling. End-to-end latency still needs a number from their team, but the architecture is correct — real-time push, not periodic polling.
+
+**Question 7 (REST vs MCP parity) — CONFIRMED.** The MCP server exposes 280+ tools covering the full API surface: accounts, posts, comments (inbox), reviews, analytics, webhooks, ads, media, profiles. All major capabilities are available via MCP. Key tools relevant to LYRA:
+
+| Tool | Purpose |
+|---|---|
+| `comments_list_inbox_comments` | Read comments from connected accounts |
+| `comments_get_inbox_post_comments` | Get comments on a specific post |
+| `comments_reply_to_inbox_post` | Post a reply to a comment |
+| `comments_hide_inbox_comment` | Hide a comment |
+| `reviews_list_inbox_reviews` | Read GBP reviews via Inbox layer |
+| `reviews_reply_to_inbox_review` | Reply to a GBP review |
+| `accounts_get_google_business_reviews` | Read GBP reviews directly |
+| `accounts_reply_to_google_business_review` | Reply to a GBP review directly |
+| `accounts_batch_get_google_business_reviews` | Batch read GBP reviews |
+| `accounts_get_linked_in_mentions` | Read LinkedIn mentions |
+| `analytics_get_best_time_to_post` | Per-account best time recommendations |
+| `posts_create_post` / `posts_publish_now` | Publish/schedule posts |
+| `media_generate_upload_link` / `media_get_media_presigned_url` | Media upload |
+| `webhooks_*` (5 tools) | Webhook configuration + testing |
+
+**Implication for LYRA's integration approach:** Because the MCP server is already authenticated and live in this environment, it may be faster to prototype the Zernio integration via MCP tools rather than building a new REST service layer. The `SocialProvider` abstraction can call MCP tools internally during a build/validation phase, then switch to direct REST calls for production deployment if preferred. This does not change the architectural decision — the abstraction layer and the "Zernio is additive and disposable" stance remain — but it reduces the time to a working proof of concept.
+
+---
+
+#### Honest trade-offs for LYRA specifically
+
+- ✅ *Pro:* Both critical unknowns now confirmed — it genuinely bypasses our platform app reviews for beta, and GBP review management is covered.
+- ✅ *Pro:* Cheap at low volume; broad platform coverage including platforms we haven't built (Threads, Pinterest, Bluesky, Reddit).
+- ✅ *Pro:* Fully white-labelled with headless mode — connect flow can look entirely like LYRA.
+- ❌ *Con — we're already ~90% native:* Twitter + YouTube connected; Meta decision due ~2026-07-07; TikTok in review; LinkedIn approved. Only GBP needs rework. Ripping out native integrations discards mostly-approved work.
+- ❌ *Con — data-processor risk:* All client social tokens + content route through a third party. Needs a DPA and GDPR/privacy review before agency use (see GDPR tools in the Wishlist).
+- ❌ *Con — vendor stability flag:* Rebranded from Getlate.dev and reportedly ~10×'d pricing on existing customers. Treat as disposable beta infrastructure, not long-term core.
+- ❌ *Con — TikTok Inbox still blocked:* TikTok comment monitoring is a hard platform API limitation. No solution via Zernio or natively.
+
+---
+
+**DECISION (2026-07-07 — owner, unchanged):** Use Zernio as a **temporary beta bridge only.** Native app reviews continue exactly as they are. Zernio's job is to get real testers using LYRA *now*, across platforms still waiting on review. As each native approval lands, pivot that platform back to our own integration. Zernio is additive and disposable — native remains the destination.
 
 **What this means in practice:**
-- **Keep all native work in place and progressing:** Meta (decision ~2026-07-07), TikTok (in review), LinkedIn (approved, propagating), GBP (reapply as ITWM — see Google Business section). Twitter + YouTube stay native (already connected — no reason to bridge them).
+- **Keep all native work in place and progressing:** Meta (decision ~2026-07-07), TikTok (in review, Inbox not possible anyway), LinkedIn (approved, propagating), GBP (reapply as ITWM — see Google Business section). Twitter + YouTube stay native (already connected).
 - **The pivot is per-platform, not all-or-nothing** — approvals land on different dates. Design for a clean per-platform switch so flipping Zernio→native for one platform doesn't touch the others.
 - **Architecture note for whoever builds this:** introduce a provider abstraction over publishing + comment-sync (e.g. a `SocialProvider` interface with `native` and `zernio` implementations, selected per platform via config or a `provider` field on `SocialAccount`). The BullMQ workers and the `/api/posts/[id]/publish` + `/api/comments/sync` routes call the interface, not a hardcoded service. This is what makes "pivot back" a config flip instead of a rewrite. **Do NOT hardcode Zernio into the existing `services/social/*.ts` files** — add it alongside.
-- **Blocking pre-work — confirm with Zernio support before building anything** (see the two unknowns above): (1) does connecting via Zernio genuinely avoid our own platform review for beta? and (2) does it cover **Google Business review read + reply**? If GBP reviews aren't covered, the Customer Voice Hub stays blocked regardless of the bridge, and GBP still depends solely on the native reapplication.
+- **Next action:** Wait for Zernio team responses to the 9 pending items above (especially webhook/polling latency and sandbox access) before starting any build work.
+
+---
+
+#### Should we implement Zernio now? — Assessment (2026-07-08)
+
+**Short answer: not yet. Wait for the Meta decision first.**
+
+The timing changes the value calculation significantly. Mapping current native status against what Zernio actually adds:
+
+| Platform | Native status | Zernio adds? |
+|---|---|---|
+| Meta (FB + IG) | Decision imminent (~2026-07-07) | Nothing, if approved |
+| LinkedIn | Approved, propagating | Nothing |
+| Twitter / YouTube | Already live | Nothing |
+| GBP | Reapplication needed | ✅ Only meaningful gap |
+| TikTok Inbox | Impossible natively | ❌ Also impossible via Zernio |
+
+If Meta approves this week, LYRA is native on all actionable platforms except GBP. Zernio would then solve one problem — GBP review management — in exchange for vendor dependency, data-processor risk, and a non-trivial build. That's not a good trade right now.
+
+**Implementing Zernio does NOT interrupt the current app reviews.** The Meta, TikTok, and LinkedIn reviews are with those platforms reviewing LYRA's own applications. Zernio is completely independent — adding it has zero effect on any review in progress. They run in parallel and the reviews continue regardless.
+
+**The conditional decision:**
+- **Meta approves** → Zernio's value is GBP-only. Hold off; focus on GBP native reapplication as ITWM. Revisit Zernio if reapplication fails or stalls.
+- **Meta is significantly delayed or rejected** → Zernio becomes worth building as a beta unblock for Meta + Instagram. But still cannot start until the 9 pending questions are answered (especially webhook/polling latency and sandbox access). Building the Inbox integration blind — without knowing if comment delivery is push or pull — is not viable.
+
+**Hard blockers before any build work regardless of Meta outcome:**
+1. Zernio team must answer the webhook vs polling question — this directly determines AI response latency, which is a core product promise.
+2. Sandbox / test environment must be confirmed — the full comment read → AI process → write-back flow must be validated end to end before touching production accounts.
+
+**Bottom line:** Check the Meta decision. If it's approved, park Zernio for now. If it's delayed past the end of this week, revisit and wait for the sandbox + webhook answers before committing to the build.
 
 **Sources:** [zernio.com/social-media-api](https://zernio.com/social-media-api) · [docs.zernio.com](https://docs.zernio.com/) · [zernio.com/pricing](https://zernio.com/pricing)
 
