@@ -67,6 +67,7 @@ model Workspace {
   crisisAware       Boolean   @default(false)
   crisisActive      Boolean   @default(false)
   crisisTriggeredAt DateTime?
+  zernioProfileId String?
   createdAt        DateTime     @default(now())
   updatedAt        DateTime     @updatedAt
 
@@ -81,6 +82,7 @@ model Workspace {
   searchConsoleData SearchConsoleData[]
   crisisEvents      CrisisEvent[]
   competitors       Competitor[]
+  reviews           Review[]
 }
 
 enum Plan {
@@ -123,7 +125,9 @@ model SocialAccount {
   handle       String
   name         String
   avatarUrl    String?
-  accessToken  String
+  provider        SocialProviderType @default(ZERNIO)
+  zernioAccountId String?
+  accessToken  String?
   refreshToken String?
   tokenExpiry  DateTime?
   webhookId    String?
@@ -135,6 +139,7 @@ model SocialAccount {
 
   posts    Post[]
   comments Comment[]
+  reviews  Review[]
 
   @@unique([workspaceId, platform, platformId])
 }
@@ -150,6 +155,11 @@ enum Platform {
   PINTEREST
   THREADS
   BLUESKY
+}
+
+enum SocialProviderType {
+  NATIVE
+  ZERNIO
 }
 
 model Post {
@@ -455,4 +465,23 @@ model FacebookPending {
   createdAt   DateTime @default(now())
 
   @@index([expiresAt])
+}
+
+model Review {
+  id              String    @id @default(cuid())
+  workspaceId     String
+  workspace       Workspace @relation(fields: [workspaceId], references: [id])
+  socialAccountId String
+  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id])
+  zernioReviewId  String
+  rating          Int?
+  text            String?
+  authorName      String?
+  status          String    @default("NEW") // NEW | REPLIED | SKIPPED
+  replyText       String?
+  createdAt       DateTime  @default(now())
+  reviewedAt      DateTime?
+
+  @@unique([socialAccountId, zernioReviewId])
+  @@index([workspaceId, status])
 }
