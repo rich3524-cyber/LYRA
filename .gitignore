@@ -6,6 +6,9 @@
 # Visual brainstorming companion sessions
 .superpowers/
 
+# Local git worktrees for isolated feature branches
+.worktrees/
+
 # dependencies
 /node_modules
 /.pnp
