@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { zernioClient } from '@/services/social/zernio-client'
 import { fromZernioPlatform } from '@/services/social/provider/platform-map'
 
 export const dynamic = 'force-dynamic'
@@ -39,6 +40,29 @@ export async function GET(req: Request) {
 
     const platform = fromZernioPlatform(connectedSlug)
     if (!platform) {
+      return NextResponse.redirect(`${BASE_URL}/workspace/${workspaceId}/settings?error=zernio_connect_failed`)
+    }
+
+    // Verify the accountId in the query string actually belongs to THIS workspace's
+    // Zernio profile before trusting it. ZERNIO_API_KEY is one master key shared across
+    // every LYRA workspace, so the query params Zernio appends to this redirect are not
+    // scoped to a tenant on their own -- without this check, any authenticated user could
+    // hit this URL directly with a real accountId belonging to a DIFFERENT workspace's
+    // Zernio-connected account and have it upserted into their own workspace.
+    const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId } })
+    if (!workspace?.zernioProfileId) {
+      console.error(
+        `Zernio callback: workspace ${workspaceId} has no zernioProfileId yet; refusing to link accountId ${zernioAccountId}`
+      )
+      return NextResponse.redirect(`${BASE_URL}/workspace/${workspaceId}/settings?error=zernio_connect_failed`)
+    }
+
+    const { accounts } = await zernioClient.listAccounts()
+    const matchedAccount = accounts.find((account) => account._id === zernioAccountId)
+    if (!matchedAccount || matchedAccount.profileId !== workspace.zernioProfileId) {
+      console.error(
+        `Zernio callback: accountId ${zernioAccountId} does not belong to workspace ${workspaceId}'s Zernio profile (${workspace.zernioProfileId}) -- looks like a forged or cross-tenant accountId`
+      )
       return NextResponse.redirect(`${BASE_URL}/workspace/${workspaceId}/settings?error=zernio_connect_failed`)
     }
 

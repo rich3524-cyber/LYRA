@@ -86,6 +86,18 @@ export const zernioClient = {
       ...(commentId ? { commentId } : {}),
     }),
 
+  // GET /v1/accounts has no server-side profileId filter -- confirmed via Zernio docs,
+  // it only supports optional page/limit pagination, and omitting both returns the full
+  // list (bounded by the account's plan limit, backward-compatible). So callers that need
+  // to verify which profile an account belongs to must filter this list client-side.
+  // Response account objects use `_id` (not `accountId`) as their unique identifier and
+  // carry a required `profileId` field (confirmed via the AccountsListResponse schema).
+  listAccounts: () =>
+    req<{ accounts: Array<{ _id: string; profileId: string; platform: string; [key: string]: unknown }> }>(
+      'GET',
+      '/accounts'
+    ),
+
   getGoogleBusinessReviews: (accountId: string) =>
     req<{
       success: boolean
