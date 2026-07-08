@@ -45,6 +45,9 @@ export async function POST(req: Request, { params }: RouteContext) {
       )
     }
 
+    if (!comment.socialAccount.accessToken) {
+      return NextResponse.json({ error: 'This account has no access token.' }, { status: 400 })
+    }
     const accessToken = decrypt(comment.socialAccount.accessToken)
     if (platform === 'INSTAGRAM') {
       await instagramReply(comment.platformCommentId, response.trim(), accessToken)

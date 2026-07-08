@@ -77,6 +77,9 @@ export async function POST(req: Request, { params }: RouteContext) {
       return NextResponse.json({ error: 'No Facebook Ad Account connected. Connect one in Facebook Business Manager.' }, { status: 400 })
     }
 
+    if (!post.socialAccount.accessToken) {
+      return NextResponse.json({ error: 'This account has no access token.' }, { status: 400 })
+    }
     const accessToken = decrypt(post.socialAccount.accessToken)
     const endsAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000)
 
@@ -149,6 +152,10 @@ export async function DELETE(req: Request, { params }: RouteContext) {
 
     if (!post.boost || post.boost.status !== 'ACTIVE') {
       return NextResponse.json({ error: 'No active boost to cancel' }, { status: 400 })
+    }
+
+    if (!post.socialAccount.accessToken) {
+      return NextResponse.json({ error: 'This account has no access token.' }, { status: 400 })
     }
 
     // Decrypt after confirming there is something to cancel

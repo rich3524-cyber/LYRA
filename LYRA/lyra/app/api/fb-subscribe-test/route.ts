@@ -15,6 +15,9 @@ export async function POST(_req: Request) {
       where: { platform: 'FACEBOOK', isActive: true },
     })
     if (!account) return NextResponse.json({ error: 'No Facebook account' }, { status: 404 })
+    if (!account.accessToken) {
+      return NextResponse.json({ error: 'This account has no access token.' }, { status: 400 })
+    }
 
     const token = decrypt(account.accessToken)
     const pageId = account.platformId

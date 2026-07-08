@@ -29,6 +29,12 @@ const worker = new Worker(
       return  // Let BullMQ retry this job
     }
 
+    if (!post.socialAccount.accessToken) {
+      console.error(`Post ${post.id} has no access token — social account may be Zernio-routed`)
+      await prisma.post.update({ where: { id: postId }, data: { status: 'FAILED' } })
+      return
+    }
+
     await prisma.post.update({ where: { id: postId }, data: { status: 'PUBLISHING' } })
 
     const token = decrypt(post.socialAccount.accessToken)

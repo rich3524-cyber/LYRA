@@ -60,6 +60,9 @@ export async function POST(_req: Request, { params }: RouteContext) {
       return NextResponse.json({ error: 'Direct publish only supported for Facebook and Instagram.' }, { status: 400 })
     }
 
+    if (!post.socialAccount.accessToken) {
+      return NextResponse.json({ error: 'This account has no access token.' }, { status: 400 })
+    }
     const accessToken = decrypt(post.socialAccount.accessToken)
     const platformPostId = platform === 'INSTAGRAM'
       ? await publishToInstagram(post.socialAccount.platformId, post.content, accessToken)
