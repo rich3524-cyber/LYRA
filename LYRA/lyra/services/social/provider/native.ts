@@ -11,11 +11,20 @@ function requireAccessToken(account: SocialAccount): string {
   return decrypt(account.accessToken)
 }
 
-async function publishToInstagram(igId: string, content: string, accessToken: string): Promise<string> {
+async function publishToInstagram(
+  igId: string,
+  content: string,
+  accessToken: string,
+  mediaUrls?: string[],
+): Promise<string> {
   const createRes = await fetch(`https://graph.facebook.com/v19.0/${igId}/media`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ caption: content, access_token: accessToken }),
+    body: JSON.stringify({
+      image_url: mediaUrls?.[0] ?? 'https://picsum.photos/1080/1080.jpg',
+      caption: content,
+      access_token: accessToken,
+    }),
     signal: AbortSignal.timeout(15_000),
   })
   const createData = (await createRes.json()) as { id?: string; error?: { message: string } }
@@ -55,7 +64,8 @@ async function publishToLinkedin(orgId: string, content: string, accessToken: st
   })
   const platformPostId = res.headers.get('x-restli-id')
   if (!res.ok || !platformPostId) {
-    throw new Error(`LinkedIn publish error: ${res.status}`)
+    const errorBody = (await res.json().catch(() => null)) as { message?: string } | null
+    throw new Error(errorBody?.message ?? `LinkedIn publish error: ${res.status}`)
   }
   return platformPostId
 }
@@ -77,6 +87,12 @@ async function publishToTwitter(content: string, accessToken: string): Promise<s
 // Native path stays intact for per-platform pivot-back. Comments/reviews are
 // wired to the existing services/social/*.ts in a later phase; reviews are
 // unsupported natively (GBP native path was rejected — see the design spec).
+//
+// NOTE (temporary, as of this commit): workers/post-publisher.worker.ts and
+// app/api/posts/[id]/publish/route.ts still hold their own copies of this same
+// publish logic. Later tasks in this phase delete those copies in favor of
+// calling getProvider(account).publish(...) — don't mistake this triplication
+// for a permanent state.
 export const nativeProvider: SocialProvider = {
   async publish(account, input: PublishInput) {
     const accessToken = requireAccessToken(account)
@@ -84,7 +100,9 @@ export const nativeProvider: SocialProvider = {
       case 'FACEBOOK':
         return { platformPostId: await publishFacebookPost(account.platformId, input.content, accessToken) }
       case 'INSTAGRAM':
-        return { platformPostId: await publishToInstagram(account.platformId, input.content, accessToken) }
+        return {
+          platformPostId: await publishToInstagram(account.platformId, input.content, accessToken, input.mediaUrls),
+        }
       case 'LINKEDIN':
         return { platformPostId: await publishToLinkedin(account.platformId, input.content, accessToken) }
       case 'TWITTER':
