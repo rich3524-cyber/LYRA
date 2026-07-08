@@ -78,8 +78,11 @@ export async function POST(req: Request) {
 
         // Idempotent by construction: @@unique([socialAccountId, platformCommentId])
         // means a retried delivery for the same comment updates the same row rather
-        // than creating a duplicate, and the BullMQ jobId below is deterministic
-        // per comment id, so a duplicate enqueue is a no-op at the queue level too.
+        // than creating a duplicate. Duplicate auto-replies on a redelivered event
+        // are prevented not by BullMQ's jobId (which only dedupes while the prior
+        // job is still retained in Redis) but by ai-responder.worker.ts's own
+        // early-exit on comment.status === 'RESPONDED'/'ESCALATED' -- that guard is
+        // the real safety net for "don't double-post," not the jobId.
         const comment = await prisma.comment.upsert({
           where: {
             socialAccountId_platformCommentId: {
@@ -128,11 +131,15 @@ export async function POST(req: Request) {
         break
     }
   } catch (error) {
-    // Log but still return 200 -- Zernio's retry policy would otherwise keep
-    // re-delivering an event that fails for a reason a retry can't fix (e.g. a
-    // permanently missing SocialAccount), and idempotent upserts make a retry
-    // safe if the cause WAS transient (e.g. a DB blip).
+    // A genuinely unexpected failure (DB/Redis blip, malformed data that throws
+    // on write, etc.) -- NOT one of the deliberate skip-and-ack cases above,
+    // which all `break` out of the switch without throwing. Return 500 so
+    // Zernio's retry policy actually re-delivers (the upsert above is idempotent,
+    // so a retry is safe) and so a persistent failure surfaces in Zernio's own
+    // webhook-delivery-failure monitoring instead of silently vanishing behind
+    // an ack'd 200.
     console.error(`Zernio webhook processing error (event ${payload.id}, type ${payload.event}):`, error)
+    return NextResponse.json({ error: 'Internal error processing webhook' }, { status: 500 })
   }
 
   return NextResponse.json({ ok: true })
