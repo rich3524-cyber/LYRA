@@ -15,6 +15,9 @@ export async function POST(_req: Request) {
       where: { platform: 'INSTAGRAM', isActive: true },
     })
     if (!account) return NextResponse.json({ error: 'No Instagram account connected' }, { status: 404 })
+    if (!account.accessToken) {
+      return NextResponse.json({ error: 'This account has no access token.' }, { status: 400 })
+    }
 
     const accessToken = decrypt(account.accessToken)
     const igId = account.platformId

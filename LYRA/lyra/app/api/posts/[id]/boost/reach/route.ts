@@ -29,6 +29,9 @@ export async function GET(req: Request, { params }: RouteContext) {
       return NextResponse.json({ reached: 0 })
     }
 
+    if (!post.socialAccount.accessToken) {
+      return NextResponse.json({ error: 'This account has no access token.' }, { status: 400 })
+    }
     const accessToken = decrypt(post.socialAccount.accessToken)
     const reached = await getBoostReach({ adCampaignId: post.boost.adCampaignId, accessToken })
     return NextResponse.json({ reached })

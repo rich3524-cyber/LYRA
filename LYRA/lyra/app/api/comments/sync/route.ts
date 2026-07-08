@@ -26,6 +26,10 @@ export async function POST(req: Request) {
     let newCount = 0
 
     for (const account of accounts) {
+      if (!account.accessToken) {
+        console.error(`Skipping comment sync for account ${account.id} — no access token`)
+        continue
+      }
       const token = decrypt(account.accessToken)
 
       type RawComment = { id: string; message: string; from?: { name?: string }; created_time: string }

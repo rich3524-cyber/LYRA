@@ -37,7 +37,7 @@ const worker = new Worker(
         const account = await prisma.socialAccount.findUnique({
           where: { id: comment.socialAccountId },
         })
-        if (account && (account.platform === 'FACEBOOK' || account.platform === 'INSTAGRAM')) {
+        if (account && (account.platform === 'FACEBOOK' || account.platform === 'INSTAGRAM') && account.accessToken) {
           const token = decrypt(account.accessToken)
           await replyToComment(comment.platformCommentId, result.response, token)
           await prisma.comment.update({
@@ -49,7 +49,7 @@ const worker = new Worker(
             },
           })
         } else {
-          // Platform not supported for auto-reply — fall back to draft for human review
+          // Platform not supported for auto-reply, or account has no access token — fall back to draft for human review
           await prisma.comment.update({
             where: { id: commentId },
             data:  { status: 'AI_DRAFTED', aiDraftResponse: result.response },

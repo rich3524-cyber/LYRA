@@ -17,6 +17,10 @@ const worker = new Worker(
       include: { workspace: true },
     })
     if (!account || !account.isActive) return
+    if (!account.accessToken) {
+      console.error(`Comment monitor: account ${socialAccountId} has no access token — skipping`)
+      return
+    }
 
     const token    = decrypt(account.accessToken)
     const platform = account.platform
