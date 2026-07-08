@@ -1,6 +1,8 @@
 import type { SocialAccount } from '@prisma/client'
 import { decrypt } from '@/lib/encrypt'
-import { publishPost as publishFacebookPost } from '../facebook'
+import { publishPost as publishFacebookPost, replyToComment as replyToFacebookComment } from '../facebook'
+import { replyToComment as replyToInstagramComment } from '../instagram'
+import { postCommentReply as replyToLinkedinComment } from '../linkedin'
 import type { PublishInput, SocialProvider } from './types'
 import { ProviderUnsupported } from './types'
 
@@ -108,8 +110,18 @@ export const nativeProvider: SocialProvider = {
   async fetchRecentComments(account) {
     throw new ProviderUnsupported('fetchRecentComments', account.platform)
   },
-  async replyToComment(account) {
-    throw new ProviderUnsupported('replyToComment', account.platform)
+  async replyToComment(account, _postExternalId, externalId, text) {
+    const accessToken = requireAccessToken(account)
+    switch (account.platform) {
+      case 'FACEBOOK':
+        return replyToFacebookComment(externalId, text, accessToken)
+      case 'INSTAGRAM':
+        return replyToInstagramComment(externalId, text, accessToken)
+      case 'LINKEDIN':
+        return replyToLinkedinComment(accessToken, externalId, account.platformId, text)
+      default:
+        throw new ProviderUnsupported('replyToComment', account.platform)
+    }
   },
   async fetchReviews(account) {
     throw new ProviderUnsupported('fetchReviews', account.platform)
