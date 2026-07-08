@@ -12,29 +12,28 @@ const ROUTE_TO_ZERNIO: Record<string, string> = {
   youtube: 'youtube',
 }
 
-// Zernio's platform slug (as returned in the connect-callback `connected` query
-// param) -> our Prisma Platform enum. Includes platforms with no connect button
-// yet (instagram, pinterest, threads, bluesky) so an unexpected callback still
-// maps cleanly instead of silently failing.
-const ZERNIO_TO_PLATFORM: Record<string, Platform> = {
-  facebook: 'FACEBOOK',
-  instagram: 'INSTAGRAM',
-  linkedin: 'LINKEDIN',
-  googlebusiness: 'GOOGLE_BUSINESS',
-  twitter: 'TWITTER',
-  tiktok: 'TIKTOK',
-  youtube: 'YOUTUBE',
-  pinterest: 'PINTEREST',
-  threads: 'THREADS',
-  bluesky: 'BLUESKY',
+// Literal, exhaustive source of truth: every Platform enum member maps to its
+// Zernio slug here. TypeScript requires every member as a key -- adding a new
+// Platform value without a row here is a compile error, not a silent runtime
+// `undefined` flowing into a Zernio API call.
+const PLATFORM_TO_ZERNIO: Record<Platform, string> = {
+  FACEBOOK: 'facebook',
+  INSTAGRAM: 'instagram',
+  LINKEDIN: 'linkedin',
+  GOOGLE_BUSINESS: 'googlebusiness',
+  TWITTER: 'twitter',
+  TIKTOK: 'tiktok',
+  YOUTUBE: 'youtube',
+  PINTEREST: 'pinterest',
+  THREADS: 'threads',
+  BLUESKY: 'bluesky',
 }
 
-// Inverse of ZERNIO_TO_PLATFORM -- derived, not hand-duplicated, so the two tables
-// can't drift out of sync. Every Platform enum value has exactly one Zernio slug
-// here since ZERNIO_TO_PLATFORM already covers all 10 enum values.
-const PLATFORM_TO_ZERNIO = Object.fromEntries(
-  Object.entries(ZERNIO_TO_PLATFORM).map(([slug, platform]) => [platform, slug])
-) as Record<Platform, string>
+// Derived inverse of PLATFORM_TO_ZERNIO -- not hand-duplicated, so the two
+// directions can't drift out of sync.
+const ZERNIO_TO_PLATFORM: Record<string, Platform> = Object.fromEntries(
+  Object.entries(PLATFORM_TO_ZERNIO).map(([platform, slug]) => [slug, platform as Platform])
+)
 
 export function toZernioPlatform(routeId: string): string | null {
   return ROUTE_TO_ZERNIO[routeId] ?? null

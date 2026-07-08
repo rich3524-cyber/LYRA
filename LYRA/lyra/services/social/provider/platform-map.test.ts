@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import type { Platform } from '@prisma/client'
 import { toZernioPlatform, fromZernioPlatform, platformEnumToZernioSlug } from './platform-map'
 
 describe('toZernioPlatform', () => {
@@ -45,5 +46,15 @@ describe('platformEnumToZernioSlug', () => {
     expect(platformEnumToZernioSlug('PINTEREST')).toBe('pinterest')
     expect(platformEnumToZernioSlug('THREADS')).toBe('threads')
     expect(platformEnumToZernioSlug('BLUESKY')).toBe('bluesky')
+  })
+
+  it('round-trips every Platform enum value through fromZernioPlatform(platformEnumToZernioSlug(...))', () => {
+    const allPlatforms: Platform[] = [
+      'FACEBOOK', 'INSTAGRAM', 'LINKEDIN', 'GOOGLE_BUSINESS', 'TWITTER',
+      'TIKTOK', 'YOUTUBE', 'PINTEREST', 'THREADS', 'BLUESKY',
+    ]
+    for (const platform of allPlatforms) {
+      expect(fromZernioPlatform(platformEnumToZernioSlug(platform))).toBe(platform)
+    }
   })
 })

@@ -13,4 +13,7 @@ describe('getProvider', () => {
   it('returns the native provider for ZERNIO-labeled accounts with no zernioAccountId (mislabeled/unmigrated)', () => {
     expect(getProvider({ provider: 'ZERNIO', zernioAccountId: null })).toBe(nativeProvider)
   })
+  it('returns the native provider for NATIVE accounts even when a zernioAccountId is present', () => {
+    expect(getProvider({ provider: 'NATIVE', zernioAccountId: 'zac_123' })).toBe(nativeProvider)
+  })
 })
