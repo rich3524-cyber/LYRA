@@ -27,8 +27,15 @@ export const zernioProvider: SocialProvider = {
       input.content,
       input.mediaUrls
     )
+    // Safe because publishNow always sends exactly one platform entry, so platforms[0]
+    // is the intended target even on an accountId-echo mismatch. Would need revisiting
+    // if a future change starts publishing multiple platforms in one call.
     const target =
       res.post.platforms.find((p) => p.accountId === zernioAccountId) ?? res.post.platforms[0]
+    // TODO(phase-2/3): target.status can be 'pending' or 'failed' with no platformPostId —
+    // this currently flattens that into an empty string rather than surfacing the failure.
+    // Inspect target.status/target.error and throw (or otherwise signal) once this is wired
+    // to a real publish route/worker, so a failed publish can't be mistaken for a success.
     return { platformPostId: target?.platformPostId ?? '' }
   },
 
