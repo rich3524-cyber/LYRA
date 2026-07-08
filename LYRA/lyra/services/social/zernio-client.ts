@@ -76,10 +76,14 @@ export const zernioClient = {
       `/inbox/comments/${encodeURIComponent(postId)}?accountId=${encodeURIComponent(accountId)}`
     ),
 
-  replyToComment: (postId: string, accountId: string, text: string) =>
+  // Pass commentId to target one specific existing comment; omitting it posts a fresh
+  // top-level comment on the post instead. Confirmed camelCase wire field via Zernio docs
+  // (POST /v1/inbox/comments/{postId} request body: accountId, message, commentId, ...).
+  replyToComment: (postId: string, accountId: string, text: string, commentId?: string) =>
     req<{ [key: string]: unknown }>('POST', `/inbox/comments/${encodeURIComponent(postId)}`, {
       accountId,
       message: text,
+      ...(commentId ? { commentId } : {}),
     }),
 
   getGoogleBusinessReviews: (accountId: string) =>
