@@ -1,6 +1,7 @@
 import type { SocialAccount } from '@prisma/client'
 import { zernioClient } from '../zernio-client'
 import { toNormalizedComment, toNormalizedReview } from './mappers'
+import { platformEnumToZernioSlug } from './platform-map'
 import type { NormalizedComment, PublishInput, SocialProvider } from './types'
 
 // Best-effort assumption: Zernio's docs don't precisely specify the shape of items in
@@ -23,7 +24,7 @@ export const zernioProvider: SocialProvider = {
     const zernioAccountId = requireZernioId(account)
     const res = await zernioClient.publishNow(
       zernioAccountId,
-      account.platform.toLowerCase(),
+      platformEnumToZernioSlug(account.platform),
       input.content,
       input.mediaUrls
     )
@@ -32,11 +33,12 @@ export const zernioProvider: SocialProvider = {
     // if a future change starts publishing multiple platforms in one call.
     const target =
       res.post.platforms.find((p) => p.accountId === zernioAccountId) ?? res.post.platforms[0]
-    // TODO(phase-2/3): target.status can be 'pending' or 'failed' with no platformPostId —
-    // this currently flattens that into an empty string rather than surfacing the failure.
-    // Inspect target.status/target.error and throw (or otherwise signal) once this is wired
-    // to a real publish route/worker, so a failed publish can't be mistaken for a success.
-    return { platformPostId: target?.platformPostId ?? '' }
+    if (!target || !target.platformPostId) {
+      throw new Error(
+        target?.error ?? `Zernio publish failed for account ${zernioAccountId} (status: ${target?.status ?? 'unknown'})`
+      )
+    }
+    return { platformPostId: target.platformPostId }
   },
 
   async fetchRecentComments(account) {
