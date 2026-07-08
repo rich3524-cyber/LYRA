@@ -10,6 +10,7 @@ export function verifyZernioSignature(
   signatureHeader: string | null,
   secret: string
 ): boolean {
+  if (!secret) return false
   if (!signatureHeader) return false
 
   const expected = createHmac('sha256', secret).update(rawBody).digest('hex')

@@ -35,4 +35,12 @@ describe('verifyZernioSignature', () => {
     const body = JSON.stringify({ event: 'comment.received' })
     expect(verifyZernioSignature(body, 'not-a-real-signature', SECRET)).toBe(false)
   })
+
+  it('rejects an empty secret, even with a signature that would otherwise match', () => {
+    const body = JSON.stringify({ event: 'comment.received' })
+    // Signed with an empty-string key -- if the guard were missing, this would
+    // incorrectly verify against an accidentally-unset ZERNIO_WEBHOOK_SECRET.
+    const signature = sign(body, '')
+    expect(verifyZernioSignature(body, signature, '')).toBe(false)
+  })
 })
