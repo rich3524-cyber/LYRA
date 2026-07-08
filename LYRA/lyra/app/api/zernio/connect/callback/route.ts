@@ -38,11 +38,6 @@ export async function GET(req: Request) {
       return NextResponse.redirect(`${BASE_URL}/workspace/${workspaceId}/settings?error=zernio_connect_failed`)
     }
 
-    const platform = fromZernioPlatform(connectedSlug)
-    if (!platform) {
-      return NextResponse.redirect(`${BASE_URL}/workspace/${workspaceId}/settings?error=zernio_connect_failed`)
-    }
-
     // Verify the accountId in the query string actually belongs to THIS workspace's
     // Zernio profile before trusting it. ZERNIO_API_KEY is one master key shared across
     // every LYRA workspace, so the query params Zernio appends to this redirect are not
@@ -69,6 +64,16 @@ export async function GET(req: Request) {
       console.error(
         `Zernio callback: accountId ${zernioAccountId} does not belong to workspace ${workspaceId}'s Zernio profile (${workspace.zernioProfileId}) -- looks like a forged or cross-tenant accountId`
       )
+      return NextResponse.redirect(`${BASE_URL}/workspace/${workspaceId}/settings?error=zernio_connect_failed`)
+    }
+
+    // Derive the stored platform from the VERIFIED account record, not the unsigned
+    // `connected` query param -- connectedSlug already had to match to reach this point
+    // (via the earlier presence check), but matchedAccount.platform is the value Zernio
+    // itself associates with the ownership-checked account, so it's the more trustworthy
+    // source now that we have it.
+    const platform = fromZernioPlatform(matchedAccount.platform) ?? fromZernioPlatform(connectedSlug)
+    if (!platform) {
       return NextResponse.redirect(`${BASE_URL}/workspace/${workspaceId}/settings?error=zernio_connect_failed`)
     }
 
@@ -99,7 +104,13 @@ export async function GET(req: Request) {
       },
     })
 
-    return NextResponse.redirect(`${BASE_URL}/workspace/${workspaceId}/settings?connected=${connectedSlug}`)
+    // Redirect with the verified Prisma enum (lowercased), not the raw Zernio slug --
+    // the settings page's PLATFORM_LABELS lookup keys on `connected.toUpperCase()`
+    // matching the Prisma Platform enum (e.g. GOOGLE_BUSINESS), which `googlebusiness`
+    // (Zernio's slug) doesn't uppercase into.
+    return NextResponse.redirect(
+      `${BASE_URL}/workspace/${workspaceId}/settings?connected=${platform.toLowerCase()}`
+    )
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
