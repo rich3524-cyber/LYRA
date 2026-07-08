@@ -1380,9 +1380,9 @@ One workspace is currently active in production:
 
 ---
 
-#### Data usage (verbally confirmed 2026-07-08, written confirmation pending)
+#### Data usage (✅ CONFIRMED IN WRITING 2026-07-08 — founder Miki)
 
-Ana confirmed: storing comment data, passing it to an AI model, and writing the AI-generated response back via their API is **the intended use case** — no restrictions. Written confirmation requested; awaiting response.
+Storing comment **and review** data in LYRA's own database, passing it to an AI model for response generation, and writing the AI reply back through Zernio's API is a **supported and intended use of the API — no restrictions added by Zernio.** The platforms' own content policies (e.g. Meta's automation/spam rules) still apply to what gets posted, exactly as with a direct integration. (Written confirmation received from Zernio founder; supersedes the earlier verbal note.)
 
 ---
 
@@ -1390,23 +1390,37 @@ Ana confirmed: storing comment data, passing it to an AI model, and writing the 
 
 Posts published through Zernio appear on-platform **near-instantly** — no meaningful delay vs native publishing. **Video** posts can take a little longer to process but are **mostly instant** too.
 
-**NOTE — this is *outbound publish* latency only.** It is distinct from *inbound comment-ingestion* latency (pending item 1: how fast a new comment on-platform reaches LYRA via webhook), which drives AI response speed and still needs a figure from Zernio's team.
+**NOTE — this is *outbound publish* latency only.** Inbound comment/review ingestion latency is confirmed separately below.
 
 ---
 
-#### What is still pending from Zernio team (as of 2026-07-08)
+#### Ingestion latency + webhook events (✅ CONFIRMED 2026-07-08 — founder Miki)
 
-Prioritised in order of operational importance:
+Per-platform, and this **resolves the design spec's one open caveat** (inbound comment/review webhook events do exist):
 
-1. ~~**Webhooks vs. polling for Meta comment ingestion + end-to-end latency.**~~ **RESOLVED — see MCP tool list note below.** Webhook support confirmed.
-2. **Sandbox / test environment.** Need to validate the full comment read → AI process → write-back flow before going live with production accounts. *(Docs check 2026-07-08: the only sandbox Zernio documents is a **shared WhatsApp sandbox number**. No general Meta/GBP comment-flow sandbox was found in the docs — implying the comment read→reply flow is tested against real connected accounts. Confirm with their team whether any non-WhatsApp test path exists.)*
-3. **Data usage in writing.** Ana's verbal confirmation is enough to proceed in principle but we want it documented.
-4. **Uptime figures for Meta and LinkedIn integrations — past 12 months.** Required before routing production traffic through their layer.
-5. **Volume / annual pricing.** Published tiers go to $1/account at 101–2000. Enterprise and annual billing are a separate conversation — team to follow up.
-6. **X/Twitter API tier** (Basic, Pro, or Enterprise) — affects rate limits on read/write operations. *(Docs check 2026-07-08: X is billed as **metered pass-through at X's exact published per-operation rates, zero markup** — e.g. ~$0.005 Posts:Read, ~$0.015 Content:Create — and a **monthly X spend cap** is settable from the dashboard. That resolves the cost model; the exact underlying rate-limit tier is still TBC with their team. X charges apply only when an X account is connected.)*
-7. ~~**REST vs MCP capability parity**~~ **RESOLVED — see MCP tool list note below.** MCP server is live and comprehensive.
-8. **SLA, incident comms, and partnership stability** (questions 17–20 from original inquiry) — what notice period if a platform partnership changes, and what is their incident notification process?
-9. **Go-live timeline** — how quickly from sign-up to a working Meta comment read/write integration in test?
+| Source | Mechanism | Webhook event | Latency |
+|---|---|---|---|
+| **Meta (FB Page / IG Business) comments** | Meta real-time Webhooks → Zernio → us | `comment.received` | **seconds** (steady state) |
+| **Google Business reviews** | Google Pub/Sub → Zernio → us | `review.new` / `review.updated` | **seconds** — real-time |
+| **LinkedIn company-page comments** | **Zernio polls** LinkedIn (no LinkedIn comment webhook exists) | (delivered on same webhook channel) | **~10 min worst case** (smart cadence: ~10 min for accounts with fresh posts, backs off as posts age) |
+
+Design impact: LYRA still receives everything via its single webhook endpoint; only **LinkedIn** comment responses run up to ~10 min behind (acceptable for autonomous response). Meta comments and GBP reviews are effectively real-time. The spec's "verify inbound webhook events before build" caveat is now **closed** — build straight to webhooks for Meta + GBP; LinkedIn latency is Zernio-side and needs no LYRA change.
+
+---
+
+#### Pending questions — almost all resolved by founder Miki (2026-07-08)
+
+1. ✅ **Meta comment ingestion + latency** — webhooks (`comment.received`), **seconds** end-to-end. GBP reviews also push (`review.new`/`review.updated`), seconds. LinkedIn polled ~10 min. See Ingestion-latency table above.
+2. ✅ **Sandbox** — **there is none.** Standard validation is the **free tier** (2 connected accounts, full API access, no card): connect a test FB Page + IG Business account you control and exercise the whole read→AI→reply loop against real platform behaviour. Dashboard has **webhook delivery logs** to help wire up the endpoint. Teams typically get the loop working same-day. (Matches our "test on own accounts" guardrail.)
+3. ✅ **Data usage in writing** — confirmed (see Data-usage section above).
+4. ⚠️ **Uptime / SLA** — **no published per-integration uptime, and NO contractual SLA.** Live status + incident history at **https://status.zernio.com** (also their incident-comms channel — point ops monitoring there). This is the main **GA-trust caveat**: acceptable for a beta bridge, but the lack of an SLA is a real consideration before a permanent GBP-reviews dependency.
+5. ✅ **Commercial at scale** — **month-to-month, no annual billing, no lock-in either side.** Volume pricing = the graduated rate card; ~500 accounts ≈ **$718/mo (blended ~$1.44/account)**, trending toward $1 as you grow; >2,000 accounts = custom pricing. Below 2,000 the public tiers are the best rate.
+6. **X/Twitter API tier** — X billed as **metered pass-through at X's exact per-op rates, zero markup** (~$0.005 read, ~$0.015 create) with a settable monthly spend cap. Exact rate-limit tier still minor-TBC; not blocking.
+7. ✅ **REST vs MCP parity** — MCP live and comprehensive (280+ tools).
+8. ⚠️ **Partnership stability** — no SLA/notice-period guarantee, but their platform apps are under the same review regimes as anyone's, and **maintaining those approvals across every platform is their full-time job** — that ongoing maintenance is the risk transfer being bought. Monitor via status page.
+9. ✅ **Go-live timeline** — same-day to a working test loop on the free tier (per item 2).
+
+**Remaining genuinely-open:** end-user **disclosure requirements** about Zernio's role (flagged, not yet answered) and the exact X rate-limit tier (minor). Neither blocks the beta build.
 
 #### Zernio MCP server — now connected (discovered 2026-07-08)
 

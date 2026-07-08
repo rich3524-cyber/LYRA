@@ -142,7 +142,12 @@ Zernio's comment ID lands in existing `platformCommentId`; replies target the ac
   - `account.disconnected` → mark `SocialAccount` inactive.
 - Existing **Sync** button remains, backed by `fetchRecentComments` (manual reconcile).
 
-**Verify-before-build:** Zernio webhooks are confirmed for *accounts* and *posts*. **Inbound-comment and new-review webhook events are not yet confirmed.** If unavailable, ingestion for those falls back to a periodic poll of `fetchRecentComments` / `fetchReviews` via the existing comment-monitor worker — same interface, only the trigger changes. Pin this down against Zernio's webhook docs as the first build step.
+**Webhook events — CONFIRMED (founder, 2026-07-08):**
+- Meta comments → `comment.received` webhook, **seconds** latency.
+- GBP reviews → `review.new` / `review.updated` webhooks (Google Pub/Sub), **seconds**, real-time.
+- LinkedIn comments → **no LinkedIn webhook exists**; Zernio polls company pages ~every 10 min (backing off as posts age) and delivers on the same webhook channel. LYRA needs no change — LinkedIn comment responses simply run up to ~10 min behind; Meta + GBP are real-time.
+
+Build straight to webhooks for all three. No poll fallback needed on LYRA's side (LinkedIn polling is Zernio-internal).
 
 ---
 
@@ -172,10 +177,13 @@ When a platform's native app review lands: users reconnect that platform via the
 Zernio is **absorbed as LYRA COGS — not passed through to clients**. Per connected account: free first 2, then ~$6/account/mo (3–10), $3 (11–100), $1 (101–2000); X fees metered pass-through. Trivial at beta scale; shrinks toward zero as platforms pivot back to native. GBP-reviews slice may be permanent COGS.
 
 ## Open items (track, not blocking beta build)
-- Inbound comment/review webhook events — confirm vs poll fallback (first build step)
-- Written data-usage confirmation from Zernio (verbal given by "Ana" 2026-07-08)
-- Uptime/SLA history; X API rate-limit tier
-- Exact pricing tier boundaries
+Most cleared by Zernio founder Miki, 2026-07-08 (see Handover → Zernio section):
+- ✅ Webhook events (comment.received, review.new/updated) + latency (seconds; LinkedIn ~10 min poll)
+- ✅ Written data-usage confirmation received
+- ✅ Sandbox: none — validate on free tier with own test accounts (webhook delivery logs in dashboard)
+- ✅ Commercial: month-to-month, no lock-in; ~$718/mo at 500 accounts
+- ⚠️ **No contractual SLA / no published uptime** — status.zernio.com only. GA-trust caveat, not a beta blocker; weigh before making GBP-reviews a permanent dependency.
+- Still open (non-blocking): end-user disclosure requirements about Zernio's role; exact X rate-limit tier.
 
 ## Files (anticipated)
 **New:** `services/social/provider/{types,index,native,zernio}.ts`, `services/social/zernio-client.ts`, `app/api/zernio/connect/callback/route.ts`, `app/api/zernio/webhook/route.ts`, `Review` model + minimal Customer Voice UI, migration SQL.
