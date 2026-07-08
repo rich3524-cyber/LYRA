@@ -1,37 +1,9 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { decrypt } from '@/lib/encrypt'
-import { publishPost } from '@/services/social/facebook'
+import { getProvider, ProviderUnsupported } from '@/services/social/provider'
 
 export const dynamic = 'force-dynamic'
-
-const IG_BASE = 'https://graph.facebook.com/v19.0'
-
-async function publishToInstagram(igId: string, content: string, accessToken: string): Promise<string> {
-  const createRes = await fetch(`${IG_BASE}/${igId}/media`, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({
-      image_url:    'https://picsum.photos/1080/1080.jpg',
-      caption:      content,
-      access_token: accessToken,
-    }),
-    signal: AbortSignal.timeout(15_000),
-  })
-  const createData = await createRes.json() as { id?: string; error?: { message: string } }
-  if (!createRes.ok || createData.error) throw new Error(createData.error?.message ?? `IG container error: ${createRes.status}`)
-
-  const publishRes = await fetch(`${IG_BASE}/${igId}/media_publish`, {
-    method:  'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body:    JSON.stringify({ creation_id: createData.id, access_token: accessToken }),
-    signal:  AbortSignal.timeout(15_000),
-  })
-  const publishData = await publishRes.json() as { id?: string; error?: { message: string } }
-  if (!publishRes.ok || publishData.error) throw new Error(publishData.error?.message ?? `IG publish error: ${publishRes.status}`)
-  return publishData.id!
-}
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -55,18 +27,24 @@ export async function POST(_req: Request, { params }: RouteContext) {
       return NextResponse.json({ error: 'Post already published.' }, { status: 400 })
     }
 
-    const platform = post.socialAccount.platform
-    if (platform !== 'FACEBOOK' && platform !== 'INSTAGRAM') {
-      return NextResponse.json({ error: 'Direct publish only supported for Facebook and Instagram.' }, { status: 400 })
-    }
-
-    if (!post.socialAccount.accessToken) {
+    // Restored from the pre-provider-seam version of this route: a clear 400
+    // before attempting anything, rather than letting a missing token surface
+    // as a generic 502 from deep inside nativeProvider (which also shouldn't
+    // leak the account's internal id into a client-facing error message).
+    // Condition mirrors getProvider's dispatch (services/social/provider/index.ts):
+    // an account only resolves to zernioProvider when provider === 'ZERNIO' AND
+    // zernioAccountId is set; everything else resolves to nativeProvider and
+    // therefore requires accessToken.
+    const resolvesToZernio =
+      post.socialAccount.provider === 'ZERNIO' && post.socialAccount.zernioAccountId != null
+    if (!resolvesToZernio && !post.socialAccount.accessToken) {
       return NextResponse.json({ error: 'This account has no access token.' }, { status: 400 })
     }
-    const accessToken = decrypt(post.socialAccount.accessToken)
-    const platformPostId = platform === 'INSTAGRAM'
-      ? await publishToInstagram(post.socialAccount.platformId, post.content, accessToken)
-      : await publishPost(post.socialAccount.platformId, post.content, accessToken)
+
+    const { platformPostId } = await getProvider(post.socialAccount).publish(post.socialAccount, {
+      content: post.content,
+      mediaUrls: post.mediaUrls,
+    })
 
     await prisma.post.update({
       where: { id: postId },
@@ -77,6 +55,9 @@ export async function POST(_req: Request, { params }: RouteContext) {
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    if (error instanceof ProviderUnsupported) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
     console.error('POST /api/posts/[id]/publish error:', error)
     const message = error instanceof Error ? error.message : 'Failed to publish post'

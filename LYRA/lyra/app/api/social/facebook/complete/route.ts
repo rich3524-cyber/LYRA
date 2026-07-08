@@ -65,6 +65,7 @@ export async function POST(req: Request) {
           avatarUrl: page.avatarUrl,
           accessToken: page.encryptedToken,
           adAccountId: data.adAccountId,
+          provider: 'NATIVE',
         },
         update: {
           accessToken: page.encryptedToken,
@@ -94,6 +95,7 @@ export async function POST(req: Request) {
               avatarUrl: igAccount.avatarUrl,
               accessToken: encrypt(rawToken),
               adAccountId: data.adAccountId,
+              provider: 'NATIVE',
             },
             update: {
               accessToken: encrypt(rawToken),
