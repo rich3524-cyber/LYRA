@@ -15,3 +15,4 @@ export function getProvider(account: Pick<SocialAccount, 'provider' | 'zernioAcc
 }
 
 export type { SocialProvider } from './types'
+export { ProviderUnsupported } from './types'
