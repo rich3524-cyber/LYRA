@@ -101,6 +101,7 @@ export async function GET(
               avatarUrl: org.logoUrl,
               accessToken: encrypt(accessToken),
               tokenExpiry: new Date(Date.now() + expiresIn * 1000),
+              provider: 'NATIVE',
             },
             update: {
               accessToken: encrypt(accessToken),
@@ -128,6 +129,7 @@ export async function GET(
               accessToken: encrypt(loc.accessToken),
               refreshToken: encrypt(loc.refreshToken),
               tokenExpiry: loc.tokenExpiry,
+              provider: 'NATIVE',
             },
             update: {
               accessToken: encrypt(loc.accessToken),
@@ -159,6 +161,7 @@ export async function GET(
             accessToken: encrypt(accessToken),
             refreshToken: encrypt(refreshToken),
             tokenExpiry: new Date(Date.now() + expiresIn * 1000),
+            provider: 'NATIVE',
           },
           update: {
             accessToken: encrypt(accessToken),
@@ -186,6 +189,7 @@ export async function GET(
             accessToken: encrypt(accessToken),
             refreshToken: encrypt(refreshToken),
             tokenExpiry: new Date(Date.now() + expiresIn * 1000),
+            provider: 'NATIVE',
           },
           update: {
             accessToken: encrypt(accessToken),
@@ -213,6 +217,7 @@ export async function GET(
             accessToken: encrypt(accessToken),
             refreshToken: encrypt(refreshToken),
             tokenExpiry: channel.tokenExpiry,
+            provider: 'NATIVE',
           },
           update: {
             accessToken: encrypt(accessToken),
