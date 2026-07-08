@@ -5,7 +5,7 @@ describe('toNormalizedComment', () => {
   it('maps a Zernio inbox comment to the normalized shape', () => {
     const raw = {
       id: 'c_123',
-      postId: 'p_456',
+      platformPostId: 'p_456',
       author: { name: 'Jane Doe', username: 'janed' },
       text: 'Love this!',
       createdAt: '2026-07-08T10:00:00.000Z',
@@ -21,7 +21,7 @@ describe('toNormalizedComment', () => {
   })
 
   it('falls back to empty author handle and blank name when missing', () => {
-    const raw = { id: 'c_1', postId: 'p_1', text: 'hi', createdAt: '2026-07-08T10:00:00.000Z' }
+    const raw = { id: 'c_1', platformPostId: 'p_1', text: 'hi', createdAt: '2026-07-08T10:00:00.000Z' }
     const out = toNormalizedComment(raw)
     expect(out.authorHandle).toBeUndefined()
     expect(out.authorName).toBe('')
