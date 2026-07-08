@@ -1528,7 +1528,9 @@ If Meta approves this week, LYRA is native on all actionable platforms except GB
   - **Build → Custom Build Command = `npm install`** (explicit; do not rely on `railway.toml`)
   - **Deploy → Custom Start Command = `npx tsx workers/index.ts`** (explicit)
   - **Incident (2026-07-08):** Root Directory was unset, so Railway built from the repo root, couldn't find `railway.toml`, and Railpack auto-ran `npm run build` (`next build`) — which failed on `@/components/lyra/settings/timezone-selector`. Symptom was a red herring; the real cause was the unset Root Directory. Netlify was unaffected because its base dir is already `LYRA/lyra`.
-  - **Trigger:** pushing from the OUTER repo puts everything under the `LYRA/lyra/` prefix on `main`; with no Root Directory set, Railway (previously fed by inner-repo pushes with a root-level layout) broke. See the inner-repo note below — retiring it prevents recurrence.
+  - **Trigger:** pushing from the OUTER repo puts everything under the `LYRA/lyra/` prefix on `main`; with no Root Directory set, Railway (previously fed by inner-repo pushes with a root-level layout) broke.
+
+- **✅ Inner git repo RETIRED (2026-07-08).** There used to be a **second git repo** at `LYRA/lyra/.git` (root-level layout) alongside the outer repo at the OneDrive root (`LYRA/lyra/` prefix layout). Both pushed to the **same** GitHub remote, so whichever repo pushed last flipped `main`'s directory layout — the root cause of the Railway incident and years of "commits went to the wrong repo" confusion. The inner `.git` was deleted; `LYRA/lyra` is now a normal directory in the **single** outer repo (317 files tracked, no submodule). A full reversible backup (all branches incl. local-only `backup-session20`) is at `scratchpad/inner-repo-full-2026-07-08.bundle` — *scratchpad is temporary; move it if you want a durable archive.* **Going forward: there is ONE repo. Always commit/push from the OneDrive root. `main` layout is now stable (`LYRA/lyra/` prefix), matching Netlify base dir and Railway Root Directory.**
 
 ### Meta App Review — Full Status (as of June 2026)
 
