@@ -87,12 +87,6 @@ async function publishToTwitter(content: string, accessToken: string): Promise<s
 // Native path stays intact for per-platform pivot-back. Comments/reviews are
 // wired to the existing services/social/*.ts in a later phase; reviews are
 // unsupported natively (GBP native path was rejected — see the design spec).
-//
-// NOTE (temporary, as of this commit): workers/post-publisher.worker.ts and
-// app/api/posts/[id]/publish/route.ts still hold their own copies of this same
-// publish logic. Later tasks in this phase delete those copies in favor of
-// calling getProvider(account).publish(...) — don't mistake this triplication
-// for a permanent state.
 export const nativeProvider: SocialProvider = {
   async publish(account, input: PublishInput) {
     const accessToken = requireAccessToken(account)
