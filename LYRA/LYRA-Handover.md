@@ -1509,6 +1509,13 @@ If Meta approves this week, LYRA is native on all actionable platforms except GB
 - `railway.toml` specifies `buildCommand = "npm install"` (overrides Railway's default Next.js build) and `startCommand = "npx tsx workers/index.ts"`
 - All four cron-job.org jobs are active and returning 200 responses
 
+- **⚠️ CRITICAL Railway config (fixed 2026-07-08) — `railway.toml` alone is NOT enough under the Railpack builder.** Railway does not read `LYRA/lyra/railway.toml` unless its **Root Directory** points there. The Railway service settings MUST be:
+  - **Settings → Source → Root Directory = `LYRA/lyra`** ← the one that was missing and broke the build
+  - **Build → Custom Build Command = `npm install`** (explicit; do not rely on `railway.toml`)
+  - **Deploy → Custom Start Command = `npx tsx workers/index.ts`** (explicit)
+  - **Incident (2026-07-08):** Root Directory was unset, so Railway built from the repo root, couldn't find `railway.toml`, and Railpack auto-ran `npm run build` (`next build`) — which failed on `@/components/lyra/settings/timezone-selector`. Symptom was a red herring; the real cause was the unset Root Directory. Netlify was unaffected because its base dir is already `LYRA/lyra`.
+  - **Trigger:** pushing from the OUTER repo puts everything under the `LYRA/lyra/` prefix on `main`; with no Root Directory set, Railway (previously fed by inner-repo pushes with a root-level layout) broke. See the inner-repo note below — retiring it prevents recurrence.
+
 ### Meta App Review — Full Status (as of June 2026)
 
 **App:** LYRA — App ID `1480576426774303`  
