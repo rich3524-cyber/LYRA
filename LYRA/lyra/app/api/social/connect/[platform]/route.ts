@@ -43,11 +43,18 @@ export async function GET(
     let zernioProfileId = workspace.zernioProfileId
     if (!zernioProfileId) {
       const { profile } = await zernioClient.createProfile(workspace.name)
-      zernioProfileId = profile._id
-      await prisma.workspace.update({
-        where: { id: workspaceId },
-        data: { zernioProfileId },
+      const { count } = await prisma.workspace.updateMany({
+        where: { id: workspaceId, zernioProfileId: null },
+        data: { zernioProfileId: profile._id },
       })
+      if (count > 0) {
+        zernioProfileId = profile._id
+      } else {
+        // Another concurrent request already persisted a profile id first --
+        // use theirs instead of the one we just (now-orphaned) created.
+        const current = await prisma.workspace.findUniqueOrThrow({ where: { id: workspaceId } })
+        zernioProfileId = current.zernioProfileId!
+      }
     }
 
     const redirectUrl = `${BASE_URL}/api/zernio/connect/callback?workspaceId=${encodeURIComponent(workspaceId)}`
