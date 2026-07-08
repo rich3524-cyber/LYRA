@@ -29,10 +29,21 @@ const ZERNIO_TO_PLATFORM: Record<string, Platform> = {
   bluesky: 'BLUESKY',
 }
 
+// Inverse of ZERNIO_TO_PLATFORM -- derived, not hand-duplicated, so the two tables
+// can't drift out of sync. Every Platform enum value has exactly one Zernio slug
+// here since ZERNIO_TO_PLATFORM already covers all 10 enum values.
+const PLATFORM_TO_ZERNIO = Object.fromEntries(
+  Object.entries(ZERNIO_TO_PLATFORM).map(([slug, platform]) => [platform, slug])
+) as Record<Platform, string>
+
 export function toZernioPlatform(routeId: string): string | null {
   return ROUTE_TO_ZERNIO[routeId] ?? null
 }
 
 export function fromZernioPlatform(zernioSlug: string): Platform | null {
   return ZERNIO_TO_PLATFORM[zernioSlug] ?? null
+}
+
+export function platformEnumToZernioSlug(platform: Platform): string {
+  return PLATFORM_TO_ZERNIO[platform]
 }
