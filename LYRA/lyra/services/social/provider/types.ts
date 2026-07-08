@@ -25,7 +25,10 @@ export interface PublishInput {
 export interface SocialProvider {
   publish(account: SocialAccount, input: PublishInput): Promise<{ platformPostId: string }>
   fetchRecentComments(account: SocialAccount): Promise<NormalizedComment[]>
-  replyToComment(account: SocialAccount, externalId: string, text: string): Promise<void>
+  // postExternalId is required because Zernio's reply endpoint is scoped to a post
+  // (POST /inbox/comments/{postId}), not the comment alone. Callers already have this —
+  // it's NormalizedComment.postExternalId from ingestion.
+  replyToComment(account: SocialAccount, postExternalId: string, externalId: string, text: string): Promise<void>
   fetchReviews(account: SocialAccount): Promise<NormalizedReview[]>
   replyToReview(account: SocialAccount, externalId: string, text: string): Promise<void>
 }
