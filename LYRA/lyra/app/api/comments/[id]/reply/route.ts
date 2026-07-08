@@ -1,13 +1,9 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { decrypt } from '@/lib/encrypt'
-import { replyToComment as facebookReply } from '@/services/social/facebook'
-import { replyToComment as instagramReply } from '@/services/social/instagram'
-import { postCommentReply as linkedinReply } from '@/services/social/linkedin'
+import { getProvider, ProviderUnsupported } from '@/services/social/provider'
 
 export const dynamic = 'force-dynamic'
-
 
 type RouteContext = { params: Promise<{ id: string }> }
 
@@ -36,27 +32,18 @@ export async function POST(req: Request, { params }: RouteContext) {
       return NextResponse.json({ error: 'Already responded.' }, { status: 400 })
     }
 
-    const platform = comment.socialAccount.platform
-    const supportedPlatforms = ['FACEBOOK', 'INSTAGRAM', 'LINKEDIN'] as const
-    if (!supportedPlatforms.includes(platform as typeof supportedPlatforms[number])) {
-      return NextResponse.json(
-        { error: 'Platform not supported for live replies.' },
-        { status: 400 }
-      )
-    }
-
-    if (!comment.socialAccount.accessToken) {
+    const resolvesToZernio =
+      comment.socialAccount.provider === 'ZERNIO' && comment.socialAccount.zernioAccountId != null
+    if (!resolvesToZernio && !comment.socialAccount.accessToken) {
       return NextResponse.json({ error: 'This account has no access token.' }, { status: 400 })
     }
-    const accessToken = decrypt(comment.socialAccount.accessToken)
-    if (platform === 'INSTAGRAM') {
-      await instagramReply(comment.platformCommentId, response.trim(), accessToken)
-    } else if (platform === 'LINKEDIN') {
-      // platformCommentId is the full comment URN; platformId is the org ID
-      await linkedinReply(accessToken, comment.platformCommentId, comment.socialAccount.platformId, response.trim())
-    } else {
-      await facebookReply(comment.platformCommentId, response.trim(), accessToken)
-    }
+
+    await getProvider(comment.socialAccount).replyToComment(
+      comment.socialAccount,
+      comment.platformPostId ?? '',
+      comment.platformCommentId,
+      response.trim()
+    )
 
     await prisma.comment.update({
       where: { id: commentId },
@@ -71,6 +58,9 @@ export async function POST(req: Request, { params }: RouteContext) {
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    if (error instanceof ProviderUnsupported) {
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
     console.error('POST /api/comments/[id]/reply error:', error)
     const message = error instanceof Error ? error.message : 'Failed to send reply'
