@@ -113,6 +113,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
     linkedin_no_orgs:
       'No LinkedIn company pages found. You must be an admin of at least one LinkedIn Page to connect. LYRA connects company pages, not personal profiles.',
     oauth_failed: 'The connection could not be completed. Try again.',
+    zernio_connect_failed: 'The connection could not be completed via Zernio. Try again.',
   }
   const connectErrorMessage = error
     ? CONNECT_ERRORS[error] ?? 'The connection could not be completed. Try again.'
