@@ -29,12 +29,47 @@ async function findZernioAccount(zernioAccountId: string) {
   return undefined
 }
 
+// TEMP diagnostic aid (2026-07-09): Netlify function logs aren't reachable from this
+// session, and the callback has failed intermittently for reasons that vary between
+// attempts (stale profileId shape, flaky list endpoint, a genuine disconnect). This
+// records exactly what Zernio sent and how we resolved it so the next failure is
+// diagnosable without guessing. Remove once the connect flow has proven stable.
+async function logDebug(row: {
+  workspaceId: string | null
+  rawQuery: string
+  zernioAccountId: string | null
+  connectedSlug: string | null
+  matchedAccountId?: string
+  matchedProfileId?: string
+  workspaceZernioProfileId?: string
+  outcome: string
+}) {
+  try {
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO "ZernioConnectDebugLog"
+        ("workspaceId", "rawQuery", "zernioAccountId", "connectedSlug", "matchedAccountId", "matchedProfileId", "workspaceZernioProfileId", "outcome")
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      row.workspaceId,
+      row.rawQuery,
+      row.zernioAccountId,
+      row.connectedSlug,
+      row.matchedAccountId ?? null,
+      row.matchedProfileId ?? null,
+      row.workspaceZernioProfileId ?? null,
+      row.outcome
+    )
+  } catch (logError) {
+    console.error('Zernio callback: failed to write debug log', logError)
+  }
+}
+
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const workspaceId = searchParams.get('workspaceId')
   const connectedSlug = searchParams.get('connected')
   const zernioAccountId = searchParams.get('accountId')
   const username = searchParams.get('username') ?? ''
+  const rawQuery = searchParams.toString()
 
   if (!workspaceId) {
     return NextResponse.redirect(`${BASE_URL}?error=oauth_failed`)
@@ -56,6 +91,7 @@ export async function GET(req: Request) {
 
     if (!connectedSlug || !zernioAccountId) {
       // User cancelled on Zernio's hosted page, or the flow didn't complete.
+      await logDebug({ workspaceId, rawQuery, zernioAccountId, connectedSlug, outcome: 'missing connected/accountId param' })
       return NextResponse.redirect(`${BASE_URL}/workspace/${workspaceId}/settings?error=zernio_connect_failed`)
     }
 
@@ -70,6 +106,7 @@ export async function GET(req: Request) {
       console.error(
         `Zernio callback: workspace ${workspaceId} has no zernioProfileId yet; refusing to link accountId ${zernioAccountId}`
       )
+      await logDebug({ workspaceId, rawQuery, zernioAccountId, connectedSlug, outcome: 'workspace has no zernioProfileId' })
       return NextResponse.redirect(`${BASE_URL}/workspace/${workspaceId}/settings?error=zernio_connect_failed`)
     }
 
@@ -83,6 +120,16 @@ export async function GET(req: Request) {
       console.error(
         `Zernio callback: accountId ${zernioAccountId} does not belong to workspace ${workspaceId}'s Zernio profile (${workspace.zernioProfileId}) -- looks like a forged or cross-tenant accountId`
       )
+      await logDebug({
+        workspaceId,
+        rawQuery,
+        zernioAccountId,
+        connectedSlug,
+        matchedAccountId: matchedAccount?._id ?? matchedAccount?.accountId,
+        matchedProfileId,
+        workspaceZernioProfileId: workspace.zernioProfileId,
+        outcome: matchedAccount ? 'profileId mismatch' : 'account not found after retries',
+      })
       return NextResponse.redirect(`${BASE_URL}/workspace/${workspaceId}/settings?error=zernio_connect_failed`)
     }
 
@@ -93,6 +140,16 @@ export async function GET(req: Request) {
     // source now that we have it.
     const platform = fromZernioPlatform(matchedAccount.platform) ?? fromZernioPlatform(connectedSlug)
     if (!platform) {
+      await logDebug({
+        workspaceId,
+        rawQuery,
+        zernioAccountId,
+        connectedSlug,
+        matchedAccountId: matchedAccount._id ?? matchedAccount.accountId,
+        matchedProfileId,
+        workspaceZernioProfileId: workspace.zernioProfileId,
+        outcome: `unrecognized platform: ${matchedAccount.platform}`,
+      })
       return NextResponse.redirect(`${BASE_URL}/workspace/${workspaceId}/settings?error=zernio_connect_failed`)
     }
 
@@ -123,6 +180,17 @@ export async function GET(req: Request) {
       },
     })
 
+    await logDebug({
+      workspaceId,
+      rawQuery,
+      zernioAccountId,
+      connectedSlug,
+      matchedAccountId: matchedAccount._id ?? matchedAccount.accountId,
+      matchedProfileId,
+      workspaceZernioProfileId: workspace.zernioProfileId,
+      outcome: 'success',
+    })
+
     // Redirect with the verified Prisma enum (lowercased), not the raw Zernio slug --
     // the settings page's PLATFORM_LABELS lookup keys on `connected.toUpperCase()`
     // matching the Prisma Platform enum (e.g. GOOGLE_BUSINESS), which `googlebusiness`
@@ -135,6 +203,13 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
     console.error('GET /api/zernio/connect/callback error:', error)
+    await logDebug({
+      workspaceId,
+      rawQuery,
+      zernioAccountId,
+      connectedSlug,
+      outcome: `exception: ${error instanceof Error ? error.message : String(error)}`,
+    })
     return NextResponse.redirect(`${BASE_URL}/workspace/${workspaceId}/settings?error=zernio_connect_failed`)
   }
 }
