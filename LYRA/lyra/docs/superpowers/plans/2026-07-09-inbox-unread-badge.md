@@ -321,7 +321,7 @@ Replace with:
               >
                 <span>{label}</span>
                 {hasUnread && (
-                  <span className="shrink-0 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-status-error text-background-primary text-[10px] font-medium leading-none">
+                  <span className="shrink-0 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-status-error text-white text-[10px] font-medium leading-none">
                     {unreadLabel}
                   </span>
                 )}
@@ -337,7 +337,7 @@ Replace with:
 Notes for the implementer:
 - This is the *shared* render path for every non-locked, non-Assistant nav item — the icon now renders inside a `relative` wrapper span for all of them, but `hasUnread` is only ever true for the Inbox item (`isInbox` gates it), so no other nav item's visual output changes.
 - The mobile drawer always calls `renderContent(false, true)` — i.e. `isCollapsed` is always `false` there — so mobile always gets the numbered pill, never the dot, matching the spec.
-- `bg-status-error` / `text-background-primary` are existing design tokens already used elsewhere in this codebase (e.g. `components/lyra/inbox/response-inbox.tsx`, `components/lyra/settings/autonomy-selector.tsx`) — don't invent new color tokens.
+- `bg-status-error text-white` is the exact pattern already used for a solid red badge/button with readable contrast elsewhere in this codebase — see `components/lyra/account/delete-account-button.tsx:53`. `background-primary` is near-black (`#080808`) in this app's theme, not white — don't use it for text on a colored badge. Don't invent new color tokens.
 
 - [ ] **Step 3: Type-check**
 
