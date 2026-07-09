@@ -152,7 +152,11 @@ export function Sidebar({
               : 'text-text-secondary hover:text-text-primary hover:bg-background-hover',
           )}
           aria-label={
-            isCollapsed ? (hasUnread ? `${label} (unread comments)` : label) : undefined
+            hasUnread
+              ? `${label} (${unreadLabel} unread comment${unreadLabel === '1' ? '' : 's'})`
+              : isCollapsed
+              ? label
+              : undefined
           }
         >
           <span className="relative shrink-0">
@@ -170,13 +174,20 @@ export function Sidebar({
                 initial={{ opacity: 0, width: 0 }}
                 animate={{ opacity: 1, width: 'auto' }}
                 exit={{ opacity: 0, width: 0 }}
-                className="overflow-hidden whitespace-nowrap tracking-wide flex-1 flex items-center justify-between gap-2"
+                className={cn(
+                  'overflow-hidden whitespace-nowrap tracking-wide',
+                  hasUnread && 'flex-1 flex items-center justify-between gap-2',
+                )}
               >
-                <span>{label}</span>
-                {hasUnread && (
-                  <span className="shrink-0 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-status-error text-white text-[10px] font-medium leading-none">
-                    {unreadLabel}
-                  </span>
+                {hasUnread ? (
+                  <>
+                    <span>{label}</span>
+                    <span className="shrink-0 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-status-error text-white text-[10px] font-medium leading-none">
+                      {unreadLabel}
+                    </span>
+                  </>
+                ) : (
+                  label
                 )}
               </motion.span>
             )}
