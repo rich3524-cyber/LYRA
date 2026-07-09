@@ -72,7 +72,7 @@ export function AutonomySelector({ workspaceId, currentMode, isPro }: AutonomySe
   }
 
   function handleSelect(nextMode: AutonomyMode) {
-    if (nextMode === mode || saving) return
+    if (nextMode === mode || saving || confirmOpen) return
     if (nextMode === 'FULL') {
       setConfirmOpen(true)
       return
@@ -157,7 +157,8 @@ export function AutonomySelector({ workspaceId, currentMode, isPro }: AutonomySe
             </AlertDialogCancel>
             <button
               onClick={handleConfirmFull}
-              className="inline-flex items-center justify-center px-4 py-2 rounded-lg font-sans text-sm bg-status-success text-background-primary hover:opacity-90 transition-opacity"
+              disabled={saving}
+              className="inline-flex items-center justify-center px-4 py-2 rounded-lg font-sans text-sm bg-status-success text-background-primary hover:opacity-90 transition-opacity disabled:opacity-50"
             >
               Enable Full Automatic
             </button>
