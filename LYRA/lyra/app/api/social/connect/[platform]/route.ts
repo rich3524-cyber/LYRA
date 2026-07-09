@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { zernioClient } from '@/services/social/zernio-client'
+import { zernioClient, ZernioApiError } from '@/services/social/zernio-client'
 import { toZernioPlatform } from '@/services/social/provider/platform-map'
 
 export const dynamic = 'force-dynamic'
@@ -64,6 +64,11 @@ export async function GET(
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    if (error instanceof ZernioApiError) {
+      console.error(`GET /api/social/connect/[platform] Zernio error (${error.status}):`, error.message)
+      const status = error.status >= 400 && error.status < 500 ? error.status : 502
+      return NextResponse.json({ error: error.message }, { status })
     }
     console.error(`GET /api/social/connect/[platform] error:`, error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

@@ -5,6 +5,18 @@
 
 const BASE = 'https://zernio.com/api/v1'
 
+// Carries Zernio's actual HTTP status so callers can distinguish actionable
+// client errors (e.g. 402 payment required, 429 rate limited) from real
+// internal failures instead of collapsing everything into a generic 500.
+export class ZernioApiError extends Error {
+  status: number
+  constructor(status: number, message: string) {
+    super(message)
+    this.name = 'ZernioApiError'
+    this.status = status
+  }
+}
+
 function key(): string {
   const k = process.env.ZERNIO_API_KEY
   if (!k) throw new Error('ZERNIO_API_KEY is not set')
@@ -21,11 +33,11 @@ async function req<T>(method: string, path: string, body?: unknown): Promise<T> 
     body: body ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(20_000),
   })
-  if (res.status === 429) throw new Error('Zernio rate limited (429)')
+  if (res.status === 429) throw new ZernioApiError(429, 'Zernio rate limited (429)')
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     const msg = (data as { message?: string }).message ?? `Zernio ${method} ${path} failed (${res.status})`
-    throw new Error(msg)
+    throw new ZernioApiError(res.status, msg)
   }
   return data as T
 }
