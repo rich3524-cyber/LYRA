@@ -14,7 +14,7 @@ interface ZernioWebhookEvent {
   event: string
   comment?: {
     id: string
-    platformPostId: string
+    platformPostId?: string
     accountId?: string
     author?: { name?: string; username?: string }
     text?: string
@@ -65,6 +65,16 @@ export async function POST(req: Request) {
         })
         if (!account) {
           console.error(`comment.received event ${payload.id}: no SocialAccount for zernioAccountId ${zernioAccountId}`)
+          break
+        }
+
+        // Guard this the same way as the accountId check above: platformPostId is
+        // documented as required on this event, but if a real delivery ever omits
+        // it, skip-and-ack now rather than persisting a comment with no post
+        // reference -- one that would fail loudly (but confusingly, hours later)
+        // the first time someone tries to reply to it.
+        if (!payload.comment.platformPostId) {
+          console.error(`comment.received event ${payload.id} has no platformPostId — cannot route`)
           break
         }
 
