@@ -137,6 +137,10 @@ export function Sidebar({
         )
       }
 
+      const isInbox = href === '/inbox'
+      const hasUnread = isInbox && (unreadCount ?? 0) > 0
+      const unreadLabel = (unreadCount ?? 0) > 99 ? '99+' : String(unreadCount ?? 0)
+
       return (
         <Link
           key={label}
@@ -147,18 +151,33 @@ export function Sidebar({
               ? 'bg-background-hover text-text-primary'
               : 'text-text-secondary hover:text-text-primary hover:bg-background-hover',
           )}
-          aria-label={isCollapsed ? label : undefined}
+          aria-label={
+            isCollapsed ? (hasUnread ? `${label} (unread comments)` : label) : undefined
+          }
         >
-          <Icon size={16} className="shrink-0" strokeWidth={isActive ? 2 : 1.5} />
+          <span className="relative shrink-0">
+            <Icon size={16} strokeWidth={isActive ? 2 : 1.5} />
+            {hasUnread && isCollapsed && (
+              <span
+                className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-status-error"
+                aria-hidden="true"
+              />
+            )}
+          </span>
           <AnimatePresence>
             {!isCollapsed && (
               <motion.span
                 initial={{ opacity: 0, width: 0 }}
                 animate={{ opacity: 1, width: 'auto' }}
                 exit={{ opacity: 0, width: 0 }}
-                className="overflow-hidden whitespace-nowrap tracking-wide"
+                className="overflow-hidden whitespace-nowrap tracking-wide flex-1 flex items-center justify-between gap-2"
               >
-                {label}
+                <span>{label}</span>
+                {hasUnread && (
+                  <span className="shrink-0 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-status-error text-white text-[10px] font-medium leading-none">
+                    {unreadLabel}
+                  </span>
+                )}
               </motion.span>
             )}
           </AnimatePresence>
