@@ -11,10 +11,13 @@ const BASE_URL = process.env.APP_BASE_URL!
 // GET /v1/accounts is flaky -- confirmed live 2026-07-09 by calling it four times in a
 // row immediately after a real successful connection: empty, populated, empty, empty.
 // A single call right after the OAuth redirect can easily miss an account that
-// genuinely exists, which would wrongly kill a successful connection. Retry a few times
-// with backoff before concluding the account really isn't there.
+// genuinely exists, which would wrongly kill a successful connection. Retry several
+// times with backoff before concluding the account really isn't there. Facebook in
+// particular took longer than LinkedIn to show up even with the original 4-attempt/3s
+// window (extra page-selection/Graph API round trip on Zernio's backend), so this
+// spans ~9s worst case.
 async function findZernioAccount(zernioAccountId: string) {
-  const delaysMs = [0, 500, 1000, 1500]
+  const delaysMs = [0, 500, 1000, 1500, 2000, 2000, 2000]
   for (const delay of delaysMs) {
     if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay))
     const { accounts } = await zernioClient.listAccounts()
