@@ -24,9 +24,15 @@ interface PlatformConfig {
 const PLATFORMS: PlatformConfig[] = [
   {
     id: 'facebook',
-    name: 'Facebook & Instagram',
-    description: 'Schedule posts, respond to comments, and connect linked Instagram Business accounts.',
-    dbPlatforms: ['FACEBOOK', 'INSTAGRAM'],
+    name: 'Facebook',
+    description: 'Schedule posts and respond to comments on your Facebook Page.',
+    dbPlatforms: ['FACEBOOK'],
+  },
+  {
+    id: 'instagram',
+    name: 'Instagram',
+    description: 'Schedule posts and respond to comments on your Instagram Business account. Connected separately from Facebook.',
+    dbPlatforms: ['INSTAGRAM'],
   },
   {
     id: 'linkedin',

@@ -5,6 +5,7 @@ import type { Platform } from '@prisma/client'
 // unlike Ayrshare's old `gmb`) -- confirmed against docs.zernio.com 2026-07-08.
 const ROUTE_TO_ZERNIO: Record<string, string> = {
   facebook: 'facebook',
+  instagram: 'instagram',
   linkedin: 'linkedin',
   google: 'googlebusiness',
   twitter: 'twitter',
