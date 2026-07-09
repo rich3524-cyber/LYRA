@@ -2,8 +2,7 @@ import { Worker } from 'bullmq'
 import { redis } from '@/lib/redis'
 import { prisma } from '@/lib/prisma'
 import { generateCommentResponse } from '@/services/ai/response-generator'
-import { decrypt } from '@/lib/encrypt'
-import { replyToComment } from '@/services/social/facebook'
+import { getProvider } from '@/services/social/provider'
 
 const worker = new Worker(
   'ai-responding',
@@ -37,9 +36,13 @@ const worker = new Worker(
         const account = await prisma.socialAccount.findUnique({
           where: { id: comment.socialAccountId },
         })
-        if (account && (account.platform === 'FACEBOOK' || account.platform === 'INSTAGRAM') && account.accessToken) {
-          const token = decrypt(account.accessToken)
-          await replyToComment(comment.platformCommentId, result.response, token)
+        if (account) {
+          await getProvider(account).replyToComment(
+            account,
+            comment.platformPostId ?? '',
+            comment.platformCommentId,
+            result.response
+          )
           await prisma.comment.update({
             where: { id: commentId },
             data:  {
@@ -49,7 +52,6 @@ const worker = new Worker(
             },
           })
         } else {
-          // Platform not supported for auto-reply, or account has no access token — fall back to draft for human review
           await prisma.comment.update({
             where: { id: commentId },
             data:  { status: 'AI_DRAFTED', aiDraftResponse: result.response },
