@@ -7,11 +7,12 @@ import { randomUUID } from 'crypto'
 export const dynamic = 'force-dynamic'
 
 
+// S3_* names, not AWS_* -- see lib/s3.ts for why (Netlify reserves the AWS_* names).
 const s3 = new S3Client({
-  region: process.env.AWS_REGION ?? 'ap-southeast-2',
+  region: process.env.S3_REGION ?? 'ap-southeast-2',
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+    accessKeyId: process.env.S3_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.S3_SECRET_ACCESS_KEY!,
   },
 })
 
@@ -69,7 +70,7 @@ export async function POST(req: Request) {
       })
     )
 
-    const url = `https://${BUCKET}.s3.${process.env.AWS_REGION ?? 'ap-southeast-2'}.amazonaws.com/${key}`
+    const url = `https://${BUCKET}.s3.${process.env.S3_REGION ?? 'ap-southeast-2'}.amazonaws.com/${key}`
 
     return NextResponse.json({ url })
   } catch (error) {

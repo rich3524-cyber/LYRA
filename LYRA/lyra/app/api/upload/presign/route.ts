@@ -6,7 +6,8 @@ import { randomUUID } from 'crypto'
 export const dynamic = 'force-dynamic'
 
 const BUCKET = process.env.AWS_S3_BUCKET!
-const REGION = process.env.AWS_REGION ?? 'ap-southeast-2'
+// S3_REGION, not AWS_REGION -- see lib/s3.ts for why (Netlify reserves the AWS_* names).
+const REGION = process.env.S3_REGION ?? 'ap-southeast-2'
 
 const ALLOWED_MIME_TYPES: Record<string, string> = {
   'image/jpeg':      'jpg',

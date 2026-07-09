@@ -82,9 +82,9 @@ jobs:
           STRIPE_STARTER_PRICE_ID:   price_placeholder
           STRIPE_PRO_PRICE_ID:       price_placeholder
           STRIPE_AGENCY_PRICE_ID:    price_placeholder
-          AWS_REGION:                ap-southeast-2
-          AWS_ACCESS_KEY_ID:         placeholder
-          AWS_SECRET_ACCESS_KEY:     placeholder
+          S3_REGION:                 ap-southeast-2
+          S3_ACCESS_KEY_ID:          placeholder
+          S3_SECRET_ACCESS_KEY:      placeholder
           AWS_S3_BUCKET:             placeholder
 
   # Netlify deploys automatically via its GitHub integration (connected in Netlify dashboard).
