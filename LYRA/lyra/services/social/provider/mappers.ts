@@ -2,7 +2,7 @@ import type { NormalizedComment, NormalizedReview } from './types'
 
 interface RawZernioComment {
   id: string
-  postId: string
+  platformPostId: string
   author?: { name?: string; username?: string }
   text?: string
   createdAt: string
@@ -19,7 +19,7 @@ interface RawZernioReview {
 export function toNormalizedComment(raw: RawZernioComment): NormalizedComment {
   return {
     externalId: raw.id,
-    postExternalId: raw.postId,
+    postExternalId: raw.platformPostId,
     authorName: raw.author?.name ?? '',
     authorHandle: raw.author?.username,
     text: raw.text ?? '',

@@ -228,6 +228,7 @@ model Comment {
   postId            String?
   post              Post?         @relation(fields: [postId], references: [id])
   platformCommentId String
+  platformPostId    String?
   authorName        String
   authorHandle      String?
   content           String
