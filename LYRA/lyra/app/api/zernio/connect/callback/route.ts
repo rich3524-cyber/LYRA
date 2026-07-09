@@ -16,15 +16,35 @@ const BASE_URL = process.env.APP_BASE_URL!
 // particular took longer than LinkedIn to show up even with the original 4-attempt/3s
 // window (extra page-selection/Graph API round trip on Zernio's backend), so this
 // spans ~9s worst case.
-async function findZernioAccount(zernioAccountId: string) {
+//
+// Zernio's redirect doesn't always include `accountId` -- confirmed live 2026-07-09:
+// LinkedIn's redirect included it, Facebook's did not (only `connected`, `profileId`,
+// `username`), despite docs implying it's always present when no selection is needed.
+// When accountId is missing, fall back to matching by (verified workspace profileId +
+// platform) instead -- still safe, since workspace.zernioProfileId is looked up
+// server-side, never trusted from the query string.
+async function findZernioAccount(opts: { zernioAccountId?: string; profileId?: string; platform?: string }) {
   const delaysMs = [0, 500, 1000, 1500, 2000, 2000, 2000]
   for (const delay of delaysMs) {
     if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay))
     const { accounts } = await zernioClient.listAccounts()
-    const match = accounts.find(
-      (account) => account._id === zernioAccountId || account.accountId === zernioAccountId
-    )
-    if (match) return match
+    if (opts.zernioAccountId) {
+      const match = accounts.find(
+        (account) => account._id === opts.zernioAccountId || account.accountId === opts.zernioAccountId
+      )
+      if (match) return match
+    } else if (opts.profileId && opts.platform) {
+      const candidates = accounts.filter((account) => {
+        const pid = typeof account.profileId === 'string' ? account.profileId : account.profileId?._id
+        return pid === opts.profileId && account.platform === opts.platform
+      })
+      if (candidates.length > 0) {
+        // Most recently updated wins if the same platform is connected more than once
+        // under this profile (shouldn't normally happen, but pick deterministically).
+        candidates.sort((a, b) => String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? '')))
+        return candidates[0]
+      }
+    }
   }
   return undefined
 }
@@ -89,9 +109,9 @@ export async function GET(req: Request) {
       return NextResponse.redirect(`${BASE_URL}?error=oauth_failed`)
     }
 
-    if (!connectedSlug || !zernioAccountId) {
+    if (!connectedSlug) {
       // User cancelled on Zernio's hosted page, or the flow didn't complete.
-      await logDebug({ workspaceId, rawQuery, zernioAccountId, connectedSlug, outcome: 'missing connected/accountId param' })
+      await logDebug({ workspaceId, rawQuery, zernioAccountId, connectedSlug, outcome: 'missing connected param' })
       return NextResponse.redirect(`${BASE_URL}/workspace/${workspaceId}/settings?error=zernio_connect_failed`)
     }
 
@@ -110,7 +130,9 @@ export async function GET(req: Request) {
       return NextResponse.redirect(`${BASE_URL}/workspace/${workspaceId}/settings?error=zernio_connect_failed`)
     }
 
-    const matchedAccount = await findZernioAccount(zernioAccountId)
+    const matchedAccount = zernioAccountId
+      ? await findZernioAccount({ zernioAccountId })
+      : await findZernioAccount({ profileId: workspace.zernioProfileId, platform: connectedSlug })
     // profileId comes back as a populated object ({ _id, name }), not a bare string --
     // confirmed live 2026-07-09. Unwrap before comparing, or every real connection fails
     // this check (object !== string) and gets rejected as cross-tenant.
@@ -153,29 +175,46 @@ export async function GET(req: Request) {
       return NextResponse.redirect(`${BASE_URL}/workspace/${workspaceId}/settings?error=zernio_connect_failed`)
     }
 
+    // The query string's accountId is missing for some platforms (Facebook -- see
+    // findZernioAccount above), so fall back to the id on the verified account record
+    // itself. Either way this is the ownership-checked id, never a client-supplied one.
+    const resolvedAccountId = zernioAccountId ?? matchedAccount._id ?? matchedAccount.accountId
+    if (!resolvedAccountId) {
+      await logDebug({
+        workspaceId,
+        rawQuery,
+        zernioAccountId,
+        connectedSlug,
+        matchedProfileId,
+        workspaceZernioProfileId: workspace.zernioProfileId,
+        outcome: 'matched account has no usable id',
+      })
+      return NextResponse.redirect(`${BASE_URL}/workspace/${workspaceId}/settings?error=zernio_connect_failed`)
+    }
+
     // platformId stores the Zernio account id for ZERNIO-provider accounts (there
     // is no native platform id available here) -- same uniqueness guarantee as
     // native accounts, different source. zernioAccountId is stored again on its
     // own column so provider code doesn't need to know this convention.
     await prisma.socialAccount.upsert({
       where: {
-        workspaceId_platform_platformId: { workspaceId, platform, platformId: zernioAccountId },
+        workspaceId_platform_platformId: { workspaceId, platform, platformId: resolvedAccountId },
       },
       create: {
         workspaceId,
         platform,
-        platformId: zernioAccountId,
+        platformId: resolvedAccountId,
         handle: username,
         name: username,
         accessToken: null,
         provider: 'ZERNIO',
-        zernioAccountId,
+        zernioAccountId: resolvedAccountId,
       },
       update: {
         handle: username,
         name: username,
         provider: 'ZERNIO',
-        zernioAccountId,
+        zernioAccountId: resolvedAccountId,
         isActive: true,
       },
     })
