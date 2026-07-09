@@ -6,6 +6,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { DeleteWorkspaceButton } from '@/components/lyra/settings/delete-workspace-button'
 import { CrisisAwareToggle } from '@/components/lyra/settings/crisis-aware-toggle'
+import { AutonomySelector } from '@/components/lyra/settings/autonomy-selector'
 import { FacebookPagePicker } from '@/components/lyra/settings/facebook-page-picker'
 import { TimezoneSelector } from '@/components/lyra/settings/timezone-selector'
 
@@ -85,7 +86,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
 
   const workspace = await prisma.workspace.findFirst({
     where: { id: workspaceId, access: { some: { userId: user.id } } },
-    select: { id: true, name: true, crisisAware: true, plan: true, timezone: true },
+    select: { id: true, name: true, crisisAware: true, plan: true, timezone: true, aiResponseMode: true },
   })
   if (!workspace) notFound()
 
@@ -247,6 +248,18 @@ export default async function SettingsPage({ params, searchParams }: Props) {
             currentTimezone={workspace.timezone}
           />
         </div>
+      </section>
+
+      {/* Automation */}
+      <section className="space-y-3">
+        <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
+          Automation
+        </p>
+        <AutonomySelector
+          workspaceId={workspace.id}
+          currentMode={workspace.aiResponseMode}
+          isPro={workspace.plan === 'PRO' || workspace.plan === 'AGENCY'}
+        />
       </section>
 
       {/* Add-ons */}
