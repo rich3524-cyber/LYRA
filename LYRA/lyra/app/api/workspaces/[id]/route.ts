@@ -60,6 +60,11 @@ export async function PATCH(
       return NextResponse.json({ error: 'Crisis Aware requires Pro or Agency plan.' }, { status: 403 })
     }
 
+    // Plan gate: Starter users cannot enable Full Automatic AI replies
+    if (aiResponseMode === 'FULL' && existing.plan === 'STARTER') {
+      return NextResponse.json({ error: 'Full Automatic requires Pro or Agency plan.' }, { status: 403 })
+    }
+
     const workspace = await prisma.workspace.update({
       where: { id },
       data: {
