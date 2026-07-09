@@ -102,14 +102,21 @@ export const zernioClient = {
   // it only supports optional page/limit pagination, and omitting both returns the full
   // list (bounded by the account's plan limit, backward-compatible). So callers that need
   // to verify which profile an account belongs to must filter this list client-side.
-  // Response account objects carry a required `profileId` field (confirmed via the
-  // AccountsListResponse schema). The unique-id field name on this specific list endpoint
-  // was not confirmed by a live call (test account had zero connected accounts at build
-  // time) -- webhook payloads and a related "account health" endpoint both use `accountId`,
-  // while `createProfile`'s single-resource response uses `_id`, so both are accepted
-  // defensively here until a real connected account confirms which one this endpoint uses.
+  // Confirmed live 2026-07-09 against a real connected account: the unique-id field is
+  // `_id` (no `accountId` on this endpoint's account objects, unlike webhook payloads --
+  // kept as a fallback below in case that varies by account type). `profileId` comes back
+  // as a POPULATED OBJECT (`{ _id, name }`), not a bare string -- callers must compare
+  // `.profileId._id` (or `.profileId` directly if a future response shape flattens it).
   listAccounts: () =>
-    req<{ accounts: Array<{ _id?: string; accountId?: string; profileId: string; platform: string; [key: string]: unknown }> }>(
+    req<{
+      accounts: Array<{
+        _id?: string
+        accountId?: string
+        profileId: string | { _id: string; [key: string]: unknown }
+        platform: string
+        [key: string]: unknown
+      }>
+    }>(
       'GET',
       '/accounts'
     ),

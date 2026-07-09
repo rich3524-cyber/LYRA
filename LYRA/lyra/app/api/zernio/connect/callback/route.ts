@@ -52,15 +52,16 @@ export async function GET(req: Request) {
       return NextResponse.redirect(`${BASE_URL}/workspace/${workspaceId}/settings?error=zernio_connect_failed`)
     }
 
-    // TODO(phase-3): confirm which id field GET /v1/accounts actually returns against a
-    // real connected account (e.g. ITWM's own test workspace) before wiring up publish --
-    // this match is security-sensitive (cross-tenant account takeover) and currently
-    // accepts either field name defensively because it was never verified live.
     const { accounts } = await zernioClient.listAccounts()
     const matchedAccount = accounts.find(
       (account) => account._id === zernioAccountId || account.accountId === zernioAccountId
     )
-    if (!matchedAccount || matchedAccount.profileId !== workspace.zernioProfileId) {
+    // profileId comes back as a populated object ({ _id, name }), not a bare string --
+    // confirmed live 2026-07-09. Unwrap before comparing, or every real connection fails
+    // this check (object !== string) and gets rejected as cross-tenant.
+    const matchedProfileId =
+      typeof matchedAccount?.profileId === 'string' ? matchedAccount.profileId : matchedAccount?.profileId?._id
+    if (!matchedAccount || matchedProfileId !== workspace.zernioProfileId) {
       console.error(
         `Zernio callback: accountId ${zernioAccountId} does not belong to workspace ${workspaceId}'s Zernio profile (${workspace.zernioProfileId}) -- looks like a forged or cross-tenant accountId`
       )
