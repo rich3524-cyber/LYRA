@@ -8,6 +8,24 @@ export const dynamic = 'force-dynamic'
 
 const BASE_URL = process.env.APP_BASE_URL!
 
+// GET /v1/accounts is flaky -- confirmed live 2026-07-09 by calling it four times in a
+// row immediately after a real successful connection: empty, populated, empty, empty.
+// A single call right after the OAuth redirect can easily miss an account that
+// genuinely exists, which would wrongly kill a successful connection. Retry a few times
+// with backoff before concluding the account really isn't there.
+async function findZernioAccount(zernioAccountId: string) {
+  const delaysMs = [0, 500, 1000, 1500]
+  for (const delay of delaysMs) {
+    if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay))
+    const { accounts } = await zernioClient.listAccounts()
+    const match = accounts.find(
+      (account) => account._id === zernioAccountId || account.accountId === zernioAccountId
+    )
+    if (match) return match
+  }
+  return undefined
+}
+
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const workspaceId = searchParams.get('workspaceId')
@@ -52,10 +70,7 @@ export async function GET(req: Request) {
       return NextResponse.redirect(`${BASE_URL}/workspace/${workspaceId}/settings?error=zernio_connect_failed`)
     }
 
-    const { accounts } = await zernioClient.listAccounts()
-    const matchedAccount = accounts.find(
-      (account) => account._id === zernioAccountId || account.accountId === zernioAccountId
-    )
+    const matchedAccount = await findZernioAccount(zernioAccountId)
     // profileId comes back as a populated object ({ _id, name }), not a bare string --
     // confirmed live 2026-07-09. Unwrap before comparing, or every real connection fails
     // this check (object !== string) and gets rejected as cross-tenant.
