@@ -10,6 +10,7 @@ interface AppShellClientProps {
   brandReady: boolean
   plan?: string
   trendEnabled?: boolean
+  unreadCount?: number
   children: React.ReactNode
 }
 
@@ -19,6 +20,7 @@ export function AppShellClient({
   brandReady,
   plan,
   trendEnabled,
+  unreadCount,
   children,
 }: AppShellClientProps) {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -38,6 +40,7 @@ export function AppShellClient({
         brandReady={brandReady}
         plan={plan}
         trendEnabled={trendEnabled}
+        unreadCount={unreadCount}
         mobileOpen={mobileNavOpen}
         onMobileClose={() => setMobileNavOpen(false)}
       />

@@ -47,6 +47,7 @@ export default async function DashboardLayout({
 
   let brandReady = false
   let workspacePlan: string | undefined
+  let unreadCount = 0
   if (workspaceId) {
     const ws = await prisma.workspace.findFirst({
       where: { id: workspaceId },
@@ -58,6 +59,13 @@ export default async function DashboardLayout({
     }).catch(() => null)
     brandReady = !!(ws?.websiteUrl && (ws._count?.socialAccounts ?? 0) > 0)
     workspacePlan = ws?.plan ?? undefined
+
+    unreadCount = await prisma.comment.count({
+      where: {
+        workspaceId,
+        status: { in: ['PENDING', 'AI_DRAFTED', 'AWAITING_APPROVAL', 'ESCALATED'] },
+      },
+    }).catch(() => 0)
   }
 
   return (
@@ -66,6 +74,7 @@ export default async function DashboardLayout({
       workspaceId={workspaceId}
       brandReady={brandReady}
       plan={workspacePlan}
+      unreadCount={unreadCount}
     >
       {children}
     </AppShellClient>

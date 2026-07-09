@@ -46,6 +46,7 @@ interface SidebarProps {
   mobileOpen?: boolean
   onMobileClose?: () => void
   trendEnabled?: boolean
+  unreadCount?: number
 }
 
 export function Sidebar({
@@ -55,6 +56,7 @@ export function Sidebar({
   mobileOpen,
   onMobileClose,
   trendEnabled,
+  unreadCount,
 }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false)
   const pathname = usePathname()
