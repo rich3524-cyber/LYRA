@@ -23,6 +23,12 @@ function key(): string {
   return k
 }
 
+// Our own upload flow only ever produces these extensions (see ALLOWED_MIME_TYPES in
+// app/api/upload/presign/route.ts) -- video vs image is all Zernio's mediaItems needs.
+function mediaItemType(url: string): 'image' | 'video' {
+  return /\.(mp4|mov|webm)$/i.test(url) ? 'video' : 'image'
+}
+
 async function req<T>(method: string, path: string, body?: unknown): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method,
@@ -72,7 +78,12 @@ export const zernioClient = {
       }
     }>('POST', '/posts', {
       content,
-      platforms: [{ platform, accountId, ...(mediaUrls ? { mediaUrls } : {}) }],
+      platforms: [{ platform, accountId }],
+      // mediaItems is top-level on the post, not nested per-platform -- confirmed via
+      // Zernio docs ("POST /v1/posts" request body). A per-platform `mediaUrls` field
+      // isn't part of their schema at all, so it was previously being silently ignored:
+      // posts published with text only, media dropped, no error either side.
+      ...(mediaUrls?.length ? { mediaItems: mediaUrls.map((url) => ({ type: mediaItemType(url), url })) } : {}),
       publishNow: true,
     }),
 
