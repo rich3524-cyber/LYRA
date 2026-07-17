@@ -15,13 +15,13 @@ interface ZernioWebhookEvent {
   comment?: {
     id: string
     platformPostId?: string
-    accountId?: string
     author?: { name?: string; username?: string }
     text?: string
     createdAt?: string
   }
   account?: {
-    accountId: string
+    id?: string
+    accountId?: string
   }
 }
 
@@ -49,13 +49,17 @@ export async function POST(req: Request) {
     switch (payload.event) {
       case 'comment.received': {
         if (!payload.comment) break
-        // TODO(phase-4-live-verify): comment.accountId's exact placement in the
-        // real payload wasn't confirmed against a live delivery during planning
-        // (docs snippet truncated). Adjust here if a real webhook shows it
-        // living elsewhere (e.g. a top-level `account.accountId` block instead).
-        const zernioAccountId = payload.comment.accountId
+        // Confirmed 17 Jul 2026 against a real delivery: comments are an "inbox
+        // event" per Zernio's docs, which carry the tenant key as a top-level
+        // `account` object -- never nested inside `comment`. The original
+        // speculative `comment.accountId` read (written before any live delivery
+        // was seen) was always undefined, so every comment silently failed to
+        // route and got ack'd without ever being saved. Docs show two slightly
+        // different field names across examples (`account.id` on the
+        // message.received sample, `account.accountId` elsewhere) -- accept either.
+        const zernioAccountId = payload.account?.id ?? payload.account?.accountId
         if (!zernioAccountId) {
-          console.error(`comment.received event ${payload.id} has no accountId — cannot route`)
+          console.error(`comment.received event ${payload.id} has no account.id/accountId — cannot route`)
           break
         }
 
