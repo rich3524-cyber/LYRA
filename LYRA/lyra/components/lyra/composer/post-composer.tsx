@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -11,11 +12,12 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { Sparkles, CalendarIcon, Send, Zap, BarChart2 } from 'lucide-react'
+import { Sparkles, CalendarIcon, Send, Zap, BarChart2, Pencil } from 'lucide-react'
 import { PlatformSelector } from './platform-selector'
 import { MediaUploader } from './media-uploader'
 import { ContentScorePanel } from './content-score-panel'
 import type { ScoringResult } from '@/services/ai/content-scorer'
+import type { EditingPost } from './compose-client'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -25,17 +27,21 @@ interface PostComposerProps {
   connectedPlatforms: string[]
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   postingPatterns?: any
+  editingPost?: EditingPost | null
   onContentChange?: (content: string) => void
   onPlatformsChange?: (platforms: string[]) => void
 }
 
-export function PostComposer({ workspaceId, connectedPlatforms, onContentChange, onPlatformsChange }: PostComposerProps) {
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
-  const [scheduledAt, setScheduledAt] = useState<Date | undefined>()
-  const [mediaUrls, setMediaUrls] = useState<string[]>([])
+export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onContentChange, onPlatformsChange }: PostComposerProps) {
+  const router = useRouter()
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(editingPost ? [editingPost.platform] : [])
+  const [scheduledAt, setScheduledAt] = useState<Date | undefined>(
+    editingPost?.scheduledAt ? new Date(editingPost.scheduledAt) : undefined
+  )
+  const [mediaUrls, setMediaUrls] = useState<string[]>(editingPost?.mediaUrls ?? [])
   const [isGenerating, setIsGenerating] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [content, setContent] = useState('')
+  const [content, setContent] = useState(editingPost?.content ?? '')
   const [scoreOpen, setScoreOpen] = useState(false)
   const [scoring, setScoring] = useState(false)
   const [scoreResult, setScoreResult] = useState<ScoringResult | null>(null)
@@ -46,6 +52,7 @@ export function PostComposer({ workspaceId, connectedPlatforms, onContentChange,
       StarterKit,
       Placeholder.configure({ placeholder: 'Write your post, or let LYRA AI generate it…' }),
     ],
+    content: editingPost?.content ?? '',
     editorProps: {
       attributes: {
         class: 'min-h-[160px] text-sm text-text-primary leading-relaxed outline-none',
@@ -110,12 +117,26 @@ export function PostComposer({ workspaceId, connectedPlatforms, onContentChange,
 
     setIsSubmitting(true)
     try {
-      const res = await fetch('/api/posts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ workspaceId, content, platforms: selectedPlatforms, scheduledAt: publishAt, mediaUrls, status }),
-      })
+      const res = await fetch(
+        editingPost ? `/api/posts/${editingPost.id}` : '/api/posts',
+        {
+          method: editingPost ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(
+            editingPost
+              ? { content, scheduledAt: publishAt, mediaUrls, status }
+              : { workspaceId, content, platforms: selectedPlatforms, scheduledAt: publishAt, mediaUrls, status }
+          ),
+        }
+      )
       if (!res.ok) throw new Error('Failed to save post')
+
+      if (editingPost) {
+        toast.success('Post updated.')
+        router.push(`/workspace/${workspaceId}/calendar`)
+        return
+      }
+
       toast.success(status === 'SCHEDULED' ? (dateOverride ? 'Post queued for publishing.' : 'Post scheduled.') : 'Draft saved.')
       editor?.commands.clearContent()
       setSelectedPlatforms([])
@@ -130,12 +151,19 @@ export function PostComposer({ workspaceId, connectedPlatforms, onContentChange,
 
   return (
     <div className="relative bg-background-secondary border border-background-border rounded-xl overflow-hidden">
+      {editingPost && (
+        <div className="flex items-center gap-2 px-5 py-2.5 bg-background-hover border-b border-background-border">
+          <Pencil size={12} strokeWidth={1.5} className="text-text-tertiary shrink-0" />
+          <p className="font-sans text-xs text-text-secondary">Editing scheduled post</p>
+        </div>
+      )}
       {/* Platform selector */}
       <div className="px-5 py-4 border-b border-background-border">
         <p className="text-xs text-text-tertiary mb-3 tracking-wider uppercase">Post to</p>
         <PlatformSelector
           connectedPlatforms={connectedPlatforms}
           selected={selectedPlatforms}
+          disabled={!!editingPost}
           onChange={(platforms) => {
             setSelectedPlatforms(platforms)
             onPlatformsChange?.(platforms)
@@ -258,7 +286,7 @@ export function PostComposer({ workspaceId, connectedPlatforms, onContentChange,
             className="bg-accent-platinum text-background-primary hover:bg-accent-white text-xs gap-2"
           >
             <Send size={12} />
-            {isSubmitting ? 'Scheduling…' : 'Schedule'}
+            {isSubmitting ? 'Saving…' : editingPost ? 'Save changes' : 'Schedule'}
           </Button>
         </div>
       </div>

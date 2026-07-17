@@ -556,7 +556,7 @@ export function PostDetailPanel({ post, workspaceId, plan, userRole, clientAcces
             {/* Footer */}
             <div className="px-5 py-4 border-t border-background-border flex items-center justify-between">
               <a
-                href={`/workspace/${workspaceId}/compose`}
+                href={`/workspace/${workspaceId}/compose?postId=${post.id}`}
                 className="inline-flex items-center gap-1.5 min-h-[44px] font-sans text-xs text-text-tertiary hover:text-text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-background-secondary rounded-md px-1"
               >
                 <ExternalLink size={12} strokeWidth={1.5} />

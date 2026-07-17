@@ -15,9 +15,10 @@ interface PlatformSelectorProps {
   connectedPlatforms: string[]
   selected: string[]
   onChange: (platforms: string[]) => void
+  disabled?: boolean
 }
 
-export function PlatformSelector({ connectedPlatforms, selected, onChange }: PlatformSelectorProps) {
+export function PlatformSelector({ connectedPlatforms, selected, onChange, disabled }: PlatformSelectorProps) {
   const toggle = (id: string) => {
     onChange(selected.includes(id) ? selected.filter((p) => p !== id) : [...selected, id])
   }
@@ -25,7 +26,7 @@ export function PlatformSelector({ connectedPlatforms, selected, onChange }: Pla
   return (
     <div className="flex flex-wrap gap-2">
       {PLATFORMS.map((p) => {
-        const connected = connectedPlatforms.includes(p.id)
+        const connected = connectedPlatforms.includes(p.id) && !disabled
         const isSelected = selected.includes(p.id)
         return (
           <button

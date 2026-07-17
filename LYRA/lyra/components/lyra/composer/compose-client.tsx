@@ -7,15 +7,25 @@ import { DraftList } from './draft-list'
 import { cn } from '@/lib/utils'
 import type { PostingPatterns } from '@/services/ai/engagement-analyzer'
 
+export interface EditingPost {
+  id: string
+  content: string
+  mediaUrls: string[]
+  scheduledAt: string | null
+  status: string
+  platform: string
+}
+
 interface ComposeClientProps {
   workspaceId: string
   connectedPlatforms: string[]
   postingPatterns: PostingPatterns | null
+  editingPost?: EditingPost | null
 }
 
-export function ComposeClient({ workspaceId, connectedPlatforms, postingPatterns }: ComposeClientProps) {
-  const [content, setContent]             = useState('')
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
+export function ComposeClient({ workspaceId, connectedPlatforms, postingPatterns, editingPost }: ComposeClientProps) {
+  const [content, setContent]             = useState(editingPost?.content ?? '')
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(editingPost ? [editingPost.platform] : [])
   const [mobileTab, setMobileTab]         = useState<'compose' | 'preview'>('compose')
 
   return (
@@ -46,6 +56,7 @@ export function ComposeClient({ workspaceId, connectedPlatforms, postingPatterns
             workspaceId={workspaceId}
             connectedPlatforms={connectedPlatforms}
             postingPatterns={postingPatterns}
+            editingPost={editingPost}
             onContentChange={setContent}
             onPlatformsChange={setSelectedPlatforms}
           />

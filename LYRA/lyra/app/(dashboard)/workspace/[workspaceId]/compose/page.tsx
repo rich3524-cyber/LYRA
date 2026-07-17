@@ -6,13 +6,15 @@ import type { PostingPatterns } from '@/services/ai/engagement-analyzer'
 
 interface Props {
   params: Promise<{ workspaceId: string }>
+  searchParams: Promise<{ postId?: string }>
 }
 
-export default async function ComposePage({ params }: Props) {
+export default async function ComposePage({ params, searchParams }: Props) {
   const user = await getCurrentUser()
   if (!user) redirect('/auth/login')
 
   const { workspaceId } = await params
+  const { postId } = await searchParams
 
   const workspace = await prisma.workspace.findFirst({
     where: { id: workspaceId, access: { some: { userId: user.id } } },
@@ -23,6 +25,32 @@ export default async function ComposePage({ params }: Props) {
     },
   })
   if (!workspace) notFound()
+
+  // Editing an existing post — scoped to this workspace (already access-checked above)
+  const postToEdit = postId
+    ? await prisma.post.findFirst({
+        where: { id: postId, workspaceId },
+        select: {
+          id: true,
+          content: true,
+          mediaUrls: true,
+          scheduledAt: true,
+          status: true,
+          socialAccount: { select: { platform: true } },
+        },
+      })
+    : null
+
+  const editingPost = postToEdit
+    ? {
+        id: postToEdit.id,
+        content: postToEdit.content,
+        mediaUrls: postToEdit.mediaUrls,
+        scheduledAt: postToEdit.scheduledAt ? postToEdit.scheduledAt.toISOString() : null,
+        status: postToEdit.status,
+        platform: postToEdit.socialAccount.platform,
+      }
+    : null
 
   const rawPatterns = workspace.brandProfile?.postingPatterns as Record<string, unknown> | null
   const postingPatterns: PostingPatterns = {}
@@ -51,6 +79,7 @@ export default async function ComposePage({ params }: Props) {
         workspaceId={workspaceId}
         connectedPlatforms={connectedPlatforms}
         postingPatterns={Object.keys(postingPatterns).length > 0 ? postingPatterns : null}
+        editingPost={editingPost}
       />
     </div>
   )
