@@ -72,7 +72,7 @@ export const zernioClient = {
           status: string
           accountId: string
           platformPostId?: string
-          publishedUrl?: string
+          platformPostUrl?: string
           error?: string
         }>
       }

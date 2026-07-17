@@ -33,12 +33,27 @@ export const zernioProvider: SocialProvider = {
     // if a future change starts publishing multiple platforms in one call.
     const target =
       res.post.platforms.find((p) => p.accountId === zernioAccountId) ?? res.post.platforms[0]
-    if (!target || !target.platformPostId) {
+    if (!target) {
+      throw new Error(`Zernio publish returned no platform result for account ${zernioAccountId}`)
+    }
+    // Only an explicit error/failed status means the publish actually failed.
+    // Confirmed live 17 Jul 2026: a genuinely successful Instagram publish was
+    // wrongly marked FAILED here because this used to hard-fail whenever
+    // `platformPostId` specifically was absent, regardless of the platform's own
+    // reported status -- but Zernio's docs confirm the synchronous publishNow
+    // response's identifier field is named `platformPostUrl`, not
+    // `platformPostId`, so that field being present was never a reliable
+    // failure signal on its own. Accept whichever identifier is actually there.
+    if (target.status === 'failed' || target.error) {
+      throw new Error(target.error ?? `Zernio publish failed for account ${zernioAccountId} (status: ${target.status})`)
+    }
+    const platformPostId = target.platformPostId ?? target.platformPostUrl
+    if (!platformPostId) {
       throw new Error(
-        target?.error ?? `Zernio publish failed for account ${zernioAccountId} (status: ${target?.status ?? 'unknown'})`
+        `Zernio publish returned status "${target.status}" with no post identifier for account ${zernioAccountId}`
       )
     }
-    return { platformPostId: target.platformPostId }
+    return { platformPostId }
   },
 
   async fetchRecentComments(account) {
