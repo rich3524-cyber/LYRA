@@ -12,7 +12,14 @@ interface AddCompetitorFormProps {
 export function AddCompetitorForm({ workspaceId, onAdded, disabled }: AddCompetitorFormProps) {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState({ name: '', websiteUrl: '', twitterHandle: '', facebookPageId: '' })
+  const [form, setForm] = useState({
+    name: '',
+    websiteUrl: '',
+    twitterHandle: '',
+    facebookPageId: '',
+    instagramHandle: '',
+    linkedinPageId: '',
+  })
   const [error, setError] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -27,7 +34,14 @@ export function AddCompetitorForm({ workspaceId, onAdded, disabled }: AddCompeti
         body: JSON.stringify({ workspaceId, ...form }),
       })
       if (res.ok) {
-        setForm({ name: '', websiteUrl: '', twitterHandle: '', facebookPageId: '' })
+        setForm({
+          name: '',
+          websiteUrl: '',
+          twitterHandle: '',
+          facebookPageId: '',
+          instagramHandle: '',
+          linkedinPageId: '',
+        })
         setOpen(false)
         onAdded()
       } else {
@@ -65,6 +79,8 @@ export function AddCompetitorForm({ workspaceId, onAdded, disabled }: AddCompeti
         { key: 'websiteUrl', label: 'Website URL', placeholder: 'https://acme.com' },
         { key: 'twitterHandle', label: 'Twitter handle', placeholder: 'acmeco' },
         { key: 'facebookPageId', label: 'Facebook page ID', placeholder: '123456789' },
+        { key: 'instagramHandle', label: 'Instagram handle', placeholder: 'acmeco' },
+        { key: 'linkedinPageId', label: 'LinkedIn page ID', placeholder: 'acme-co' },
       ].map(({ key, label, placeholder, required }) => (
         <div key={key}>
           <label className="block text-xs font-medium font-sans text-text-secondary mb-1">{label}{required && ' *'}</label>

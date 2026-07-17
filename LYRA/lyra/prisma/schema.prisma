@@ -437,15 +437,17 @@ model CrisisEvent {
 }
 
 model Competitor {
-  id             String               @id @default(cuid())
-  workspaceId    String
-  workspace      Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  name           String
-  websiteUrl     String?
-  twitterHandle  String?
-  facebookPageId String?
-  createdAt      DateTime             @default(now())
-  snapshots      CompetitorSnapshot[]
+  id              String               @id @default(cuid())
+  workspaceId     String
+  workspace       Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name            String
+  websiteUrl      String?
+  twitterHandle   String?
+  facebookPageId  String?
+  instagramHandle String?
+  linkedinPageId  String?
+  createdAt       DateTime             @default(now())
+  snapshots       CompetitorSnapshot[]
 }
 
 model CompetitorSnapshot {

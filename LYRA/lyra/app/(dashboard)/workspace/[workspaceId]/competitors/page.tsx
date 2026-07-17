@@ -11,6 +11,9 @@ interface Competitor {
   name: string
   websiteUrl: string | null
   twitterHandle: string | null
+  facebookPageId: string | null
+  instagramHandle: string | null
+  linkedinPageId: string | null
   snapshots: {
     capturedAt: string
     postsPerWeek: number | null
@@ -70,6 +73,9 @@ export default function CompetitorsPage() {
               name={c.name}
               websiteUrl={c.websiteUrl}
               twitterHandle={c.twitterHandle}
+              facebookPageId={c.facebookPageId}
+              instagramHandle={c.instagramHandle}
+              linkedinPageId={c.linkedinPageId}
               snapshots={c.snapshots}
               onRemove={handleRemove}
             />

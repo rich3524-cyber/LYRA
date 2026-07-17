@@ -66,6 +66,8 @@ export async function POST(req: Request) {
         websiteUrl: body.websiteUrl || null,
         twitterHandle: body.twitterHandle || null,
         facebookPageId: body.facebookPageId || null,
+        instagramHandle: body.instagramHandle || null,
+        linkedinPageId: body.linkedinPageId || null,
       },
     })
 

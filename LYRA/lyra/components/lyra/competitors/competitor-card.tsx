@@ -14,11 +14,24 @@ interface CompetitorCardProps {
   name: string
   websiteUrl?: string | null
   twitterHandle?: string | null
+  facebookPageId?: string | null
+  instagramHandle?: string | null
+  linkedinPageId?: string | null
   snapshots: Snapshot[]
   onRemove: (id: string) => void
 }
 
-export function CompetitorCard({ id, name, websiteUrl, twitterHandle, snapshots, onRemove }: CompetitorCardProps) {
+export function CompetitorCard({
+  id,
+  name,
+  websiteUrl,
+  twitterHandle,
+  facebookPageId,
+  instagramHandle,
+  linkedinPageId,
+  snapshots,
+  onRemove,
+}: CompetitorCardProps) {
   const latest = snapshots[0]
   const daysSinceScan = latest
     ? Math.floor((Date.now() - new Date(latest.capturedAt).getTime()) / (1000 * 60 * 60 * 24))
@@ -39,7 +52,16 @@ export function CompetitorCard({ id, name, websiteUrl, twitterHandle, snapshots,
               </span>
             )}
             {twitterHandle && (
-              <span className="text-xs font-sans text-text-secondary">@{twitterHandle}</span>
+              <span className="text-xs font-sans text-text-secondary">X: @{twitterHandle}</span>
+            )}
+            {instagramHandle && (
+              <span className="text-xs font-sans text-text-secondary">IG: @{instagramHandle}</span>
+            )}
+            {facebookPageId && (
+              <span className="text-xs font-sans text-text-secondary">FB: {facebookPageId}</span>
+            )}
+            {linkedinPageId && (
+              <span className="text-xs font-sans text-text-secondary">LI: {linkedinPageId}</span>
             )}
           </div>
         </div>
