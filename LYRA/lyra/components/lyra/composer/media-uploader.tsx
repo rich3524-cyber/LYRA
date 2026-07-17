@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { Image as ImageIcon, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { uploadMediaFile } from '@/lib/upload-media'
 
 interface MediaUploaderProps {
   workspaceId: string
@@ -19,25 +20,7 @@ export function MediaUploader({ workspaceId, onUpload }: MediaUploaderProps) {
 
     setUploading(true)
     try {
-      const presignRes = await fetch('/api/upload/presign', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ filename: file.name, contentType: file.type, workspaceId }),
-      })
-      if (!presignRes.ok) throw new Error('Failed to get upload URL')
-
-      const { presignedUrl, publicUrl } = await presignRes.json() as {
-        presignedUrl: string
-        publicUrl: string
-      }
-
-      const uploadRes = await fetch(presignedUrl, {
-        method:  'PUT',
-        headers: { 'Content-Type': file.type },
-        body:    file,
-      })
-      if (!uploadRes.ok) throw new Error('Upload failed')
-
+      const publicUrl = await uploadMediaFile(file, workspaceId)
       onUpload(publicUrl)
     } catch {
       toast.error('Failed to upload media')

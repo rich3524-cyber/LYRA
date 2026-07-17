@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { useDropzone } from 'react-dropzone'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -12,12 +13,13 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { Sparkles, CalendarIcon, Send, Zap, BarChart2, Pencil } from 'lucide-react'
+import { Sparkles, CalendarIcon, Send, Zap, BarChart2, Pencil, ImagePlus, Loader2 } from 'lucide-react'
 import { PlatformSelector } from './platform-selector'
 import { MediaUploader } from './media-uploader'
 import { ContentScorePanel } from './content-score-panel'
 import type { ScoringResult } from '@/services/ai/content-scorer'
 import type { EditingPost } from './compose-client'
+import { uploadMediaFile } from '@/lib/upload-media'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -45,7 +47,28 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
   const [scoreOpen, setScoreOpen] = useState(false)
   const [scoring, setScoring] = useState(false)
   const [scoreResult, setScoreResult] = useState<ScoringResult | null>(null)
+  const [isDropUploading, setIsDropUploading] = useState(false)
   const scoreDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const onDropFiles = useCallback(async (acceptedFiles: File[]) => {
+    if (acceptedFiles.length === 0) return
+    setIsDropUploading(true)
+    try {
+      const urls = await Promise.all(acceptedFiles.map((file) => uploadMediaFile(file, workspaceId)))
+      setMediaUrls((prev) => [...prev, ...urls])
+    } catch {
+      toast.error('Failed to upload media')
+    } finally {
+      setIsDropUploading(false)
+    }
+  }, [workspaceId])
+
+  const { getRootProps, isDragActive } = useDropzone({
+    onDrop: onDropFiles,
+    accept: { 'image/*': [], 'video/*': [] },
+    noClick: true,
+    noKeyboard: true,
+  })
 
   const editor = useEditor({
     extensions: [
@@ -150,7 +173,28 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
   }
 
   return (
-    <div className="relative bg-background-secondary border border-background-border rounded-xl overflow-hidden">
+    <div
+      {...getRootProps()}
+      className={cn(
+        'relative bg-background-secondary border rounded-xl overflow-hidden transition-colors',
+        isDragActive ? 'border-accent-silver' : 'border-background-border'
+      )}
+    >
+      {(isDragActive || isDropUploading) && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center gap-2 bg-background-secondary/95 backdrop-blur-sm border-2 border-dashed border-accent-silver rounded-xl pointer-events-none">
+          {isDropUploading ? (
+            <>
+              <Loader2 size={16} className="animate-spin text-text-secondary" />
+              <p className="font-sans text-sm text-text-secondary">Uploading…</p>
+            </>
+          ) : (
+            <>
+              <ImagePlus size={16} strokeWidth={1.5} className="text-text-secondary" />
+              <p className="font-sans text-sm text-text-secondary">Drop to attach</p>
+            </>
+          )}
+        </div>
+      )}
       {editingPost && (
         <div className="flex items-center gap-2 px-5 py-2.5 bg-background-hover border-b border-background-border">
           <Pencil size={12} strokeWidth={1.5} className="text-text-tertiary shrink-0" />
