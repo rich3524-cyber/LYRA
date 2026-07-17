@@ -15,7 +15,7 @@ interface ZernioWebhookEvent {
   comment?: {
     id: string
     platformPostId?: string
-    author?: { name?: string; username?: string }
+    author?: { id?: string; name?: string; username?: string; isOwner?: boolean }
     text?: string
     createdAt?: string
   }
@@ -71,6 +71,23 @@ export async function POST(req: Request) {
           console.error(`comment.received event ${payload.id}: no SocialAccount for zernioAccountId ${zernioAccountId}`)
           break
         }
+
+        // Skip our own AI-posted replies coming back as "new" comments -- the
+        // platform's webhook fires for any comment on a tracked post, including
+        // ones we posted ourselves via replyToComment. Confirmed live 17 Jul 2026:
+        // every auto-reply re-appeared as a fresh incoming comment moments later,
+        // which Claude then (inconsistently) either escalated or could have
+        // replied to again, risking a genuine reply-to-self loop. Prefer Zernio's
+        // own isOwner flag when present (confirmed to exist on their REST
+        // comment-list responses); fall back to matching the author's platform id
+        // or handle against our own connected account, which works even if a
+        // given webhook delivery omits isOwner.
+        const author = payload.comment.author
+        const isSelfComment =
+          author?.isOwner === true ||
+          (!!author?.id && author.id === account.platformId) ||
+          (!!author?.username && author.username.toLowerCase() === account.handle.toLowerCase())
+        if (isSelfComment) break
 
         // Guard this the same way as the accountId check above: platformPostId is
         // documented as required on this event, but if a real delivery ever omits
