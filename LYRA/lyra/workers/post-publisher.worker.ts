@@ -32,13 +32,13 @@ const worker = new Worker(
     await prisma.post.update({ where: { id: postId }, data: { status: 'PUBLISHING' } })
 
     try {
-      const { platformPostId } = await getProvider(post.socialAccount).publish(post.socialAccount, {
+      const { platformPostId, zernioPostId } = await getProvider(post.socialAccount).publish(post.socialAccount, {
         content: post.content,
         mediaUrls: post.mediaUrls,
       })
       await prisma.post.update({
         where: { id: postId },
-        data:  { status: 'PUBLISHED', publishedAt: new Date(), platformPostId },
+        data:  { status: 'PUBLISHED', publishedAt: new Date(), platformPostId, zernioPostId },
       })
     } catch (err) {
       await prisma.post.update({ where: { id: postId }, data: { status: 'FAILED' } })

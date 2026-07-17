@@ -46,7 +46,7 @@ export async function GET(req: Request) {
         { metrics: { lastSyncedAt: { lt: staleSync } } },
       ],
     },
-    select: { id: true, platformPostId: true },
+    select: { id: true, platformPostId: true, zernioPostId: true },
     take:   200,
   })
 
@@ -56,8 +56,14 @@ export async function GET(req: Request) {
 
   for (const post of posts) {
     try {
-      // platformPostId filtered non-null in the query above; assert for TS.
-      const res = await zernioClient.getPostAnalytics(post.platformPostId!)
+      // Prefer Zernio's own internal id -- confirmed live 17 Jul 2026 that the
+      // analytics endpoint's id auto-resolution doesn't reliably handle every
+      // platform's native id format (works for Instagram's numeric id, 404s on
+      // LinkedIn's urn:li:share:... format), but always accepts its own id.
+      // Falls back to platformPostId for posts published before this field
+      // existed.
+      const lookupId = post.zernioPostId ?? post.platformPostId!
+      const res = await zernioClient.getPostAnalytics(lookupId)
 
       if (res.syncStatus !== 'synced' || !res.analytics) {
         await touchOnly(post.id)

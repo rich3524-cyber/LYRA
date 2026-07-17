@@ -53,7 +53,7 @@ export const zernioProvider: SocialProvider = {
         `Zernio publish returned status "${target.status}" with no post identifier for account ${zernioAccountId}`
       )
     }
-    return { platformPostId }
+    return { platformPostId, zernioPostId: res.post.id }
   },
 
   async fetchRecentComments(account) {

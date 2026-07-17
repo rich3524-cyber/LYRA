@@ -41,14 +41,14 @@ export async function POST(_req: Request, { params }: RouteContext) {
       return NextResponse.json({ error: 'This account has no access token.' }, { status: 400 })
     }
 
-    const { platformPostId } = await getProvider(post.socialAccount).publish(post.socialAccount, {
+    const { platformPostId, zernioPostId } = await getProvider(post.socialAccount).publish(post.socialAccount, {
       content: post.content,
       mediaUrls: post.mediaUrls,
     })
 
     await prisma.post.update({
       where: { id: postId },
-      data:  { status: 'PUBLISHED', publishedAt: new Date(), platformPostId },
+      data:  { status: 'PUBLISHED', publishedAt: new Date(), platformPostId, zernioPostId },
     })
 
     return NextResponse.json({ ok: true, platformPostId })

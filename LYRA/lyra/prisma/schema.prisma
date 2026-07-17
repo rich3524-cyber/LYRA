@@ -176,6 +176,7 @@ model Post {
   scheduledAt     DateTime?
   publishedAt     DateTime?
   platformPostId  String?
+  zernioPostId    String?
   aiGenerated     Boolean       @default(false)
   topic           String?
   createdAt       DateTime      @default(now())
