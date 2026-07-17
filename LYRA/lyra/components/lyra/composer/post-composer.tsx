@@ -263,7 +263,7 @@ export function PostComposer({ workspaceId, connectedPlatforms, onContentChange,
         </div>
       </div>
 
-      <ContentScorePanel open={scoreOpen} scoring={scoring} result={scoreResult} />
+      <ContentScorePanel open={scoreOpen} scoring={scoring} result={scoreResult} onClose={() => setScoreOpen(false)} />
     </div>
   )
 }

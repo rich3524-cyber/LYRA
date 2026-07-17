@@ -1,12 +1,14 @@
 'use client'
 
 import { motion, AnimatePresence } from 'framer-motion'
+import { ArrowLeft } from 'lucide-react'
 import type { ScoringResult } from '@/services/ai/content-scorer'
 
 interface ContentScorePanelProps {
   open: boolean
   scoring: boolean
   result: ScoringResult | null
+  onClose: () => void
 }
 
 const DIMENSION_LABELS: Record<string, string> = {
@@ -72,7 +74,7 @@ function ScoreRing({ score }: { score: number }) {
   )
 }
 
-export function ContentScorePanel({ open, scoring, result }: ContentScorePanelProps) {
+export function ContentScorePanel({ open, scoring, result, onClose }: ContentScorePanelProps) {
   return (
     <AnimatePresence>
       {open && (
@@ -84,7 +86,17 @@ export function ContentScorePanel({ open, scoring, result }: ContentScorePanelPr
           className="absolute top-0 right-0 h-full w-72 bg-background-secondary border-l border-background-border overflow-y-auto z-10"
         >
           <div className="p-4 space-y-4">
-            <p className="text-xs font-sans font-medium text-text-tertiary uppercase tracking-widest">Content score</p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                aria-label="Close content score panel"
+                className="text-text-tertiary hover:text-text-primary transition-colors -ml-1 p-1 rounded"
+              >
+                <ArrowLeft size={16} strokeWidth={1.5} />
+              </button>
+              <p className="text-xs font-sans font-medium text-text-tertiary uppercase tracking-widest">Content score</p>
+            </div>
 
             {scoring && (
               <div className="space-y-3">
