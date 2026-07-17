@@ -132,6 +132,25 @@ export const zernioClient = {
       '/accounts'
     ),
 
+  // Single-post lookups can come back 202 (sync still pending on the platform's
+  // side) or 424 (the platform-side sync failed) -- both are legitimate outcomes,
+  // not just error cases, so callers should check `syncStatus` rather than only
+  // relying on this not throwing. Accepts either a Zernio post id or the native
+  // platform post id (auto-resolved) -- confirmed live 17 Jul 2026, both work.
+  getPostAnalytics: (postId: string) =>
+    req<{
+      syncStatus: string
+      analytics?: {
+        impressions?: number
+        reach?: number
+        likes?: number
+        comments?: number
+        shares?: number
+        saves?: number
+        clicks?: number
+      }
+    }>('GET', `/analytics?postId=${encodeURIComponent(postId)}`),
+
   getGoogleBusinessReviews: (accountId: string) =>
     req<{
       success: boolean
