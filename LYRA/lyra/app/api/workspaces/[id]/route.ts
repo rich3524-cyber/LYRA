@@ -1,10 +1,17 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import type { UserRole } from '@prisma/client'
 
-async function getWorkspaceForUser(id: string, userId: string) {
+// Settings changes and deletion are owner-level actions -- previously gated on
+// mere membership, so any role including a read-only CLIENT_VIEW could delete
+// or reconfigure the whole workspace. GET (viewing) intentionally stays
+// membership-only; only PATCH/DELETE pass `roles`.
+const OWNER_ROLES: UserRole[] = ['AGENCY_ADMIN', 'SMB_OWNER']
+
+async function getWorkspaceForUser(id: string, userId: string, roles?: UserRole[]) {
   return prisma.workspace.findFirst({
-    where: { id, access: { some: { userId } } },
+    where: { id, access: { some: { userId, ...(roles ? { role: { in: roles } } : {}) } } },
     select: { id: true, plan: true },
   })
 }
@@ -47,7 +54,7 @@ export async function PATCH(
     const user = await requireAuth()
     const { id } = await params
 
-    const existing = await getWorkspaceForUser(id, user.id)
+    const existing = await getWorkspaceForUser(id, user.id, OWNER_ROLES)
     if (!existing) {
       return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
     }
@@ -96,7 +103,7 @@ export async function DELETE(
     const user = await requireAuth()
     const { id } = await params
 
-    const existing = await getWorkspaceForUser(id, user.id)
+    const existing = await getWorkspaceForUser(id, user.id, OWNER_ROLES)
     if (!existing) {
       return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
     }

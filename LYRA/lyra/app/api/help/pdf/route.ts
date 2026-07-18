@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { checkRateLimit, rateLimitResponse, getClientIp } from '@/lib/rate-limit'
 
 // Allow up to 60 seconds — Puppeteer + page render takes 10–20s on cold start
 export const maxDuration = 60
@@ -55,10 +56,15 @@ async function getExecutablePath(): Promise<string> {
   )
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   let browser: import('puppeteer-core').Browser | null = null
 
   try {
+    // Unauthenticated + launches a full headless Chromium per request (10-20s each) --
+    // an easy DoS/cost target without a strict per-IP cap.
+    const { allowed } = await checkRateLimit(`help-pdf:${getClientIp(req)}`, 5, 600)
+    if (!allowed) return rateLimitResponse()
+
     const puppeteer = await import('puppeteer-core')
     const args = await getChromiumArgs()
     const executablePath = await getExecutablePath()

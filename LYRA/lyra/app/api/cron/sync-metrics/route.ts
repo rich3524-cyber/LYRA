@@ -1,17 +1,8 @@
 import { NextResponse } from 'next/server'
-import { timingSafeEqual } from 'crypto'
+import { checkCronAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { subDays } from 'date-fns'
 import { zernioClient } from '@/services/social/zernio-client'
-
-function checkCronAuth(req: Request): boolean {
-  const secret = process.env.CRON_SECRET
-  if (!secret) return false
-  const auth = req.headers.get('authorization') ?? ''
-  const expected = `Bearer ${secret}`
-  if (auth.length !== expected.length) return false
-  return timingSafeEqual(Buffer.from(auth), Buffer.from(expected))
-}
 
 // Touches lastSyncedAt without overwriting existing metric values -- used both
 // when Zernio reports the platform-side sync isn't finished yet (syncStatus

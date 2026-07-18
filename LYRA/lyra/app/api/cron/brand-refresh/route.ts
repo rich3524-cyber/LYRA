@@ -1,19 +1,10 @@
 import { NextResponse } from 'next/server'
-import { timingSafeEqual } from 'crypto'
+import { checkCronAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { subDays } from 'date-fns'
 import { Queue } from 'bullmq'
 import { redis } from '@/lib/redis'
 const brandSyncQueue = new Queue('brand-sync', { connection: redis })
-
-function checkCronAuth(req: Request): boolean {
-  const secret = process.env.CRON_SECRET
-  if (!secret) return false
-  const auth = req.headers.get('authorization') ?? ''
-  const expected = `Bearer ${secret}`
-  if (auth.length !== expected.length) return false
-  return timingSafeEqual(Buffer.from(auth), Buffer.from(expected))
-}
 
 export async function GET(req: Request) {
   if (!checkCronAuth(req)) {

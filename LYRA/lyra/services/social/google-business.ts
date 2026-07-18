@@ -7,6 +7,8 @@ const SCOPES = [
   'https://www.googleapis.com/auth/business.manage',
 ].join(' ')
 
+const TIMEOUT_MS = 20_000
+
 export interface GoogleLocation {
   id: string
   name: string
@@ -44,6 +46,7 @@ export async function exchangeCode(code: string): Promise<{
       client_id: process.env.GOOGLE_CLIENT_ID!,
       client_secret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   })
   const data = await res.json()
   if (data.error) throw new Error(data.error_description ?? data.error)
@@ -61,6 +64,7 @@ export async function getLocations(
 ): Promise<GoogleLocation[]> {
   const accountsRes = await fetch(ACCOUNTS_URL, {
     headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   })
   const accountsData = await accountsRes.json()
   const accounts: { name: string; accountName: string }[] = accountsData.accounts ?? []
@@ -71,6 +75,7 @@ export async function getLocations(
   for (const account of accounts) {
     const locRes = await fetch(`${LOCATIONS_URL}/${account.name}/locations?readMask=name,title`, {
       headers: { Authorization: `Bearer ${accessToken}` },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     })
     const locData = await locRes.json()
     for (const loc of locData.locations ?? []) {

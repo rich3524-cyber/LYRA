@@ -9,10 +9,16 @@ export const dynamic = 'force-dynamic'
 
 const VALID_PLANS: Plan[] = ['STARTER', 'PRO', 'AGENCY']
 
-function toPlan(value: string | undefined): Plan {
+// Returns undefined (not a default) when metadata carries no recognizable plan --
+// callers must treat "no plan in metadata" as "don't touch the plan field" rather
+// than silently defaulting to STARTER. Previously defaulted to STARTER, which
+// meant the trend_addon subscription (whose metadata has no `plan` key at all)
+// downgraded the paying customer's entire agency and all its workspaces to
+// Starter on purchase -- a live billing-integrity bug, fixed 18 Jul 2026.
+function toPlan(value: string | undefined): Plan | undefined {
   const upper = value?.toUpperCase()
   if (upper && (VALID_PLANS as string[]).includes(upper)) return upper as Plan
-  return 'STARTER'
+  return undefined
 }
 
 export async function POST(req: Request) {
@@ -28,11 +34,37 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }
 
-  switch (event.type) {
+  // Idempotency: Stripe redelivers events at-least-once. Several handlers below
+  // (founding-member slot assignment in particular) are not naturally idempotent,
+  // so a redelivered event must be recognized and skipped rather than reprocessed.
+  try {
+    await prisma.processedWebhookEvent.create({ data: { id: event.id } })
+  } catch {
+    // Unique constraint violation -- already processed this exact event.
+    return NextResponse.json({ received: true, duplicate: true })
+  }
+
+  try {
+    switch (event.type) {
     case 'customer.subscription.created':
     case 'customer.subscription.updated': {
-      const sub  = event.data.object
-      const plan = toPlan((sub.metadata as Record<string, string>).plan)
+      const sub = event.data.object
+      const metadata = sub.metadata as Record<string, string>
+
+      // trend_addon subscriptions carry no `plan` metadata by design -- there's
+      // no entitlement model for this add-on yet (it's an unbuilt feature), so
+      // explicitly skip plan management for it rather than falling through to
+      // toPlan() returning undefined and relying on that alone.
+      if (metadata.type === 'trend_addon') {
+        console.log(`[stripe webhook] ${event.id}: trend_addon subscription ${sub.id} -- no fulfilment implemented, plan left untouched`)
+        break
+      }
+
+      const plan = toPlan(metadata.plan)
+      if (!plan) {
+        console.error(`[stripe webhook] ${event.id}: subscription ${sub.id} has no recognizable plan in metadata, skipping plan update`)
+        break
+      }
       const agencies = await prisma.agency.findMany({
         where:  { stripeCustomerId: sub.customer as string },
         select: { id: true },
@@ -122,6 +154,12 @@ export async function POST(req: Request) {
       }
       break
     }
+    }
+  } catch (error) {
+    console.error(`[stripe webhook] ${event.id} (${event.type}) failed:`, error)
+    // Un-mark as processed so Stripe's retry has a chance to succeed.
+    await prisma.processedWebhookEvent.delete({ where: { id: event.id } }).catch(() => {})
+    return NextResponse.json({ error: 'Webhook handler failed' }, { status: 500 })
   }
 
   return NextResponse.json({ received: true })

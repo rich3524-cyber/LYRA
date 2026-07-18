@@ -13,6 +13,11 @@ RUN npm ci
 COPY . .
 RUN npx prisma generate
 RUN npx tsc --project tsconfig.workers.json
+# tsc leaves "@/..." imports untouched (they're a compile-time-only path mapping) --
+# tsc-alias rewrites them to relative paths in the emitted dist/ output so plain
+# `node` can resolve them at runtime. Without this, the compiled worker throws
+# MODULE_NOT_FOUND on every "@/..." import as soon as it starts.
+RUN npx tsc-alias --project tsconfig.workers.json
 
 # Production image
 FROM base AS runner

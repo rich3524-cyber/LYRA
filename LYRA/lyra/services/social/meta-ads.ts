@@ -1,4 +1,5 @@
 const BASE = 'https://graph.facebook.com/v19.0'
+const TIMEOUT_MS = 20_000
 
 export interface BoostResult {
   adCampaignId: string
@@ -42,6 +43,7 @@ async function metaPost(path: string, body: Record<string, unknown>): Promise<Re
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   })
   const data = await res.json() as Record<string, unknown>
   if (data.error) {
@@ -118,7 +120,7 @@ export async function cancelBoost(params: CancelBoostParams): Promise<void> {
 export async function getBoostReach(params: GetBoostReachParams): Promise<number> {
   const res = await fetch(
     `${BASE}/${params.adCampaignId}/insights?fields=impressions`,
-    { headers: { Authorization: `Bearer ${params.accessToken}` } }
+    { headers: { Authorization: `Bearer ${params.accessToken}` }, signal: AbortSignal.timeout(TIMEOUT_MS) }
   )
   const data = await res.json() as { data?: { impressions?: string }[]; error?: { message: string } }
   if (data.error) throw new Error(data.error.message)

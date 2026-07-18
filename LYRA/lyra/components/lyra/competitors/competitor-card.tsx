@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import { Trash2, Globe, ExternalLink } from 'lucide-react'
 
 interface Snapshot {
@@ -21,7 +22,7 @@ interface CompetitorCardProps {
   onRemove: (id: string) => void
 }
 
-export function CompetitorCard({
+export const CompetitorCard = memo(function CompetitorCard({
   id,
   name,
   websiteUrl,
@@ -128,4 +129,4 @@ export function CompetitorCard({
       )}
     </div>
   )
-}
+})

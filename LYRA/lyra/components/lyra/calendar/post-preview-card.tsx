@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { GripVertical } from 'lucide-react'
@@ -70,7 +71,7 @@ interface PostPreviewCardProps {
   onSelect: (post: CalendarPost) => void
 }
 
-export function PostPreviewCard({ post, onSelect }: PostPreviewCardProps) {
+export const PostPreviewCard = memo(function PostPreviewCard({ post, onSelect }: PostPreviewCardProps) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: post.id,
     data: { post },
@@ -136,4 +137,4 @@ export function PostPreviewCard({ post, onSelect }: PostPreviewCardProps) {
       </button>
     </div>
   )
-}
+})

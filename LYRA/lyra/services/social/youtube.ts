@@ -7,6 +7,8 @@ const SCOPES = [
   'https://www.googleapis.com/auth/youtube.upload',
 ].join(' ')
 
+const TIMEOUT_MS = 20_000
+
 export interface YouTubeChannel {
   id: string
   name: string
@@ -46,6 +48,7 @@ export async function exchangeCode(code: string): Promise<{
       client_id: process.env.GOOGLE_CLIENT_ID!,
       client_secret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   })
   const data = await res.json()
   if (data.error) throw new Error(data.error_description ?? data.error)
@@ -67,6 +70,7 @@ export async function getChannel(
   })
   const res = await fetch(`${CHANNELS_URL}?${params}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   })
   const data = await res.json()
   const channel = data.items?.[0]

@@ -4,6 +4,8 @@ const API_URL = 'https://open.tiktokapis.com/v2'
 
 const SCOPES = ['user.info.basic', 'user.info.profile', 'user.info.stats'].join(',')
 
+const TIMEOUT_MS = 20_000
+
 export interface TikTokAccount {
   id: string
   name: string
@@ -41,6 +43,7 @@ export async function exchangeCode(code: string): Promise<{
       code,
       redirect_uri: `${process.env.APP_BASE_URL}/api/social/callback/tiktok`,
     }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   })
   const rawToken = await res.text()
   let data: Record<string, unknown>
@@ -67,6 +70,7 @@ export async function getUser(
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   })
   const rawUser = await res.text()
   let data: Record<string, unknown>

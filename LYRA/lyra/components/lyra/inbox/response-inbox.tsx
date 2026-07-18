@@ -1,7 +1,11 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CommentCard } from './comment-card'
+
+// Stable reference for tabs where CommentCard is non-actionable (escalated/done)
+// and never actually calls onUpdate -- avoids passing a fresh arrow each render.
+const NOOP_UPDATE = () => {}
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
@@ -111,9 +115,9 @@ export function ResponseInbox({
   const escalated = filtered.filter(c => c.status === 'ESCALATED')
   const responded = filtered.filter(c => c.status === 'RESPONDED')
 
-  function handleUpdate(id: string, newStatus: string) {
+  const handleUpdate = useCallback((id: string, newStatus: string) => {
     setComments(prev => prev.map(c => c.id === id ? { ...c, status: newStatus } : c))
-  }
+  }, [])
 
   return (
     <div className="space-y-4">
@@ -193,7 +197,7 @@ export function ResponseInbox({
                     comment={c}
                     aiResponseMode={aiResponseMode}
                     plan={plan}
-                    onUpdate={(s) => handleUpdate(c.id, s)}
+                    onUpdate={handleUpdate}
                   />
                 </motion.div>
               ))}
@@ -220,7 +224,7 @@ export function ResponseInbox({
                     comment={c}
                     aiResponseMode={aiResponseMode}
                     plan={plan}
-                    onUpdate={() => {}}
+                    onUpdate={NOOP_UPDATE}
                   />
                 </motion.div>
               ))}
@@ -247,7 +251,7 @@ export function ResponseInbox({
                     comment={c}
                     aiResponseMode={aiResponseMode}
                     plan={plan}
-                    onUpdate={() => {}}
+                    onUpdate={NOOP_UPDATE}
                   />
                 </motion.div>
               ))}

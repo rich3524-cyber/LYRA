@@ -14,6 +14,8 @@ const RESTLI_HEADERS = {
   'X-Restli-Protocol-Version': '2.0.0',
 }
 
+const TIMEOUT_MS = 20_000
+
 export interface LinkedInOrg {
   id: string
   name: string
@@ -55,6 +57,7 @@ export async function exchangeCode(code: string): Promise<{ accessToken: string;
       client_id: process.env.LINKEDIN_CLIENT_ID!,
       client_secret: process.env.LINKEDIN_CLIENT_SECRET!,
     }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   })
   const data = await res.json()
   if (data.error) throw new Error(data.error_description ?? data.error)
@@ -72,6 +75,7 @@ export async function getMemberId(accessToken: string): Promise<string> {
       client_secret: process.env.LINKEDIN_CLIENT_SECRET!,
       token:         accessToken,
     }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   })
   const data = await res.json()
   // authorized_user = "urn:li:person:abc123"
@@ -84,7 +88,7 @@ export async function getMemberId(accessToken: string): Promise<string> {
 export async function getOrganizations(accessToken: string, memberId: string): Promise<LinkedInOrg[]> {
   const res = await fetch(
     `${API_URL}/organizationAcls?q=roleAssignee&roleAssignee=urn:li:person:${memberId}&state=APPROVED`,
-    { headers: { Authorization: `Bearer ${accessToken}`, ...RESTLI_HEADERS } }
+    { headers: { Authorization: `Bearer ${accessToken}`, ...RESTLI_HEADERS }, signal: AbortSignal.timeout(TIMEOUT_MS) }
   )
   const data = await res.json()
   if (!data.elements) return []
@@ -95,7 +99,7 @@ export async function getOrganizations(accessToken: string, memberId: string): P
     const orgId = orgUrn.split(':').pop()!
     const orgRes = await fetch(
       `${API_URL}/organizations/${orgId}?projection=(id,localizedName,logoV2(original~:playableStreams))`,
-      { headers: { Authorization: `Bearer ${accessToken}`, ...RESTLI_HEADERS } }
+      { headers: { Authorization: `Bearer ${accessToken}`, ...RESTLI_HEADERS }, signal: AbortSignal.timeout(TIMEOUT_MS) }
     )
     const org = await orgRes.json()
     orgs.push({
@@ -113,7 +117,7 @@ export async function getOrgPosts(accessToken: string, orgId: string): Promise<L
   const encodedOrgUrn = encodeURIComponent(`urn:li:organization:${orgId}`)
   const res = await fetch(
     `${API_URL}/ugcPosts?q=authors&authors=List(${encodedOrgUrn})&count=20&sortBy=LAST_MODIFIED`,
-    { headers: { Authorization: `Bearer ${accessToken}`, ...RESTLI_HEADERS } }
+    { headers: { Authorization: `Bearer ${accessToken}`, ...RESTLI_HEADERS }, signal: AbortSignal.timeout(TIMEOUT_MS) }
   )
   if (!res.ok) return []
   const data = await res.json() as { elements?: Array<{ id?: string }> }
@@ -128,7 +132,7 @@ export async function getPostComments(accessToken: string, postUrn: string): Pro
   const encodedPostUrn = encodeURIComponent(postUrn)
   const res = await fetch(
     `${API_URL}/socialActions/${encodedPostUrn}/comments?count=50`,
-    { headers: { Authorization: `Bearer ${accessToken}`, ...RESTLI_HEADERS } }
+    { headers: { Authorization: `Bearer ${accessToken}`, ...RESTLI_HEADERS }, signal: AbortSignal.timeout(TIMEOUT_MS) }
   )
   if (!res.ok) return []
   const data = await res.json() as {
@@ -176,6 +180,7 @@ export async function postCommentReply(
       actor: `urn:li:organization:${orgId}`,
       message: { text },
     }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({})) as { message?: string; serviceErrorCode?: number }

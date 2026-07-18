@@ -2,11 +2,13 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "outDir":        "dist",
+    "rootDir":       ".",
     "noEmit":        false,
     "module":        "commonjs",
+    "moduleResolution": "node",
     "target":        "es2022",
     "esModuleInterop": true
   },
   "include": ["workers/**/*.ts", "services/**/*.ts", "lib/**/*.ts"],
-  "exclude": ["node_modules", ".next"]
+  "exclude": ["node_modules", ".next", "lib/stripe.ts"]
 }

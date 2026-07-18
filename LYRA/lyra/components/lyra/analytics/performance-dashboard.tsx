@@ -1,7 +1,15 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { EngagementChart } from './engagement-chart'
+import dynamic from 'next/dynamic'
 import { TrendingUp, MessageSquare, BarChart2, Eye, Heart, Share2, CheckCheck } from 'lucide-react'
+
+// recharts is a sizeable dependency that only this chart needs -- load it lazily
+// (client-only, no SSR) so the rest of the analytics dashboard's JS isn't blocked
+// on it, and pages that never render this chart don't pay for it at all.
+const EngagementChart = dynamic(
+  () => import('./engagement-chart').then(m => m.EngagementChart),
+  { ssr: false, loading: () => <div className="h-64 animate-pulse bg-background-hover rounded-lg" /> }
+)
 
 interface Summary {
   postsPublished:      number
@@ -44,6 +52,31 @@ function StatCard({ icon: Icon, label, value, sub }: { icon: React.ElementType; 
       </div>
       <p className="font-mono text-2xl text-text-primary">{value.toLocaleString()}</p>
       {sub && <p className="font-sans text-xs text-text-tertiary">{sub}</p>}
+    </div>
+  )
+}
+
+function PlatformBreakdownList({ breakdown }: { breakdown: PlatformStat[] }) {
+  // Computed once per render, not once per row -- the previous version called
+  // Math.max(...breakdown.map(...)) inside the .map() callback itself, making
+  // the whole list O(n^2) for what should be an O(n) render.
+  const max = Math.max(...breakdown.map(p => p.count))
+  return (
+    <div className="space-y-3">
+      {breakdown.map(({ platform, count }) => (
+        <div key={platform} className="space-y-1">
+          <div className="flex items-center justify-between font-sans text-xs">
+            <span className="text-text-secondary">{PLATFORM_LABELS[platform] ?? platform}</span>
+            <span className="font-mono text-text-tertiary">{count}</span>
+          </div>
+          <div className="h-1.5 bg-background-hover rounded-full overflow-hidden">
+            <div
+              className="h-full bg-background-border-mid rounded-full transition-all duration-500"
+              style={{ width: `${(count / max) * 100}%` }}
+            />
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -123,25 +156,7 @@ export function PerformanceDashboard({ workspaceId }: { workspaceId: string }) {
           ) : (data?.platformBreakdown.length ?? 0) === 0 ? (
             <p className="font-sans text-sm text-text-secondary">No published posts yet</p>
           ) : (
-            <div className="space-y-3">
-              {data?.platformBreakdown.map(({ platform, count }) => {
-                const max = Math.max(...(data.platformBreakdown.map(p => p.count)))
-                return (
-                  <div key={platform} className="space-y-1">
-                    <div className="flex items-center justify-between font-sans text-xs">
-                      <span className="text-text-secondary">{PLATFORM_LABELS[platform] ?? platform}</span>
-                      <span className="font-mono text-text-tertiary">{count}</span>
-                    </div>
-                    <div className="h-1.5 bg-background-hover rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-background-border-mid rounded-full transition-all duration-500"
-                        style={{ width: `${(count / max) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+            <PlatformBreakdownList breakdown={data!.platformBreakdown} />
           )}
         </div>
 

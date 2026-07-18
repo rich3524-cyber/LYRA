@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { generateCaption } from '@/services/ai/caption-generator'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,6 +10,10 @@ export const dynamic = 'force-dynamic'
 export async function POST(req: Request) {
   try {
     const user = await requireAuth()
+
+    const { allowed } = await checkRateLimit(`ai-generate:${user.id}`, 20, 60)
+    if (!allowed) return rateLimitResponse()
+
     const { workspaceId, platforms, topic } = await req.json()
 
     const workspace = await prisma.workspace.findFirst({

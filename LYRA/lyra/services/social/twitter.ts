@@ -6,6 +6,8 @@ const API_URL = 'https://api.twitter.com/2'
 
 const SCOPES = ['tweet.read', 'tweet.write', 'users.read', 'offline.access'].join(' ')
 
+const TIMEOUT_MS = 20_000
+
 export interface TwitterAccount {
   id: string
   name: string
@@ -61,6 +63,7 @@ export async function exchangeCode(
       redirect_uri: `${process.env.APP_BASE_URL}/api/social/callback/twitter`,
       code_verifier: codeVerifier,
     }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   })
   const data = await res.json()
   if (data.error) throw new Error(data.error_description ?? data.error)
@@ -75,6 +78,7 @@ export async function exchangeCode(
 export async function getUser(accessToken: string): Promise<{ id: string; name: string; username: string; avatarUrl?: string }> {
   const res = await fetch(`${API_URL}/users/me?user.fields=profile_image_url`, {
     headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   })
   const data = await res.json()
   if (data.errors) throw new Error(data.errors[0]?.detail ?? 'Twitter API error')

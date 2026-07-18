@@ -51,6 +51,16 @@ model Agency {
   workspaces Workspace[]
 }
 
+// Idempotency ledger for Stripe webhook delivery -- Stripe redelivers events
+// at-least-once, and several webhook handlers are not naturally idempotent
+// (e.g. founding-member slot assignment), so a redelivered event must be
+// recognized and skipped rather than reprocessed.
+model ProcessedWebhookEvent {
+  id        String   @id // Stripe event.id
+  source    String   @default("stripe")
+  createdAt DateTime @default(now())
+}
+
 model Workspace {
   id                String       @id @default(cuid())
   name              String
@@ -189,6 +199,7 @@ model Post {
 
   @@index([workspaceId, scheduledAt])
   @@index([workspaceId, status])
+  @@index([status, scheduledAt])
 }
 
 enum PostStatus {

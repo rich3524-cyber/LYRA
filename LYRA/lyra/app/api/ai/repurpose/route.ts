@@ -1,10 +1,15 @@
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { extractArticleText, repurposeContent } from '@/services/ai/content-repurposer'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 export async function POST(req: Request) {
   try {
     const user = await requireAuth()
+
+    const { allowed } = await checkRateLimit(`ai-repurpose:${user.id}`, 20, 60)
+    if (!allowed) return rateLimitResponse()
+
     const { workspaceId, sourceType, source, platforms } = await req.json() as {
       workspaceId: string
       sourceType: 'url' | 'text'

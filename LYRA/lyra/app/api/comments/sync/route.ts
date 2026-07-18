@@ -74,24 +74,21 @@ export async function POST(req: Request) {
         continue
       }
 
-      for (const comment of rawComments) {
-        const exists = await prisma.comment.findFirst({
-          where: { socialAccountId: account.id, platformCommentId: comment.id },
-        })
-        if (exists) continue
-        await prisma.comment.create({
-          data: {
-            workspaceId,
-            socialAccountId:   account.id,
-            platformCommentId: comment.id,
-            authorName:        comment.from?.name ?? 'Unknown',
-            content:           comment.message,
-            platformCreatedAt: new Date(comment.created_time),
-            status:            'PENDING',
-          },
-        })
-        newCount++
-      }
+      if (rawComments.length === 0) continue
+
+      const created = await prisma.comment.createManyAndReturn({
+        data: rawComments.map((comment) => ({
+          workspaceId,
+          socialAccountId:   account.id,
+          platformCommentId: comment.id,
+          authorName:        comment.from?.name ?? 'Unknown',
+          content:           comment.message,
+          platformCreatedAt: new Date(comment.created_time),
+          status:            'PENDING' as const,
+        })),
+        skipDuplicates: true,
+      })
+      newCount += created.length
     }
 
     return NextResponse.json({ synced: newCount })

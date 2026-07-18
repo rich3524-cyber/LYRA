@@ -1,19 +1,10 @@
 import { NextResponse } from 'next/server'
-import { timingSafeEqual } from 'crypto'
+import { checkCronAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { Queue } from 'bullmq'
 import { redis } from '@/lib/redis'
 
 const commentQueue = new Queue('comment-monitoring', { connection: redis })
-
-function checkCronAuth(req: Request): boolean {
-  const secret = process.env.CRON_SECRET
-  if (!secret) return false
-  const auth = req.headers.get('authorization') ?? ''
-  const expected = `Bearer ${secret}`
-  if (auth.length !== expected.length) return false
-  return timingSafeEqual(Buffer.from(auth), Buffer.from(expected))
-}
 
 export async function GET(req: Request) {
   if (!checkCronAuth(req)) {
@@ -30,10 +21,13 @@ export async function GET(req: Request) {
 
   await Promise.all(
     accounts.map(a =>
+      // Stable jobId (no timestamp) so BullMQ's own dedup applies: if a monitor
+      // job for this account is still waiting/active from a previous tick, this
+      // add() is a no-op instead of stacking a second overlapping run.
       commentQueue.add(
         'monitor-account',
         { socialAccountId: a.id },
-        { jobId: `monitor-${a.id}-${Date.now()}`, removeOnComplete: true }
+        { jobId: `monitor-${a.id}`, removeOnComplete: true }
       )
     )
   )

@@ -36,10 +36,10 @@ export default function CompetitorsPage() {
 
   useEffect(() => { fetchCompetitors() }, [fetchCompetitors])
 
-  const handleRemove = async (id: string) => {
+  const handleRemove = useCallback(async (id: string) => {
     await fetch(`/api/competitors/${id}`, { method: 'DELETE' })
     setCompetitors((prev) => prev.filter((c) => c.id !== id))
-  }
+  }, [])
 
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">

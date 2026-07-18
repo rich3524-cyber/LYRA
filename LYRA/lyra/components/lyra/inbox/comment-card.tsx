@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { memo, useState } from 'react'
 import { toast } from 'sonner'
 import { AlertTriangle, CheckCheck, EyeOff, Sparkles, Loader2 } from 'lucide-react'
 
@@ -32,14 +32,18 @@ const SENTIMENT_LABELS: Record<string, string> = {
   POSITIVE: 'Positive', NEUTRAL: 'Neutral', NEGATIVE: 'Negative', URGENT: 'Urgent',
 }
 
-export function CommentCard({
+export const CommentCard = memo(function CommentCard({
   comment,
   onUpdate,
   aiResponseMode,
   plan,
 }: {
   comment:        CommentData
-  onUpdate:       (newStatus: string) => void
+  // Takes the comment id rather than closing over it so parents can pass a
+  // single stable callback (e.g. useCallback'd handleUpdate) instead of a new
+  // inline arrow per row per render -- required for memo() below to actually
+  // skip re-renders instead of seeing a changed prop on every parent update.
+  onUpdate:       (commentId: string, newStatus: string) => void
   aiResponseMode: 'OFF' | 'DRAFT_APPROVE' | 'FULL'
   plan:           'STARTER' | 'PRO' | 'AGENCY'
 }) {
@@ -61,7 +65,7 @@ export function CommentCard({
       const data = await res.json()
       if (data.shouldEscalate) {
         toast.error(`Escalated: ${data.escalationReason}`)
-        onUpdate('ESCALATED')
+        onUpdate(comment.id, 'ESCALATED')
       } else {
         setDraft(data.response ?? '')
         toast.success('AI draft generated')
@@ -88,7 +92,7 @@ export function CommentCard({
         return
       }
       toast.success('Reply sent.')
-      onUpdate('RESPONDED')
+      onUpdate(comment.id, 'RESPONDED')
     } catch {
       toast.error('Failed to send reply')
     } finally {
@@ -105,7 +109,7 @@ export function CommentCard({
       })
       if (!res.ok) { toast.error('Failed to escalate comment'); return }
       toast.success('Escalated to team')
-      onUpdate('ESCALATED')
+      onUpdate(comment.id, 'ESCALATED')
     } catch {
       toast.error('Failed to escalate comment')
     }
@@ -119,7 +123,7 @@ export function CommentCard({
         body:    JSON.stringify({ status: 'IGNORED' }),
       })
       if (!res.ok) { toast.error('Failed to ignore comment'); return }
-      onUpdate('IGNORED')
+      onUpdate(comment.id, 'IGNORED')
     } catch {
       toast.error('Failed to ignore comment')
     }
@@ -244,4 +248,4 @@ export function CommentCard({
       )}
     </div>
   )
-}
+})

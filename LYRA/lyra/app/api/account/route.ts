@@ -2,24 +2,34 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+const OWNER_ROLES: readonly string[] = ['AGENCY_ADMIN', 'SMB_OWNER']
+
 export async function DELETE() {
   try {
     const user = await requireAuth()
 
-    const workspaceIds = user.workspaceAccess.map((wa) => wa.workspaceId)
+    // Only workspaces this user owns/administers get destroyed. Workspaces
+    // they merely have shared access to (team member, client) instead just
+    // have their own WorkspaceAccess row removed below -- deleting your own
+    // account must not be able to destroy a workspace other people share.
+    const ownedWorkspaceIds = user.workspaceAccess
+      .filter((wa) => OWNER_ROLES.includes(wa.role))
+      .map((wa) => wa.workspaceId)
 
     await prisma.$transaction([
-      prisma.commentResponse.deleteMany({ where: { comment: { workspaceId: { in: workspaceIds } } } }),
-      prisma.comment.deleteMany({ where: { workspaceId: { in: workspaceIds } } }),
-      prisma.postMetrics.deleteMany({ where: { post: { workspaceId: { in: workspaceIds } } } }),
-      prisma.postApproval.deleteMany({ where: { post: { workspaceId: { in: workspaceIds } } } }),
-      prisma.post.deleteMany({ where: { workspaceId: { in: workspaceIds } } }),
-      prisma.socialAccount.deleteMany({ where: { workspaceId: { in: workspaceIds } } }),
-      prisma.brandProfile.deleteMany({ where: { workspaceId: { in: workspaceIds } } }),
-      prisma.guardrail.deleteMany({ where: { workspaceId: { in: workspaceIds } } }),
-      prisma.onboardingToken.deleteMany({ where: { workspaceId: { in: workspaceIds } } }),
-      prisma.workspaceAccess.deleteMany({ where: { workspaceId: { in: workspaceIds } } }),
-      prisma.workspace.deleteMany({ where: { id: { in: workspaceIds } } }),
+      prisma.commentResponse.deleteMany({ where: { comment: { workspaceId: { in: ownedWorkspaceIds } } } }),
+      prisma.comment.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
+      prisma.postMetrics.deleteMany({ where: { post: { workspaceId: { in: ownedWorkspaceIds } } } }),
+      prisma.postApproval.deleteMany({ where: { post: { workspaceId: { in: ownedWorkspaceIds } } } }),
+      prisma.post.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
+      prisma.socialAccount.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
+      prisma.brandProfile.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
+      prisma.guardrail.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
+      prisma.onboardingToken.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
+      prisma.workspaceAccess.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
+      prisma.workspace.deleteMany({ where: { id: { in: ownedWorkspaceIds } } }),
+      // Revoke this user's access to any remaining (shared, non-owned) workspaces
+      // without touching those workspaces themselves.
       prisma.workspaceAccess.deleteMany({ where: { userId: user.id } }),
       prisma.user.delete({ where: { id: user.id } }),
     ])

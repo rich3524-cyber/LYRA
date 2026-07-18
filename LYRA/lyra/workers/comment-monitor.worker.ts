@@ -68,36 +68,36 @@ const worker = new Worker(
       return
     }
 
-    const savedComments: Array<{ id: string; content: string }> = []
+    // createManyAndReturn + skipDuplicates replaces a per-comment findFirst-then-create
+    // pair (an N+1 that ran 2 queries per fetched comment). skipDuplicates relies on the
+    // @@unique([socialAccountId, platformCommentId]) constraint and also closes the race
+    // between two overlapping monitor runs for the same account: only rows this call
+    // actually inserted come back, so a comment concurrently inserted by another run is
+    // silently excluded here rather than double-queued for an AI response below.
+    const createdComments = rawComments.length === 0 ? [] : await prisma.comment.createManyAndReturn({
+      data: rawComments.map((comment) => ({
+        workspaceId:       account.workspaceId,
+        socialAccountId:   account.id,
+        platformCommentId: comment.id,
+        authorName:        comment.from?.name ?? 'Unknown',
+        content:           comment.message,
+        platformCreatedAt: new Date(comment.created_time),
+        status:            'PENDING' as const,
+      })),
+      skipDuplicates: true,
+    })
 
-    for (const comment of rawComments) {
-      const existing = await prisma.comment.findFirst({
-        where: { socialAccountId: account.id, platformCommentId: comment.id },
-      })
-      if (existing) continue
+    const savedComments = createdComments.map((c) => ({ id: c.id, content: c.content }))
 
-      const newComment = await prisma.comment.create({
-        data: {
-          workspaceId:       account.workspaceId,
-          socialAccountId:   account.id,
-          platformCommentId: comment.id,
-          authorName:        comment.from?.name ?? 'Unknown',
-          content:           comment.message,
-          platformCreatedAt: new Date(comment.created_time),
-          status:            'PENDING',
-        },
-      })
-
-      savedComments.push({ id: newComment.id, content: newComment.content })
-
-      const mode = account.workspace.aiResponseMode
-      if (mode === 'FULL' || mode === 'DRAFT_APPROVE') {
-        await aiRespondQueue.add(
+    const mode = account.workspace.aiResponseMode
+    if (mode === 'FULL' || mode === 'DRAFT_APPROVE') {
+      await Promise.all(createdComments.map((newComment) =>
+        aiRespondQueue.add(
           'generate-response',
           { commentId: newComment.id, autoPost: mode === 'FULL' },
           { jobId: `respond-${newComment.id}` }
         )
-      }
+      ))
     }
 
     if (savedComments.length > 0) {

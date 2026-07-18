@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 import { randomUUID } from 'crypto'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +33,10 @@ const ALLOWED_MIME_TYPES: Record<string, string> = {
 export async function POST(req: Request) {
   try {
     const user = await requireAuth()
+
+    const { allowed } = await checkRateLimit(`upload:${user.id}`, 30, 60)
+    if (!allowed) return rateLimitResponse()
+
     const formData = await req.formData()
     const file = formData.get('file') as File | null
     const workspaceId = formData.get('workspaceId') as string | null

@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'crypto'
 import { auth0 } from './auth0'
 import { prisma } from './prisma'
 
@@ -44,9 +45,15 @@ export async function requireAuth() {
   return user
 }
 
+// Single source of truth for cron-route auth -- previously duplicated (correctly,
+// timing-safe) across 4 separate cron route files, while this exported version
+// was the one nobody imported and used a timing-unsafe `===` comparison. Fixed
+// and consolidated 18 Jul 2026 so there's only one implementation to get right.
 export function checkCronAuth(req: Request): boolean {
   const secret = process.env.CRON_SECRET
   if (!secret) return false
-  const auth = req.headers.get('Authorization') ?? ''
-  return auth === `Bearer ${secret}`
+  const auth = req.headers.get('authorization') ?? ''
+  const expected = `Bearer ${secret}`
+  if (auth.length !== expected.length) return false
+  return timingSafeEqual(Buffer.from(auth), Buffer.from(expected))
 }

@@ -1,6 +1,7 @@
 const GSC_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth'
 const GSC_TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const GSC_API_URL = 'https://searchconsole.googleapis.com/webmasters/v3'
+const TIMEOUT_MS = 20_000
 
 export function getAuthUrl(workspaceId: string): string {
   const state = Buffer.from(JSON.stringify({ workspaceId })).toString('base64')
@@ -29,6 +30,7 @@ export async function exchangeCode(
       client_id: process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_ID!,
       client_secret: process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET!,
     }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   })
   const data = await res.json() as {
     access_token: string
@@ -49,6 +51,7 @@ export async function refreshAccessToken(refreshToken: string): Promise<string> 
       client_id: process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_ID!,
       client_secret: process.env.GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET!,
     }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   })
   const data = await res.json() as { access_token: string; error?: string }
   if (data.error) throw new Error(`GSC token refresh failed: ${data.error}`)
@@ -58,6 +61,7 @@ export async function refreshAccessToken(refreshToken: string): Promise<string> 
 export async function getSites(accessToken: string): Promise<string[]> {
   const res = await fetch(`${GSC_API_URL}/sites`, {
     headers: { Authorization: `Bearer ${accessToken}` },
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   })
   const data = await res.json() as { siteEntry?: Array<{ siteUrl: string }> }
   return (data.siteEntry ?? []).map((s) => s.siteUrl)
@@ -94,6 +98,7 @@ export async function getTopQueries(
         rowLimit: 25,
         orderBy: [{ fieldName: 'clicks', sortOrder: 'DESCENDING' }],
       }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     }
   )
   const data = await res.json() as {
@@ -136,6 +141,7 @@ export async function getClicksTrend(
         dimensions: ['date'],
         rowLimit: 90,
       }),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     }
   )
   const data = await res.json() as {

@@ -26,6 +26,9 @@
 # production
 /build
 
+# Docker worker build output (Dockerfile.worker's tsc/tsc-alias target)
+/dist
+
 # misc
 .DS_Store
 *.pem

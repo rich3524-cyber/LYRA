@@ -2,10 +2,15 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { scoreContent } from '@/services/ai/content-scorer'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 export async function POST(req: Request) {
   try {
     const user = await requireAuth()
+
+    const { allowed } = await checkRateLimit(`ai-score-content:${user.id}`, 20, 60)
+    if (!allowed) return rateLimitResponse()
+
     const body = await req.json().catch(() => null)
     const content = body?.content
     const platform = body?.platform

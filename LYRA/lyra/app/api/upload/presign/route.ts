@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getUploadPresignedUrl } from '@/lib/s3'
 import { randomUUID } from 'crypto'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,6 +24,9 @@ const ALLOWED_MIME_TYPES: Record<string, string> = {
 export async function POST(req: Request) {
   try {
     const user = await requireAuth()
+
+    const { allowed } = await checkRateLimit(`upload-presign:${user.id}`, 30, 60)
+    if (!allowed) return rateLimitResponse()
 
     const { filename: _filename, contentType, workspaceId } = await req.json() as {
       filename: string

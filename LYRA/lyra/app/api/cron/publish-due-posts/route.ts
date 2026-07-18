@@ -1,16 +1,7 @@
 import { NextResponse } from 'next/server'
-import { timingSafeEqual } from 'crypto'
+import { checkCronAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { postQueue } from '@/services/scheduler/post-queue'
-
-function checkCronAuth(req: Request): boolean {
-  const secret = process.env.CRON_SECRET
-  if (!secret) return false
-  const auth = req.headers.get('authorization') ?? ''
-  const expected = `Bearer ${secret}`
-  if (auth.length !== expected.length) return false
-  return timingSafeEqual(Buffer.from(auth), Buffer.from(expected))
-}
 
 export async function GET(req: Request) {
   if (!checkCronAuth(req)) {
@@ -24,6 +15,10 @@ export async function GET(req: Request) {
         scheduledAt: { not: null, lte: new Date() },
       },
       select: { id: true },
+      // Safety cap -- without this, a backlog (e.g. after downtime) could pull an
+      // unbounded number of rows into memory and enqueue them all in one tick.
+      // Any leftover due posts are picked up on the next cron run.
+      take: 500,
     })
 
     await Promise.all(
