@@ -10,7 +10,7 @@ export type CompetitorPost = {
 
 export type CompetitorData = {
   recentPosts: CompetitorPost[]
-  postsPerWeek: number
+  postsPerWeek: number | null
   engagementBenchmark: number | null
 }
 
@@ -56,6 +56,23 @@ export async function scrapeCompetitorWebsite(websiteUrl: string): Promise<Compe
     if (posts.length >= 5) break
   }
 
+  // Fallback: extract headings from the main content area — works on any site structure
+  // and gives Claude enough text to extract meaningful themes even without a blog section
+  if (posts.length === 0) {
+    const contentArea = $('main, [role="main"], #content, #main, .content, body').first()
+    const seen = new Set<string>()
+    contentArea.find('h1, h2, h3').each((_, el) => {
+      const text = $(el).text().trim()
+      if (text.length > 10 && text.length < 300 && !seen.has(text)) {
+        seen.add(text)
+        const rawHref = $(el).closest('a').attr('href') ?? $(el).find('a').first().attr('href')
+        let url: string | undefined
+        try { url = rawHref ? new URL(rawHref, websiteUrl).href : undefined } catch { /* ignore malformed */ }
+        posts.push({ date: '', excerpt: text.slice(0, 200), url, platform: 'website' })
+      }
+    })
+  }
+
   return posts.slice(0, 5)
 }
 
@@ -74,20 +91,20 @@ export async function scrapeCompetitor(competitor: {
   // Twitter + Facebook: skip silently if no API keys configured
   // (Phase 2 — not in scope for this version)
 
-  // Estimate posts per week from dates found (fallback: assume once/week if no dates)
+  // Estimate posts per week from dated posts only — null when frequency can't be determined
   const datedPosts = allPosts.filter((p) => p.date)
-  let postsPerWeek = 1
+  let postsPerWeek: number | null = null
   if (datedPosts.length >= 2) {
     const dates = datedPosts.map((p) => new Date(p.date).getTime()).filter((d) => !isNaN(d)).sort()
     if (dates.length >= 2) {
       const spanDays = (dates[dates.length - 1] - dates[0]) / (1000 * 60 * 60 * 24)
-      postsPerWeek = spanDays > 0 ? (dates.length / spanDays) * 7 : 1
+      postsPerWeek = spanDays > 0 ? Math.round((dates.length / spanDays) * 7 * 10) / 10 : null
     }
   }
 
   return {
     recentPosts: allPosts,
-    postsPerWeek: Math.round(postsPerWeek * 10) / 10,
+    postsPerWeek,
     engagementBenchmark: null,
   }
 }
