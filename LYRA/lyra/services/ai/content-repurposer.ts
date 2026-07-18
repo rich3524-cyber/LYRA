@@ -1,28 +1,9 @@
 import * as cheerio from 'cheerio'
 import { anthropic } from '@/lib/anthropic'
-
-// SSRF protection
-function isPrivateAddress(hostname: string): boolean {
-  const privatePatterns = [
-    /^localhost$/i, /^127\./, /^10\./, /^172\.(1[6-9]|2\d|3[01])\./, /^192\.168\./,
-    /^::1$/, /^0\.0\.0\.0$/,
-  ]
-  return privatePatterns.some((p) => p.test(hostname))
-}
+import { safeFetch } from '@/lib/safe-fetch'
 
 export async function extractArticleText(url: string): Promise<string> {
-  let parsed: URL
-  try {
-    parsed = new URL(url)
-  } catch {
-    throw new Error('Invalid URL')
-  }
-
-  if (isPrivateAddress(parsed.hostname)) {
-    throw new Error('URL not allowed')
-  }
-
-  const res = await fetch(url, {
+  const res = await safeFetch(url, {
     headers: { 'User-Agent': 'Mozilla/5.0 (compatible; LYRABot/1.0)' },
     signal: AbortSignal.timeout(10000),
   })

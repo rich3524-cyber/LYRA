@@ -1,18 +1,5 @@
 import * as cheerio from 'cheerio'
-
-// SSRF protection — block private/loopback ranges
-function isPrivateAddress(hostname: string): boolean {
-  const privatePatterns = [
-    /^localhost$/i,
-    /^127\./,
-    /^10\./,
-    /^172\.(1[6-9]|2\d|3[01])\./,
-    /^192\.168\./,
-    /^::1$/,
-    /^0\.0\.0\.0$/,
-  ]
-  return privatePatterns.some((p) => p.test(hostname))
-}
+import { safeFetch } from '@/lib/safe-fetch'
 
 export type CompetitorPost = {
   date: string
@@ -28,26 +15,15 @@ export type CompetitorData = {
 }
 
 export async function scrapeCompetitorWebsite(websiteUrl: string): Promise<CompetitorPost[]> {
-  let parsed: URL
-  try {
-    parsed = new URL(websiteUrl)
-  } catch {
-    return []
-  }
-
-  if (isPrivateAddress(parsed.hostname)) {
-    console.warn(`SSRF block: ${parsed.hostname}`)
-    return []
-  }
-
   let html: string
   try {
-    const res = await fetch(websiteUrl, {
+    const res = await safeFetch(websiteUrl, {
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; LYRABot/1.0)' },
       signal: AbortSignal.timeout(10000),
     })
     html = await res.text()
-  } catch {
+  } catch (err) {
+    console.warn(`Competitor scrape blocked or failed for ${websiteUrl}:`, err instanceof Error ? err.message : err)
     return []
   }
 

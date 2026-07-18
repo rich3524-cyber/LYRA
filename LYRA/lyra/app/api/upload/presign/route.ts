@@ -1,5 +1,6 @@
 ﻿import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 import { getUploadPresignedUrl } from '@/lib/s3'
 import { randomUUID } from 'crypto'
 
@@ -32,6 +33,13 @@ export async function POST(req: Request) {
     const ext = ALLOWED_MIME_TYPES[contentType]
     if (!ext) {
       return NextResponse.json({ error: 'File type not permitted' }, { status: 415 })
+    }
+
+    if (workspaceId) {
+      const access = await prisma.workspaceAccess.findFirst({ where: { workspaceId, userId: user.id } })
+      if (!access) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
     }
 
     const folder = workspaceId ?? user.id

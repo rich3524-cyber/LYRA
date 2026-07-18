@@ -29,7 +29,15 @@ const worker = new Worker(
       return  // Let BullMQ retry this job
     }
 
-    await prisma.post.update({ where: { id: postId }, data: { status: 'PUBLISHING' } })
+    // Atomic compare-and-swap: only claim the post if it's still SCHEDULED. Closes
+    // the race window between the findUnique check above and this write -- two
+    // overlapping jobs for the same postId (e.g. a retry racing a duplicate
+    // enqueue) can no longer both pass the check and both publish.
+    const claimed = await prisma.post.updateMany({
+      where: { id: postId, status: 'SCHEDULED' },
+      data:  { status: 'PUBLISHING' },
+    })
+    if (claimed.count === 0) return
 
     try {
       const { platformPostId, zernioPostId } = await getProvider(post.socialAccount).publish(post.socialAccount, {

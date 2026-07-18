@@ -1,4 +1,5 @@
 import * as cheerio from 'cheerio'
+import { safeFetch } from '@/lib/safe-fetch'
 
 export interface ScoreDimension {
   score: number
@@ -51,7 +52,7 @@ function scoreHeadingStructure(h2Count: number, h1Present: boolean): ScoreDimens
 }
 
 export async function analyzePage(url: string): Promise<PageAnalysis> {
-  const res = await fetch(url, {
+  const res = await safeFetch(url, {
     headers: { 'User-Agent': 'LYRA-SEO-Analyzer/1.0 (+https://lyraonline.ai)' },
     signal: AbortSignal.timeout(10000),
   })
