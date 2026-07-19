@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { encrypt } from '@/lib/encrypt'
+import { verifyState } from '@/lib/oauth-state'
 import * as facebook from '@/services/social/facebook'
 import * as instagram from '@/services/social/instagram'
 import * as linkedin from '@/services/social/linkedin'
@@ -15,15 +16,6 @@ export const dynamic = 'force-dynamic'
 
 const BASE_URL = process.env.APP_BASE_URL!
 
-function parseState(raw: string | null): Record<string, string> {
-  if (!raw) return {}
-  try {
-    return JSON.parse(Buffer.from(raw, 'base64').toString('utf8'))
-  } catch {
-    return {}
-  }
-}
-
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ platform: string }> }
@@ -33,12 +25,12 @@ export async function GET(
     const { platform } = await params
     const { searchParams } = new URL(req.url)
     const code = searchParams.get('code')
-    const state = parseState(searchParams.get('state'))
-    const { workspaceId } = state
+    const state = verifyState<{ workspaceId: string; codeVerifier?: string }>(searchParams.get('state'))
 
-    if (!code || !workspaceId) {
+    if (!code || !state?.workspaceId) {
       return NextResponse.redirect(`${BASE_URL}?error=oauth_failed`)
     }
+    const { workspaceId } = state
 
     // Verify the authenticated user actually has access to the target workspace.
     // Without this check, any logged-in user could forge the state parameter and

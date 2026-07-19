@@ -1,4 +1,5 @@
 import crypto from 'crypto'
+import { signState } from '@/lib/oauth-state'
 
 const AUTH_URL = 'https://x.com/i/oauth2/authorize'
 const TOKEN_URL = 'https://api.twitter.com/2/oauth2/token'
@@ -30,7 +31,7 @@ export function getAuthUrl(workspaceId: string): { url: string; codeVerifier: st
   const codeVerifier = generateCodeVerifier()
   const codeChallenge = generateCodeChallenge(codeVerifier)
   // codeVerifier stored in state so we can retrieve it in the callback
-  const state = Buffer.from(JSON.stringify({ workspaceId, codeVerifier })).toString('base64')
+  const state = signState({ workspaceId, codeVerifier })
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: process.env.TWITTER_CLIENT_ID!,

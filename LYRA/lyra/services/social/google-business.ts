@@ -1,3 +1,5 @@
+import { signState } from '@/lib/oauth-state'
+
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/auth'
 const TOKEN_URL = 'https://oauth2.googleapis.com/token'
 const ACCOUNTS_URL = 'https://mybusinessaccountmanagement.googleapis.com/v1/accounts'
@@ -18,7 +20,7 @@ export interface GoogleLocation {
 }
 
 export function getAuthUrl(workspaceId: string): string {
-  const state = Buffer.from(JSON.stringify({ workspaceId })).toString('base64')
+  const state = signState({ workspaceId })
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: process.env.GOOGLE_CLIENT_ID!,

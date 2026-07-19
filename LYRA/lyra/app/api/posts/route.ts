@@ -1,9 +1,21 @@
 import { NextResponse } from 'next/server'
-import { PostStatus } from '@prisma/client'
+import { z } from 'zod'
+import { PostStatus, Platform } from '@prisma/client'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { parseBody, ValidationError } from '@/lib/validate'
 
 export const dynamic = 'force-dynamic'
+
+const createPostSchema = z.object({
+  workspaceId: z.string().min(1),
+  content:     z.string().min(1),
+  platforms:   z.array(z.nativeEnum(Platform)).min(1),
+  scheduledAt: z.string().nullish(),
+  mediaUrls:   z.array(z.string()).optional(),
+  status:      z.nativeEnum(PostStatus).optional(),
+  topic:       z.string().nullish(),
+})
 
 
 export async function GET(req: Request) {
@@ -57,6 +69,10 @@ export async function GET(req: Request) {
         boost: true,
       },
       orderBy: { createdAt: 'desc' },
+      // Safety cap -- the `month` filter naturally bounds calendar-view requests,
+      // but callers like the drafts list query by `status` alone with no date
+      // range, which had no limit at all before.
+      take: 200,
     })
 
     return NextResponse.json(posts)
@@ -72,16 +88,11 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const user = await requireAuth()
-    const body = await req.json()
-    const { workspaceId, content, platforms, scheduledAt, mediaUrls, status, topic } = body
-
-    if (!workspaceId || !content?.trim() || !Array.isArray(platforms) || platforms.length === 0) {
-      return NextResponse.json({ error: 'workspaceId, content and platforms required' }, { status: 400 })
-    }
+    const { workspaceId, content, platforms, scheduledAt, mediaUrls, status, topic } = await parseBody(req, createPostSchema)
 
     const ALLOWED_CREATE_STATUSES: PostStatus[] = ['DRAFT', 'SCHEDULED']
-    const resolvedStatus: PostStatus = ALLOWED_CREATE_STATUSES.includes(status)
-      ? (status as PostStatus)
+    const resolvedStatus: PostStatus = status && ALLOWED_CREATE_STATUSES.includes(status)
+      ? status
       : 'DRAFT'
 
     const access = await prisma.workspaceAccess.findFirst({
@@ -127,6 +138,10 @@ export async function POST(req: Request) {
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    if (error instanceof ValidationError) {
+      console.error('POST /api/posts validation failed:', error.issues)
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
     console.error('POST /api/posts error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

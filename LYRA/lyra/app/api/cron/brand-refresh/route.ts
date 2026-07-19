@@ -2,9 +2,7 @@ import { NextResponse } from 'next/server'
 import { checkCronAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { subDays } from 'date-fns'
-import { Queue } from 'bullmq'
-import { redis } from '@/lib/redis'
-const brandSyncQueue = new Queue('brand-sync', { connection: redis })
+import { brandSyncQueue } from '@/lib/queues'
 
 export async function GET(req: Request) {
   if (!checkCronAuth(req)) {

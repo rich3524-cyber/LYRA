@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
@@ -305,9 +306,12 @@ export function ScheduleReview({ workspaceId, workspaceName }: Props) {
                             <Video size={16} strokeWidth={1.5} className="text-text-secondary" />
                           </div>
                         ) : (
-                          <img
+                          <Image
                             src={url}
                             alt="Attached media"
+                            width={64}
+                            height={64}
+                            unoptimized
                             className="w-16 h-16 rounded-lg object-cover border border-background-border"
                           />
                         )}

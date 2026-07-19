@@ -1,11 +1,10 @@
-import { Worker, Queue } from 'bullmq'
+import { Worker } from 'bullmq'
 import { redis } from '@/lib/redis'
 import { prisma } from '@/lib/prisma'
 import { decrypt } from '@/lib/encrypt'
 import { detectCrisis } from '@/services/ai/crisis-detector'
 import * as linkedin from '@/services/social/linkedin'
-
-const aiRespondQueue = new Queue('ai-responding', { connection: redis })
+import { aiRespondQueue } from '@/lib/queues'
 
 const worker = new Worker(
   'comment-monitoring',

@@ -126,6 +126,14 @@ export async function DELETE(
       prisma.brandProfile.deleteMany({ where: { workspaceId: id } }),
       prisma.guardrail.deleteMany({ where: { workspaceId: id } }),
       prisma.onboardingToken.deleteMany({ where: { workspaceId: id } }),
+      // SEO models -- none of these cascade at the DB level (SeoContent cascades
+      // from SeoPage, so deleting SeoPage takes it with it, but SeoConnection and
+      // SearchConsoleData each need their own explicit delete here). Missing these
+      // three is exactly what made deleting a workspace with any SEO data throw an
+      // FK-violation error on workspace.delete() below.
+      prisma.seoConnection.deleteMany({ where: { workspaceId: id } }),
+      prisma.seoPage.deleteMany({ where: { workspaceId: id } }),
+      prisma.searchConsoleData.deleteMany({ where: { workspaceId: id } }),
       prisma.workspaceAccess.deleteMany({ where: { workspaceId: id } }),
       prisma.workspace.delete({ where: { id } }),
     ])

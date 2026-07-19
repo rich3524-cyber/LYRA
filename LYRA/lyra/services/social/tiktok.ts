@@ -1,3 +1,5 @@
+import { signState } from '@/lib/oauth-state'
+
 const AUTH_URL = 'https://www.tiktok.com/v2/auth/authorize/'
 const TOKEN_URL = 'https://open.tiktokapis.com/v2/oauth/token/'
 const API_URL = 'https://open.tiktokapis.com/v2'
@@ -16,7 +18,7 @@ export interface TikTokAccount {
 }
 
 export function getAuthUrl(workspaceId: string): string {
-  const state = Buffer.from(JSON.stringify({ workspaceId })).toString('base64')
+  const state = signState({ workspaceId })
   const params = new URLSearchParams({
     client_key: process.env.TIKTOK_CLIENT_KEY!,
     scope: SCOPES,

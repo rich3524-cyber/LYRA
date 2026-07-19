@@ -1,13 +1,10 @@
 import { NextResponse } from 'next/server'
-import { Queue } from 'bullmq'
-import { redis } from '@/lib/redis'
 import { prisma } from '@/lib/prisma'
 import { verifyZernioSignature } from '@/services/social/webhook-verify'
 import { toNormalizedComment } from '@/services/social/provider/mappers'
+import { aiRespondQueue } from '@/lib/queues'
 
 export const dynamic = 'force-dynamic'
-
-const aiRespondQueue = new Queue('ai-responding', { connection: redis })
 
 interface ZernioWebhookEvent {
   id: string

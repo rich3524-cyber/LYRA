@@ -1,4 +1,4 @@
-import { Worker, Queue } from 'bullmq'
+import { Worker } from 'bullmq'
 import type { Prisma } from '@prisma/client'
 import { redis } from '@/lib/redis'
 import { prisma } from '@/lib/prisma'
@@ -7,16 +7,7 @@ import { buildBrandProfile } from '@/services/brand-intelligence/profile-builder
 import { parseWorkspaceGuidelines } from '@/services/brand-intelligence/document-parser'
 import { analyzeSocialPosts } from '@/services/brand-intelligence/social-analyzer'
 import { analyzeEngagement } from '@/services/ai/engagement-analyzer'
-
-export const brandSyncQueue = new Queue('brand-sync', {
-  connection: redis,
-  defaultJobOptions: {
-    attempts:         2,
-    backoff:          { type: 'exponential', delay: 10000 },
-    removeOnComplete: { count: 50 },
-    removeOnFail:     { count: 20 },
-  },
-})
+import { brandSyncQueue } from '@/lib/queues'
 
 export async function queueBrandSync(workspaceId: string) {
   await brandSyncQueue.add(

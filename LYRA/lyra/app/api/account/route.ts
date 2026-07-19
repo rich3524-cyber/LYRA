@@ -26,6 +26,12 @@ export async function DELETE() {
       prisma.brandProfile.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
       prisma.guardrail.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
       prisma.onboardingToken.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
+      // Same SEO-model gap as app/api/workspaces/[id]/route.ts's DELETE -- none of
+      // these cascade at the DB level, so skipping them here throws an FK-violation
+      // error on workspace.deleteMany() below for any owned workspace with SEO data.
+      prisma.seoConnection.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
+      prisma.seoPage.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
+      prisma.searchConsoleData.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
       prisma.workspaceAccess.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
       prisma.workspace.deleteMany({ where: { id: { in: ownedWorkspaceIds } } }),
       // Revoke this user's access to any remaining (shared, non-owned) workspaces

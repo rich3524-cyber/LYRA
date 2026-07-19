@@ -63,7 +63,6 @@ export async function POST(req: Request, { params }: RouteContext) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
     console.error('POST /api/comments/[id]/reply error:', error)
-    const message = error instanceof Error ? error.message : 'Failed to send reply'
-    return NextResponse.json({ error: message }, { status: 502 })
+    return NextResponse.json({ error: 'Failed to send reply' }, { status: 502 })
   }
 }

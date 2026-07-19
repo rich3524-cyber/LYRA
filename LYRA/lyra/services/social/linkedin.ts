@@ -1,3 +1,5 @@
+import { signState } from '@/lib/oauth-state'
+
 const AUTH_URL = 'https://www.linkedin.com/oauth/v2/authorization'
 const TOKEN_URL = 'https://www.linkedin.com/oauth/v2/accessToken'
 const API_URL = 'https://api.linkedin.com/v2'
@@ -35,7 +37,7 @@ export interface LinkedInComment {
 }
 
 export function getAuthUrl(workspaceId: string): string {
-  const state = Buffer.from(JSON.stringify({ workspaceId })).toString('base64')
+  const state = signState({ workspaceId })
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: process.env.LINKEDIN_CLIENT_ID!,

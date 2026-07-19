@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { encrypt } from '@/lib/encrypt'
+import { verifyState } from '@/lib/oauth-state'
 import { exchangeCode, getSites } from '@/services/seo/gsc-client'
 
 export const dynamic = 'force-dynamic'
@@ -9,26 +10,17 @@ export const dynamic = 'force-dynamic'
 
 const BASE_URL = process.env.APP_BASE_URL!
 
-function parseState(raw: string | null): Record<string, string> {
-  if (!raw) return {}
-  try {
-    return JSON.parse(Buffer.from(raw, 'base64').toString('utf8'))
-  } catch {
-    return {}
-  }
-}
-
 export async function GET(req: Request) {
   try {
     const user = await requireAuth()
     const { searchParams } = new URL(req.url)
     const code = searchParams.get('code')
-    const state = parseState(searchParams.get('state'))
-    const { workspaceId } = state
+    const state = verifyState<{ workspaceId: string }>(searchParams.get('state'))
 
-    if (!code || !workspaceId) {
+    if (!code || !state?.workspaceId) {
       return NextResponse.redirect(`${BASE_URL}?error=gsc_oauth_failed`)
     }
+    const { workspaceId } = state
 
     // Verify the authenticated user has access to the target workspace
     const workspaceAccess = await prisma.workspaceAccess.findFirst({
@@ -85,8 +77,8 @@ export async function GET(req: Request) {
     }
     console.error('GET /api/seo/callback error:', error instanceof Error ? error.message : error)
     const { searchParams: sp } = new URL(req.url)
-    const rawState = parseState(sp.get('state'))
-    const wid = rawState.workspaceId
+    const rawState = verifyState<{ workspaceId: string }>(sp.get('state'))
+    const wid = rawState?.workspaceId
     // Use a static error code — never reflect raw error messages to the browser
     const dest = wid
       ? `${BASE_URL}/workspace/${wid}/seo?error=gsc_oauth_failed`

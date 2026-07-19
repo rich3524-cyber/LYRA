@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { useDropzone } from 'react-dropzone'
 import { useEditor, EditorContent } from '@tiptap/react'
@@ -225,11 +226,13 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
         <div className="px-5 pb-4">
           <div className="flex gap-2 flex-wrap">
             {mediaUrls.map((url, i) => (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <Image
                 key={i}
                 src={url}
                 alt=""
+                width={64}
+                height={64}
+                unoptimized
                 className="h-16 w-16 object-cover rounded-md border border-background-border"
               />
             ))}

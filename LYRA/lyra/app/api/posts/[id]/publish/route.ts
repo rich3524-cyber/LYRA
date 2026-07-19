@@ -60,7 +60,6 @@ export async function POST(_req: Request, { params }: RouteContext) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
     console.error('POST /api/posts/[id]/publish error:', error)
-    const message = error instanceof Error ? error.message : 'Failed to publish post'
-    return NextResponse.json({ error: message }, { status: 502 })
+    return NextResponse.json({ error: 'Failed to publish post' }, { status: 502 })
   }
 }

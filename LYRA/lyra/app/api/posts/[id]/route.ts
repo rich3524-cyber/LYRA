@@ -1,9 +1,21 @@
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { PostStatus, type UserRole } from '@prisma/client'
+import { parseBody, ValidationError } from '@/lib/validate'
 
 export const dynamic = 'force-dynamic'
 
+// Everyone except the read-only CLIENT_VIEW role can approve a post.
+const APPROVER_ROLES: UserRole[] = ['PLATFORM_OWNER', 'AGENCY_ADMIN', 'AGENCY_MEMBER', 'SMB_OWNER', 'CLIENT_APPROVE']
+
+const patchPostSchema = z.object({
+  content:     z.string().min(1).optional(),
+  status:      z.nativeEnum(PostStatus).optional(),
+  scheduledAt: z.string().nullish(),
+  mediaUrls:   z.array(z.string()).optional(),
+})
 
 export async function PATCH(
   req: Request,
@@ -12,8 +24,7 @@ export async function PATCH(
   try {
     const user = await requireAuth()
     const { id } = await params
-    const body = await req.json()
-    const { content, status, scheduledAt, mediaUrls } = body
+    const { content, status, scheduledAt, mediaUrls } = await parseBody(req, patchPostSchema)
 
     // Verify the post belongs to a workspace the user has access to
     const existing = await prisma.post.findFirst({
@@ -21,11 +32,25 @@ export async function PATCH(
         id,
         workspace: { access: { some: { userId: user.id } } },
       },
-      select: { id: true, status: true },
+      select: { id: true, status: true, workspaceId: true, authorId: true },
     })
 
     if (!existing) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 })
+    }
+
+    // Approval requires a real reviewer, not just any member and not the post's own author
+    if (status === 'APPROVED') {
+      const access = await prisma.workspaceAccess.findFirst({
+        where:  { workspaceId: existing.workspaceId, userId: user.id },
+        select: { role: true },
+      })
+      if (!access || !APPROVER_ROLES.includes(access.role)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      }
+      if (user.id === existing.authorId) {
+        return NextResponse.json({ error: 'Cannot approve your own post' }, { status: 403 })
+      }
     }
 
     const post = await prisma.post.update({
@@ -63,6 +88,10 @@ export async function PATCH(
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    if (error instanceof ValidationError) {
+      console.error('PATCH /api/posts/[id] validation failed:', error.issues)
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
     console.error('PATCH /api/posts/[id] error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

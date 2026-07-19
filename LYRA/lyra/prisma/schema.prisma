@@ -373,7 +373,10 @@ model OnboardingToken {
   id          String    @id @default(cuid())
   workspaceId String    @unique
   workspace   Workspace @relation(fields: [workspaceId], references: [id])
-  token       String    @unique @default(cuid())
+  // uuid() (122 bits of CSPRNG entropy), not cuid() -- this token is a bearer
+  // secret handed to an unauthenticated client link, not just an internal row
+  // id, and needs to be unguessable rather than merely collision-resistant.
+  token       String    @unique @default(uuid())
   expiresAt   DateTime
   completedAt DateTime?
   createdAt   DateTime  @default(now())

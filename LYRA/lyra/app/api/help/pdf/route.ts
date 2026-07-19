@@ -1,9 +1,17 @@
 import { NextResponse } from 'next/server'
 import { checkRateLimit, rateLimitResponse, getClientIp } from '@/lib/rate-limit'
+import { headObjectLastModified, getObjectBuffer, putObjectBuffer } from '@/lib/s3'
 
 // Allow up to 60 seconds — Puppeteer + page render takes 10–20s on cold start
 export const maxDuration = 60
 export const dynamic = 'force-dynamic'
+
+// This is generic product documentation, identical for every visitor (not
+// per-workspace data), so it's cached in S3 and only regenerated when stale --
+// matches the response's own Cache-Control freshness window instead of paying
+// for a full headless-Chromium launch on every single request.
+const CACHE_KEY = 'cache/help-guide.pdf'
+const CACHE_TTL_MS = 2 * 60 * 60 * 1000
 
 async function getChromiumArgs(): Promise<string[]> {
   if (process.env.NODE_ENV === 'production') {
@@ -65,6 +73,19 @@ export async function GET(req: Request) {
     const { allowed } = await checkRateLimit(`help-pdf:${getClientIp(req)}`, 5, 600)
     if (!allowed) return rateLimitResponse()
 
+    const cachedAt = await headObjectLastModified(CACHE_KEY)
+    if (cachedAt && Date.now() - cachedAt.getTime() < CACHE_TTL_MS) {
+      const cached = await getObjectBuffer(CACHE_KEY)
+      return new NextResponse(new Uint8Array(cached), {
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': 'attachment; filename="LYRA-Help-Guide.pdf"',
+          'Cache-Control': 'public, max-age=7200',
+          'X-Cache': 'HIT',
+        },
+      })
+    }
+
     const puppeteer = await import('puppeteer-core')
     const args = await getChromiumArgs()
     const executablePath = await getExecutablePath()
@@ -107,22 +128,22 @@ export async function GET(req: Request) {
     await browser.close()
     browser = null
 
-    return new NextResponse(Buffer.from(pdf), {
+    const pdfBuffer = Buffer.from(pdf)
+    await putObjectBuffer(CACHE_KEY, pdfBuffer, 'application/pdf').catch((err) =>
+      console.error('[help/pdf] failed to write cache:', err)
+    )
+
+    return new NextResponse(pdfBuffer, {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': 'attachment; filename="LYRA-Help-Guide.pdf"',
         'Cache-Control': 'public, max-age=7200', // Cache for 2 hours
+        'X-Cache': 'MISS',
       },
     })
   } catch (error) {
     if (browser) await browser.close().catch(() => null)
     console.error('[help/pdf] Generation failed:', error)
-    return NextResponse.json(
-      {
-        error: 'PDF generation failed',
-        detail: error instanceof Error ? error.message : 'Unknown error',
-      },
-      { status: 500 },
-    )
+    return NextResponse.json({ error: 'PDF generation failed' }, { status: 500 })
   }
 }

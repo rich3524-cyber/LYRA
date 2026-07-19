@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 // Uses S3_* names, not the AWS_* equivalents -- Netlify Functions run on AWS Lambda,
@@ -25,4 +25,28 @@ export async function getUploadPresignedUrl(key: string, contentType: string): P
 /** Deletes an object from S3. */
 export async function deleteObject(key: string): Promise<void> {
   await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }))
+}
+
+/** Returns the object's LastModified timestamp, or null if it doesn't exist. */
+export async function headObjectLastModified(key: string): Promise<Date | null> {
+  try {
+    const res = await s3.send(new HeadObjectCommand({ Bucket: BUCKET, Key: key }))
+    return res.LastModified ?? null
+  } catch {
+    return null
+  }
+}
+
+/** Fetches an object's full body as a Buffer. */
+export async function getObjectBuffer(key: string): Promise<Buffer> {
+  const res = await s3.send(new GetObjectCommand({ Bucket: BUCKET, Key: key }))
+  const chunks: Uint8Array[] = []
+  // @ts-expect-error -- Body is a Node Readable in the Lambda/Node runtime this route runs in
+  for await (const chunk of res.Body) chunks.push(chunk)
+  return Buffer.concat(chunks)
+}
+
+/** Uploads a Buffer directly (server-side; not a presigned client upload). */
+export async function putObjectBuffer(key: string, body: Buffer, contentType: string): Promise<void> {
+  await s3.send(new PutObjectCommand({ Bucket: BUCKET, Key: key, Body: body, ContentType: contentType }))
 }

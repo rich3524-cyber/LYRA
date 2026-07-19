@@ -41,7 +41,10 @@ export async function subscribeEmail(email: string): Promise<void> {
 
   if (!res.ok) {
     const body = await res.text()
-    console.error('[klaviyo] subscribe failed', res.status, body)
+    // Klaviyo error responses often echo back the offending profile payload,
+    // which includes the subscriber's email -- redact before it hits server logs.
+    const redactedBody = body.replace(/[^\s"]+@[^\s"]+/g, '[redacted-email]')
+    console.error('[klaviyo] subscribe failed', res.status, redactedBody)
     throw new Error(`Klaviyo subscribe failed: ${res.status}`)
   }
 }

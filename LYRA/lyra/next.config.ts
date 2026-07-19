@@ -21,6 +21,14 @@ const CSP = [
 ].join('; ')
 
 const nextConfig: NextConfig = {
+  images: {
+    // Composer/schedule-review media thumbnails are next/image now instead of raw
+    // <img> -- their src is always our own upload bucket (media/{workspaceId}/...),
+    // never a third-party URL, so this narrow pattern is enough for them.
+    remotePatterns: [
+      { protocol: 'https', hostname: '*.s3.*.amazonaws.com' },
+    ],
+  },
   async headers() {
     return [
       {

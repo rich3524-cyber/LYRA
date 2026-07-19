@@ -23,6 +23,10 @@ export async function GET(req: Request) {
       where: { workspaceId },
       include: { content: { orderBy: { createdAt: 'desc' } } },
       orderBy: { updatedAt: 'desc' },
+      // Safety cap -- this had no limit at all before, so a workspace that has
+      // tracked many pages over time returned every one of them (each with its
+      // full, also-unbounded SeoContent history) in a single response.
+      take: 100,
     })
 
     return NextResponse.json(pages)
