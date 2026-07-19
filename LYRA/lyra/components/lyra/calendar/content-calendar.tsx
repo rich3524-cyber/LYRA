@@ -24,6 +24,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { PostPreviewCard, CalendarPost, PLATFORM_COLORS, PLATFORM_LABELS } from './post-preview-card'
 import { PostDetailPanel } from './post-detail-panel'
+import { EmailCampaignCard, CalendarEmailCampaign } from './email-campaign-card'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -51,11 +52,13 @@ function SkeletonCell() {
 function DayCell({
   day,
   posts,
+  campaigns,
   isCurrentDay,
   onSelect,
 }: {
   day: Date
   posts: CalendarPost[]
+  campaigns: CalendarEmailCampaign[]
   isCurrentDay: boolean
   onSelect: (post: CalendarPost) => void
 }) {
@@ -101,6 +104,9 @@ function DayCell({
       {posts.map((post) => (
         <PostPreviewCard key={post.id} post={post} onSelect={onSelect} />
       ))}
+      {campaigns.map((campaign) => (
+        <EmailCampaignCard key={campaign.id} campaign={campaign} />
+      ))}
     </div>
   )
 }
@@ -115,6 +121,7 @@ interface ContentCalendarProps {
 export function ContentCalendar({ workspaceId, plan, userRole, clientAccessLevel }: ContentCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [posts, setPosts]               = useState<CalendarPost[]>([])
+  const [campaigns, setCampaigns]       = useState<CalendarEmailCampaign[]>([])
   const [loading, setLoading]           = useState(true)
   const [activePost, setActivePost]     = useState<CalendarPost | null>(null)
   const [selectedPost, setSelectedPost] = useState<CalendarPost | null>(null)
@@ -160,6 +167,14 @@ export function ContentCalendar({ workspaceId, plan, userRole, clientAccessLevel
       })
     return () => controller.abort()
   }, [fetchPosts])
+
+  useEffect(() => {
+    const month = format(currentMonth, 'yyyy-MM')
+    fetch(`/api/email-campaigns?workspaceId=${workspaceId}&month=${month}`)
+      .then((r) => r.json())
+      .then((data: CalendarEmailCampaign[]) => setCampaigns(Array.isArray(data) ? data : []))
+      .catch(() => setCampaigns([]))
+  }, [workspaceId, currentMonth])
 
   const filteredPosts = activeFilter === 'ALL'
     ? posts
@@ -309,42 +324,69 @@ export function ContentCalendar({ workspaceId, plan, userRole, clientAccessLevel
                 </div>
               </div>
             ) : (
-              days.filter((day) => filteredPosts.some((p) => p.scheduledAt && isSameDay(new Date(p.scheduledAt), day))).map((day) => {
-                const dayPosts = filteredPosts.filter((p) => p.scheduledAt && isSameDay(new Date(p.scheduledAt), day))
-                return (
-                  <div key={day.toISOString()}>
-                    <p className={cn(
-                      'font-sans text-xs font-medium uppercase tracking-[0.1em] mb-2',
-                      isToday(day) ? 'text-accent-platinum' : 'text-text-tertiary'
-                    )}>
-                      {format(day, 'EEE, MMM d')}
-                    </p>
-                    <div className="space-y-1.5">
-                      {dayPosts.map((post) => (
-                        <button
-                          key={post.id}
-                          onClick={() => setSelectedPost(post)}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-background-secondary border border-background-border hover:bg-background-hover transition-colors text-left"
-                        >
-                          <span
-                            className="rounded-full shrink-0"
-                            style={{ width: 8, height: 8, backgroundColor: PLATFORM_COLORS[post.socialAccount.platform] ?? PLATFORM_COLORS['TWITTER'] }}
-                            aria-hidden="true"
-                          />
-                          {post.scheduledAt && (
-                            <span className="font-mono text-[10px] text-text-tertiary shrink-0">
-                              {format(new Date(post.scheduledAt), 'HH:mm')}
+              days
+                .filter((day) => {
+                  const hasPosts = filteredPosts.some((p) => p.scheduledAt && isSameDay(new Date(p.scheduledAt), day))
+                  const hasCampaigns = campaigns.some((c) => c.scheduledAt && isSameDay(new Date(c.scheduledAt), day))
+                  return hasPosts || hasCampaigns
+                })
+                .map((day) => {
+                  const dayPosts = filteredPosts.filter((p) => p.scheduledAt && isSameDay(new Date(p.scheduledAt), day))
+                  const dayCampaigns = campaigns.filter((c) => c.scheduledAt && isSameDay(new Date(c.scheduledAt), day))
+                  return (
+                    <div key={day.toISOString()}>
+                      <p className={cn(
+                        'font-sans text-xs font-medium uppercase tracking-[0.1em] mb-2',
+                        isToday(day) ? 'text-accent-platinum' : 'text-text-tertiary'
+                      )}>
+                        {format(day, 'EEE, MMM d')}
+                      </p>
+                      <div className="space-y-1.5">
+                        {dayPosts.map((post) => (
+                          <button
+                            key={post.id}
+                            onClick={() => setSelectedPost(post)}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-background-secondary border border-background-border hover:bg-background-hover transition-colors text-left"
+                          >
+                            <span
+                              className="rounded-full shrink-0"
+                              style={{ width: 8, height: 8, backgroundColor: PLATFORM_COLORS[post.socialAccount.platform] ?? PLATFORM_COLORS['TWITTER'] }}
+                              aria-hidden="true"
+                            />
+                            {post.scheduledAt && (
+                              <span className="font-mono text-[10px] text-text-tertiary shrink-0">
+                                {format(new Date(post.scheduledAt), 'HH:mm')}
+                              </span>
+                            )}
+                            <span className="font-sans text-xs text-text-secondary truncate">
+                              {post.content?.slice(0, 80) ?? 'No content'}
                             </span>
-                          )}
-                          <span className="font-sans text-xs text-text-secondary truncate">
-                            {post.content?.slice(0, 80) ?? 'No content'}
-                          </span>
-                        </button>
-                      ))}
+                          </button>
+                        ))}
+                        {dayCampaigns.map((campaign) => (
+                          <div
+                            key={campaign.id}
+                            className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-indigo-500/10 border border-indigo-500/20"
+                          >
+                            <span
+                              className="rounded-full shrink-0"
+                              style={{ width: 8, height: 8, backgroundColor: '#6366f1' }}
+                              aria-hidden="true"
+                            />
+                            {campaign.scheduledAt && (
+                              <span className="font-mono text-[10px] text-indigo-400 shrink-0">
+                                {format(new Date(campaign.scheduledAt), 'HH:mm')}
+                              </span>
+                            )}
+                            <span className="font-sans text-xs text-indigo-300 truncate">
+                              {campaign.subject || campaign.name}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )
-              })
+                  )
+                })
             )}
           </div>
 
@@ -371,11 +413,15 @@ export function ContentCalendar({ workspaceId, plan, userRole, clientAccessLevel
                   const dayPosts = filteredPosts.filter(
                     (p) => p.scheduledAt && isSameDay(new Date(p.scheduledAt), day)
                   )
+                  const dayCampaigns = campaigns.filter(
+                    (c) => c.scheduledAt && isSameDay(new Date(c.scheduledAt), day)
+                  )
                   return (
                     <DayCell
                       key={day.toISOString()}
                       day={day}
                       posts={dayPosts}
+                      campaigns={dayCampaigns}
                       isCurrentDay={isToday(day)}
                       onSelect={setSelectedPost}
                     />

@@ -9,6 +9,7 @@ import { CrisisAwareToggle } from '@/components/lyra/settings/crisis-aware-toggl
 import { AutonomySelector } from '@/components/lyra/settings/autonomy-selector'
 import { FacebookPagePicker } from '@/components/lyra/settings/facebook-page-picker'
 import { TimezoneSelector } from '@/components/lyra/settings/timezone-selector'
+import { EmailMarketingSection } from '@/components/lyra/settings/email-marketing-section'
 
 interface Props {
   params: Promise<{ workspaceId: string }>
@@ -271,6 +272,9 @@ export default async function SettingsPage({ params, searchParams }: Props) {
           isPro={workspace.plan === 'PRO' || workspace.plan === 'AGENCY'}
         />
       </section>
+
+      {/* Email Marketing */}
+      <EmailMarketingSection workspaceId={workspace.id} />
 
       {/* Danger zone */}
       <section className="space-y-3 pt-4 border-t border-background-border">

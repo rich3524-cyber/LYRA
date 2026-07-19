@@ -81,18 +81,19 @@ model Workspace {
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
-  access            WorkspaceAccess[]
-  socialAccounts    SocialAccount[]
-  posts             Post[]
-  brandProfile      BrandProfile?
-  guardrails        Guardrail[]
-  onboardingToken   OnboardingToken?
-  seoConnection     SeoConnection?
-  seoPages          SeoPage[]
-  searchConsoleData SearchConsoleData[]
-  crisisEvents      CrisisEvent[]
-  competitors       Competitor[]
-  reviews           Review[]
+  access             WorkspaceAccess[]
+  socialAccounts     SocialAccount[]
+  posts              Post[]
+  brandProfile       BrandProfile?
+  guardrails         Guardrail[]
+  onboardingToken    OnboardingToken?
+  seoConnection      SeoConnection?
+  seoPages           SeoPage[]
+  searchConsoleData  SearchConsoleData[]
+  crisisEvents       CrisisEvent[]
+  competitors        Competitor[]
+  reviews            Review[]
+  emailIntegrations  EmailIntegration[]
 }
 
 enum Plan {
@@ -499,4 +500,43 @@ model Review {
 
   @@unique([socialAccountId, zernioReviewId])
   @@index([workspaceId, status])
+}
+
+enum EmailProvider {
+  KLAVIYO
+  MAILCHIMP
+  CUSTOMER_IO
+}
+
+model EmailIntegration {
+  id           String        @id @default(cuid())
+  workspaceId  String
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  provider     EmailProvider
+  apiKey       String
+  serverPrefix String?
+  accountName  String?
+  isActive     Boolean       @default(true)
+  lastSyncAt   DateTime?
+  createdAt    DateTime      @default(now())
+  campaigns    EmailCampaign[]
+
+  @@unique([workspaceId, provider])
+}
+
+model EmailCampaign {
+  id            String           @id @default(cuid())
+  integrationId String
+  integration   EmailIntegration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  externalId    String
+  name          String
+  subject       String?
+  scheduledAt   DateTime?
+  status        String
+  previewUrl    String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@unique([integrationId, externalId])
+  @@index([integrationId, scheduledAt])
 }
