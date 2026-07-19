@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { Menu, Zap } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import {
@@ -50,6 +51,7 @@ export function Header({ user, plan, onMenuOpen }: HeaderProps) {
   const pathname = usePathname()
   const router = useRouter()
   const showUpgrade = plan === 'STARTER' || plan === 'PRO'
+  const showManage = plan === 'AGENCY'
   const mobileTitle = getPageTitle(pathname)
 
   return (
@@ -83,6 +85,14 @@ export function Header({ user, plan, onMenuOpen }: HeaderProps) {
               Upgrade
             </button>
           )}
+          {showManage && (
+            <Link
+              href="/account"
+              className="hidden sm:inline-flex items-center px-3 py-1.5 rounded-lg border border-background-border font-sans text-xs font-medium text-text-tertiary hover:text-text-primary hover:border-background-border-mid transition-colors duration-150"
+            >
+              Agency Plan
+            </Link>
+          )}
 
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -115,6 +125,17 @@ export function Header({ user, plan, onMenuOpen }: HeaderProps) {
                   >
                     <Zap size={12} strokeWidth={2} className="mr-2" />
                     Upgrade plan
+                  </DropdownMenuItem>
+                </>
+              )}
+              {showManage && (
+                <>
+                  <DropdownMenuSeparator className="bg-background-border" />
+                  <DropdownMenuItem
+                    className="text-text-secondary cursor-pointer sm:hidden"
+                    onClick={() => router.push('/account')}
+                  >
+                    Agency Plan
                   </DropdownMenuItem>
                 </>
               )}
