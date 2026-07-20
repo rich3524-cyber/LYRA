@@ -5,6 +5,15 @@ import { decrypt } from '@/lib/encrypt'
 import { detectCrisis } from '@/services/ai/crisis-detector'
 import * as linkedin from '@/services/social/linkedin'
 import { aiRespondQueue } from '@/lib/queues'
+import { getProvider } from '@/services/social/provider'
+
+interface NormalizedRow {
+  platformCommentId: string
+  platformPostId?: string
+  authorName: string
+  content: string
+  platformCreatedAt: Date
+}
 
 const worker = new Worker(
   'comment-monitoring',
@@ -16,55 +25,89 @@ const worker = new Worker(
       include: { workspace: true },
     })
     if (!account || !account.isActive) return
-    if (!account.accessToken) {
-      console.error(`Comment monitor: account ${socialAccountId} has no access token — skipping`)
-      return
-    }
 
-    const token    = decrypt(account.accessToken)
-    const platform = account.platform
+    let normalizedRows: NormalizedRow[] = []
 
-    let rawComments: Array<{ id: string; message: string; from?: { name?: string; id?: string }; created_time: string }> = []
-
-    try {
-      if (platform === 'FACEBOOK') {
-        const res  = await fetch(
-          `https://graph.facebook.com/v19.0/${account.platformId}/feed?fields=comments{message,from,created_time}&access_token=${token}`
-        )
-        const data = await res.json() as { data?: Array<{ comments?: { data?: typeof rawComments } }> }
-        for (const post of data.data ?? []) {
-          rawComments = rawComments.concat(post.comments?.data ?? [])
-        }
-      } else if (platform === 'INSTAGRAM') {
-        const res  = await fetch(
-          `https://graph.facebook.com/v19.0/${account.platformId}/media?fields=comments{text,username,timestamp}&access_token=${token}`
-        )
-        const data = await res.json() as { data?: Array<{ comments?: { data?: Array<{ id: string; text: string; username?: string; timestamp: string }> } }> }
-        for (const media of data.data ?? []) {
-          for (const c of media.comments?.data ?? []) {
-            rawComments.push({ id: c.id, message: c.text, from: { name: c.username }, created_time: c.timestamp })
-          }
-        }
-      } else if (platform === 'LINKEDIN') {
-        // Fetch recent org posts then gather comments.
-        // platformCommentId = full comment URN encodes post context for later replies.
-        const posts = await linkedin.getOrgPosts(token, account.platformId)
-        for (const post of posts.slice(0, 10)) {
-          const comments = await linkedin.getPostComments(token, post.urn)
-          for (const c of comments) {
-            rawComments.push({
-              id:           c.commentUrn,
-              message:      c.text,
-              from:         { name: 'LinkedIn Member' },
-              created_time: new Date(c.createdAt).toISOString(),
-            })
-          }
-        }
+    // Zernio-connected accounts (the default connection method going forward)
+    // never have a local accessToken -- Zernio holds the platform credentials
+    // on their own side. This fell through to the accessToken check below and
+    // was silently skipped on every run, meaning this cron never ingested a
+    // single comment for any Zernio account -- confirmed live 21 Jul 2026 via
+    // production logs showing the identical skip firing on the manual sync
+    // route. Route these through the same provider abstraction
+    // publish()/replyToComment() already use instead.
+    if (account.provider === 'ZERNIO' && account.zernioAccountId != null) {
+      try {
+        const normalized = await getProvider(account).fetchRecentComments(account)
+        normalizedRows = normalized.map((c) => ({
+          platformCommentId: c.externalId,
+          platformPostId:    c.postExternalId,
+          authorName:        c.authorName || 'Unknown',
+          content:           c.text,
+          platformCreatedAt: c.createdAt,
+        }))
+      } catch (err) {
+        console.error(`Comment monitor: Zernio fetch failed for account ${socialAccountId}:`, err)
+        return
       }
-      // Other platforms: add polling logic here as APIs are onboarded
-    } catch (err) {
-      console.error(`Failed to fetch comments for account ${socialAccountId}:`, err)
-      return
+    } else {
+      if (!account.accessToken) {
+        console.error(`Comment monitor: account ${socialAccountId} has no access token — skipping`)
+        return
+      }
+
+      const token    = decrypt(account.accessToken)
+      const platform = account.platform
+
+      let rawComments: Array<{ id: string; message: string; from?: { name?: string; id?: string }; created_time: string }> = []
+
+      try {
+        if (platform === 'FACEBOOK') {
+          const res  = await fetch(
+            `https://graph.facebook.com/v19.0/${account.platformId}/feed?fields=comments{message,from,created_time}&access_token=${token}`
+          )
+          const data = await res.json() as { data?: Array<{ comments?: { data?: typeof rawComments } }> }
+          for (const post of data.data ?? []) {
+            rawComments = rawComments.concat(post.comments?.data ?? [])
+          }
+        } else if (platform === 'INSTAGRAM') {
+          const res  = await fetch(
+            `https://graph.facebook.com/v19.0/${account.platformId}/media?fields=comments{text,username,timestamp}&access_token=${token}`
+          )
+          const data = await res.json() as { data?: Array<{ comments?: { data?: Array<{ id: string; text: string; username?: string; timestamp: string }> } }> }
+          for (const media of data.data ?? []) {
+            for (const c of media.comments?.data ?? []) {
+              rawComments.push({ id: c.id, message: c.text, from: { name: c.username }, created_time: c.timestamp })
+            }
+          }
+        } else if (platform === 'LINKEDIN') {
+          // Fetch recent org posts then gather comments.
+          // platformCommentId = full comment URN encodes post context for later replies.
+          const posts = await linkedin.getOrgPosts(token, account.platformId)
+          for (const post of posts.slice(0, 10)) {
+            const comments = await linkedin.getPostComments(token, post.urn)
+            for (const c of comments) {
+              rawComments.push({
+                id:           c.commentUrn,
+                message:      c.text,
+                from:         { name: 'LinkedIn Member' },
+                created_time: new Date(c.createdAt).toISOString(),
+              })
+            }
+          }
+        }
+        // Other platforms: add polling logic here as APIs are onboarded
+      } catch (err) {
+        console.error(`Failed to fetch comments for account ${socialAccountId}:`, err)
+        return
+      }
+
+      normalizedRows = rawComments.map((comment) => ({
+        platformCommentId: comment.id,
+        authorName:        comment.from?.name ?? 'Unknown',
+        content:           comment.message,
+        platformCreatedAt: new Date(comment.created_time),
+      }))
     }
 
     // createManyAndReturn + skipDuplicates replaces a per-comment findFirst-then-create
@@ -73,14 +116,15 @@ const worker = new Worker(
     // between two overlapping monitor runs for the same account: only rows this call
     // actually inserted come back, so a comment concurrently inserted by another run is
     // silently excluded here rather than double-queued for an AI response below.
-    const createdComments = rawComments.length === 0 ? [] : await prisma.comment.createManyAndReturn({
-      data: rawComments.map((comment) => ({
+    const createdComments = normalizedRows.length === 0 ? [] : await prisma.comment.createManyAndReturn({
+      data: normalizedRows.map((row) => ({
         workspaceId:       account.workspaceId,
         socialAccountId:   account.id,
-        platformCommentId: comment.id,
-        authorName:        comment.from?.name ?? 'Unknown',
-        content:           comment.message,
-        platformCreatedAt: new Date(comment.created_time),
+        platformCommentId: row.platformCommentId,
+        platformPostId:    row.platformPostId,
+        authorName:        row.authorName,
+        content:           row.content,
+        platformCreatedAt: row.platformCreatedAt,
         status:            'PENDING' as const,
       })),
       skipDuplicates: true,

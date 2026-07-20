@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { decrypt } from '@/lib/encrypt'
 import * as linkedin from '@/services/social/linkedin'
+import { getProvider } from '@/services/social/provider'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,14 +19,52 @@ export async function POST(req: Request) {
     })
     if (!workspace) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+    // Fetches the full row (not a narrow select) because getProvider(account).
+    // fetchRecentComments(account) needs the whole SocialAccount shape, same as
+    // every other provider-dispatched call site in the codebase (e.g.
+    // post-publisher.worker.ts's include: { socialAccount: true }).
     const accounts = await prisma.socialAccount.findMany({
       where: { workspaceId, isActive: true, platform: { in: ['FACEBOOK', 'INSTAGRAM', 'LINKEDIN'] } },
-      select: { id: true, platform: true, platformId: true, accessToken: true },
     })
 
     let newCount = 0
 
     for (const account of accounts) {
+      // Zernio-connected accounts (the default connection method going forward)
+      // never have a local accessToken -- Zernio holds the platform credentials
+      // on their own side. This used to fall through to the accessToken check
+      // below and get silently skipped every time, meaning comment sync never
+      // worked at all for any Zernio account -- confirmed live 21 Jul 2026 via
+      // production logs showing the skip firing on every sync attempt. Route
+      // these through the same provider abstraction publish()/replyToComment()
+      // already use instead.
+      if (account.provider === 'ZERNIO' && account.zernioAccountId != null) {
+        let normalized
+        try {
+          normalized = await getProvider(account).fetchRecentComments(account)
+        } catch (err) {
+          console.error(`Zernio comment sync failed for account ${account.id}:`, err)
+          continue
+        }
+        if (normalized.length === 0) continue
+        const created = await prisma.comment.createManyAndReturn({
+          data: normalized.map((c) => ({
+            workspaceId,
+            socialAccountId:   account.id,
+            platformCommentId: c.externalId,
+            platformPostId:    c.postExternalId,
+            authorName:        c.authorName || 'Unknown',
+            authorHandle:      c.authorHandle,
+            content:           c.text,
+            platformCreatedAt: c.createdAt,
+            status:            'PENDING' as const,
+          })),
+          skipDuplicates: true,
+        })
+        newCount += created.length
+        continue
+      }
+
       if (!account.accessToken) {
         console.error(`Skipping comment sync for account ${account.id} — no access token`)
         continue
