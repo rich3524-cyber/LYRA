@@ -76,7 +76,15 @@ export async function GET(req: Request) {
 
     if (!connectedSlug) {
       // User cancelled on Zernio's hosted page, or the flow didn't complete.
-      console.error(`Zernio callback: missing connected param for workspace ${workspaceId}`)
+      // TEMP (2026-07-20): Facebook->LYRA is the one connect path that's never
+      // been confirmed working (see the Meta Business Portfolio note in
+      // LYRA-Handover.md) and just failed here again, still with no error code
+      // from Zernio's side -- log the full raw query string this once to see
+      // what Zernio actually sent back instead of guessing. Remove once this
+      // is diagnosed.
+      console.error(
+        `Zernio callback: missing connected param for workspace ${workspaceId} -- raw query: ${searchParams.toString()}`
+      )
       return NextResponse.redirect(`${BASE_URL}/workspace/${workspaceId}/settings?error=zernio_connect_failed`)
     }
 
