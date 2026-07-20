@@ -14,6 +14,7 @@ export interface EditingPost {
   scheduledAt: string | null
   status: string
   platform: string
+  requiresMedia: boolean
 }
 
 interface ComposeClientProps {

@@ -36,6 +36,7 @@ export default async function ComposePage({ params, searchParams }: Props) {
           mediaUrls: true,
           scheduledAt: true,
           status: true,
+          requiresMedia: true,
           socialAccount: { select: { platform: true } },
         },
       })
@@ -49,6 +50,7 @@ export default async function ComposePage({ params, searchParams }: Props) {
         scheduledAt: postToEdit.scheduledAt ? postToEdit.scheduledAt.toISOString() : null,
         status: postToEdit.status,
         platform: postToEdit.socialAccount.platform,
+        requiresMedia: postToEdit.requiresMedia,
       }
     : null
 
