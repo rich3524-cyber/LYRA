@@ -53,6 +53,14 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
   const [isDropUploading, setIsDropUploading] = useState(false)
   const scoreDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Live, not just submit-time: recomputed every render off existing state, so
+  // the warning shows the moment an incompatible platform/media combo exists
+  // (e.g. GIF + Instagram) rather than only when the user tries to submit.
+  const mediaCompatibilityIssues = checkMediaCompatibility(
+    mediaUrls,
+    (editingPost ? [editingPost.platform] : selectedPlatforms) as Platform[]
+  )
+
   const onDropFiles = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return
     setIsDropUploading(true)
@@ -141,13 +149,11 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
     const publishAt = dateOverride ?? scheduledAt
     if (status === 'SCHEDULED' && !publishAt) { toast.error('Set a schedule time'); return }
 
-    // Catch known-broken platform/format combos (e.g. a GIF selected alongside
-    // Instagram) before scheduling instead of finding out from a silent publish
-    // failure later -- see services/social/media-compatibility.ts.
-    const targetPlatforms = (editingPost ? [editingPost.platform] : selectedPlatforms) as Platform[]
-    const compatibilityIssues = checkMediaCompatibility(mediaUrls, targetPlatforms)
-    if (compatibilityIssues.length > 0) {
-      compatibilityIssues.forEach((issue) => toast.error(formatCompatibilityIssue(issue)))
+    // Backstop for the live warning shown near the media thumbnails below --
+    // that one's visible the moment the incompatible combo exists; this catches
+    // it too in case content/platforms changed in a way the user didn't notice.
+    if (mediaCompatibilityIssues.length > 0) {
+      mediaCompatibilityIssues.forEach((issue) => toast.error(formatCompatibilityIssue(issue)))
       return
     }
 
@@ -249,6 +255,15 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
               />
             ))}
           </div>
+          {mediaCompatibilityIssues.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {mediaCompatibilityIssues.map((issue, i) => (
+                <p key={i} className="font-sans text-xs text-status-error leading-relaxed">
+                  {formatCompatibilityIssue(issue)}
+                </p>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
