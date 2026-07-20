@@ -26,6 +26,7 @@ export interface CalendarPost {
   platformPostId: string | null
   mediaUrls: string[]
   aiGenerated: boolean
+  failureReason: string | null
   socialAccount: { platform: string; name: string; platformId: string; adAccountId: string | null }
   boost: PostBoost | null
 }
@@ -127,6 +128,7 @@ export const PostPreviewCard = memo(function PostPreviewCard({ post, onSelect }:
               'font-sans text-[10px] uppercase tracking-wide px-1 rounded-full',
               STATUS_COLORS[post.status] ?? 'bg-background-border text-text-tertiary'
             )}
+            title={post.status === 'FAILED' && post.failureReason ? post.failureReason : undefined}
           >
             {post.status.toLowerCase().replace(/_/g, ' ')}
           </span>
@@ -134,6 +136,11 @@ export const PostPreviewCard = memo(function PostPreviewCard({ post, onSelect }:
         <p className="font-sans text-[12px] text-text-secondary leading-tight line-clamp-2">
           {post.content || <span className="text-text-tertiary italic">Media only</span>}
         </p>
+        {post.status === 'FAILED' && post.failureReason && (
+          <p className="font-sans text-[10px] text-status-error leading-tight line-clamp-2 mt-0.5">
+            {post.failureReason}
+          </p>
+        )}
       </button>
     </div>
   )

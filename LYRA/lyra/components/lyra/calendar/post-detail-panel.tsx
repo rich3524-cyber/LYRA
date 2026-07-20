@@ -300,6 +300,14 @@ export function PostDetailPanel({ post, workspaceId, plan, userRole, clientAcces
                 )}
               </div>
 
+              {post.status === 'FAILED' && post.failureReason && (
+                <div className="rounded-lg border border-status-error/30 bg-status-error/10 px-3 py-2">
+                  <p className="font-sans text-xs text-status-error leading-relaxed">
+                    {post.failureReason}
+                  </p>
+                </div>
+              )}
+
               {/* Full content */}
               <div className="space-y-1.5">
                 <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">

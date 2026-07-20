@@ -4,6 +4,7 @@ import { PostStatus, Platform } from '@prisma/client'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { parseBody, ValidationError } from '@/lib/validate'
+import { checkMediaCompatibility, formatCompatibilityIssue } from '@/services/social/media-compatibility'
 
 export const dynamic = 'force-dynamic'
 
@@ -64,6 +65,7 @@ export async function GET(req: Request) {
         platformPostId: true,
         mediaUrls: true,
         aiGenerated: true,
+        failureReason: true,
         createdAt: true,
         socialAccount: { select: { platform: true, name: true, platformId: true, adAccountId: true } },
         boost: true,
@@ -94,6 +96,20 @@ export async function POST(req: Request) {
     const resolvedStatus: PostStatus = status && ALLOWED_CREATE_STATUSES.includes(status)
       ? status
       : 'DRAFT'
+
+    // Defense-in-depth for the same check the Composer runs client-side before
+    // submitting -- catches a known-broken platform/format combo (e.g. a GIF
+    // targeting Instagram, which silently fails to publish) before it's queued.
+    // Only enforced at SCHEDULED time, not for drafts (media can still change).
+    if (resolvedStatus === 'SCHEDULED') {
+      const issues = checkMediaCompatibility(mediaUrls ?? [], platforms)
+      if (issues.length > 0) {
+        return NextResponse.json(
+          { error: issues.map(formatCompatibilityIssue).join(' ') },
+          { status: 422 }
+        )
+      }
+    }
 
     const access = await prisma.workspaceAccess.findFirst({
       where: { workspaceId, userId: user.id },

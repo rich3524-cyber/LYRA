@@ -24,6 +24,8 @@ import { uploadMediaFile } from '@/lib/upload-media'
 import { format } from 'date-fns'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import type { Platform } from '@prisma/client'
+import { checkMediaCompatibility, formatCompatibilityIssue } from '@/services/social/media-compatibility'
 
 interface PostComposerProps {
   workspaceId: string
@@ -138,6 +140,16 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
     if (selectedPlatforms.length === 0) { toast.error('Select at least one platform'); return }
     const publishAt = dateOverride ?? scheduledAt
     if (status === 'SCHEDULED' && !publishAt) { toast.error('Set a schedule time'); return }
+
+    // Catch known-broken platform/format combos (e.g. a GIF selected alongside
+    // Instagram) before scheduling instead of finding out from a silent publish
+    // failure later -- see services/social/media-compatibility.ts.
+    const targetPlatforms = (editingPost ? [editingPost.platform] : selectedPlatforms) as Platform[]
+    const compatibilityIssues = checkMediaCompatibility(mediaUrls, targetPlatforms)
+    if (compatibilityIssues.length > 0) {
+      compatibilityIssues.forEach((issue) => toast.error(formatCompatibilityIssue(issue)))
+      return
+    }
 
     setIsSubmitting(true)
     try {

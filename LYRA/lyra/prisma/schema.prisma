@@ -188,6 +188,7 @@ model Post {
   publishedAt     DateTime?
   platformPostId  String?
   zernioPostId    String?
+  failureReason   String?
   aiGenerated     Boolean       @default(false)
   topic           String?
   createdAt       DateTime      @default(now())

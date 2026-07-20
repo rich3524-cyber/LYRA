@@ -4,6 +4,7 @@ import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { PostStatus, type UserRole } from '@prisma/client'
 import { parseBody, ValidationError } from '@/lib/validate'
+import { checkMediaCompatibility, formatCompatibilityIssue } from '@/services/social/media-compatibility'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,11 +33,25 @@ export async function PATCH(
         id,
         workspace: { access: { some: { userId: user.id } } },
       },
-      select: { id: true, status: true, workspaceId: true, authorId: true },
+      select: { id: true, status: true, workspaceId: true, authorId: true, socialAccount: { select: { platform: true } } },
     })
 
     if (!existing) {
       return NextResponse.json({ error: 'Post not found' }, { status: 404 })
+    }
+
+    // Same pre-flight check as POST /api/posts -- an "Edit in Composer" media
+    // swap on an already-scheduled post could otherwise reintroduce a
+    // known-broken platform/format combo (e.g. GIF -> Instagram) undetected.
+    const effectiveStatus = status ?? existing.status
+    if (mediaUrls !== undefined && effectiveStatus === 'SCHEDULED') {
+      const issues = checkMediaCompatibility(mediaUrls, [existing.socialAccount.platform])
+      if (issues.length > 0) {
+        return NextResponse.json(
+          { error: issues.map(formatCompatibilityIssue).join(' ') },
+          { status: 422 }
+        )
+      }
     }
 
     // Approval requires a real reviewer, not just any member and not the post's own author
