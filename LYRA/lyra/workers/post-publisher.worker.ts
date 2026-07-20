@@ -60,6 +60,7 @@ const worker = new Worker(
     // same post), so just retry publish() below without re-claiming.
 
     const { platformPostId, zernioPostId } = await getProvider(post.socialAccount).publish(post.socialAccount, {
+      postId: post.id,
       content: post.content,
       mediaUrls: post.mediaUrls,
     })

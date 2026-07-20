@@ -18,6 +18,7 @@ export interface NormalizedReview {
 }
 
 export interface PublishInput {
+  postId: string
   content: string
   mediaUrls?: string[]
 }

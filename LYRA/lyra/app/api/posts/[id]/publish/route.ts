@@ -42,6 +42,7 @@ export async function POST(_req: Request, { params }: RouteContext) {
     }
 
     const { platformPostId, zernioPostId } = await getProvider(post.socialAccount).publish(post.socialAccount, {
+      postId: post.id,
       content: post.content,
       mediaUrls: post.mediaUrls,
     })

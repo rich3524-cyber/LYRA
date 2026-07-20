@@ -1,5 +1,5 @@
 import type { SocialAccount } from '@prisma/client'
-import { zernioClient } from '../zernio-client'
+import { zernioClient, ZernioApiError } from '../zernio-client'
 import { toNormalizedComment, toNormalizedReview } from './mappers'
 import { platformEnumToZernioSlug } from './platform-map'
 import type { NormalizedComment, PublishInput, SocialProvider } from './types'
@@ -22,17 +22,44 @@ function requireZernioId(account: SocialAccount): string {
 export const zernioProvider: SocialProvider = {
   async publish(account, input: PublishInput) {
     const zernioAccountId = requireZernioId(account)
-    const res = await zernioClient.publishNow(
-      zernioAccountId,
-      platformEnumToZernioSlug(account.platform),
-      input.content,
-      input.mediaUrls
-    )
+    let res
+    try {
+      res = await zernioClient.publishNow(
+        zernioAccountId,
+        platformEnumToZernioSlug(account.platform),
+        input.content,
+        input.mediaUrls,
+        input.postId
+      )
+    } catch (err) {
+      // Zernio's content-hash dedup (409, independent of the x-request-id header
+      // above) means this exact content already published successfully to this
+      // account within the last 24h -- confirmed live 2026-07-21 against a real
+      // incident where a BullMQ retry (after the *first* attempt's response was
+      // lost to a client-side timeout, not a real failure) hit this and got
+      // marked FAILED even though the content had genuinely gone out on attempt
+      // one. Zernio's own docs say the 409 body's existingPostId identifies the
+      // real post, so use it instead of losing a successful publish behind a
+      // false failure.
+      if (err instanceof ZernioApiError && err.status === 409) {
+        const existingPostId = (err.body as { existingPostId?: string } | undefined)?.existingPostId
+        if (existingPostId) {
+          return { platformPostId: existingPostId, zernioPostId: existingPostId }
+        }
+      }
+      throw err
+    }
+    // A retry that lands within Zernio's x-request-id window returns the original
+    // post under `existingPost` instead of `post` -- same shape either way.
+    const post = res.post ?? res.existingPost
+    if (!post) {
+      throw new Error(`Zernio publish returned neither post nor existingPost for account ${zernioAccountId}`)
+    }
     // Safe because publishNow always sends exactly one platform entry, so platforms[0]
     // is the intended target even on an accountId-echo mismatch. Would need revisiting
     // if a future change starts publishing multiple platforms in one call.
     const target =
-      res.post.platforms.find((p) => p.accountId === zernioAccountId) ?? res.post.platforms[0]
+      post.platforms.find((p) => p.accountId === zernioAccountId) ?? post.platforms[0]
     if (!target) {
       throw new Error(`Zernio publish returned no platform result for account ${zernioAccountId}`)
     }
@@ -53,7 +80,7 @@ export const zernioProvider: SocialProvider = {
         `Zernio publish returned status "${target.status}" with no post identifier for account ${zernioAccountId}`
       )
     }
-    return { platformPostId, zernioPostId: res.post.id }
+    return { platformPostId, zernioPostId: post.id }
   },
 
   async fetchRecentComments(account) {
