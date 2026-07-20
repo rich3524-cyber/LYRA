@@ -14,7 +14,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { Sparkles, CalendarIcon, Send, Zap, BarChart2, Pencil, ImagePlus, Loader2 } from 'lucide-react'
+import { Sparkles, CalendarIcon, Send, Zap, BarChart2, Pencil, ImagePlus, Loader2, X } from 'lucide-react'
 import { PlatformSelector } from './platform-selector'
 import { MediaUploader } from './media-uploader'
 import { ContentScorePanel } from './content-score-panel'
@@ -73,6 +73,10 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
       setIsDropUploading(false)
     }
   }, [workspaceId])
+
+  const removeMedia = useCallback((index: number) => {
+    setMediaUrls((prev) => prev.filter((_, i) => i !== index))
+  }, [])
 
   const { getRootProps, isDragActive } = useDropzone({
     onDrop: onDropFiles,
@@ -244,15 +248,24 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
         <div className="px-5 pb-4">
           <div className="flex gap-2 flex-wrap">
             {mediaUrls.map((url, i) => (
-              <Image
-                key={i}
-                src={url}
-                alt=""
-                width={64}
-                height={64}
-                unoptimized
-                className="h-16 w-16 object-cover rounded-md border border-background-border"
-              />
+              <div key={i} className="relative group">
+                <Image
+                  src={url}
+                  alt=""
+                  width={64}
+                  height={64}
+                  unoptimized
+                  className="h-16 w-16 object-cover rounded-md border border-background-border"
+                />
+                <button
+                  type="button"
+                  onClick={() => removeMedia(i)}
+                  aria-label="Remove media"
+                  className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-background-tertiary border border-background-border-mid flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X size={8} strokeWidth={2} className="text-text-secondary" />
+                </button>
+              </div>
             ))}
           </div>
           {mediaCompatibilityIssues.length > 0 && (
