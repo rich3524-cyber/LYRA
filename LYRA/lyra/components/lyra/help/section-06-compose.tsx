@@ -84,9 +84,18 @@ export function ComposeSection() {
           <li><Strong>Video:</Strong> MP4, MOV, AVI — up to 512 MB, length limits vary by platform</li>
         </ul>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          After uploading, LYRA checks the media against platform-specific requirements and flags
-          any issues (e.g. &ldquo;Instagram requires a minimum width of 320px&rdquo;). Click the warning to
-          see what needs to change.
+          As soon as media is attached and a platform is selected, LYRA checks the file against
+          that platform&apos;s known format restrictions and shows a warning immediately in the
+          composer — you do not need to schedule or submit the post to find out. For example,
+          Instagram and Threads only accept JPEG and PNG images; a GIF or WebP attached to a post
+          targeting either platform is flagged right away, with a clear note that it will fail to
+          publish there if left unchanged. The same check also runs again on the server when you
+          schedule, as a backstop.
+        </p>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
+          To remove an attached file, hover over its thumbnail and click the <Strong>×</Strong>
+          button in the corner. This is the only way to remove a wrongly-attached file — you do
+          not need to close and restart the composer.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
           For Instagram carousel posts, drag the uploaded images to reorder them before scheduling.

@@ -185,6 +185,48 @@ export function SocialConnectionsSection() {
         </Note>
       </Subsection>
 
+      <Subsection title="Troubleshooting: Facebook says no Page was found">
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          Occasionally a Facebook connection attempt will fail with a message saying no Facebook
+          Page could be found, even though you are an admin of the Page and the consent screen
+          appeared to complete normally. This happens because Facebook&apos;s permissions popup
+          has two separate steps — seeing the Page listed and summarised is not the same as the
+          Page actually being toggled on for access, and on newer Pages (the ones with a
+          <Strong> facebook.com/profile.php?id=... </Strong>
+          URL) the per-Page toggle can silently fail to activate even though the summary shows
+          it as checked.
+        </p>
+        <Steps>
+          <Step n={1}>
+            Remove the existing grant first, to clear any half-applied permission state: on
+            Facebook, go to <Strong>Settings & Privacy → Settings → Business Integrations</Strong>,
+            find LYRA&apos;s connector app, and remove it.
+          </Step>
+          <Step n={2}>
+            In LYRA, click <Strong>Connect</Strong> (or <Strong>Reconnect</Strong>) for Facebook
+            again to start a fresh consent flow.
+          </Step>
+          <Step n={3}>
+            On the Meta permissions screen, do not just accept the summary — click
+            <Strong> Edit settings</Strong> (sometimes labelled <Strong>Edit access</Strong>) and
+            explicitly toggle the Page you want to connect <Strong>ON</Strong>. If you manage
+            more than one Page, select all the ones you want available (or choose &ldquo;all
+            current and future Pages&rdquo; if offered) before continuing.
+          </Step>
+          <Step n={4}>
+            Confirm you are completing this as the personal Facebook profile that actually
+            administers the Page, not just viewing it through Meta Business Suite — the Page
+            lookup resolves against the logged-in profile.
+          </Step>
+        </Steps>
+        <Note>
+          This is the fix for the specific &ldquo;no Facebook Page found&rdquo; error. It is
+          unrelated to Business Settings → Integrations, which can correctly show no listed
+          integrations even on a working connection — that screen is not a useful diagnostic
+          for this issue.
+        </Note>
+      </Subsection>
+
       <Subsection title="Client onboarding links">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
           On Pro and Agency plans, you can let clients connect their own social accounts without
