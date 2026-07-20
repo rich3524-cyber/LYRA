@@ -27,7 +27,7 @@ export async function validateKlaviyoKey(apiKey: string): Promise<string> {
 export async function fetchKlaviyoCampaigns(apiKey: string): Promise<EmailCampaignData[]> {
   const url =
     `https://a.klaviyo.com/api/campaigns/?filter=equals(messages.channel,'email')` +
-    `&fields[campaign]=name,status,scheduled_at`
+    `&fields[campaign]=name,status,send_time`
 
   const res = await safeFetch(url, {
     headers: {
@@ -41,18 +41,23 @@ export async function fetchKlaviyoCampaigns(apiKey: string): Promise<EmailCampai
   const json = await res.json() as {
     data?: Array<{
       id: string
-      attributes: { name: string; status: string; scheduled_at?: string | null }
+      attributes: { name: string; status: string; send_time?: string | null }
     }>
   }
 
+  // send_time is the actual calculated send datetime -- confirmed live 2026-07-20
+  // by comparing against a real campaign. scheduled_at is a decoy: it's the
+  // timestamp the campaign was *scheduled at* (an audit field), not when it will
+  // send, and using it put campaigns on the calendar a full day off whenever the
+  // scheduling action and the send time crossed a UTC-to-local day boundary.
   return (json.data ?? [])
     .filter((c) => ['Draft', 'Scheduled'].includes(c.attributes.status))
     .map((c) => ({
       externalId: c.id,
       name: c.attributes.name,
       subject: null,
-      scheduledAt: c.attributes.scheduled_at
-        ? new Date(c.attributes.scheduled_at)
+      scheduledAt: c.attributes.send_time
+        ? new Date(c.attributes.send_time)
         : null,
       status: c.attributes.status.toUpperCase(),
       previewUrl: null,
