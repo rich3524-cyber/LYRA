@@ -49,12 +49,22 @@ async function findZernioAccount(opts: { zernioAccountId?: string; profileId?: s
   return undefined
 }
 
+// Zernio-side error codes we recognize and want to surface specifically (see
+// CONNECT_ERRORS in the settings page) rather than the generic
+// zernio_connect_failed message. Confirmed live 2026-07-20: Zernio's redirect
+// on a Facebook connect failure includes `error=no_facebook_pages` -- our own
+// callback was previously only checking for `connected` and silently
+// discarding this, which is why Facebook connect failures always showed a
+// generic "try again" with no indication of what was actually wrong.
+const KNOWN_ZERNIO_ERRORS = new Set(['no_facebook_pages'])
+
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const workspaceId = searchParams.get('workspaceId')
   const connectedSlug = searchParams.get('connected')
   const zernioAccountId = searchParams.get('accountId')
   const username = searchParams.get('username') ?? ''
+  const zernioError = searchParams.get('error')
 
   if (!workspaceId) {
     return NextResponse.redirect(`${BASE_URL}?error=oauth_failed`)
@@ -75,17 +85,15 @@ export async function GET(req: Request) {
     }
 
     if (!connectedSlug) {
-      // User cancelled on Zernio's hosted page, or the flow didn't complete.
-      // TEMP (2026-07-20): Facebook->LYRA is the one connect path that's never
-      // been confirmed working (see the Meta Business Portfolio note in
-      // LYRA-Handover.md) and just failed here again, still with no error code
-      // from Zernio's side -- log the full raw query string this once to see
-      // what Zernio actually sent back instead of guessing. Remove once this
-      // is diagnosed.
+      // User cancelled on Zernio's hosted page, the flow didn't complete, or
+      // Zernio reported a specific reason via its own `error` param.
       console.error(
-        `Zernio callback: missing connected param for workspace ${workspaceId} -- raw query: ${searchParams.toString()}`
+        `Zernio callback: connect failed for workspace ${workspaceId} -- raw query: ${searchParams.toString()}`
       )
-      return NextResponse.redirect(`${BASE_URL}/workspace/${workspaceId}/settings?error=zernio_connect_failed`)
+      const errorCode = zernioError && KNOWN_ZERNIO_ERRORS.has(zernioError)
+        ? `zernio_${zernioError}`
+        : 'zernio_connect_failed'
+      return NextResponse.redirect(`${BASE_URL}/workspace/${workspaceId}/settings?error=${errorCode}`)
     }
 
     // Verify the accountId in the query string actually belongs to THIS workspace's

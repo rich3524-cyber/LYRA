@@ -122,6 +122,8 @@ export default async function SettingsPage({ params, searchParams }: Props) {
       'No LinkedIn company pages found. You must be an admin of at least one LinkedIn Page to connect. LYRA connects company pages, not personal profiles.',
     oauth_failed: 'The connection could not be completed. Try again.',
     zernio_connect_failed: 'The connection could not be completed via Zernio. Try again.',
+    zernio_no_facebook_pages:
+      "No Facebook Pages found for this account. A Business Portfolio alone isn't enough — you need to be an admin of an actual Facebook Page inside it. Check Meta Business Suite → Business Settings → Pages and confirm a Page exists there with your account as admin, then try connecting again.",
   }
   const connectErrorMessage = error
     ? CONNECT_ERRORS[error] ?? 'The connection could not be completed. Try again.'
