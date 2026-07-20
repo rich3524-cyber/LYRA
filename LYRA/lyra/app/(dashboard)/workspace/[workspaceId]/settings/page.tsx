@@ -123,7 +123,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
     oauth_failed: 'The connection could not be completed. Try again.',
     zernio_connect_failed: 'The connection could not be completed via Zernio. Try again.',
     zernio_no_facebook_pages:
-      "Zernio couldn't find a Facebook Page to connect. If you have full admin access to the Page and it's in the right Business Portfolio, this usually means the connecting app itself was never authorized at the Meta Business level — check Business Settings → Integrations for the Business Portfolio and confirm \"Social Media Connector\" is listed there. If it's missing despite a successful-looking consent flow, that's a Meta/Zernio-side registration issue — contact Zernio support rather than retrying.",
+      "Zernio couldn't find a Facebook Page to connect, even though you selected the Page and granted access on Facebook's own consent screen. This is confirmed to be an issue on Zernio's side, not something fixable from LYRA or your Facebook settings — contact Zernio support and reference error code \"no_facebook_pages\" on a connection where the Page was explicitly granted during consent.",
   }
   const connectErrorMessage = error
     ? CONNECT_ERRORS[error] ?? 'The connection could not be completed. Try again.'
