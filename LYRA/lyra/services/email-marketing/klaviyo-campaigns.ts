@@ -27,7 +27,7 @@ export async function validateKlaviyoKey(apiKey: string): Promise<string> {
 export async function fetchKlaviyoCampaigns(apiKey: string): Promise<EmailCampaignData[]> {
   const url =
     `https://a.klaviyo.com/api/campaigns/?filter=equals(messages.channel,'email')` +
-    `&fields[campaign]=name,status,scheduled_send_time`
+    `&fields[campaign]=name,status,scheduled_at`
 
   const res = await safeFetch(url, {
     headers: {
@@ -41,7 +41,7 @@ export async function fetchKlaviyoCampaigns(apiKey: string): Promise<EmailCampai
   const json = await res.json() as {
     data?: Array<{
       id: string
-      attributes: { name: string; status: string; scheduled_send_time?: string | null }
+      attributes: { name: string; status: string; scheduled_at?: string | null }
     }>
   }
 
@@ -51,8 +51,8 @@ export async function fetchKlaviyoCampaigns(apiKey: string): Promise<EmailCampai
       externalId: c.id,
       name: c.attributes.name,
       subject: null,
-      scheduledAt: c.attributes.scheduled_send_time
-        ? new Date(c.attributes.scheduled_send_time)
+      scheduledAt: c.attributes.scheduled_at
+        ? new Date(c.attributes.scheduled_at)
         : null,
       status: c.attributes.status.toUpperCase(),
       previewUrl: null,
