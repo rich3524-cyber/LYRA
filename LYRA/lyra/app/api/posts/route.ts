@@ -9,13 +9,14 @@ import { checkMediaCompatibility, formatCompatibilityIssue } from '@/services/so
 export const dynamic = 'force-dynamic'
 
 const createPostSchema = z.object({
-  workspaceId: z.string().min(1),
-  content:     z.string().min(1),
-  platforms:   z.array(z.nativeEnum(Platform)).min(1),
-  scheduledAt: z.string().nullish(),
-  mediaUrls:   z.array(z.string()).optional(),
-  status:      z.nativeEnum(PostStatus).optional(),
-  topic:       z.string().nullish(),
+  workspaceId:   z.string().min(1),
+  content:       z.string().min(1),
+  platforms:     z.array(z.nativeEnum(Platform)).min(1),
+  scheduledAt:   z.string().nullish(),
+  mediaUrls:     z.array(z.string()).optional(),
+  status:        z.nativeEnum(PostStatus).optional(),
+  topic:         z.string().nullish(),
+  requiresMedia: z.boolean().optional(),
 })
 
 
@@ -90,7 +91,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const user = await requireAuth()
-    const { workspaceId, content, platforms, scheduledAt, mediaUrls, status, topic } = await parseBody(req, createPostSchema)
+    const { workspaceId, content, platforms, scheduledAt, mediaUrls, status, topic, requiresMedia } = await parseBody(req, createPostSchema)
 
     const ALLOWED_CREATE_STATUSES: PostStatus[] = ['DRAFT', 'SCHEDULED']
     const resolvedStatus: PostStatus = status && ALLOWED_CREATE_STATUSES.includes(status)
@@ -106,6 +107,12 @@ export async function POST(req: Request) {
       if (issues.length > 0) {
         return NextResponse.json(
           { error: issues.map(formatCompatibilityIssue).join(' ') },
+          { status: 422 }
+        )
+      }
+      if (requiresMedia && (mediaUrls ?? []).length === 0) {
+        return NextResponse.json(
+          { error: 'This post is awaiting media. Attach an image or video before scheduling.' },
           { status: 422 }
         )
       }
@@ -145,6 +152,7 @@ export async function POST(req: Request) {
             status: resolvedStatus,
             scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
             topic: topic ?? null,
+            requiresMedia: requiresMedia ?? false,
           },
         })
       )
