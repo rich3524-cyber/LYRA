@@ -1,2 +1,3 @@
 [build]
+  base = "LYRA/lyra"
   command = "rm -rf .next && npx prisma generate && npm run build"
