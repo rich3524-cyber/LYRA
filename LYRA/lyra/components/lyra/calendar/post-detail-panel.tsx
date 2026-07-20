@@ -29,44 +29,53 @@ function getNextStatuses(
   status: string,
   userRole: string,
   clientAccessLevel: string,
+  isAwaitingMedia: boolean,
 ): { value: string; label: string; variant?: 'approve' | 'reject' }[] {
   const isClientApprover = userRole === 'CLIENT_APPROVE'
   const hasApprovalFlow  = clientAccessLevel === 'APPROVE'
 
-  if (isClientApprover) {
-    if (status === 'PENDING_APPROVAL') {
-      return [
-        { value: 'APPROVED', label: 'Approve',           variant: 'approve' },
-        { value: 'DRAFT',    label: 'Request changes',   variant: 'reject'  },
-      ]
-    }
-    return []
-  }
-
-  switch (status) {
-    case 'DRAFT':
-      return [
-        ...(hasApprovalFlow ? [{ value: 'PENDING_APPROVAL', label: 'Submit for approval' }] : []),
-        { value: 'SCHEDULED', label: 'Mark as scheduled' },
-      ]
-    case 'PENDING_APPROVAL':
-      return [{ value: 'DRAFT', label: 'Recall for editing' }]
-    case 'APPROVED':
-      return [
-        { value: 'SCHEDULED', label: 'Schedule post' },
-        { value: 'DRAFT',     label: 'Move back to draft' },
-      ]
-    case 'SCHEDULED':
-      return [
-        { value: 'DRAFT',     label: 'Move back to draft' },
-        { value: 'CANCELLED', label: 'Cancel post' },
-      ]
-    case 'FAILED':
-    case 'CANCELLED':
-      return [{ value: 'DRAFT', label: 'Move back to draft' }]
-    default:
+  const options = (() => {
+    if (isClientApprover) {
+      if (status === 'PENDING_APPROVAL') {
+        return [
+          { value: 'APPROVED', label: 'Approve',         variant: 'approve' as const },
+          { value: 'DRAFT',    label: 'Request changes', variant: 'reject'  as const },
+        ]
+      }
       return []
-  }
+    }
+
+    switch (status) {
+      case 'DRAFT':
+        return [
+          ...(hasApprovalFlow ? [{ value: 'PENDING_APPROVAL', label: 'Submit for approval' }] : []),
+          { value: 'SCHEDULED', label: 'Mark as scheduled' },
+        ]
+      case 'PENDING_APPROVAL':
+        return [{ value: 'DRAFT', label: 'Recall for editing' }]
+      case 'APPROVED':
+        return [
+          { value: 'SCHEDULED', label: 'Schedule post' },
+          { value: 'DRAFT',     label: 'Move back to draft' },
+        ]
+      case 'SCHEDULED':
+        return [
+          { value: 'DRAFT',     label: 'Move back to draft' },
+          { value: 'CANCELLED', label: 'Cancel post' },
+        ]
+      case 'FAILED':
+      case 'CANCELLED':
+        return [{ value: 'DRAFT', label: 'Move back to draft' }]
+      default:
+        return []
+    }
+  })()
+
+  // Schedule Generator posts without media can still move through approval --
+  // only the transition into SCHEDULED (what the publish worker queues on) is
+  // blocked, per the design decision to keep "not sent to publication" accurate
+  // without blocking the approval conversation.
+  return isAwaitingMedia ? options.filter((o) => o.value !== 'SCHEDULED') : options
 }
 
 const BUDGET_OPTIONS = [1000, 2500, 5000, 10000] // cents
@@ -212,9 +221,10 @@ export function PostDetailPanel({ post, workspaceId, plan, userRole, clientAcces
     }
   }
 
-  const date          = post?.scheduledAt
-  const platformColor = post ? (PLATFORM_COLORS[post.socialAccount.platform] ?? PLATFORM_COLORS['TWITTER']) : PLATFORM_COLORS['TWITTER']
-  const nextStatuses  = post ? getNextStatuses(post.status, userRole, clientAccessLevel) : []
+  const date           = post?.scheduledAt
+  const platformColor  = post ? (PLATFORM_COLORS[post.socialAccount.platform] ?? PLATFORM_COLORS['TWITTER']) : PLATFORM_COLORS['TWITTER']
+  const isAwaitingMedia = post ? post.requiresMedia && post.mediaUrls.length === 0 : false
+  const nextStatuses   = post ? getNextStatuses(post.status, userRole, clientAccessLevel, isAwaitingMedia) : []
 
   const canBoost = post &&
     post.status === 'PUBLISHED' &&
@@ -288,10 +298,12 @@ export function PostDetailPanel({ post, workspaceId, plan, userRole, clientAcces
                 <span
                   className={cn(
                     'font-sans text-xs px-2 py-0.5 rounded-md font-medium',
-                    STATUS_COLORS[post.status] ?? 'bg-background-hover text-text-tertiary'
+                    isAwaitingMedia && post.status === 'DRAFT'
+                      ? 'bg-status-warning/20 text-status-warning'
+                      : STATUS_COLORS[post.status] ?? 'bg-background-hover text-text-tertiary'
                   )}
                 >
-                  {STATUS_LABEL[post.status] ?? post.status}
+                  {isAwaitingMedia && post.status === 'DRAFT' ? 'Awaiting media' : (STATUS_LABEL[post.status] ?? post.status)}
                 </span>
                 {post.aiGenerated && (
                   <span className="font-sans text-[10px] text-text-tertiary px-2 py-0.5 rounded-md bg-background-hover border border-background-border uppercase tracking-wide">
@@ -332,6 +344,12 @@ export function PostDetailPanel({ post, workspaceId, plan, userRole, clientAcces
               {post.mediaUrls.length > 0 && (
                 <p className="font-sans text-xs text-text-tertiary">
                   {post.mediaUrls.length} media {post.mediaUrls.length === 1 ? 'file' : 'files'} attached
+                </p>
+              )}
+
+              {isAwaitingMedia && (
+                <p className="font-sans text-xs text-status-warning leading-relaxed">
+                  This post was generated by the AI Schedule Generator without artwork and can&apos;t be scheduled until media is attached.
                 </p>
               )}
 
