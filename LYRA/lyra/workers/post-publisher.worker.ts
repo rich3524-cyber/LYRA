@@ -63,10 +63,32 @@ const worker = new Worker(
       content: post.content,
       mediaUrls: post.mediaUrls,
     })
-    await prisma.post.update({
-      where: { id: postId },
-      data:  { status: 'PUBLISHED', publishedAt: new Date(), platformPostId, zernioPostId, failureReason: null },
-    })
+
+    // The platform publish already happened and cannot be undone -- from here
+    // on, nothing is allowed to throw, because an uncaught error would make
+    // BullMQ retry this job, and a retry falls straight through to calling
+    // publish() again above (status is still PUBLISHING, not SCHEDULED). That
+    // is a real incident that happened in production: an MP4 published to
+    // Instagram successfully, a transient DB error on this exact update threw,
+    // BullMQ retried, and the retry hit Instagram again -- Zernio correctly
+    // rejected the duplicate with a 409, which then surfaced as a confusing
+    // "Failed" post in the Calendar for content that had actually gone out
+    // fine. A few inline attempts (not BullMQ-level retries, so publish() is
+    // never called again) cover ordinary transient DB blips; if all of them
+    // fail the post is left at PUBLISHING rather than the correct PUBLISHED --
+    // stale-but-safe is the only acceptable failure mode here.
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        await prisma.post.update({
+          where: { id: postId },
+          data:  { status: 'PUBLISHED', publishedAt: new Date(), platformPostId, zernioPostId, failureReason: null },
+        })
+        break
+      } catch (err) {
+        console.error(`Post ${postId} published to the platform but recording PUBLISHED failed (attempt ${attempt}/3):`, err)
+        if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 1000 * attempt))
+      }
+    }
   },
   { connection: redis, concurrency: 5 }
 )
