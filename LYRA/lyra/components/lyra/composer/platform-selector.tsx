@@ -9,6 +9,7 @@ const PLATFORMS = [
   { id: 'TIKTOK',          label: 'TikTok' },
   { id: 'TWITTER',         label: 'X' },
   { id: 'GOOGLE_BUSINESS', label: 'Google' },
+  { id: 'YOUTUBE',         label: 'YouTube' },
 ] as const
 
 interface PlatformSelectorProps {
