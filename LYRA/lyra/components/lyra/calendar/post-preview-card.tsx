@@ -27,6 +27,7 @@ export interface CalendarPost {
   mediaUrls: string[]
   aiGenerated: boolean
   failureReason: string | null
+  requiresMedia: boolean
   socialAccount: { platform: string; name: string; platformId: string; adAccountId: string | null }
   boost: PostBoost | null
 }
@@ -82,7 +83,8 @@ export const PostPreviewCard = memo(function PostPreviewCard({ post, onSelect }:
     ? { transform: CSS.Translate.toString(transform) }
     : undefined
 
-  const platformColor = PLATFORM_COLORS[post.socialAccount.platform] ?? PLATFORM_COLORS['TWITTER']
+  const platformColor  = PLATFORM_COLORS[post.socialAccount.platform] ?? PLATFORM_COLORS['TWITTER']
+  const isAwaitingMedia = post.status === 'DRAFT' && post.requiresMedia && post.mediaUrls.length === 0
 
   return (
     <div
@@ -126,11 +128,13 @@ export const PostPreviewCard = memo(function PostPreviewCard({ post, onSelect }:
           <span
             className={cn(
               'font-sans text-[10px] uppercase tracking-wide px-1 rounded-full',
-              STATUS_COLORS[post.status] ?? 'bg-background-border text-text-tertiary'
+              isAwaitingMedia
+                ? 'bg-status-warning/20 text-status-warning'
+                : STATUS_COLORS[post.status] ?? 'bg-background-border text-text-tertiary'
             )}
             title={post.status === 'FAILED' && post.failureReason ? post.failureReason : undefined}
           >
-            {post.status.toLowerCase().replace(/_/g, ' ')}
+            {isAwaitingMedia ? 'awaiting media' : post.status.toLowerCase().replace(/_/g, ' ')}
           </span>
         </div>
         <p className="font-sans text-[12px] text-text-secondary leading-tight line-clamp-2">
