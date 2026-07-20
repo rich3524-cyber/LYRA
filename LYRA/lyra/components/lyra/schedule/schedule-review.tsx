@@ -6,11 +6,12 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import {
   Calendar, Pencil, Trash2, Check, X,
-  Loader2, Paperclip, Video,
+  Loader2, Paperclip, Video, Download,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { format, parseISO } from 'date-fns'
 import type { GeneratedPost } from '@/services/ai/schedule-generator'
+import { buildCaptionsCsv } from '@/services/schedule/captions-csv'
 
 type PostEntry = GeneratedPost & {
   id: string
@@ -128,6 +129,34 @@ export function ScheduleReview({ workspaceId, workspaceName }: Props) {
     ))
   }
 
+  function handleExportCsv() {
+    const rows = posts
+      .filter((p) => p.mediaUrls.length === 0)
+      .map((p) => ({
+        date:     format(parseISO(p.scheduledAt), 'yyyy-MM-dd'),
+        time:     format(parseISO(p.scheduledAt), 'HH:mm'),
+        platform: PLATFORM_LABELS[p.platform] ?? p.platform,
+        topic:    p.topic,
+        caption:  p.content,
+      }))
+
+    if (rows.length === 0) {
+      toast.error('No posts without media to export.')
+      return
+    }
+
+    const csv  = buildCaptionsCsv(rows)
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href     = url
+    a.download = `lyra-captions-${workspaceName.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-${format(new Date(), 'yyyy-MM-dd')}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   async function handleAddToCalendar() {
     setIsSaving(true)
     const BATCH_SIZE  = 10
@@ -144,12 +173,13 @@ export function ScheduleReview({ workspaceId, workspaceName }: Props) {
               headers: { 'Content-Type': 'application/json' },
               body:    JSON.stringify({
                 workspaceId,
-                content:     post.content,
-                platforms:   [post.platform],
-                scheduledAt: post.scheduledAt,
-                mediaUrls:   post.mediaUrls,
-                status:      'DRAFT',
-                topic:       post.topic ?? null,
+                content:       post.content,
+                platforms:     [post.platform],
+                scheduledAt:   post.scheduledAt,
+                mediaUrls:     post.mediaUrls,
+                status:        'DRAFT',
+                topic:         post.topic ?? null,
+                requiresMedia: post.mediaUrls.length === 0,
               }),
             })
             return { id: post.id, ok: res.ok }
@@ -200,6 +230,14 @@ export function ScheduleReview({ workspaceId, workspaceName }: Props) {
         </div>
         <div className="flex items-center gap-3">
           <span className="font-mono text-xs text-text-tertiary">{posts.length} posts</span>
+          <button
+            onClick={handleExportCsv}
+            disabled={posts.length === 0}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-background-border text-text-secondary hover:text-text-primary hover:border-background-border-mid font-sans text-xs font-medium transition-colors disabled:opacity-50"
+          >
+            <Download size={12} strokeWidth={1.5} />
+            Export captions (CSV)
+          </button>
           <button
             onClick={handleAddToCalendar}
             disabled={isSaving || posts.length === 0}
