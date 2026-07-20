@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 // script-src/frame-src allow GTM, Meta Pixel, and Stripe.js -- all loaded via inline
 // snippets in app/layout.tsx, hence 'unsafe-inline' (no nonce plumbing exists yet).
@@ -21,6 +22,15 @@ const CSP = [
 ].join('; ')
 
 const nextConfig: NextConfig = {
+  // Stray package-lock.json files elsewhere in this OneDrive folder (at the
+  // Windows user profile root and the git root above this project) made
+  // Turbopack guess the workspace root two levels too high, which produced a
+  // broken Windows-path string embedded in the deployed serverless function
+  // bundle (a real production outage on 2026-07-20 -- ERR_MODULE_NOT_FOUND
+  // crashing every request). Pinning the root explicitly removes the guess.
+  turbopack: {
+    root: __dirname,
+  },
   images: {
     // Composer/schedule-review media thumbnails are next/image now instead of raw
     // <img> -- their src is always our own upload bucket (media/{workspaceId}/...),
