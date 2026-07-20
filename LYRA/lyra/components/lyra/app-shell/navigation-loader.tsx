@@ -28,7 +28,13 @@ export function NavigationLoader() {
       const link = (e.target as HTMLElement).closest('a[href]')
       if (!link) return
       const href = link.getAttribute('href')
-      if (!href || href.startsWith('#') || href.startsWith('http') || href.startsWith('mailto:') || href.startsWith('tel:')) return
+      // blob:/data: hrefs are never SPA navigation -- they're client-generated file
+      // downloads (temporary <a> elements created by CSV/PDF export buttons, e.g.
+      // schedule-review.tsx and pdf-download-button.tsx). Without this exclusion,
+      // clicking one of those trips this same listener, which waits for `pathname`
+      // to change to hide the overlay -- a change that never comes for a download,
+      // so the full-screen spinner gets stuck showing until the page is reloaded.
+      if (!href || href.startsWith('#') || href.startsWith('http') || href.startsWith('mailto:') || href.startsWith('tel:') || href.startsWith('blob:') || href.startsWith('data:')) return
       const targetPath = href.split('?')[0]
       if (targetPath === window.location.pathname) return
 
