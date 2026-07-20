@@ -67,6 +67,7 @@ export async function GET(req: Request) {
         mediaUrls: true,
         aiGenerated: true,
         failureReason: true,
+        requiresMedia: true,
         createdAt: true,
         socialAccount: { select: { platform: true, name: true, platformId: true, adAccountId: true } },
         boost: true,

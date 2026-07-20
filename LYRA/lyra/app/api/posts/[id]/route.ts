@@ -33,7 +33,11 @@ export async function PATCH(
         id,
         workspace: { access: { some: { userId: user.id } } },
       },
-      select: { id: true, status: true, workspaceId: true, authorId: true, socialAccount: { select: { platform: true } } },
+      select: {
+        id: true, status: true, workspaceId: true, authorId: true,
+        mediaUrls: true, requiresMedia: true,
+        socialAccount: { select: { platform: true } },
+      },
     })
 
     if (!existing) {
@@ -49,6 +53,16 @@ export async function PATCH(
       if (issues.length > 0) {
         return NextResponse.json(
           { error: issues.map(formatCompatibilityIssue).join(' ') },
+          { status: 422 }
+        )
+      }
+    }
+
+    if (effectiveStatus === 'SCHEDULED' && existing.requiresMedia) {
+      const effectiveMediaUrls = mediaUrls ?? existing.mediaUrls
+      if (effectiveMediaUrls.length === 0) {
+        return NextResponse.json(
+          { error: 'This post is awaiting media. Attach an image or video before scheduling.' },
           { status: 422 }
         )
       }
