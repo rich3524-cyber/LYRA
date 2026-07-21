@@ -70,11 +70,25 @@ export async function GET(req: Request) {
     // the correct local date instead of the UTC date.
     const localFmt = (d: Date) => format(new Date(d.getTime() + offsetMs), 'MMM d')
 
-    const days = eachDayOfInterval({ start: since, end: new Date() })
+    // The day-list boundaries must be shifted by the same offset as individual
+    // posts below, or the axis never generates a bucket for "today" during the
+    // ~10h/day window (for a UTC+10 timezone like Brisbane) where it's already
+    // tomorrow locally but still today in UTC -- confirmed live 2026-07-22: a
+    // post correctly computed a "Jul 22" bucket key, but dailyMap never had
+    // that key at all (end: new Date() was still "Jul 21" in UTC), so the
+    // entry silently failed the `if (entry)` check and the post's engagement
+    // never appeared on the chart, even though the summary stat cards (which
+    // sum directly over posts, not through dailyMap) updated correctly.
+    const days = eachDayOfInterval({
+      start: new Date(since.getTime() + offsetMs),
+      end:   new Date(Date.now() + offsetMs),
+    })
     const dailyMap = new Map<string, { likes: number; comments: number; shares: number; reach: number; views: number }>()
 
     for (const day of days) {
-      dailyMap.set(localFmt(day), { likes: 0, comments: 0, shares: 0, reach: 0, views: 0 })
+      // Not localFmt here -- `day` is already shifted (the interval boundaries
+      // above were pre-shifted), so applying the offset again would double-shift it.
+      dailyMap.set(format(day, 'MMM d'), { likes: 0, comments: 0, shares: 0, reach: 0, views: 0 })
     }
 
     for (const post of posts) {
