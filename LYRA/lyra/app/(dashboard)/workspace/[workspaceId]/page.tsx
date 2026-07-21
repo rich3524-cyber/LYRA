@@ -33,7 +33,7 @@ const STATUS_COLOUR: Record<string, string> = {
 
 const PLATFORM_SHORT: Record<string, string> = {
   FACEBOOK: 'FB', INSTAGRAM: 'IG', LINKEDIN: 'LI',
-  TIKTOK: 'TT', TWITTER: 'X', GOOGLE_BUSINESS: 'GBP',
+  TIKTOK: 'TT', TWITTER: 'X', YOUTUBE: 'YT', GOOGLE_BUSINESS: 'GBP',
 }
 
 export default async function WorkspaceOverviewPage({ params }: Props) {
