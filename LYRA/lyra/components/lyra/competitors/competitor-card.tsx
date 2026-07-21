@@ -3,6 +3,22 @@
 import { memo } from 'react'
 import { Trash2, Globe, ExternalLink } from 'lucide-react'
 
+function formatPostDate(dateStr: string): string | null {
+  if (!dateStr) return null
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return null
+    const diff = Math.floor((Date.now() - d.getTime()) / (1000 * 60 * 60 * 24))
+    if (diff < 1)  return 'Today'
+    if (diff === 1) return 'Yesterday'
+    if (diff < 7)  return `${diff} days ago`
+    return d.toLocaleDateString('en-AU', {
+      day: 'numeric', month: 'short',
+      ...(diff > 365 ? { year: 'numeric' } : {}),
+    })
+  } catch { return null }
+}
+
 interface Snapshot {
   capturedAt: string
   postsPerWeek: number | null
@@ -109,18 +125,41 @@ export const CompetitorCard = memo(function CompetitorCard({
           )}
 
           {recentPosts.length > 0 && (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <p className="text-xs font-sans text-text-tertiary uppercase tracking-widest">Recent posts</p>
-              {recentPosts.slice(0, 3).map((post, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <p className="text-xs font-sans text-text-secondary flex-1 leading-relaxed">{post.excerpt}</p>
-                  {post.url && (
-                    <a href={post.url} target="_blank" rel="noopener noreferrer" className="text-text-tertiary hover:text-text-secondary shrink-0">
-                      <ExternalLink className="h-3 w-3" strokeWidth={1.5} />
-                    </a>
-                  )}
-                </div>
-              ))}
+              {recentPosts.slice(0, 3).map((post, i) => {
+                const dateLabel = formatPostDate(post.date)
+                const inner = (
+                  <>
+                    <p className="text-xs font-sans text-text-secondary leading-relaxed group-hover:text-text-primary transition-colors line-clamp-2">
+                      {post.excerpt}
+                    </p>
+                    <div className="flex items-center justify-between gap-2 mt-1">
+                      {dateLabel && (
+                        <span className="font-mono text-[11px] text-text-tertiary">{dateLabel}</span>
+                      )}
+                      {post.url && (
+                        <ExternalLink className="h-3 w-3 shrink-0 text-text-tertiary group-hover:text-text-secondary transition-colors ml-auto" strokeWidth={1.5} />
+                      )}
+                    </div>
+                  </>
+                )
+                return post.url ? (
+                  <a
+                    key={i}
+                    href={post.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group block rounded-lg bg-background-tertiary border border-background-border hover:border-background-border-mid p-2.5 transition-colors"
+                  >
+                    {inner}
+                  </a>
+                ) : (
+                  <div key={i} className="group rounded-lg bg-background-tertiary border border-background-border p-2.5">
+                    {inner}
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
