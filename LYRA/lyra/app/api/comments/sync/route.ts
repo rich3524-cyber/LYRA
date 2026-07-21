@@ -47,8 +47,20 @@ export async function POST(req: Request) {
           continue
         }
         if (normalized.length === 0) continue
+        // Mirror the webhook's self-comment filter: skip comments posted by the
+        // connected account itself (e.g. the Facebook Page commenting on its own
+        // post). The webhook has isOwner + handle matching; here we only have the
+        // account's name/handle to compare against.
+        const selfName   = account.name?.toLowerCase()
+        const selfHandle = account.handle?.toLowerCase()
+        const incoming   = normalized.filter(c => {
+          if (selfName   && c.authorName?.toLowerCase()   === selfName)   return false
+          if (selfHandle && c.authorHandle?.toLowerCase() === selfHandle) return false
+          return true
+        })
+        if (incoming.length === 0) continue
         const created = await prisma.comment.createManyAndReturn({
-          data: normalized.map((c) => ({
+          data: incoming.map((c) => ({
             workspaceId,
             socialAccountId:   account.id,
             platformCommentId: c.externalId,
