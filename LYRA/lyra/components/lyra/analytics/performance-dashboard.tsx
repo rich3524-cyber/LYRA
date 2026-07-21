@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
-import { TrendingUp, MessageSquare, BarChart2, Eye, Heart, Share2, CheckCheck } from 'lucide-react'
+import { TrendingUp, MessageSquare, BarChart2, Eye, Heart, Share2, CheckCheck, Play } from 'lucide-react'
 
 // recharts is a sizeable dependency that only this chart needs -- load it lazily
 // (client-only, no SSR) so the rest of the analytics dashboard's JS isn't blocked
@@ -14,6 +14,7 @@ const EngagementChart = dynamic(
 interface Summary {
   postsPublished:      number
   totalReach:          number
+  totalViews:          number
   totalLikes:          number
   totalComments:       number
   totalShares:         number
@@ -21,9 +22,9 @@ interface Summary {
   inboxPending:        number
 }
 
-interface DataPoint  { date: string; likes: number; comments: number; shares: number; reach: number }
+interface DataPoint  { date: string; likes: number; comments: number; shares: number; reach: number; views: number }
 interface PlatformStat { platform: string; count: number }
-interface TopPost    { id: string; content: string; platform: string; reach: number; likes: number; comments: number; publishedAt: string }
+interface TopPost    { id: string; content: string; platform: string; reach: number; views: number; likes: number; comments: number; publishedAt: string }
 
 interface AnalyticsData {
   summary:           Summary
@@ -116,15 +117,20 @@ export function PerformanceDashboard({ workspaceId }: { workspaceId: string }) {
 
       {/* KPI cards */}
       {loading ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="h-28 rounded-xl bg-background-secondary border border-background-border animate-pulse" />
           ))}
         </div>
       ) : data ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <StatCard icon={TrendingUp} label="Posts published"   value={data.summary.postsPublished} />
           <StatCard icon={Eye}        label="Total reach"       value={data.summary.totalReach} />
+          {/* Reach is often still 0 in the hours/first day after publish --
+              platforms report it more slowly than views. Shown alongside reach
+              (not instead of it) so real activity isn't hidden while reach
+              catches up. */}
+          <StatCard icon={Play}       label="Total views"       value={data.summary.totalViews} />
           <StatCard icon={Heart}      label="Total likes"       value={data.summary.totalLikes} />
           <StatCard icon={CheckCheck} label="Response rate"     value={`${data.summary.commentResponseRate}%`} sub={`${data.summary.inboxPending} pending`} />
         </div>
@@ -184,6 +190,7 @@ export function PerformanceDashboard({ workspaceId }: { workspaceId: string }) {
                     </span>
                     <div className="flex items-center gap-3 font-sans text-xs text-text-tertiary">
                       <span className="flex items-center gap-1"><Eye size={12} strokeWidth={1.5} />{post.reach.toLocaleString()}</span>
+                      <span className="flex items-center gap-1"><Play size={12} strokeWidth={1.5} />{post.views.toLocaleString()}</span>
                       <span className="flex items-center gap-1"><Heart size={12} strokeWidth={1.5} />{post.likes}</span>
                       <span className="flex items-center gap-1"><Share2 size={12} strokeWidth={1.5} />{post.comments}</span>
                     </div>

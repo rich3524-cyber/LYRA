@@ -46,7 +46,7 @@ export async function GET(req: Request) {
     })
 
     // Aggregate totals
-    let totalLikes = 0, totalComments = 0, totalShares = 0, totalReach = 0
+    let totalLikes = 0, totalComments = 0, totalShares = 0, totalReach = 0, totalViews = 0
 
     for (const post of posts) {
       if (post.metrics) {
@@ -54,15 +54,16 @@ export async function GET(req: Request) {
         totalComments += post.metrics.comments
         totalShares   += post.metrics.shares
         totalReach    += post.metrics.reach
+        totalViews    += post.metrics.views
       }
     }
 
     // Build daily series — one entry per day, sum metrics for posts published that day
     const days = eachDayOfInterval({ start: since, end: new Date() })
-    const dailyMap = new Map<string, { likes: number; comments: number; shares: number; reach: number }>()
+    const dailyMap = new Map<string, { likes: number; comments: number; shares: number; reach: number; views: number }>()
 
     for (const day of days) {
-      dailyMap.set(format(day, 'MMM d'), { likes: 0, comments: 0, shares: 0, reach: 0 })
+      dailyMap.set(format(day, 'MMM d'), { likes: 0, comments: 0, shares: 0, reach: 0, views: 0 })
     }
 
     for (const post of posts) {
@@ -74,6 +75,7 @@ export async function GET(req: Request) {
         entry.comments += post.metrics.comments
         entry.shares   += post.metrics.shares
         entry.reach    += post.metrics.reach
+        entry.views    += post.metrics.views
       }
     }
 
@@ -87,16 +89,23 @@ export async function GET(req: Request) {
     }
     const platformBreakdown = Array.from(platformMap.entries()).map(([platform, count]) => ({ platform, count }))
 
-    // Top posts by reach
+    // Top posts by reach, falling back to views as a tiebreaker -- reach is
+    // often still 0 in the hours/first day after publish (platforms report it
+    // more slowly than views/impressions), which otherwise left "top posts"
+    // arbitrarily ordered with every entry showing 0 despite real activity.
     const topPosts = posts
       .filter(p => p.metrics)
-      .sort((a, b) => (b.metrics?.reach ?? 0) - (a.metrics?.reach ?? 0))
+      .sort((a, b) => {
+        const reachDiff = (b.metrics?.reach ?? 0) - (a.metrics?.reach ?? 0)
+        return reachDiff !== 0 ? reachDiff : (b.metrics?.views ?? 0) - (a.metrics?.views ?? 0)
+      })
       .slice(0, 5)
       .map(p => ({
         id:        p.id,
         content:   p.content.slice(0, 120),
         platform:  p.socialAccount.platform,
         reach:     p.metrics?.reach ?? 0,
+        views:     p.metrics?.views ?? 0,
         likes:     p.metrics?.likes ?? 0,
         comments:  p.metrics?.comments ?? 0,
         publishedAt: p.publishedAt,
@@ -106,6 +115,7 @@ export async function GET(req: Request) {
       summary: {
         postsPublished: posts.length,
         totalReach,
+        totalViews,
         totalLikes,
         totalComments,
         totalShares,

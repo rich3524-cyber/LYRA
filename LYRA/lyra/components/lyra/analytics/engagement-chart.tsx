@@ -10,6 +10,7 @@ interface DataPoint {
   comments: number
   shares:   number
   reach:    number
+  views:    number
 }
 
 export function EngagementChart({ data }: { data: DataPoint[] }) {
@@ -53,6 +54,7 @@ export function EngagementChart({ data }: { data: DataPoint[] }) {
             wrapperStyle={{ fontSize: '11px', paddingTop: '12px', color: '#555' }}
           />
           <Line type="monotone" dataKey="reach"    stroke="#444"    strokeWidth={1.5} dot={false} name="Reach" />
+          <Line type="monotone" dataKey="views"    stroke="#a78bfa" strokeWidth={1.5} dot={false} name="Views" />
           <Line type="monotone" dataKey="likes"    stroke="#d8d8d8" strokeWidth={1.5} dot={false} name="Likes" />
           <Line type="monotone" dataKey="comments" stroke="#60a5fa" strokeWidth={1.5} dot={false} name="Comments" />
           <Line type="monotone" dataKey="shares"   stroke="#34d399" strokeWidth={1.5} dot={false} name="Shares" />

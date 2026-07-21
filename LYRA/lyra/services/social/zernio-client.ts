@@ -200,6 +200,12 @@ export const zernioClient = {
         shares?: number
         saves?: number
         clicks?: number
+        // Confirmed live 21 Jul 2026: Zernio's response includes `views` (often
+        // populated well before `reach`, e.g. LinkedIn/Instagram in the first
+        // hours after publish), but this field was never declared here, so it
+        // was silently dropped even though the HTTP response actually carried
+        // it -- real engagement data that never made it into LYRA at all.
+        views?: number
       }
     }>('GET', `/analytics?postId=${encodeURIComponent(postId)}`),
 
