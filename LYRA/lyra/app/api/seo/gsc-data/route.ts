@@ -24,9 +24,11 @@ export async function GET(req: Request) {
     })
     if (!conn) return NextResponse.json({ error: 'GSC not connected' }, { status: 404 })
 
-    let accessToken = decrypt(conn.accessToken)
-
-    // Proactively refresh — GSC tokens expire in 1 hour
+    // Proactively refresh — GSC tokens expire in 1 hour. If the refresh token
+    // itself is invalid (revoked, or the connection is stale), return a clear
+    // reconnect_required signal rather than falling through to an expired access
+    // token that will silently return empty data from the GSC API.
+    let accessToken: string
     try {
       const fresh = await refreshAccessToken(decrypt(conn.refreshToken))
       accessToken = fresh
@@ -35,7 +37,7 @@ export async function GET(req: Request) {
         data: { accessToken: encrypt(fresh) },
       })
     } catch {
-      // Refresh failed — attempt with existing token; user may need to reconnect
+      return NextResponse.json({ error: 'reconnect_required' }, { status: 401 })
     }
 
     const [queries, trend] = await Promise.all([

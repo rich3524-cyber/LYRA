@@ -30,6 +30,7 @@ export function GscAnalytics({ workspaceId }: Props) {
   useEffect(() => {
     fetch(`/api/seo/gsc-data?workspaceId=${workspaceId}`)
       .then((r) => {
+        if (r.status === 401) throw new Error('reconnect_required')
         if (!r.ok) throw new Error('Failed to load GSC data')
         return r.json() as Promise<GscData>
       })
@@ -47,6 +48,22 @@ export function GscAnalytics({ workspaceId }: Props) {
     )
   }
 
+  if (error === 'reconnect_required') {
+    return (
+      <div className="space-y-2">
+        <p className="font-sans text-sm text-status-warning">
+          Google Search Console connection has expired.
+        </p>
+        <a
+          href={`/api/seo/connect?workspaceId=${workspaceId}`}
+          className="inline-flex items-center font-sans text-xs text-text-tertiary underline hover:text-text-primary transition-colors"
+        >
+          Reconnect Google Search Console
+        </a>
+      </div>
+    )
+  }
+
   if (error) {
     return <p className="font-sans text-sm text-status-error">{error}</p>
   }
@@ -60,7 +77,7 @@ export function GscAnalytics({ workspaceId }: Props) {
 
   return (
     <div className="space-y-6">
-      <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
+      <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-widest">
         Search Performance — Last 30 Days
       </p>
 
@@ -118,7 +135,7 @@ export function GscAnalytics({ workspaceId }: Props) {
 
       {data.queries.length > 0 && (
         <div className="space-y-2">
-          <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
+          <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-widest">
             Top Queries (90 days)
           </p>
           <div className="overflow-x-auto">

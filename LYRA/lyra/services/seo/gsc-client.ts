@@ -103,6 +103,7 @@ export async function getTopQueries(
       signal: AbortSignal.timeout(TIMEOUT_MS),
     }
   )
+  if (!res.ok) throw new Error(`gsc_api_error:${res.status}`)
   const data = await res.json() as {
     rows?: Array<{ keys: string[]; clicks: number; impressions: number; ctr: number; position: number }>
   }
@@ -146,6 +147,7 @@ export async function getClicksTrend(
       signal: AbortSignal.timeout(TIMEOUT_MS),
     }
   )
+  if (!res.ok) throw new Error(`gsc_api_error:${res.status}`)
   const data = await res.json() as {
     rows?: Array<{ keys: string[]; clicks: number; impressions: number }>
   }
