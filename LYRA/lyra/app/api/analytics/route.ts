@@ -130,7 +130,7 @@ export async function GET(req: Request) {
         totalLikes,
         totalComments,
         totalShares,
-        commentResponseRate: commentCount > 0 ? Math.round((respondedCount / commentCount) * 100) : 0,
+        commentResponseRate: (respondedCount + pendingCount) > 0 ? Math.round((respondedCount / (respondedCount + pendingCount)) * 100) : 0,
         inboxPending: pendingCount,
       },
       series,
