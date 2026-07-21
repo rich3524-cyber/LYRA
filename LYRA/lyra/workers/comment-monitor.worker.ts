@@ -40,7 +40,22 @@ const worker = new Worker(
     if (account.provider === 'ZERNIO' && account.zernioAccountId != null) {
       try {
         const normalized = await getProvider(account).fetchRecentComments(account)
-        normalizedRows = normalized.map((c) => ({
+        // Mirror the manual sync route's self-comment filter (and the webhook's
+        // isOwner/id-based one) -- this branch had NO self-comment filtering at
+        // all, unlike the other two ingestion paths. Confirmed live 2026-07-22:
+        // an AI-drafted reply the account itself posted got picked back up by
+        // this cron as a "new" incoming comment, and the AI drafted a reply to
+        // its own reply. This cron runs automatically and far more often than
+        // someone clicking the manual Sync button, so it's the likeliest path
+        // for a self-comment to slip through uncaught.
+        const selfName   = account.name?.toLowerCase()
+        const selfHandle = account.handle?.toLowerCase()
+        const incoming   = normalized.filter((c) => {
+          if (selfName   && c.authorName?.toLowerCase()   === selfName)   return false
+          if (selfHandle && c.authorHandle?.toLowerCase() === selfHandle) return false
+          return true
+        })
+        normalizedRows = incoming.map((c) => ({
           platformCommentId: c.externalId,
           platformPostId:    c.postExternalId,
           authorName:        c.authorName || 'Unknown',
