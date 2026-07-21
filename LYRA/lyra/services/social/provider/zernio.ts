@@ -41,8 +41,18 @@ export const zernioProvider: SocialProvider = {
       // one. Zernio's own docs say the 409 body's existingPostId identifies the
       // real post, so use it instead of losing a successful publish behind a
       // false failure.
+      //
+      // existingPostId's actual location is inconsistent with the docs example
+      // (which shows it top-level) -- confirmed live 2026-07-21 via Railway logs
+      // that the real response for this specific error variant nests it under
+      // `details`: {"error": "...", "details": {"existingPostId": "...", ...}}.
+      // The recovery silently never fired for two days because it only checked
+      // the top-level field. Check both shapes defensively.
       if (err instanceof ZernioApiError && err.status === 409) {
-        const existingPostId = (err.body as { existingPostId?: string } | undefined)?.existingPostId
+        const body = err.body as
+          | { existingPostId?: string; details?: { existingPostId?: string } }
+          | undefined
+        const existingPostId = body?.existingPostId ?? body?.details?.existingPostId
         if (existingPostId) {
           return { platformPostId: existingPostId, zernioPostId: existingPostId }
         }
