@@ -142,8 +142,12 @@ export const zernioClient = {
   // There is no single endpoint that returns a flat list of comments for one account.
   // The real API is two-step: list POSTS that have comments (across all connected
   // accounts), then fetch the comments for one specific post (accountId required).
+  // Response's array field is `data`, not `posts` -- confirmed live 2026-07-21 (this
+  // had never actually been exercised in production until the comment-sync provider
+  // routing fix two days earlier started calling it for real; the wrong assumed field
+  // name meant every call threw "posts is not iterable").
   listCommentedPosts: (platform?: string) =>
-    req<{ posts: unknown[] }>('GET', `/inbox/comments${platform ? `?platform=${encodeURIComponent(platform)}` : ''}`),
+    req<{ data: unknown[] }>('GET', `/inbox/comments${platform ? `?platform=${encodeURIComponent(platform)}` : ''}`),
 
   getPostComments: (postId: string, accountId: string) =>
     req<{ comments: unknown[] }>(

@@ -95,7 +95,7 @@ export const zernioProvider: SocialProvider = {
 
   async fetchRecentComments(account) {
     const zernioAccountId = requireZernioId(account)
-    const { posts } = await zernioClient.listCommentedPosts(account.platform.toLowerCase())
+    const { data: posts } = await zernioClient.listCommentedPosts(account.platform.toLowerCase())
     const comments: NormalizedComment[] = []
     for (const post of posts as ZernioCommentedPost[]) {
       const { comments: rawComments } = await zernioClient.getPostComments(post.id, zernioAccountId)

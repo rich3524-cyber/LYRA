@@ -6,6 +6,7 @@ import { detectCrisis } from '@/services/ai/crisis-detector'
 import * as linkedin from '@/services/social/linkedin'
 import { aiRespondQueue } from '@/lib/queues'
 import { getProvider } from '@/services/social/provider'
+import { ZernioApiError } from '@/services/social/zernio-client'
 
 interface NormalizedRow {
   platformCommentId: string
@@ -47,6 +48,13 @@ const worker = new Worker(
           platformCreatedAt: c.createdAt,
         }))
       } catch (err) {
+        // Some platforms (e.g. TikTok) don't support comments at all via Zernio --
+        // a permanent, expected condition for that account, not a transient
+        // failure worth alerting on. Confirmed live 2026-07-21: this was logging
+        // as an error on every single run for every TikTok account.
+        if (err instanceof ZernioApiError && (err.body as { code?: string } | undefined)?.code === 'PLATFORM_NOT_SUPPORTED') {
+          return
+        }
         console.error(`Comment monitor: Zernio fetch failed for account ${socialAccountId}:`, err)
         return
       }
