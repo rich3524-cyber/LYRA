@@ -89,10 +89,11 @@ export function EngagementInsights({
   workspaceId,
   postingPatterns: initialPatterns,
   connectedPlatforms,
-  postCounts,
+  postCounts: initialPostCounts,
 }: Props) {
-  const [patterns, setPatterns] = useState(initialPatterns)
-  const [activeTab, setActiveTab] = useState<string>(
+  const [patterns, setPatterns]       = useState(initialPatterns)
+  const [postCounts, setPostCounts]   = useState(initialPostCounts)
+  const [activeTab, setActiveTab]     = useState<string>(
     connectedPlatforms.find((p) => initialPatterns?.[p]) ?? connectedPlatforms[0] ?? ''
   )
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -108,7 +109,8 @@ export function EngagementInsights({
         body: JSON.stringify({ workspaceId }),
       })
       if (!res.ok) throw new Error('Request failed')
-      const { postingPatterns: updated } = await res.json() as { postingPatterns: PostingPatterns | null }
+      const { postingPatterns: updated, postCounts: updatedCounts } = await res.json() as { postingPatterns: PostingPatterns | null; postCounts: Record<string, number> }
+      if (updatedCounts) setPostCounts(updatedCounts)
       if (updated) {
         setPatterns(updated)
         if (!activeTab || !updated[activeTab]) {
@@ -128,7 +130,7 @@ export function EngagementInsights({
   return (
     <section className="p-5 rounded-xl bg-background-secondary border border-background-border space-y-5">
       <div className="flex items-center justify-between gap-4">
-        <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
+        <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-widest">
           Engagement Insights
         </p>
         <Button
@@ -215,13 +217,13 @@ export function EngagementInsights({
 
                 {topicEntries.length > 0 && (
                   <div className="space-y-3">
-                    <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
+                    <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-widest">
                       By Content Theme
                     </p>
                     <div className="space-y-2">
                       {topicEntries.map(([topic, slots]) => (
                         <div key={topic} className="flex items-start gap-3">
-                          <span className="font-sans text-xs text-text-secondary shrink-0 pt-0.5 min-w-[140px]">
+                          <span className="font-sans text-xs text-text-secondary shrink-0 pt-0.5 min-w-35">
                             {topic}
                           </span>
                           <div className="flex flex-wrap gap-1.5">

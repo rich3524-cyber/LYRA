@@ -16,6 +16,11 @@ export type PlatformPattern = {
 
 export type PostingPatterns = Record<string, PlatformPattern>
 
+export type EngagementResult = {
+  patterns: PostingPatterns | null
+  postCounts: Record<string, number>
+}
+
 type SlotAcc = { rawScore: number; count: number }
 
 function slotKey(dow: number, hour: number): string {
@@ -42,7 +47,7 @@ function normalizeSlots(slots: Record<string, SlotAcc>, topN: number): PostingSl
 
 export async function analyzeEngagement(
   workspaceId: string
-): Promise<PostingPatterns | null> {
+): Promise<EngagementResult> {
   const posts = await prisma.post.findMany({
     where: {
       workspaceId,
@@ -68,13 +73,18 @@ export async function analyzeEngagement(
     },
   })
 
-  if (posts.length === 0) return null
+  if (posts.length === 0) return { patterns: null, postCounts: {} }
 
   const byPlatform: Record<string, typeof posts> = {}
   for (const post of posts) {
     const pl = post.socialAccount.platform
     if (!byPlatform[pl]) byPlatform[pl] = []
     byPlatform[pl].push(post)
+  }
+
+  const postCounts: Record<string, number> = {}
+  for (const [pl, pPosts] of Object.entries(byPlatform)) {
+    postCounts[pl] = pPosts.length
   }
 
   const result: PostingPatterns = {}
@@ -128,5 +138,8 @@ export async function analyzeEngagement(
     }
   }
 
-  return Object.keys(result).length > 0 ? result : null
+  return {
+    patterns: Object.keys(result).length > 0 ? result : null,
+    postCounts,
+  }
 }

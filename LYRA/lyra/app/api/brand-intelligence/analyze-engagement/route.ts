@@ -26,17 +26,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Brand profile required' }, { status: 400 })
     }
 
-    const result = await analyzeEngagement(workspaceId)
+    const { patterns, postCounts } = await analyzeEngagement(workspaceId)
 
-    if (result !== null) {
+    if (patterns !== null) {
       const existing = (workspace.brandProfile.postingPatterns as Record<string, unknown>) ?? {}
       await prisma.brandProfile.update({
         where: { workspaceId },
-        data: { postingPatterns: { ...existing, ...result } as Prisma.InputJsonValue },
+        data: { postingPatterns: { ...existing, ...patterns } as Prisma.InputJsonValue },
       })
     }
 
-    return NextResponse.json({ postingPatterns: result })
+    return NextResponse.json({ postingPatterns: patterns, postCounts })
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
