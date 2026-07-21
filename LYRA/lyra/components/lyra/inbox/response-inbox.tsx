@@ -83,8 +83,14 @@ export function ResponseInbox({
         const d2 = await r2.json() as unknown
         if (Array.isArray(d2)) setComments(d2 as CommentData[])
       }
-    } catch {
-      toast.error('Sync failed. Check your Facebook connection.')
+    } catch (err) {
+      // Was a hardcoded "check your Facebook connection" regardless of what
+      // actually failed or which platform was involved -- confirmed live
+      // 2026-07-22 when a LinkedIn-related sync failure showed this same
+      // Facebook-specific message, discarding whatever the real error was.
+      // Show the real error text (thrown above from the backend's `error`
+      // field) so an actual cause is visible instead of a misleading guess.
+      toast.error(err instanceof Error ? err.message : 'Sync failed.')
     } finally {
       setSyncing(false)
     }
