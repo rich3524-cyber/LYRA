@@ -129,21 +129,6 @@ export const CompetitorCard = memo(function CompetitorCard({
               <p className="text-xs font-sans text-text-tertiary uppercase tracking-widest">Recent posts</p>
               {recentPosts.slice(0, 3).map((post, i) => {
                 const dateLabel = formatPostDate(post.date)
-                const inner = (
-                  <>
-                    <p className="text-xs font-sans text-text-secondary leading-relaxed group-hover:text-text-primary transition-colors line-clamp-2">
-                      {post.excerpt}
-                    </p>
-                    <div className="flex items-center justify-between gap-2 mt-1">
-                      {dateLabel && (
-                        <span className="font-mono text-[11px] text-text-tertiary">{dateLabel}</span>
-                      )}
-                      {post.url && (
-                        <ExternalLink className="h-3 w-3 shrink-0 text-text-tertiary group-hover:text-text-secondary transition-colors ml-auto" strokeWidth={1.5} />
-                      )}
-                    </div>
-                  </>
-                )
                 return post.url ? (
                   <a
                     key={i}
@@ -152,11 +137,20 @@ export const CompetitorCard = memo(function CompetitorCard({
                     rel="noopener noreferrer"
                     className="group block rounded-lg bg-background-tertiary border border-background-border hover:border-background-border-mid p-2.5 transition-colors"
                   >
-                    {inner}
+                    <p className="text-xs font-sans text-text-secondary leading-relaxed group-hover:text-text-primary transition-colors line-clamp-2">
+                      {post.excerpt}
+                    </p>
+                    <div className="flex items-center justify-between gap-2 mt-1">
+                      {dateLabel && <span className="font-mono text-[11px] text-text-tertiary">{dateLabel}</span>}
+                      <ExternalLink className="h-3 w-3 shrink-0 text-text-tertiary group-hover:text-text-secondary transition-colors ml-auto" strokeWidth={1.5} />
+                    </div>
                   </a>
                 ) : (
-                  <div key={i} className="group rounded-lg bg-background-tertiary border border-background-border p-2.5">
-                    {inner}
+                  <div key={i} className="rounded-lg bg-background-tertiary border border-background-border p-2.5">
+                    <p className="text-xs font-sans text-text-secondary leading-relaxed line-clamp-2">
+                      {post.excerpt}
+                    </p>
+                    {dateLabel && <span className="font-mono text-[11px] text-text-tertiary mt-1 block">{dateLabel}</span>}
                   </div>
                 )
               })}

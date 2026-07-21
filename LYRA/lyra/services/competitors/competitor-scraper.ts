@@ -148,6 +148,9 @@ function extractFromSelectors($: cheerio.CheerioAPI, baseUrl: string): Competito
 // --- Source 4: heading fallback ---
 // Works on any site — pulls headings from the main content area. Last resort
 // since it tends to include nav/hero headings, not just post titles.
+// URL search order: heading wrapped in <a> → <a> inside heading → sibling <a>
+// in the same parent → first <a> anywhere in the nearest post-like container.
+// This covers the common patterns where the link isn't a direct parent/child.
 function extractFromHeadings($: cheerio.CheerioAPI, baseUrl: string): CompetitorPost[] {
   const posts: CompetitorPost[] = []
   const seen = new Set<string>()
@@ -155,7 +158,11 @@ function extractFromHeadings($: cheerio.CheerioAPI, baseUrl: string): Competitor
     const text = $(el).text().trim()
     if (text.length > 10 && text.length < 300 && !seen.has(text)) {
       seen.add(text)
-      const rawHref = $(el).closest('a').attr('href') ?? $(el).find('a').first().attr('href')
+      const rawHref =
+        $(el).closest('a').attr('href') ??
+        $(el).find('a').first().attr('href') ??
+        $(el).parent().find('a').first().attr('href') ??
+        $(el).closest('article, [class*="card"], [class*="post"], [class*="item"], [class*="entry"]').find('a').first().attr('href')
       posts.push({ date: '', excerpt: text.slice(0, 200), url: resolveUrl(rawHref, baseUrl), platform: 'website' })
     }
   })
