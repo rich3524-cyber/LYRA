@@ -13,6 +13,9 @@ export async function GET(req: Request) {
     const workspaceId = searchParams.get('workspaceId')
     const rawPeriod    = parseInt(searchParams.get('period') ?? '30', 10)
     const period      = Number.isFinite(rawPeriod) ? Math.min(Math.max(rawPeriod, 1), 365) : 30
+    const rawOffset   = parseInt(searchParams.get('tzOffset') ?? '0', 10)
+    const tzOffset    = Number.isFinite(rawOffset) ? Math.min(Math.max(rawOffset, -840), 840) : 0
+    const offsetMs    = tzOffset * 60 * 1000
 
     if (!workspaceId) return NextResponse.json({ error: 'workspaceId required' }, { status: 400 })
 
@@ -61,17 +64,22 @@ export async function GET(req: Request) {
       }
     }
 
-    // Build daily series — one entry per day, sum metrics for posts published that day
+    // Build daily series — one entry per day, sum metrics for posts published that day.
+    // All dates are shifted by the client's timezone offset before formatting so that
+    // a Brisbane post published at 10:45pm UTC (= 8:45am AEST next day) buckets into
+    // the correct local date instead of the UTC date.
+    const localFmt = (d: Date) => format(new Date(d.getTime() + offsetMs), 'MMM d')
+
     const days = eachDayOfInterval({ start: since, end: new Date() })
     const dailyMap = new Map<string, { likes: number; comments: number; shares: number; reach: number; views: number }>()
 
     for (const day of days) {
-      dailyMap.set(format(day, 'MMM d'), { likes: 0, comments: 0, shares: 0, reach: 0, views: 0 })
+      dailyMap.set(localFmt(day), { likes: 0, comments: 0, shares: 0, reach: 0, views: 0 })
     }
 
     for (const post of posts) {
       if (!post.publishedAt || !post.metrics) continue
-      const key = format(post.publishedAt, 'MMM d')
+      const key = localFmt(post.publishedAt)
       const entry = dailyMap.get(key)
       if (entry) {
         entry.likes    += post.metrics.likes

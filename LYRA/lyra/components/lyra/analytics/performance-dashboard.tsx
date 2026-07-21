@@ -38,6 +38,10 @@ const PLATFORM_LABELS: Record<string, string> = {
   TIKTOK: 'TT', TWITTER: 'X', YOUTUBE: 'YT', GOOGLE_BUSINESS: 'GBP',
 }
 
+// Computed once at module load — getTimezoneOffset() returns the *negative* of
+// the UTC offset, so we negate it (e.g. Brisbane UTC+10 → +600).
+const TZ_OFFSET = -new Date().getTimezoneOffset()
+
 const PERIODS = [
   { label: '7d',  value: 7  },
   { label: '30d', value: 30 },
@@ -91,7 +95,7 @@ export function PerformanceDashboard({ workspaceId }: { workspaceId: string }) {
 
   useEffect(() => {
     let active = true
-    fetch(`/api/analytics?workspaceId=${workspaceId}&period=${period}`)
+    fetch(`/api/analytics?workspaceId=${workspaceId}&period=${period}&tzOffset=${TZ_OFFSET}`)
       .then(r => r.json())
       .then((d: AnalyticsData) => { if (active) setData(d) })
       .catch(() => { if (active) setData({} as AnalyticsData) })
