@@ -28,7 +28,7 @@ function parseSlotKey(key: string): { dayOfWeek: number; hour: number } {
 }
 
 function normalizeSlots(slots: Record<string, SlotAcc>, topN: number): PostingSlot[] {
-  const eligible = Object.entries(slots).filter(([, acc]) => acc.count >= 5)
+  const eligible = Object.entries(slots).filter(([, acc]) => acc.count >= 2)
   if (eligible.length === 0) return []
   const max = Math.max(...eligible.map(([, acc]) => acc.rawScore))
   const normalized: PostingSlot[] = eligible.map(([key, acc]) => ({
@@ -80,7 +80,7 @@ export async function analyzeEngagement(
   const result: PostingPatterns = {}
 
   for (const [platform, pPosts] of Object.entries(byPlatform)) {
-    if (pPosts.length < 20) continue
+    if (pPosts.length < 12) continue
 
     const platformSlots: Record<string, SlotAcc> = {}
     const topicSlots: Record<string, Record<string, SlotAcc>> = {}
@@ -115,7 +115,7 @@ export async function analyzeEngagement(
     const byTopic: Record<string, PostingSlot[]> = {}
     for (const [topic, tSlots] of Object.entries(topicSlots)) {
       const total = Object.values(tSlots).reduce((s, a) => s + a.count, 0)
-      if (total < 10) continue
+      if (total < 5) continue
       const slots = normalizeSlots(tSlots, 3)
       if (slots.length > 0) byTopic[topic] = slots
     }
