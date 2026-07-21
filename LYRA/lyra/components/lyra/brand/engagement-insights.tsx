@@ -16,7 +16,7 @@ interface Props {
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 const GRID_DAYS = [1, 2, 3, 4, 5, 6, 0] // Mon–Sun in JS dayOfWeek convention
 const HOURS = Array.from({ length: 17 }, (_, i) => i + 6) // 6am–10pm
-const THRESHOLD = 20
+const THRESHOLD = 12
 
 function fmtHour(h: number): string {
   return h === 0 ? '12am' : h < 12 ? `${h}am` : h === 12 ? '12pm' : `${h - 12}pm`
