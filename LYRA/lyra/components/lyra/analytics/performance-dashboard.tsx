@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
-import { TrendingUp, MessageSquare, BarChart2, Eye, Heart, Share2, CheckCheck, Play } from 'lucide-react'
+import { TrendingUp, MessageSquare, BarChart2, Eye, Heart, Share2, CheckCheck, Play, RefreshCw } from 'lucide-react'
 
 // recharts is a sizeable dependency that only this chart needs -- load it lazily
 // (client-only, no SSR) so the rest of the analytics dashboard's JS isn't blocked
@@ -35,7 +35,7 @@ interface AnalyticsData {
 
 const PLATFORM_LABELS: Record<string, string> = {
   FACEBOOK: 'FB', INSTAGRAM: 'IG', LINKEDIN: 'LI',
-  TIKTOK: 'TT', TWITTER: 'X', GOOGLE_BUSINESS: 'GBP',
+  TIKTOK: 'TT', TWITTER: 'X', YOUTUBE: 'YT', GOOGLE_BUSINESS: 'GBP',
 }
 
 const PERIODS = [
@@ -83,8 +83,10 @@ function PlatformBreakdownList({ breakdown }: { breakdown: PlatformStat[] }) {
 }
 
 export function PerformanceDashboard({ workspaceId }: { workspaceId: string }) {
-  const [data, setData]     = useState<AnalyticsData | null>(null)
-  const [period, setPeriod] = useState(30)
+  const [data, setData]           = useState<AnalyticsData | null>(null)
+  const [period, setPeriod]       = useState(30)
+  const [syncing, setSyncing]     = useState(false)
+  const [refreshTick, setRefresh] = useState(0)
   const loading = data === null
 
   useEffect(() => {
@@ -94,25 +96,49 @@ export function PerformanceDashboard({ workspaceId }: { workspaceId: string }) {
       .then((d: AnalyticsData) => { if (active) setData(d) })
       .catch(() => { if (active) setData({} as AnalyticsData) })
     return () => { active = false }
-  }, [workspaceId, period])
+  }, [workspaceId, period, refreshTick])
+
+  async function handleSync() {
+    setSyncing(true)
+    try {
+      await fetch('/api/analytics/sync', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ workspaceId }),
+      })
+      setRefresh(t => t + 1)
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
-      {/* Period selector */}
-      <div className="flex items-center gap-1">
-        {PERIODS.map(p => (
-          <button
-            key={p.value}
-            onClick={() => setPeriod(p.value)}
-            className={`px-3 py-1.5 rounded-lg font-sans text-xs font-medium transition-colors ${
-              period === p.value
-                ? 'bg-background-hover border border-background-border-mid text-text-primary'
-                : 'text-text-tertiary hover:text-text-secondary'
-            }`}
-          >
-            {p.label}
-          </button>
-        ))}
+      {/* Period selector + sync */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1">
+          {PERIODS.map(p => (
+            <button
+              key={p.value}
+              onClick={() => setPeriod(p.value)}
+              className={`px-3 py-1.5 rounded-lg font-sans text-xs font-medium transition-colors ${
+                period === p.value
+                  ? 'bg-background-hover border border-background-border-mid text-text-primary'
+                  : 'text-text-tertiary hover:text-text-secondary'
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <button
+          onClick={handleSync}
+          disabled={syncing}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-sans text-xs text-text-tertiary hover:text-text-primary transition-colors disabled:opacity-40"
+        >
+          <RefreshCw size={12} strokeWidth={1.5} className={syncing ? 'animate-spin' : ''} />
+          {syncing ? 'Syncing…' : 'Sync'}
+        </button>
       </div>
 
       {/* KPI cards */}

@@ -44,6 +44,9 @@ export async function GET(req: Request) {
     const respondedCount = await prisma.comment.count({
       where: { workspaceId, createdAt: { gte: since }, status: 'RESPONDED' },
     })
+    const pendingCount = await prisma.comment.count({
+      where: { workspaceId, createdAt: { gte: since }, status: { in: ['PENDING', 'AI_DRAFTED', 'AWAITING_APPROVAL', 'ESCALATED'] } },
+    })
 
     // Aggregate totals
     let totalLikes = 0, totalComments = 0, totalShares = 0, totalReach = 0, totalViews = 0
@@ -120,7 +123,7 @@ export async function GET(req: Request) {
         totalComments,
         totalShares,
         commentResponseRate: commentCount > 0 ? Math.round((respondedCount / commentCount) * 100) : 0,
-        inboxPending: commentCount - respondedCount,
+        inboxPending: pendingCount,
       },
       series,
       platformBreakdown,
