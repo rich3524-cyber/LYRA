@@ -74,7 +74,7 @@ interface PostPreviewCardProps {
 }
 
 export const PostPreviewCard = memo(function PostPreviewCard({ post, onSelect }: PostPreviewCardProps) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+  const { listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: post.id,
     data: { post },
   })
@@ -90,22 +90,29 @@ export const PostPreviewCard = memo(function PostPreviewCard({ post, onSelect }:
     <div
       ref={setNodeRef}
       style={style}
+      {...listeners}
       className={cn(
-        'rounded bg-background-tertiary border border-background-border select-none flex items-start gap-1 p-1',
+        'rounded bg-background-tertiary border border-background-border select-none flex items-start gap-1 p-1 cursor-grab active:cursor-grabbing',
         isDragging && 'opacity-40 ring-1 ring-accent-silver'
       )}
     >
-      {/* Drag handle — ONLY this element has DnD listeners */}
-      <button
-        type="button"
-        {...listeners}
-        {...attributes}
-        onClick={(e) => e.stopPropagation()}
-        className="cursor-grab active:cursor-grabbing p-0.5 mt-0.5 text-text-tertiary hover:text-text-secondary shrink-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-background-tertiary rounded"
-        aria-label="Drag to reschedule"
-      >
-        <GripVertical size={10} strokeWidth={1.5} />
-      </button>
+      {/* Drag handle icon is now purely a visual affordance hint -- the whole
+          card is draggable (listeners are on the root div above), not just
+          this icon. Confirmed live 2026-07-22: a dedicated ~10px icon as the
+          ONLY draggable target was effectively undiscoverable -- Richard
+          didn't notice it existed at all when looking for drag-to-reschedule.
+          The sensor's 8px activation distance (content-calendar.tsx) already
+          exists specifically so a plain click still reaches the button below
+          without being hijacked as a drag. `attributes` (which sets
+          tabIndex/role for dnd-kit's keyboard support) is deliberately not
+          spread here -- only PointerSensor is configured, so making this div
+          a redundant keyboard tab stop would add noise with no function. */}
+      <GripVertical
+        size={10}
+        strokeWidth={1.5}
+        aria-hidden="true"
+        className="p-0.5 mt-0.5 text-text-tertiary shrink-0"
+      />
 
       {/* Clickable content area — opens detail panel */}
       <button
