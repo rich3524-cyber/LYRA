@@ -68,6 +68,35 @@ export function Sidebar({
     onMobileClose?.()
   }, [pathname]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // `unreadCount` is computed server-side in the shared dashboard layout and passed
+  // down as a static prop -- it goes stale after a client-side workspace switch
+  // (router.push), same reason activeWorkspaceId above is re-derived from the live
+  // pathname rather than trusted from props. Re-fetch a live count keyed on the
+  // active workspace so the badge doesn't keep showing a previous workspace's count.
+  const [liveUnreadCount, setLiveUnreadCount] = useState(unreadCount)
+
+  useEffect(() => {
+    let cancelled = false
+
+    function refetch() {
+      fetch(`/api/comments/unread-count?workspaceId=${activeWorkspaceId}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: { count?: number } | null) => {
+          if (!cancelled && data && typeof data.count === 'number') setLiveUnreadCount(data.count)
+        })
+        .catch(() => {
+          // Silently ignore -- keep showing the last known count
+        })
+    }
+
+    refetch()
+    window.addEventListener('focus', refetch)
+    return () => {
+      cancelled = true
+      window.removeEventListener('focus', refetch)
+    }
+  }, [activeWorkspaceId])
+
   function renderNavItems(isCollapsed: boolean) {
     return navItems.map(({ href, label, icon: Icon, proOnly }) => {
       const isBrandAI   = href === '/brand'
@@ -138,8 +167,8 @@ export function Sidebar({
       }
 
       const isInbox = href === '/inbox'
-      const hasUnread = isInbox && (unreadCount ?? 0) > 0
-      const unreadLabel = (unreadCount ?? 0) > 99 ? '99+' : String(unreadCount ?? 0)
+      const hasUnread = isInbox && (liveUnreadCount ?? 0) > 0
+      const unreadLabel = (liveUnreadCount ?? 0) > 99 ? '99+' : String(liveUnreadCount ?? 0)
 
       return (
         <Link
