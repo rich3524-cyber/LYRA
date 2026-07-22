@@ -44,7 +44,7 @@ export default function CompetitorsPage() {
   return (
     <div className="p-6 max-w-3xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="font-display text-3xl text-text-primary">Competitor Intelligence</h1>
+        <h1 className="font-display text-4xl text-text-primary">Competitor Intelligence</h1>
         <AddCompetitorForm
           workspaceId={workspaceId}
           onAdded={fetchCompetitors}

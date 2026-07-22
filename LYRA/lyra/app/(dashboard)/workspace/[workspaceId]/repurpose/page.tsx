@@ -24,7 +24,7 @@ export default async function RepurposePage({ params }: Props) {
 
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6">
-      <h1 className="font-display text-3xl text-text-primary">Repurpose Content</h1>
+      <h1 className="font-display text-4xl text-text-primary">Repurpose Content</h1>
       <p className="text-sm font-sans text-text-secondary">
         Paste a blog URL or long-form text. LYRA generates platform-native posts for each channel you select.
       </p>

@@ -111,7 +111,7 @@ export default async function WorkspaceOverviewPage({ params }: Props) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="font-display text-2xl text-text-primary">{workspace.name}</h2>
+        <h2 className="font-display text-4xl text-text-primary">{workspace.name}</h2>
         {workspace.industry && (
           <p className="text-text-secondary text-sm mt-1">{workspace.industry}</p>
         )}

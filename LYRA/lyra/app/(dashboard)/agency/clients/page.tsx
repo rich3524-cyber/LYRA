@@ -27,7 +27,7 @@ export default async function ClientsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="font-display text-2xl text-text-primary">Clients</h2>
+          <h2 className="font-display text-4xl text-text-primary">Clients</h2>
           <p className="text-text-secondary text-sm mt-1">
             {workspaces.length} workspace{workspaces.length !== 1 ? 's' : ''}
           </p>

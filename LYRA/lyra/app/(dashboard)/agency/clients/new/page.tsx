@@ -68,7 +68,7 @@ export default function NewWorkspacePage() {
           <ArrowLeft size={12} />
           Back to clients
         </Link>
-        <h2 className="font-display text-2xl text-text-primary">New workspace</h2>
+        <h2 className="font-display text-4xl text-text-primary">New workspace</h2>
         <p className="text-text-secondary text-sm mt-1">Create a workspace for a new client.</p>
       </div>
 
