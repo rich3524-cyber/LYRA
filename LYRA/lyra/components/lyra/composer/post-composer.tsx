@@ -69,8 +69,8 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
     try {
       const urls = await Promise.all(acceptedFiles.map((file) => uploadMediaFile(file, workspaceId)))
       setMediaUrls((prev) => [...prev, ...urls])
-    } catch {
-      toast.error('Failed to upload media')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to upload media')
     } finally {
       setIsDropUploading(false)
     }

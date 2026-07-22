@@ -11,6 +11,10 @@ const BUCKET = process.env.AWS_S3_BUCKET!
 // S3_REGION, not AWS_REGION -- see lib/s3.ts for why (Netlify reserves the AWS_* names).
 const REGION = process.env.S3_REGION ?? 'ap-southeast-2'
 
+// Server-side enforcement of the same limit lib/upload-media.ts checks client-side --
+// the client check alone is trivially bypassable (this route is the actual gate).
+const MAX_SIZE = 50 * 1024 * 1024 // 50 MB
+
 const ALLOWED_MIME_TYPES: Record<string, string> = {
   'image/jpeg':      'jpg',
   'image/png':       'png',
@@ -28,15 +32,20 @@ export async function POST(req: Request) {
     const { allowed } = await checkRateLimit(`upload-presign:${user.id}`, 30, 60)
     if (!allowed) return rateLimitResponse()
 
-    const { filename: _filename, contentType, workspaceId } = await req.json() as {
+    const { filename: _filename, contentType, size, workspaceId } = await req.json() as {
       filename: string
       contentType: string
+      size?: number
       workspaceId?: string
     }
 
     const ext = ALLOWED_MIME_TYPES[contentType]
     if (!ext) {
       return NextResponse.json({ error: 'File type not permitted' }, { status: 415 })
+    }
+
+    if (typeof size === 'number' && size > MAX_SIZE) {
+      return NextResponse.json({ error: 'File too large (max 50MB)' }, { status: 413 })
     }
 
     if (workspaceId) {

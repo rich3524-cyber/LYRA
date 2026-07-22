@@ -22,8 +22,8 @@ export function MediaUploader({ workspaceId, onUpload }: MediaUploaderProps) {
     try {
       const publicUrl = await uploadMediaFile(file, workspaceId)
       onUpload(publicUrl)
-    } catch {
-      toast.error('Failed to upload media')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to upload media')
     } finally {
       setUploading(false)
       if (inputRef.current) inputRef.current.value = ''
