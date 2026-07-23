@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { SectionHeader, Subsection, Strong, Steps, Step } from './primitives'
+import { SectionHeader, Subsection, Strong, Steps, Step, Note } from './primitives'
 
 function VoiceField({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -164,6 +164,34 @@ export function BrandIntelligenceSection() {
           LYRA also runs an automatic weekly refresh for all workspaces to ensure brand profiles
           stay current. This background refresh uses the same inputs as a manual rebuild.
         </p>
+      </Subsection>
+
+      <Subsection title="Crisis Aware keyword suggestions">
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          If <Strong>Crisis Aware</Strong> is turned on for the workspace (Settings →
+          Crisis Aware), every brand profile build also generates suggested escalation
+          keywords — tailored to this specific business, not a generic list. A &ldquo;Crisis
+          keywords&rdquo; panel appears lower on this page once suggestions exist.
+        </p>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          Suggestions cover a baseline of legal threats, safety or health incidents,
+          discrimination or harassment claims, and media/press inquiries, plus 2–4 terms
+          specific to the business&apos;s own industry — e.g. &ldquo;food poisoning&rdquo; for a
+          restaurant, &ldquo;data breach&rdquo; for a software company.
+        </p>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          Each suggestion is a chip with <Strong>Approve</Strong> and <Strong>Dismiss</Strong> buttons.
+          Approving one makes it a live escalation keyword immediately — a comment
+          containing it will trigger Crisis Aware. Dismissing one removes it from view and
+          stops it being suggested again on a future rebuild. You can also type your own
+          keyword directly into the <Strong>Add a keyword</Strong> field, and remove any
+          active keyword at any time.
+        </p>
+        <Note>
+          Nothing an AI suggests here ever affects Crisis Aware detection until you
+          explicitly approve it — suggestions are just a starting point, not a live
+          configuration change.
+        </Note>
       </Subsection>
 
       <Subsection title="What happens without a brand profile">

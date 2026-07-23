@@ -73,8 +73,10 @@ export function InboxSection() {
           </StatusRow>
           <StatusRow status="Escalated" color="text-status-error border-status-error/30">
             The comment has been flagged for immediate human attention. The AI will not
-            auto-respond to escalated comments regardless of autonomy setting. You receive
-            an email notification when a comment is escalated.
+            auto-respond to escalated comments regardless of autonomy setting — it stays
+            pinned at the top of the inbox until you act on it. Write a manual reply, or
+            click <Strong>Ignore</Strong> if no response is needed. There is no email
+            notification for this yet — check the inbox directly.
           </StatusRow>
           <StatusRow status="Ignored" color="text-text-tertiary border-background-border-mid">
             The comment has been manually dismissed. It will not receive a response.
@@ -138,8 +140,9 @@ export function InboxSection() {
           </Step>
           <Step n={6}>
             If the comment requires special attention (a complaint, a crisis, a factual dispute),
-            click <Strong>Escalate</Strong> instead. The comment is pinned and you receive a
-            notification. The AI will not respond to it automatically.
+            click <Strong>Escalate</Strong> instead. The comment stays pinned at the top of the
+            inbox and the AI will not respond to it automatically — write a manual reply or
+            dismiss it when you&apos;re ready.
           </Step>
         </Steps>
       </Subsection>
@@ -191,6 +194,9 @@ export function InboxSection() {
             Comment patterns or keywords that should always trigger an escalation regardless of
             autonomy setting. Examples: &ldquo;refund&rdquo;, &ldquo;lawyer&rdquo;, &ldquo;disgusting&rdquo;, any mention of
             allergic reactions for a food brand. The AI will not respond and will flag immediately.
+            This is the same keyword list <Strong>Crisis Aware</Strong> watches — if Crisis Aware
+            is on, Brand Intelligence suggests these keywords automatically and they&apos;re managed
+            from the Brand Intelligence page, not this Guardrails screen.
           </GuardrailRow>
           <GuardrailRow type="Approved answers">
             Pre-written responses for common recurring questions — opening hours, delivery times,

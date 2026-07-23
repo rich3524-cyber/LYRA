@@ -397,7 +397,7 @@
       <span class="wordmark">LYRA</span>
       <div class="doc-meta">
         Demo Reference Guide<br>
-        17 Jun 2026<br>
+        23 Jul 2026<br>
         lyraonline.ai
       </div>
     </div>
@@ -483,8 +483,8 @@
       <li>
         <span class="step-num">06</span>
         <div class="step-content">
-          <p class="step-title">Crisis Aware — "The Safety Net"</p>
-          <p class="step-body">When a sentiment spike is detected, all scheduled posts pause automatically — nothing publishes during an active crisis. Triggering comments surface in the inbox. Every event is audit-logged with trigger type, timestamp, and comment IDs. Disable Crisis Mode once resolved; posts resume. <strong>The scenario to tell:</strong> client posts something controversial on a Friday night — LYRA pauses their entire scheduled queue automatically while you sleep. Nothing tone-deaf goes out.</p>
+          <p class="step-title">Crisis Aware — "The Safety Net That Knows the Business"</p>
+          <p class="step-body">Two triggers: a sentiment spike across incoming comments, or a match against the workspace's escalation keyword list. <strong>The differentiator:</strong> that keyword list isn't a generic template — Brand Intelligence generates it automatically every time the brand profile is built, tailored to this specific business (legal threats, safety incidents, discrimination claims, media inquiries, plus business-specific terms like "food poisoning" for a restaurant or "data breach" for a software company). Show it on the Brand Intelligence page: suggested keywords appear as chips to approve or dismiss, plus a manual add field. When either trigger fires, all scheduled posts pause automatically — nothing publishes during an active crisis. Triggering comments surface in the inbox, fully escalated comments can be replied to directly from there, not just viewed. Every event is audit-logged with trigger type, timestamp, and comment IDs. Disable Crisis Mode once resolved; posts resume. <strong>The scenario to tell:</strong> client posts something controversial on a Friday night — LYRA pauses their entire scheduled queue automatically while you sleep. Nothing tone-deaf goes out. And it already knew what to watch for, because it's tailored to this business, not a one-size-fits-all list.</p>
         </div>
       </li>
       <li>
@@ -583,7 +583,7 @@
         <tbody>
           <tr><td><strong>Never Discuss</strong></td><td>AI will never engage with this topic — e.g. competitor names, pricing, pending litigation.</td></tr>
           <tr><td><strong>Never Use Word</strong></td><td>Specific words or phrases the AI must never use — e.g. "cheap", brand-specific language standards.</td></tr>
-          <tr><td><strong>Always Escalate</strong></td><td>Any comment matching this trigger routes to human review regardless of autonomy setting — e.g. "refund", "lawyer", "allergic reaction".</td></tr>
+          <tr><td><strong>Always Escalate</strong></td><td>Any comment matching this trigger routes to human review regardless of autonomy setting — e.g. "refund", "lawyer", "allergic reaction". This is also the same keyword list Crisis Aware watches — Brand Intelligence now suggests it automatically, tailored to the business.</td></tr>
           <tr><td><strong>Approved Answers</strong></td><td>Pre-written responses used verbatim when a specific question is asked — opening hours, pricing, FAQs. Ensures factual accuracy.</td></tr>
         </tbody>
       </table>
@@ -634,8 +634,12 @@
     <h2>Numbers worth knowing</h2>
     <div class="numbers-grid">
       <div class="number-card">
-        <p class="number-value">5 min</p>
-        <p class="number-label">Comment polling frequency</p>
+        <p class="number-value">seconds</p>
+        <p class="number-label">Meta &amp; GBP comment/review ingestion (webhook push)</p>
+      </div>
+      <div class="number-card">
+        <p class="number-value">~10 min</p>
+        <p class="number-label">LinkedIn comment ingestion (LinkedIn API limitation — no webhook)</p>
       </div>
       <div class="number-card">
         <p class="number-value">~2 min</p>
@@ -682,10 +686,45 @@
 
   <!-- 8. What's New -->
   <div class="section">
-    <p class="section-label">What's new — Jun 2026</p>
-    <h2>Latest sprint — 13 features shipped</h2>
+    <p class="section-label">What's new — Jul 2026</p>
+    <h2>Latest — all major platforms live, publishing pipeline confirmed end-to-end</h2>
     <p>Lead with these if showing to anyone who has seen an earlier version of the platform.</p>
     <div style="margin-top: 8px;">
+      <div class="feature-row">
+        <span class="feature-pnum" style="color: #4ade80;">★</span>
+        <div>
+          <p class="feature-title">Zernio Bridge — all major platforms live today, no approval wait</p>
+          <p class="feature-desc">LYRA now routes all platform connections through Zernio, a unified social API that holds its own Meta, LinkedIn, TikTok, and Google Business developer approvals. This means <strong>Facebook, Instagram, LinkedIn, TikTok, YouTube, Google Business, and X are all live and connectable right now</strong> — without LYRA needing to complete each platform's own app review first. The connect flow is fully white-labelled (no Zernio branding shown to users). Comment and review ingestion is via webhook push: Meta comments and Google Business reviews arrive in <strong>seconds</strong>; LinkedIn comments in ~10 minutes (a LinkedIn platform limitation, not LYRA's). As LYRA's own platform app reviews complete, connections migrate to native integrations transparently.</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <span class="feature-pnum" style="color: #4ade80;">★</span>
+        <div>
+          <p class="feature-title">Scheduled posts + media — confirmed end-to-end in production</p>
+          <p class="feature-desc">Scheduled posts with attached images and video now publish automatically at their scheduled time — no manual trigger. A post scheduled 2 minutes out publishes within ~1–2 minutes. Video (MP4) attaches correctly and appears on the platform. S3 media storage is fully configured and live. This was previously unverified in production; it has now been confirmed working across a real test cycle.</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <span class="feature-pnum" style="color: #60a5fa;">N</span>
+        <div>
+          <p class="feature-title">Mobile-first responsive design — fully audited and fixed</p>
+          <p class="feature-desc">Complete mobile UI/UX audit completed. Key fixes: the sidebar hamburger menu now works on mobile (slide-in drawer, backdrop dismiss, auto-close on navigate); the calendar header stacks correctly on narrow screens; the inbox platform filter pills wrap rather than overflow; all nav touch targets meet the 44 px standard. The app is fully usable on a phone — relevant when showing LYRA to prospects on a device or when clients are approving posts on the go.</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <span class="feature-pnum" style="color: #60a5fa;">N</span>
+        <div>
+          <p class="feature-title">AI Autonomy — now a UI control in Settings</p>
+          <p class="feature-desc">The AI response autonomy level (No reply / Post with approval / Full Automatic) is now a live settings control in the workspace Settings page under Automation — previously only configurable in the database. Full Automatic shows a confirmation dialog before activating ("AI will reply to comments publicly with no review") and is disabled for Starter plan workspaces at the API level.</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <span class="feature-pnum" style="color: #60a5fa;">N</span>
+        <div>
+          <p class="feature-title">SEO module — fully live, Google Search Console verified</p>
+          <p class="feature-desc">The full SEO OAuth flow is working end-to-end: connect Google Search Console, auto-select the matching property, add tracked pages, run on-page analysis, generate AI meta titles/descriptions. GSC site verification is in place. Fixed a redirect URI mismatch that was breaking the OAuth callback. Full flow confirmed with a real disconnect + reconnect test.</p>
+        </div>
+      </div>
       <div class="feature-row">
         <span class="feature-pnum" style="color: #4ade80;">★</span>
         <div>
@@ -703,8 +742,29 @@
       <div class="feature-row">
         <span class="feature-pnum" style="color: #4ade80;">★</span>
         <div>
-          <p class="feature-title">TikTok — Sandbox live, App Review submitted</p>
-          <p class="feature-desc">TikTok connection is live in sandbox mode. Full production access pending TikTok App Review (submitted 17 Jun 2026). Once approved, supports publishing video content and monitoring engagement via the TikTok v2 API.</p>
+          <p class="feature-title">TikTok — Live via Zernio Bridge</p>
+          <p class="feature-desc">TikTok connections are live via the Zernio Bridge. Publish video content to TikTok Business accounts. Note: TikTok's API does not expose comment or DM read/write to any third party — this is a hard platform limitation, not a LYRA gap. TikTok comment monitoring is not available via Zernio or natively. LYRA's own TikTok App Review (submitted Jun 2026) is in progress as the long-term native path.</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <span class="feature-pnum" style="color: #4ade80;">★</span>
+        <div>
+          <p class="feature-title">LinkedIn — Live via Zernio Bridge</p>
+          <p class="feature-desc">LinkedIn company page connections are live. Users connect through the Zernio Bridge — Zernio holds Community Management API access so LYRA doesn't need its own separate Microsoft Vetting approval for beta. Publish to org pages, read and reply to comments. Comment ingestion is ~10 minutes (LinkedIn's API has no comment webhook — Zernio polls on a smart cadence). LYRA's own LYRA Community developer app is still progressing through Microsoft Vetting as a long-term native integration, but is not required for current use.</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <span class="feature-pnum" style="color: #4ade80;">★</span>
+        <div>
+          <p class="feature-title">Facebook &amp; Instagram — Live via Zernio Bridge</p>
+          <p class="feature-desc">Facebook Pages and Instagram Business accounts are live and connectable today via the Zernio Bridge. Publish posts and reels, read and reply to comments — all in seconds via Zernio's Meta webhook integration. LYRA's own Meta App Review (submitted June 2026) is still in progress as the long-term native path, but is not required while the Zernio Bridge is active.</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <span class="feature-pnum" style="color: #60a5fa;">N</span>
+        <div>
+          <p class="feature-title">Google Business Profile reviews — Live via Zernio Bridge</p>
+          <p class="feature-desc">Google Business Profile connections are live. Publish posts to GBP listings and — critically — read and reply to Google reviews, all from the LYRA Inbox. Review replies arrive via webhook in seconds. This is the only platform where LYRA can respond to reviews (not just comments), which is a major differentiator for any client managing their local/Google reputation. GBP native API access (LYRA's own application) was rejected and is being reapplied; Zernio covers the gap in full.</p>
         </div>
       </div>
       <div class="feature-row">
@@ -743,35 +803,35 @@
         </div>
       </div>
       <div class="feature-row">
-        <span class="feature-pnum">P1</span>
+        <span class="feature-pnum" style="color: #a78bfa;">★</span>
         <div>
-          <p class="feature-title">Crisis Aware Detection</p>
-          <p class="feature-desc">Real-time sentiment monitoring. Automatic post queue pause on negative spike. Audit log with trigger type, timestamp, and comment IDs. Pro and Agency.</p>
+          <p class="feature-title">Crisis Aware — now suggests its own escalation keywords</p>
+          <p class="feature-desc">Crisis Aware went from a sentiment-spike toggle to a real monitoring service in one update. Brand Intelligence now generates 5–10 suggested escalation keywords every time a brand profile is built — covering legal threats, safety incidents, discrimination claims, and media inquiries as a baseline, plus terms specific to the business's own industry. Suggestions appear on the Brand Intelligence page for one-click approve or dismiss, and can be edited or added to manually — nothing an AI suggests ever affects detection until a human approves it. Escalated comments in the inbox can now be replied to or dismissed directly, closing what was previously a dead end. Pro and Agency.</p>
         </div>
       </div>
       <div class="feature-row">
-        <span class="feature-pnum">P2</span>
+        <span class="feature-pnum">P1</span>
         <div>
           <p class="feature-title">Client Performance Reports</p>
           <p class="feature-desc">One-click branded PDF reports. 7-day or 30-day period. Includes summary metrics, platform breakdown, best post, AI-written performance narrative, and competitor benchmarks. Agency only.</p>
         </div>
       </div>
       <div class="feature-row">
-        <span class="feature-pnum">P3</span>
+        <span class="feature-pnum">P2</span>
         <div>
           <p class="feature-title">Competitor Intelligence</p>
           <p class="feature-desc">Track up to 5 competitors per workspace. Weekly snapshot of posts per week, engagement benchmarks, and content topics. Data feeds into client PDF reports automatically. Agency only.</p>
         </div>
       </div>
       <div class="feature-row">
-        <span class="feature-pnum">P4</span>
+        <span class="feature-pnum">P3</span>
         <div>
           <p class="feature-title">Pre-Publish Content Scoring</p>
           <p class="feature-desc">Live 6-dimension quality scoring in the composer. No manual trigger — updates as you type. Score of 7+ indicates content ready to schedule. Pro and Agency.</p>
         </div>
       </div>
       <div class="feature-row">
-        <span class="feature-pnum">P5</span>
+        <span class="feature-pnum">P4</span>
         <div>
           <p class="feature-title">Smart Content Repurposing</p>
           <p class="feature-desc">Paste a URL or existing text in the composer. LYRA generates platform-native variants for every connected channel simultaneously — each adapted for format, character limits, and audience. Results stream in real time and open in a review screen before calendar commitment. Pro and Agency.</p>
@@ -819,7 +879,7 @@
   <!-- Footer -->
   <div class="footer">
     <p>LYRA — Internal Use Only</p>
-    <p>lyraonline.ai &nbsp;·&nbsp; 17 Jun 2026</p>
+    <p>lyraonline.ai &nbsp;·&nbsp; 23 Jul 2026</p>
   </div>
 
 </div>

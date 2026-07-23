@@ -1,4 +1,4 @@
-import { SectionHeader, Subsection, Strong } from './primitives'
+import { SectionHeader, Subsection, Strong, Note } from './primitives'
 
 export function SettingsSection() {
   return (
@@ -66,6 +66,36 @@ export function SettingsSection() {
           in the inbox that are Awaiting Approval will remain unchanged — only new
           incoming comments are affected.
         </p>
+      </Subsection>
+
+      <Subsection title="Workspace settings — Crisis Aware">
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          Available on Pro and Agency plans. A single toggle that turns on real-time
+          monitoring for reputational risk. When on, LYRA watches every incoming comment for:
+        </p>
+        <ul className="space-y-2 font-sans text-sm text-text-secondary">
+          <li>
+            <Strong>A sentiment spike</Strong> — 3 or more genuinely negative comments
+            landing close together.
+          </li>
+          <li>
+            <Strong>A keyword match</Strong> — any comment containing a word from the
+            workspace&apos;s escalation keyword list. Brand Intelligence suggests this list
+            automatically, tailored to the business — see the <Strong>Brand Intelligence</Strong> section
+            for how to review and approve suggestions.
+          </li>
+        </ul>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
+          Either trigger pauses all scheduled posts for the workspace immediately — nothing
+          publishes while a crisis is active — and shows a red banner across the dashboard
+          with the trigger time. Click <Strong>Resolve</Strong> on the banner once the
+          situation is handled; scheduled posts resume automatically.
+        </p>
+        <Note>
+          Crisis Aware&apos;s alert is in-app only right now (the banner, plus the paused
+          posts) — there is no email or push notification when it triggers. Someone needs
+          to have LYRA open to see it. Email alerting is planned.
+        </Note>
       </Subsection>
 
       <Subsection title="Workspace settings — Guardrails">
