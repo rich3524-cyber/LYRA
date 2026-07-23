@@ -27,13 +27,17 @@ export async function POST(req: Request) {
 
     // Duplicate approve (already an active guardrail) is a no-op success, not
     // an error -- avoids a confusing failure on a double-click or re-adding
-    // something already active.
-    const existingGuardrail = await prisma.guardrail.findFirst({
-      where: { workspaceId, type: 'ALWAYS_ESCALATE', value: { equals: trimmed, mode: 'insensitive' } },
-    })
-
-    const guardrail = existingGuardrail ?? await prisma.guardrail.create({
-      data: { workspaceId, type: 'ALWAYS_ESCALATE', value: trimmed },
+    // something already active. Atomic upsert keyed on the unique constraint
+    // closes the find-then-create race (two near-simultaneous approves for
+    // the same new keyword). Note: dedup is now exact-match, not
+    // case-insensitive -- "Lawsuit" and "lawsuit" are treated as distinct
+    // keywords (matches Postgres btree default collation behaviour).
+    const guardrail = await prisma.guardrail.upsert({
+      where: {
+        workspaceId_type_value: { workspaceId, type: 'ALWAYS_ESCALATE', value: trimmed },
+      },
+      create: { workspaceId, type: 'ALWAYS_ESCALATE', value: trimmed },
+      update: {},
     })
 
     const profile = await prisma.brandProfile.findUnique({

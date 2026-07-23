@@ -320,6 +320,8 @@ model Guardrail {
   type        GuardrailType
   value       String
   createdAt   DateTime      @default(now())
+
+  @@unique([workspaceId, type, value])
 }
 
 enum GuardrailType {
