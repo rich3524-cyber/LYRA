@@ -81,10 +81,22 @@ export async function POST(req: Request) {
         // or handle against our own connected account, which works even if a
         // given webhook delivery omits isOwner.
         const author = payload.comment.author
+        // account.platformId stores Zernio's own internal account id for
+        // ZERNIO-provider accounts (see zernio/connect/callback/route.ts), not the
+        // native platform id -- author.id from a live delivery is the native
+        // Facebook author id, so that branch can never match a Zernio-connected
+        // account's own comments. And Facebook Pages generally have no
+        // "username" the way personal profiles do, so that branch is also
+        // structurally unreliable here. Confirmed live 23 Jul 2026: a manual
+        // reply from this exact Page came back through this webhook as a "new"
+        // comment, isOwner wasn't set, and neither fallback caught it -- it went
+        // on to get AI-drafted a reply to itself. Add the same name-match
+        // fallback the sync route and comment-monitor cron already use.
         const isSelfComment =
           author?.isOwner === true ||
           (!!author?.id && author.id === account.platformId) ||
-          (!!author?.username && author.username.toLowerCase() === account.handle.toLowerCase())
+          (!!author?.username && author.username.toLowerCase() === account.handle.toLowerCase()) ||
+          (!!author?.name && author.name.toLowerCase() === account.name.toLowerCase())
         if (isSelfComment) break
 
         // Guard this the same way as the accountId check above: platformPostId is
