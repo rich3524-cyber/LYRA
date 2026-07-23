@@ -314,9 +314,18 @@ export default async function BrandPage({ params }: Props) {
             </section>
           )}
 
-          {/* Crisis keywords — only shown when Crisis Aware is on */}
+          {/* Crisis keywords — only shown when Crisis Aware is on.
+              Keyed on lastUpdatedAt so a rebuild forces a fresh mount: this
+              component seeds its suggestions list via useState(initialSuggestions),
+              which only applies on first mount -- without a key tied to something
+              that changes on rebuild, router.refresh() after clicking "Build"
+              re-fetches fresh server data but the already-mounted component
+              silently keeps showing its stale initial state (confirmed live
+              23 Jul 2026: a rebuild that generated 15 real suggestions showed
+              none until a full page reload). */}
           {workspace.crisisAware && (
             <CrisisKeywordsSection
+              key={profile?.lastUpdatedAt?.toISOString() ?? 'no-profile'}
               workspaceId={workspaceId}
               initialSuggestions={pendingCrisisSuggestions.map((s) => ({ keyword: s.keyword, category: s.category }))}
               initialActiveKeywords={activeCrisisKeywords}
