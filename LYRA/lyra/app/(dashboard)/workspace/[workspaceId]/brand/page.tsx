@@ -9,6 +9,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { BrandBuildButton, BrandGuidelinesPanel } from '@/components/lyra/brand/brand-build-button'
 import { EngagementInsights } from '@/components/lyra/brand/engagement-insights'
+import { CrisisKeywordsSection } from '@/components/lyra/brand/crisis-keywords-section'
 import type { PostingPatterns } from '@/services/ai/engagement-analyzer'
 
 interface Props {
@@ -51,6 +52,7 @@ export default async function BrandPage({ params }: Props) {
       id: true,
       name: true,
       websiteUrl: true,
+      crisisAware: true,
       brandProfile: true,
       socialAccounts: {
         where: { isActive: true },
@@ -67,6 +69,17 @@ export default async function BrandPage({ params }: Props) {
   const profile = workspace.brandProfile
   const audience = profile?.audienceProfile as AudienceProfile | null
   const patternsJson = profile?.postingPatterns as BrandPatternsJson | null
+
+  const activeCrisisKeywords = workspace.crisisAware
+    ? await prisma.guardrail.findMany({
+        where:  { workspaceId, type: 'ALWAYS_ESCALATE' },
+        select: { id: true, value: true },
+      })
+    : []
+
+  const pendingCrisisSuggestions = (
+    (profile?.suggestedCrisisKeywords as { keyword: string; category: string; dismissed: boolean }[] | null) ?? []
+  ).filter((s) => !s.dismissed)
 
   const engagementPatterns: PostingPatterns = {}
   if (patternsJson) {
@@ -299,6 +312,15 @@ export default async function BrandPage({ params }: Props) {
                 {patternsJson.guidelines}
               </p>
             </section>
+          )}
+
+          {/* Crisis keywords — only shown when Crisis Aware is on */}
+          {workspace.crisisAware && (
+            <CrisisKeywordsSection
+              workspaceId={workspaceId}
+              initialSuggestions={pendingCrisisSuggestions.map((s) => ({ keyword: s.keyword, category: s.category }))}
+              initialActiveKeywords={activeCrisisKeywords}
+            />
           )}
 
           {/* Metadata */}
