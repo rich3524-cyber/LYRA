@@ -23,15 +23,18 @@ export async function POST(req: Request) {
     })
     if (!access) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-    const trimmed = keyword.trim()
+    const trimmed = keyword.trim().toLowerCase()
 
     // Duplicate approve (already an active guardrail) is a no-op success, not
     // an error -- avoids a confusing failure on a double-click or re-adding
     // something already active. Atomic upsert keyed on the unique constraint
     // closes the find-then-create race (two near-simultaneous approves for
-    // the same new keyword). Note: dedup is now exact-match, not
-    // case-insensitive -- "Lawsuit" and "lawsuit" are treated as distinct
-    // keywords (matches Postgres btree default collation behaviour).
+    // the same new keyword). Keyword is normalized to lowercase above, so the
+    // case-sensitive unique constraint still yields case-insensitive dedup in
+    // practice (e.g. "Lawsuit" and "lawsuit" both normalize to "lawsuit" and
+    // hit the same row) -- consistent with every other dedup check in this
+    // feature (crisis-detector.ts, mergeCrisisKeywordSuggestions, and the
+    // suggestion-list filter below).
     const guardrail = await prisma.guardrail.upsert({
       where: {
         workspaceId_type_value: { workspaceId, type: 'ALWAYS_ESCALATE', value: trimmed },
