@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { anthropic } from '@/lib/anthropic'
+import { sendCrisisAlertEmail } from '@/services/notifications/crisis-alert-email'
 
 type Comment = { id: string; content: string }
 
@@ -34,20 +35,37 @@ export async function checkAndTriggerCrisis(workspaceId: string, comments: Comme
     const result = await detectCrisis(workspaceId, comments)
 
     if (result.triggered) {
-      await prisma.$transaction([
-        prisma.workspace.update({
-          where: { id: workspaceId },
-          data: { crisisActive: true, crisisTriggeredAt: new Date() },
-        }),
-        prisma.crisisEvent.create({
+      // Compare-and-set, not a blind update: the check above and this
+      // transaction are two separate round-trips, so two concurrent callers
+      // (the webhook and the polling cron, or two overlapping webhook
+      // deliveries) can both pass the check before either commits here. The
+      // `crisisActive: false` in the WHERE clause makes the update itself the
+      // atomic decision point -- Postgres row locking during the UPDATE
+      // ensures only one concurrent transaction can flip false -> true.
+      // Only the winner (count === 1) records the event and sends the email;
+      // the loser sees count === 0 (crisisActive was already true by the
+      // time its update ran) and quietly backs off -- there is nothing left
+      // for it to do, the crisis is already recorded.
+      const won = await prisma.$transaction(async (tx) => {
+        const { count } = await tx.workspace.updateMany({
+          where: { id: workspaceId, crisisActive: false },
+          data:  { crisisActive: true, crisisTriggeredAt: new Date() },
+        })
+        if (count === 0) return false
+        await tx.crisisEvent.create({
           data: {
             workspaceId,
             triggerType: result.type,
             commentIds:  result.commentIds,
           },
-        }),
-      ])
-      console.log(`Crisis triggered for workspace ${workspaceId}: ${result.type}`)
+        })
+        return true
+      })
+
+      if (won) {
+        console.log(`Crisis triggered for workspace ${workspaceId}: ${result.type}`)
+        await sendCrisisAlertEmail(workspaceId, result.type, result.commentIds)
+      }
     }
   } catch (error) {
     console.error(`Crisis detection failed for workspace ${workspaceId}:`, error)
