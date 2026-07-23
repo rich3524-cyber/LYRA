@@ -1,3 +1,6 @@
+import { prisma } from '@/lib/prisma'
+import { resend, EMAIL_FROM } from '@/lib/resend'
+
 export interface CrisisAlertEmailComment {
   content:     string
   authorName:  string
@@ -87,5 +90,78 @@ export function buildCrisisAlertEmail(
   return {
     subject: `Crisis Aware alert — ${workspaceName}`,
     html,
+  }
+}
+
+export async function sendCrisisAlertEmail(
+  workspaceId: string,
+  triggerType: 'KEYWORD_MATCH' | 'SENTIMENT_SPIKE',
+  commentIds: string[]
+): Promise<void> {
+  try {
+    const [workspace, owners, comment] = await Promise.all([
+      prisma.workspace.findUnique({ where: { id: workspaceId }, select: { name: true } }),
+      prisma.workspaceAccess.findMany({
+        where: { workspaceId, role: { in: ['SMB_OWNER', 'AGENCY_ADMIN'] } },
+        select: { user: { select: { email: true } } },
+      }),
+      commentIds[0]
+        ? prisma.comment.findUnique({
+            where:  { id: commentIds[0] },
+            select: { content: true, authorName: true, socialAccount: { select: { platform: true } } },
+          })
+        : Promise.resolve(null),
+    ])
+
+    if (!workspace) {
+      console.error(`Crisis alert email: workspace ${workspaceId} not found`)
+      return
+    }
+
+    if (owners.length === 0) {
+      console.log(`Crisis alert email: no owner/admin recipients for workspace ${workspaceId}`)
+      return
+    }
+
+    const { subject, html } = buildCrisisAlertEmail({
+      workspaceName: workspace.name,
+      workspaceId,
+      triggerType,
+      comment: comment
+        ? { content: comment.content, authorName: comment.authorName, platform: comment.socialAccount.platform }
+        : null,
+      appBaseUrl: process.env.APP_BASE_URL!,
+    })
+
+    // Resend's SDK does not throw on an API-level failure (invalid recipient,
+    // domain/sending issues, etc.) -- it resolves with { data, error }. Without
+    // explicitly checking `error`, a real failure would silently look like
+    // success to this function's own try/catch, defeating the point of even
+    // logging failures. Still never throws past this point -- fail-open stays
+    // intact -- but a real failure is now actually visible in logs.
+    const results = await Promise.all(
+      owners.map((o) =>
+        resend.emails.send({
+          from:    EMAIL_FROM,
+          to:      o.user.email,
+          subject,
+          html,
+        })
+      )
+    )
+
+    const failures = results.filter((r) => r.error)
+    if (failures.length > 0) {
+      console.error(`Crisis alert email: ${failures.length}/${owners.length} sends failed for workspace ${workspaceId}:`, failures.map((f) => f.error))
+    }
+    const sentCount = owners.length - failures.length
+    if (sentCount > 0) {
+      console.log(`Crisis alert email sent to ${sentCount}/${owners.length} recipient(s) for workspace ${workspaceId}`)
+    }
+  } catch (error) {
+    // Fail open -- an email failure must never affect crisis detection itself.
+    // crisisActive and the CrisisEvent are already recorded by the caller
+    // before this function is ever invoked.
+    console.error(`Crisis alert email failed for workspace ${workspaceId}:`, error)
   }
 }
