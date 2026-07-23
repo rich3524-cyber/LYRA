@@ -132,7 +132,7 @@ export function CrisisKeywordsSection({
                   onClick={() => approve(s.keyword, s.category)}
                   disabled={busyKeyword === s.keyword}
                   aria-label={`Approve "${s.keyword}"`}
-                  className="text-status-success hover:opacity-70 disabled:opacity-40 transition-opacity"
+                  className="text-status-success hover:opacity-70 disabled:opacity-50 transition-opacity"
                 >
                   <Check size={12} strokeWidth={2} />
                 </button>
@@ -141,7 +141,7 @@ export function CrisisKeywordsSection({
                   onClick={() => dismiss(s.keyword)}
                   disabled={busyKeyword === s.keyword}
                   aria-label={`Dismiss "${s.keyword}"`}
-                  className="text-text-tertiary hover:text-text-primary disabled:opacity-40 transition-colors"
+                  className="text-text-tertiary hover:text-text-primary disabled:opacity-50 transition-colors"
                 >
                   <X size={12} strokeWidth={2} />
                 </button>
@@ -168,7 +168,7 @@ export function CrisisKeywordsSection({
                   onClick={() => remove(k.id, k.value)}
                   disabled={busyKeyword === k.value}
                   aria-label={`Remove "${k.value}"`}
-                  className="text-text-tertiary hover:text-status-error disabled:opacity-40 transition-colors"
+                  className="text-text-tertiary hover:text-status-error disabled:opacity-50 transition-colors"
                 >
                   <X size={12} strokeWidth={2} />
                 </button>
@@ -181,9 +181,10 @@ export function CrisisKeywordsSection({
       <div className="flex items-center gap-2">
         <input
           type="text"
+          aria-label="Add a crisis keyword"
           value={newKeyword}
           onChange={(e) => setNewKeyword(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') handleAdd() }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !adding) handleAdd() }}
           placeholder="Add a keyword…"
           className="flex-1 rounded-lg bg-background-hover border border-background-border-mid px-3 py-1.5 text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-text-tertiary transition-colors"
         />
@@ -191,7 +192,7 @@ export function CrisisKeywordsSection({
           type="button"
           onClick={handleAdd}
           disabled={adding || !newKeyword.trim()}
-          className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-background-hover border border-background-border-mid text-text-secondary hover:text-text-primary disabled:opacity-40 transition-colors"
+          className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-background-hover border border-background-border-mid text-text-secondary hover:text-text-primary disabled:opacity-50 transition-colors"
         >
           <Plus size={12} strokeWidth={2} /> Add
         </button>
