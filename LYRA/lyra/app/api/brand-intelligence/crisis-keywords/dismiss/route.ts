@@ -29,14 +29,21 @@ export async function POST(req: Request) {
 
     const trimmed     = keyword.trim().toLowerCase()
     const suggestions = profile.suggestedCrisisKeywords as unknown as CrisisKeywordSuggestionState[]
-    const updated      = suggestions.map((s) =>
-      s.keyword.toLowerCase() === trimmed ? { ...s, dismissed: true } : s
-    )
-
-    await prisma.brandProfile.update({
-      where: { workspaceId },
-      data:  { suggestedCrisisKeywords: JSON.parse(JSON.stringify(updated)) },
+    let changed        = false
+    const updated      = suggestions.map((s) => {
+      if (s.keyword.toLowerCase() === trimmed && !s.dismissed) {
+        changed = true
+        return { ...s, dismissed: true }
+      }
+      return s
     })
+
+    if (changed) {
+      await prisma.brandProfile.update({
+        where: { workspaceId },
+        data:  { suggestedCrisisKeywords: JSON.parse(JSON.stringify(updated)) },
+      })
+    }
 
     return NextResponse.json({ ok: true })
   } catch (error) {
