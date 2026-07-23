@@ -53,4 +53,16 @@ describe('mergeCrisisKeywordSuggestions', () => {
       { keyword: 'food poisoning', category: 'business_specific', dismissed: false },
     ])
   })
+
+  it('collapses a case-insensitive duplicate within the same newSuggestions batch to a single entry', () => {
+    const result = mergeCrisisKeywordSuggestions(
+      [],
+      [
+        { keyword: 'lawsuit', category: 'legal' },
+        { keyword: 'Lawsuit', category: 'legal' },
+      ],
+      []
+    )
+    expect(result).toEqual([{ keyword: 'lawsuit', category: 'legal', dismissed: false }])
+  })
 })
