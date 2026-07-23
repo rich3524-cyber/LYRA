@@ -293,24 +293,24 @@ model CommentResponse {
 }
 
 model BrandProfile {
-  id               String    @id @default(cuid())
-  workspaceId      String    @unique
-  workspace        Workspace @relation(fields: [workspaceId], references: [id])
-  voiceSummary     String?
-  toneAttributes   String[]
-  contentThemes    String[]
-  audienceProfile  Json?
-  postingPatterns  Json?
-  guidelineUrls    String[]
+  id                      String    @id @default(cuid())
+  workspaceId             String    @unique
+  workspace               Workspace @relation(fields: [workspaceId], references: [id])
+  voiceSummary            String?
+  toneAttributes          String[]
+  contentThemes           String[]
+  audienceProfile         Json?
+  postingPatterns         Json?
+  guidelineUrls           String[]
   suggestedCrisisKeywords Json?
-  websiteData      Json?
-  socialData       Json?
-  lastScrapedAt    DateTime?
-  lastSocialSyncAt DateTime?
-  lastUpdatedAt    DateTime?
-  vectorEmbedding  Bytes?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  websiteData             Json?
+  socialData              Json?
+  lastScrapedAt           DateTime?
+  lastSocialSyncAt        DateTime?
+  lastUpdatedAt           DateTime?
+  vectorEmbedding         Bytes?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 }
 
 model Guardrail {
