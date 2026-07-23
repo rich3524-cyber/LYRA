@@ -5,6 +5,11 @@ import { scrapeMultiplePages } from '@/services/brand-intelligence/scraper'
 import { buildBrandProfile } from '@/services/brand-intelligence/profile-builder'
 import { parseWorkspaceGuidelines } from '@/services/brand-intelligence/document-parser'
 import { analyzeSocialPosts } from '@/services/brand-intelligence/social-analyzer'
+import {
+  suggestCrisisKeywords,
+  mergeCrisisKeywordSuggestions,
+  type CrisisKeywordSuggestionState,
+} from '@/services/brand-intelligence/crisis-keyword-suggester'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,6 +58,28 @@ export async function POST(req: Request) {
 
     const profileData = await buildBrandProfile(websiteData, guidelinesText, socialPosts)
 
+    let suggestedCrisisKeywords: CrisisKeywordSuggestionState[] =
+      (workspace.brandProfile?.suggestedCrisisKeywords as CrisisKeywordSuggestionState[] | null) ?? []
+
+    if (workspace.crisisAware) {
+      try {
+        const [newSuggestions, activeGuardrails] = await Promise.all([
+          suggestCrisisKeywords(websiteData, profileData.contentThemes, profileData.audienceProfile),
+          prisma.guardrail.findMany({ where: { workspaceId, type: 'ALWAYS_ESCALATE' }, select: { value: true } }),
+        ])
+        suggestedCrisisKeywords = mergeCrisisKeywordSuggestions(
+          suggestedCrisisKeywords,
+          newSuggestions,
+          activeGuardrails.map((g) => g.value)
+        )
+      } catch (err) {
+        // Fail open -- a broken crisis-keyword suggestion call must never break
+        // the core Brand AI build. Existing suggestions/active keywords are
+        // untouched either way.
+        console.error('Crisis keyword suggestion failed -- continuing without new suggestions:', err)
+      }
+    }
+
     await prisma.brandProfile.upsert({
       where:  { workspaceId },
       create: {
@@ -63,6 +90,7 @@ export async function POST(req: Request) {
         audienceProfile: profileData.audienceProfile,
         postingPatterns: JSON.parse(JSON.stringify({ guidelines: profileData.postingGuidelines, socialInsights: insights, userGuidelines: guidelinesText || undefined })),
         websiteData:     JSON.parse(JSON.stringify(websiteData)),
+        suggestedCrisisKeywords: JSON.parse(JSON.stringify(suggestedCrisisKeywords)),
         lastScrapedAt:   new Date(),
         lastUpdatedAt:   new Date(),
       },
@@ -73,6 +101,7 @@ export async function POST(req: Request) {
         audienceProfile: profileData.audienceProfile,
         postingPatterns: JSON.parse(JSON.stringify({ guidelines: profileData.postingGuidelines, socialInsights: insights, userGuidelines: guidelinesText || undefined })),
         websiteData:     JSON.parse(JSON.stringify(websiteData)),
+        suggestedCrisisKeywords: JSON.parse(JSON.stringify(suggestedCrisisKeywords)),
         lastScrapedAt:   new Date(),
         lastUpdatedAt:   new Date(),
       },
