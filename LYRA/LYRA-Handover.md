@@ -1,12 +1,892 @@
 # LYRA — Project Handover Document
 
-**Date:** May 2026 (updated June 2026 — Session 40: LinkedIn Community Management API + token introspection; Session 39: full mobile UI/UX audit + fixes; Session 38: media upload fix, client approval workflow, tsconfig dedup fix)  
+**Date:** May 2026 (updated July 2026 — internal testing pass: ✅ Analytics tab now shows real engagement data (was entirely unbuilt — `sync-metrics` only ever wrote placeholder zeros — now fetches real numbers from Zernio, plus a follow-up fix so LinkedIn posts resolve correctly too); ✅ Inbox comment ingestion fixed (webhook was reading a field that doesn't exist on real deliveries, so zero comments had ever landed since the Zernio webhook was built) + a self-reply feedback loop fixed; ✅ Dashboard false-FAILED status on a genuinely-published post fixed (same class of bug — trusted a speculative Zernio response field name over their actual docs); ✅ Google Search Console connect flow fixed (wrong redirect domain + site never verified) and confirmed working via a real reconnect test; composer UX fixes (score panel close button, real edit-existing-post flow, drag-and-drop media upload); LYRA Trend add-on scaffold committed (Phase 3); ✅ scheduled posts with media confirmed fully automatic end-to-end: fixed 4 stacked infra bugs (missing cron-job.org auth headers, an undeployed cron route, an overly-broad root `.gitignore` silently blocking new files project-wide, and a missing `DATABASE_URL` on the Railway worker fleet), plus a separate media-attachment bug (S3 bucket needed a public-read policy for Zernio to fetch files, and Zernio's `mediaItems` field was in the wrong place in our request shape), plus 4 of 5 cron-job.org jobs having been auto-disabled and needing re-activation + faster intervals; ✅ media uploads fixed (was a 4-layer AWS misconfiguration, now confirmed working); Zernio platform testing: X/TikTok/YouTube/Google Business connected, Facebook blocked on LYRA workspace by a Meta new-Business-Portfolio issue (not a code bug); Autonomy settings control; Inbox unread badge; Zernio Bridge Phases 1–4: unified social API replaces per-platform native OAuth for new connects; updated June 2026 — Session 40: LinkedIn Community Management API + token introspection; Session 39: full mobile UI/UX audit + fixes; Session 38: media upload fix, client approval workflow, tsconfig dedup fix; updated 2026-07-19 — ✅ email marketing integration (Klaviyo/Mailchimp/Customer.io campaigns in Content Calendar — Klaviyo confirmed working); Agency Plan badge in header; LYRA Assistant placeholder page; competitor scraper heading-fallback + honest postsPerWeek; updated 2026-07-18 — ✅ full comprehensive code review completed and every Critical + High finding fixed (5 Critical in commit `3a4dab0`, all 16 High in commit `f471680`): cross-tenant IDOR on upload presign, 4 live debug/publish routes deleted, SSRF hardening via new `lib/safe-fetch.ts`, atomic post-publish status transition, shared Redis connection for BullMQ, workspace role-gating, account-deletion scope fix, Stripe webhook idempotency + a real billing-downgrade bug fixed on the unreleased Trend add-on, security headers (CSP/HSTS/etc., verified live in-browser), AI auto-reply hardened against prompt injection, a genuinely broken Docker worker deploy path fixed, HTTP timeouts added across every external client, N+1 query batching, a DB index + safety cap on the publish-due-posts cron, Redis-backed rate limiting on AI/upload/PDF routes, and frontend perf fixes (lazy-loaded charts, an O(n²) bug, React.memo); plus the one non-code follow-up item (a separate Postgres connection for the Railway worker) completed manually in Supabase/Railway); updated 2026-07-20 — ✅ Medium/Low review findings fixed (commit `6e34496`); ✅ Instagram GIF-format publish failure fixed (JPEG/PNG only on Instagram/Threads, now checked live in Compose before scheduling) plus 2 real bugs found alongside it (dead BullMQ retry logic, no visibility into failure reasons — both fixed); ✅ a duplicate-publish bug found the same night (a DB write failing after a successful platform publish could trigger a real second publish attempt via BullMQ retry — fixed so nothing can throw after a successful publish); 🔧 a rough night of Netlify deploys — hosted CI's SSH connection to GitHub was intermittently broken (Netlify-side, self-resolved), two brief local-CLI-deploy-caused outages (~3 min, ~30 sec) both caught and rolled back immediately, root-caused (Turbopack workspace-root misdetection from stray lockfiles, fixed via `turbopack.root`) and documented in full — **recommendation: avoid local `netlify deploy --prod` from this machine going forward, prefer hosted CI**; updated 2026-07-20 (evening) — ✅ Facebook connect to the LYRA workspace resolved (a confirmed Meta-side stuck permission grant, not a LYRA code issue — Zernio support pinpointed the fix); ✅ Klaviyo campaign dates showing a day off on the calendar, root-caused to a decoy API field (`scheduled_at` is an audit timestamp, not the send time — switched to `send_time`); ✅ YouTube added to the Compose platform selector (was fully wired everywhere else, just missing from that one list); ✅ AI Schedule Generator caption CSV export + an "Awaiting Media" gate shipped end-to-end (new `requiresMedia` field, export button, Calendar/detail-panel/Compose enforcement, all server-side-gated) via full brainstorm → spec → plan → subagent-driven implementation with two-stage review per task; ✅ a stuck full-screen loading-spinner bug found and fixed in `NavigationLoader` (was misreading `blob:` download links as SPA navigation — also silently affected the pre-existing Help PDF download, never previously reported); updated 2026-07-21 (afternoon) — ✅ dashboard YouTube label overflow fixed; ✅ Inbox self-comment filter added to sync route; ✅ Analytics inboxPending count fixed (was counting IGNORED as pending); ✅ on-demand Sync button added to Analytics page (new /api/analytics/sync endpoint); ✅ Analytics engagement chart now buckets by local date not UTC (timezone offset param); ✅ response rate now excludes IGNORED comments from denominator; ✅ GSC SEO connection now surfaces a reconnect prompt instead of silent "no data" when token expires; updated 2026-07-21 — ✅ Klaviyo campaigns now sync through to Sent → Published (was permanently stuck at Scheduled once a campaign actually sent); ✅ a real "FB published, LinkedIn+Instagram showed Failed" incident root-caused to a client-side timeout + BullMQ retry racing Zernio's own duplicate-post detection — fixed with a proper idempotency key, the two affected posts corrected in the DB to match reality (they had genuinely published); ✅ Inbox comment sync found completely broken for every Zernio-connected account, on every platform, both the manual Sync button and the automatic cron — root-caused live via a real LinkedIn comment test, fixed by routing through the same provider abstraction publish() already uses, confirmed working end-to-end on LinkedIn, Facebook, and Instagram; ✅ Analytics page's "Total reach"/"Top posts" looked empty despite real activity — root-caused to `views` (populates before `reach` on IG/LinkedIn) being silently dropped since the field was never declared anywhere in the codebase; added end-to-end (schema, sync cron, API, dashboard, chart); extensive live alpha testing this session with the Testing Checklist updated throughout, evidence-first (DB queries, production log checks, and direct visual confirmation) rather than taking test results at face value; updated 2026-07-22 — ✅ page heading font/size unified across all dashboard pages to `font-display text-4xl text-text-primary` (Analytics page had a fully wrong style — hardcoded hex color, extra font-weight — others had legitimate but unwanted size variance); evaluated Google Pomelli (Google Labs/DeepMind) as a possible addition to the Creative Studio Phase 2 platform lineup — no public API exists, so there's no ingestion path into LYRA's launcher+ingestion architecture, and its "Business DNA" concept duplicates LYRA's existing Brand AI rather than adding new capability; not integrated, logged as a watch-list note in the Creative Studio scope doc's Open Questions section instead; updated 2026-07-23 — ✅ publish-idempotency fix and drag-and-drop reschedule both confirmed live: the 4 posts dragged to a new time on 22 Jul all published clean and showed Published on the calendar, closing out both open checklist items in one real test; ✅ Inbox unread badge staleness fixed — badge stayed lit after switching workspaces even with nothing genuinely pending, root-caused to the badge count being computed once server-side and never refreshed on a client-side workspace switch (unlike the active-workspace-id itself, which already had this exact workaround) — fixed with a new live-count endpoint fetched client-side, keyed on the active workspace; ✅ media upload had no real file-size limit — the actual upload path Compose uses had zero size validation (a 50MB check existed only in dead, unreachable code), so a large file's fate depended on whether it finished before the presigned URL's 5-minute expiry rather than any real policy; added a real 50MB limit enforced client- and server-side, plus stopped swallowing the real error message on failed uploads; ✅ Content Calendar confirmed matching the DB exactly (20 ITWM posts, 21–29 Jul, cross-checked directly) — no phantom or missing entries; ✅ Crisis Aware fully confirmed working end-to-end after fixing a real gap — it never checked comments arriving via the real-time webhook (only the polling cron, separately broken for Facebook on a Meta permission error), fixed by wiring the same check into the webhook handler, re-tested and confirmed (crisisActive flips, CrisisEvent created, banner shown); also confirmed a real UX gap along the way — Crisis Aware's escalation is in-app only, no email/notification exists anywhere in the app, flagged for later; ✅ escalated Inbox comments had zero way to be replied to or dismissed (pure frontend gap, backend never blocked it) — fixed and confirmed live (manual reply posted to Facebook within seconds), AI Generate stays hidden for escalated ones since AI itself declined to draft a reply, escalationReason now surfaced too; ✅ self-reply loop recurred a third time via the webhook's self-comment filter — its native-id and username fallbacks were structurally broken for Zernio-connected accounts (platformId stores Zernio's own id, not the native one; Facebook Pages have no username), fixed by adding the same name-match fallback the other two ingestion paths already had; ✅ shipped Crisis Aware AI-suggested keywords end-to-end via full brainstorm → spec → plan → subagent-driven implementation (10 tasks, two-stage review per task plus a final cross-task review) — Brand AI now generates suggested crisis-escalation keywords (legal/safety/discrimination/media/business-specific) during a rebuild, reviewable on the Brand AI page (only shown when Crisis Aware is on) with approve/dismiss/manual-add/remove; suggestions live separately from the live `Guardrail` table until approved, so detection is provably unaffected until a human acts; real bugs caught and fixed along the way (an intra-batch AI-suggestion dedup gap, a malformed-JSON fail-open gap, a genuine race condition on concurrent approves closed with a DB unique constraint + atomic upsert, an accessibility gap, an idempotent-delete gap, and a final-review catch where the race fix had silently made duplicate detection case-sensitive, contradicting the spec — fixed by normalizing to lowercase on write); email notification on crisis trigger intentionally scoped out as a separate follow-up spec, not yet built
 **Prepared by:** Claude Code (Anthropic)  
 **Project owner:** Richard Unwin, Into The Wild Marketing
 
 ---
 
 ## Changelog
+
+### 2026-07-23 (latest) — Crisis Aware email alert shipped
+
+---
+
+#### ✅ SHIPPED — Crisis Aware now emails the workspace owner/admin when it triggers
+
+Second half of the day's two-part Crisis Aware expansion (after the AI-suggested keywords work below). Closes the gap flagged during that earlier work: Crisis Aware's escalation was in-app only (banner + auto-pause posting) — nobody found out unless they happened to have LYRA open.
+
+**Full process:** brainstorm → design spec (`docs/superpowers/specs/2026-07-23-crisis-aware-email-alert-design.md`) → implementation plan (`docs/superpowers/plans/2026-07-23-crisis-aware-email-alert.md`) → subagent-driven implementation, 5 tasks, each with spec-compliance + code-quality review, plus a final cross-task review.
+
+**Provider:** Resend, reusing the `RESEND_API_KEY` already provisioned for the Coming Soon landing pages (confirmed still valid; Richard upgraded it to Full Access permission for this). No separate Crisis Aware-specific key — not worth the isolation at this scale.
+
+**Architecture:** `lib/resend.ts` (lazy client singleton, mirroring `lib/stripe.ts`'s pattern — not `lib/anthropic.ts`'s module-load pattern, because the Resend constructor throws synchronously on a missing key and that throw needs to land inside a caller's try/catch, not at import time) + `services/notifications/crisis-alert-email.ts` (pure `buildCrisisAlertEmail` builder, TDD'd with 8 tests, plus impure `sendCrisisAlertEmail` that fetches recipients/comment excerpt and sends). Wired into `checkAndTriggerCrisis()` in `services/ai/crisis-detector.ts`, the single call site already shared by the webhook and the polling cron.
+
+**Recipients:** every `WorkspaceAccess` with role `SMB_OWNER` or `AGENCY_ADMIN` — not `Workspace.ownerId`, which exists in the schema but is never actually populated anywhere in the app (confirmed against real data). Email includes the trigger description, a ~150-char excerpt of the triggering comment, platform, author, and a link into the workspace's Inbox. No one-click resolve link (security — resolving stays an in-app-only action).
+
+**Real bugs found and fixed during review, not just style nits:**
+- Task 1's Resend client was originally built with module-load instantiation (matching `lib/anthropic.ts`) — code review caught that this would make a missing API key crash at import time, outside any try/catch, taking down all of Crisis Aware detection. Fixed to the lazy pattern before it ever shipped.
+- The comment-excerpt truncation used plain `.slice(0, 150)`, which can bisect a UTF-16 surrogate pair (an emoji) and produce a broken glyph. Fixed with `Array.from(text).slice(...).join('')`, which splits on code points instead.
+- Resend's SDK resolves `{ data, error }` rather than throwing on an API-level failure (bad recipient, domain issue) — caught during the plan's own self-review before implementation started, so `sendCrisisAlertEmail` explicitly checks `.error` on every send result rather than treating a failed send as silent success.
+- The biggest one: Task 3's code-quality review surfaced a **pre-existing concurrency race** in `checkAndTriggerCrisis`, unrelated to email — it read `crisisActive` in one round-trip then unconditionally wrote it `true` in a later transaction, so two concurrent callers (the webhook and the polling cron, or two overlapping webhook deliveries) could both pass the check and both commit. Previously this was silent (a duplicate `CrisisEvent` row nobody would notice); adding email made the consequence real (duplicate alert emails). Folded into Task 4 rather than filed separately, since it touches the exact same lines: replaced the unconditional transaction with a compare-and-set (`updateMany` with `crisisActive: false` in the WHERE clause, checked via `count`), so only the transaction's actual winner records the `CrisisEvent` and sends the email.
+
+**Confirmed live, same day:** triggered a real crisis on ITWM (Facebook comment matching the "lawsuit" `ALWAYS_ESCALATE` keyword) — DB-confirmed a single `CrisisEvent` with no duplicate, in-app banner and Inbox updated, and the email arrived within seconds with the correct subject, comment excerpt, and working Inbox link. Richard confirmed 100% verified.
+
+---
+
+### 2026-07-23 (later) — Crisis Aware AI-suggested keywords shipped
+
+---
+
+#### ✅ SHIPPED — Brand AI now suggests Crisis Aware escalation keywords
+
+Follow-up to the day's earlier Crisis Aware fixes. Richard asked how a real user would ever add crisis keywords, since there was no UI for it at all — only direct DB access (used for that day's testing). Rather than build a bare keyword-input form, brainstormed a design where Brand AI (which already analyses the business's website, content themes, and audience) also suggests realistic crisis keywords tailored to the business, which the user reviews on the Brand AI page.
+
+**Full process:** brainstorm → design spec (`docs/superpowers/specs/2026-07-23-crisis-aware-keyword-suggestions-design.md`) → implementation plan (`docs/superpowers/plans/2026-07-23-crisis-aware-keyword-suggestions.md`) → subagent-driven implementation, 10 tasks, each with a fresh implementer subagent, spec-compliance review, and code-quality review — plus a final cross-task review at the end that a per-task review couldn't have caught.
+
+**Architecture:** suggestions (`BrandProfile.suggestedCrisisKeywords`, a new JSON field) are generated by a new Claude call using guided categories (legal/safety/discrimination/media) plus business-specific ones, alongside the existing Brand AI build. They live entirely separately from the `Guardrail` table — the table Crisis Aware's detection actually reads — until a human explicitly approves one. This means detection is provably unaffected by an AI suggestion until someone acts on it; verified in the final review by confirming `crisis-detector.ts` never reads the suggestions field, only `Guardrail`.
+
+**New surface:** three API routes (`approve`, `dismiss`, and `DELETE /api/guardrails/[id]`) — the first API of any kind for the `Guardrail` model — plus a `CrisisKeywordsSection` component on the Brand AI page (rendered only when Crisis Aware is toggled on), showing pending suggestions (Approve/Dismiss), active keywords (Remove), and a manual "Add a keyword" input.
+
+**Real bugs found and fixed during review cycles, not just style nits:**
+- The merge logic didn't dedupe *within* a single batch of fresh AI suggestions — Claude returning "lawsuit" and "Lawsuit" in the same response would have produced two suggestion chips.
+- The Claude-calling function's `JSON.parse` wasn't wrapped in try/catch, so a malformed response would throw instead of failing open — inconsistent with its own visible fail-open intent elsewhere in the same function.
+- A genuine race condition: the original approve endpoint used find-then-create for `Guardrail` rows with no DB constraint behind it, so two near-simultaneous approves of the same new keyword could create duplicate rows. Fixed with a new `@@unique([workspaceId, type, value])` constraint and an atomic `upsert`.
+- That race fix then silently made duplicate-keyword detection case-sensitive (contradicting the spec's explicit "duplicate approve is a no-op" requirement, and inconsistent with every other case-insensitive comparison in the feature) — caught only in the final end-to-end review, not any single task's review, since no per-task diff showed the whole picture. Fixed by normalizing keywords to lowercase on write.
+- The delete endpoint threw a 500 on a concurrent double-delete instead of treating "already gone" as success.
+- The "add a keyword" input had no accessible name (placeholder-only).
+
+**Deliberately out of scope, per the original spec:** email notification when a crisis triggers. Right now Crisis Aware's entire escalation is in-app only (banner + auto-pause posting) — there is no email-sending capability anywhere in this codebase, for any feature. Confirmed this while investigating Crisis Aware earlier the same day; Richard wants this as a second, separate brainstorm/spec/plan cycle next.
+
+**First live test, same day:** rebuilt Brand AI on ITWM — manual add worked immediately, but the 15 real AI-generated suggestions the rebuild produced didn't show up until a hard refresh. Root-caused: `CrisisKeywordsSection` seeds its suggestions list via `useState(initialSuggestions)`, which only takes effect on a component's first mount. The rebuild button's `router.refresh()` correctly re-fetches fresh server data, but since the component stays mounted at the same spot on the page, React reuses the existing instance and silently ignores the new prop. Fixed by keying the component on `profile.lastUpdatedAt`, so a rebuild forces a genuine remount (commit `ffba1d6`). Confirmed the underlying data and every layer of the page's query/render logic were correct throughout — this was purely a client-side remount bug, not a generation or persistence issue.
+
+---
+
+### 2026-07-23 — Publish-idempotency fix and drag-and-drop reschedule both confirmed live; Inbox unread badge staleness fixed
+
+---
+
+#### ✅ FIXED — Inbox unread badge stayed lit after switching workspaces, with nothing actually pending
+
+Richard reported a new-message badge against Inbox after switching back to the Into The Wild Marketing workspace from LYRA, but both the Pending and Escalated tabs were genuinely empty. First ruled out a simpler theory — that the badge (which counts `PENDING`/`AI_DRAFTED`/`AWAITING_APPROVAL`/`ESCALATED`) and the Inbox's default "Pending" tab (which excludes `ESCALATED`) disagree on what counts as unread — by having Richard check the Escalated tab directly; it was empty too, ruling that out.
+
+**Root cause:** `unreadCount` is computed once, server-side, in the shared `app/(dashboard)/layout.tsx` and passed down as a static prop through `AppShellClient` → `Sidebar`. Workspace switching happens via `router.push()` (a client-side/soft navigation, confirmed in `workspace-switcher.tsx`), and nothing in the app calls `router.refresh()` or sets Next's `staleTimes` to force revalidation — so the shared layout isn't guaranteed to re-run its comment-count query on every workspace switch. Tellingly, `Sidebar` and `WorkspaceSwitcher` already both re-derive `activeWorkspaceId` from the live `pathname` instead of trusting the same server-passed `workspaceId` prop, with in-code comments explicitly noting *why* ("the layout always passes workspaceAccess[0] ... can't rely on the prop when the user has switched workspaces") — `unreadCount` was the one piece of workspace-scoped state that never got the same treatment.
+
+**Fixed:** added `GET /api/comments/unread-count` (same auth + workspace-access check pattern as the existing `/api/comments` route) and had `Sidebar` fetch a live count client-side, keyed on the pathname-derived `activeWorkspaceId`, plus refetch on window focus. (Commit `3ff994c`)
+
+---
+
+#### ✅ FIXED — No real file-size limit on media upload; large-file failures were unexplained and speed-dependent
+
+Testing the Week 1 "oversized file" checklist item, Richard attached a 31MB file (no warning, attached cleanly) then a 1.4GB file (failed with a generic "Failed to upload media" message). Investigated why the 1.4GB one actually failed, since 31MB working fine implied *some* size handling existed.
+
+**Root cause:** the code path Compose actually uses for uploads (`lib/upload-media.ts` → `POST /api/upload/presign` → direct browser-to-S3 PUT) had **zero size validation anywhere**. A 50MB check exists in `app/api/upload/route.ts` — but nothing in the frontend calls that route; it's dead code, never reachable from the actual upload flow. The presigned S3 URL is also only valid for 5 minutes (`lib/s3.ts`), so the most likely explanation for the 1.4GB failure is that the upload simply didn't finish within that window and the presigned URL expired mid-transfer — a timing accident, not a deliberate rejection. That means a large file's fate depended on the user's upload speed rather than any real policy, and either way the actual cause was discarded into a generic toast (`catch { toast.error('Failed to upload media') }` in both `media-uploader.tsx` and `post-composer.tsx`'s drag-and-drop path), so there was no way to tell "too big," "network hiccup," and "expired mid-upload" apart from the message shown.
+
+**Fixed:** added a real 50MB limit — client-side in `uploadMediaFile` (fails fast before wasting an upload attempt, with the actual file size shown in the error) and server-side in `/api/upload/presign` (the real enforcement point, since a client-only check is trivially bypassable). Also stopped discarding the real error message in both upload entry points, so a rejected upload now says why instead of a generic message every time. (Commit `5685ce0`)
+
+---
+
+#### ✅ CONFIRMED — Content Calendar matches the DB exactly, no phantom or missing entries
+
+Queried the ITWM workspace's Post table directly (20 posts, 21–29 Jul 2026 — three published days of 4 posts each, plus two upcoming scheduled days of 4 posts each) using the same query shape the Calendar's own `/api/posts?workspaceId=X&month=YYYY-MM` route uses, and had Richard cross-check the live Calendar's July view against it. Everything matched exactly — dates, times, platforms, statuses. This closes out the last open item in Week 1's core scheduling/publishing section other than full Post Now platform coverage and the cancel-before-publish test.
+
+Also worth noting: while querying, found the local `.env` file's `DATABASE_URL` password no longer matches what's actually deployed on Netlify (confirmed via `netlify env:get`). Harmless — `.env` is gitignored, never committed, production unaffected — but local dev/debugging against the real DB from this machine won't work until it's synced with the current Netlify value.
+
+---
+
+#### ✅ FIXED — Crisis Aware never checked comments arriving via the real-time webhook
+
+First-ever test of Crisis Aware (Testing Checklist line 59): added an `ALWAYS_ESCALATE` guardrail keyword ("lawsuit") to ITWM, left a matching Facebook comment, waited 8+ minutes. Never triggered. Investigated via Railway worker logs rather than guessing.
+
+**Two separate things found:**
+1. ITWM's (and LYRA's) Facebook comment-monitor cron is currently failing on every tick with a Meta 400 error — `"requires the 'pages_read_user_content' permission or the 'Page Public Content Access' feature"`. Same class of issue as the earlier New Pages Experience stuck-permission incident, likely needs a Zernio/Meta-side fix rather than a code change — **not fixed, flagged for follow-up.**
+2. Because of (1), the test comment actually arrived via the real-time Zernio webhook instead of the polling cron — and `detectCrisis()` (the actual Crisis Aware engine) was only ever called from `comment-monitor.worker.ts` (the cron), never from `app/api/zernio/webhook/route.ts` (the webhook). So the comment was never evaluated at all, independent of (1) — this would be true even with Facebook's cron working, for any comment that happens to arrive via webhook first (the faster, primary path).
+
+**Fixed:** extracted the trigger logic (crisisAware/crisisActive check, `detectCrisis()` call, the `crisisActive`/`CrisisEvent` writes) into a shared `checkAndTriggerCrisis()` in `services/ai/crisis-detector.ts`, called from both the polling worker and the webhook handler. (Commit `caf414c`)
+
+**Known limitation, not attempted:** the webhook delivers one comment per call, so only `KEYWORD_MATCH` is reachable through it — `SENTIMENT_SPIKE` needs 3+ very negative comments in one batch, which still only works via the polling path. Extending that to webhook deliveries would need a rolling-window query, a separate piece of work.
+
+**Re-tested after deploy** — confirmed working end-to-end: Richard deleted and re-posted the "lawsuit" comment, and within moments `workspace.crisisActive` flipped to `true`, a `CrisisEvent` was created (`triggerType: KEYWORD_MATCH`, correctly linked to the new comment), and the in-app crisis banner appeared. Scheduled posts will now hold (not cancel) until Resolve is clicked, per `post-publisher.worker.ts`'s existing `crisisActive` check.
+
+**Separate finding while investigating what "alerts you" actually does:** Crisis Aware's entire escalation is in-app only — the workspace-wide `crisisActive` flag, the `CrisisEvent` audit row, held posts, and a red dashboard banner with a manual Resolve button. There is no email, push, or SMS notification anywhere — in fact no email-sending capability exists anywhere in the codebase at all, for any feature. If nobody has LYRA open when a real crisis triggers, nobody finds out until they happen to log in. The Settings toggle's own copy ("...alerts you when triggered") currently overstates what happens. Richard is deferring a fix to a planned "build the guardrail-keyword UI out properly" follow-up, which real notification should probably be bundled into.
+
+---
+
+#### ✅ FIXED — Escalated comments had zero way to be replied to or dismissed
+
+Richard clicked Resolve on the crisis banner, then found a second, separate gap: the escalated comment from the test sat in the Inbox's Escalated tab with no way to respond to it at all.
+
+**Root cause:** `CommentCard`'s `isActionable` flag excluded `ESCALATED` from both the reply textarea and the entire action-button row — not even the Ignore button rendered. It wasn't a backend restriction (`POST /api/comments/[id]/reply` only blocks `RESPONDED`; the `PATCH` route accepts any status transition) — purely a frontend gap. The only way out of Escalated was direct database access.
+
+**Fixed:** escalated comments can now be replied to manually or ignored. The AI "Generate" button stays hidden specifically for escalated ones, since the entire point of an escalation is that the AI itself declined to draft a reply — a human has to write it. Also surfaced `comment.escalationReason` (captured in the DB by `ai-responder.worker.ts` since the feature was built, but never rendered anywhere) so whoever handles it can see why. `response-inbox.tsx`'s Escalated tab was passing a no-op update callback (correct when the cards were non-interactive) — switched to the real handler so a sent reply or Ignore now reflects immediately without a page refresh. (Commit `1c55095`)
+
+**Re-tested and confirmed live:** Richard wrote a manual reply to the real escalated comment and it posted to Facebook within seconds.
+
+---
+
+#### ✅ FIXED — Third recurrence of the self-reply loop: webhook's self-comment filter had two structurally broken fallbacks for Zernio accounts
+
+Right after the escalated-comment fix above, the Inbox badge showed unread again with both Pending and Escalated empty. This looked identical to the workspace-switch staleness bug fixed earlier today, but it wasn't — there was a genuine new comment: Richard's manual reply to the escalated comment had come back through the real-time webhook as a "new" incoming comment (Facebook fires the webhook for any comment on a tracked post, including the Page's own replies), and the AI had drafted a reply to its own reply — the same self-reply-loop bug class from 22 Jul, now recurring a third time via the one remaining ingestion path (the webhook) that does have a self-comment check.
+
+**Root cause, more specific than the earlier two incidents:** the webhook's self-comment filter has three conditions — `isOwner === true`, a native-id match, or a username match. `isOwner` wasn't set on this delivery. The other two turned out to be structurally incapable of ever matching for a Zernio-connected account: `account.platformId` stores *Zernio's own internal account id* for Zernio-provider accounts (confirmed via `zernio/connect/callback/route.ts`'s own code comment — there's no native platform id available at connect time), not the native Facebook id a live webhook delivery's `author.id` would contain, so that comparison can never succeed regardless of whether it really is a self-comment. And Facebook Pages generally don't have a "username" the way personal profiles do, so that fallback was empty too. In effect, this Page's self-comment protection depended entirely on `isOwner`, with zero working fallback.
+
+**Fixed:** added the same name-match fallback (`authorName` vs. the connected account's own `name`) that the manual sync route and the automatic cron already use for exactly this reason. (Commit `387d47e`). The one stray `AI_DRAFTED` comment this produced was cleared.
+
+---
+
+---
+
+#### ✅ CONFIRMED — Idempotency fix holds up live; drag-and-drop reschedule genuinely re-fires
+
+The 4 ITWM posts dragged to a new time (8:06am 23 Jul) via the Calendar drag-and-drop fix (22 Jul) all published clean on their platforms and showed as **Published** on the LYRA calendar — no false-Failed recurrence. This closes out two open Testing Checklist items in one real-world test: (1) the publish-idempotency fix (stable `x-request-id` + graceful 409 handling, shipped 21 Jul after the FB-published/LinkedIn+Instagram-false-Failed incident) held up under a genuine BullMQ-retry-prone multi-platform batch; (2) the drag-and-drop reschedule actually re-fires the post at its new time, not just visually moving the calendar card. Confirmed per Richard's direct report.
+
+---
+
+### 2026-07-22 — Page heading consistency pass, Creative Studio Phase 2 platform research (Google Pomelli)
+
+---
+
+#### ✅ FIXED — Page heading font/size inconsistent across the dashboard
+
+Richard asked for every page heading to be checked for matching font and size. A full grep sweep across `app/(dashboard)/**/page.tsx` found the Analytics page using a completely different style (`text-2xl font-semibold` with a hardcoded `#e2e2e2` hex color instead of the design system's `text-text-primary` token) — a clear pre-existing bug. Seven other pages (Assistant, Competitors, Repurpose, agency Clients + New workspace, workspace Overview, Calendar) used smaller or inconsistent sizes (`text-2xl`/`text-3xl`, one with a responsive `text-3xl sm:text-4xl` breakpoint) versus the dominant `text-4xl` used elsewhere. Richard confirmed `text-4xl` as the intended standard.
+
+**Fixed:** unified all 8 non-conforming page titles to `font-display text-4xl text-text-primary`, leaving each page's existing `<h1>`/`<h2>` tag as-is (tag-level consistency wasn't part of the ask). Verified clean via `tsc --noEmit` and the full test suite (23/23 passing) before committing. (Commit `b499ae7`)
+
+---
+
+#### 🔍 RESEARCHED, NOT INTEGRATED — Google Pomelli evaluated for Creative Studio Phase 2
+
+Richard asked whether Google Labs' newly-launched Pomelli (AI marketing tool, Google Labs/DeepMind, free public beta since Oct 2025) should be added to the Creative Studio scope as an additional Phase 2 platform, alongside Ideogram/Higgsfield/FLUX (images) and Arcads/HeyGen (UGC video).
+
+**Verdict: not a fit, for an architectural reason, not a preference.** Every platform in the existing Creative Studio spec was chosen specifically because it has an API or MCP — Creative Studio's entire design is "launcher + ingestion" (LYRA injects Brand AI context, the user generates on their own third-party subscription, LYRA pulls the finished asset back into the Media Library programmatically). Pomelli has **no public API** — standalone web app only, no committed post-beta roadmap. Without an API there's no ingestion path; a user would have to manually download-and-reupload, defeating the point of the module. Separately, Pomelli's "Business DNA" (colors/tone/fonts extracted from a website) is conceptually identical to LYRA's existing Brand AI, so it adds no new capability even setting the API issue aside.
+
+**Action taken:** added a "Platforms monitored, not integrated" subsection with a one-line Pomelli note to `Scope Docs - Future projects/LYRA-Creative-Studio-Scope.docx`, section 11 (Open Questions) — to revisit only if Google ships an API. No code changes; the Creative Studio module itself remains a post-launch add-on, not being built pre-launch per standing direction.
+
+---
+
+### 2026-07-21 (afternoon) — Dashboard/Inbox polish, Analytics overhaul, SEO GSC reconnect fix
+
+---
+
+#### ✅ FIXED — YouTube platform label overflowing post text on the dashboard
+
+The Recent Posts section on the workspace overview page showed the full string "YOUTUBE" in the platform column instead of a short code, causing it to push into the post text. Added `YOUTUBE: 'YT'` to the `PLATFORM_SHORT` map in `app/(dashboard)/workspace/[workspaceId]/page.tsx`. (Commit `cd771b5`)
+
+---
+
+#### ✅ FIXED — Self-comments appearing in Inbox Pending
+
+The Facebook Page "Into The Wild Marketing" had commented on its own post; that comment was being pulled in by the Zernio comment sync route and landing in the Inbox as a pending item. The webhook path already had a self-comment filter (`isOwner`, platform ID, and handle checks) but the sync route (`app/api/comments/sync/route.ts`) had no equivalent. Added a name/handle comparison filter to the Zernio sync path, mirroring the webhook's logic. The existing spurious DB row was manually set to IGNORED. (Commit `5fee55e`)
+
+---
+
+#### ✅ FIXED — Analytics "Response Rate" pending count inflated by IGNORED comments
+
+`inboxPending` was calculated as `commentCount − respondedCount`, which counted deliberately-IGNORED comments (spam, self-comments) as "unanswered", inflating the pending number. Fixed in `app/api/analytics/route.ts` to count only the four genuinely actionable statuses: `PENDING`, `AI_DRAFTED`, `AWAITING_APPROVAL`, `ESCALATED`. (Commit `9508a5c`)
+
+---
+
+#### ✅ ADDED — On-demand Sync button on the Analytics page
+
+The only way to refresh analytics metrics was to wait for the `sync-metrics` cron (runs daily). Added a user-facing **Sync** button to `PerformanceDashboard` that calls a new `POST /api/analytics/sync` endpoint — same logic as the cron but user-auth instead of cron-secret, 1-hour staleness window (so clicking it twice doesn't hammer Zernio), capped at 50 posts per call. The button spins while in flight and re-fetches analytics data on completion. (Commit `9508a5c`)
+
+---
+
+#### ✅ FIXED — Analytics engagement chart bucketing posts by UTC date instead of local date
+
+Posts published at e.g. 8:45am Brisbane (UTC+10) are stored as 10:45pm UTC the previous calendar day. The engagement chart was doing `format(publishedAt, 'MMM d')` in UTC on the server, so all of Brisbane's "today" posts landed in "yesterday's" bar. Fixed by accepting a `tzOffset` query param (minutes, computed client-side from `getTimezoneOffset()`) and shifting all dates by that offset before formatting into bucket keys. The DB query itself stays UTC-based; only the label formatting is affected. (Commit `78d85dd`)
+
+---
+
+#### ✅ FIXED — Response rate counting IGNORED comments as "unanswered"
+
+`commentResponseRate` was `respondedCount / commentCount` — IGNORED comments (spam, self-comments you chose to dismiss) were in the denominator, making the rate look artificially low. Changed the denominator to `respondedCount + pendingCount` (i.e. responded ÷ non-ignored) so only comments you actually engaged with or left pending affect the rate. (Commit `b4f5580`)
+
+---
+
+#### ✅ FIXED — GSC SEO connection silently showing "No trend data" when token expires
+
+The Into The Wild Marketing workspace had a GSC connection from May 2026 that hadn't been used since May 25. The `gsc-data` route proactively refreshes the access token on every call — but if the refresh fails, it was silently swallowing the error and continuing with the 2-month-old expired access token. The GSC API returned 401, `getTopQueries`/`getClicksTrend` cast the error body as `{ rows?: ... }` (no `rows` field on errors → returned `[]`), and the component showed "No trend data yet — GSC has a 3-day lag" despite GSC having real data.
+
+**Three-file fix:**
+- `services/seo/gsc-client.ts` — both query functions now check `res.ok` and throw on non-OK responses instead of returning empty arrays
+- `app/api/seo/gsc-data/route.ts` — if token refresh fails, immediately returns `{ error: 'reconnect_required' }` with status 401 rather than falling through to the expired token
+- `components/lyra/seo/gsc-analytics.tsx` — detects the 401 and renders a "Google Search Console connection has expired — Reconnect" link instead of the misleading no-data message
+
+Confirmed working: reconnecting the ITWM GSC connection surfaced real keyword data immediately. (Commit `5875b80`)
+
+---
+
+### 2026-07-21 — Publish-idempotency incident, comment sync completely broken for Zernio accounts, Analytics views gap, and a full day of live alpha testing
+
+---
+
+#### ✅ FIXED — Klaviyo campaigns stuck at "Scheduled" forever once actually sent
+
+Follow-up to the 20 Jul `scheduled_at` → `send_time` field fix. The sync only ever fetched Draft/Scheduled campaigns from Klaviyo's API — once a campaign genuinely sent, it dropped out of every future fetch and the existing LYRA calendar entry was left stuck forever with nothing to update it.
+
+**Fixed** (`services/email-marketing/klaviyo-campaigns.ts`): broadened the fetch to include Sent campaigns, bounded to the last 30 days via `updated_at` (confirmed the `and(...)` filter combinator live before shipping it, to avoid repeating the earlier wrong-field-name 400) and mapped `Sent` → `PUBLISHED` so it renders identically to a published social post. Separately found the specific EmailIntegration hadn't been re-synced since before this fix deployed (no cron exists for email sync — it's manual-only), so backfilled that one row by hand. **Flagged, not built:** there's no automatic background sync for email campaigns at all, unlike comments/metrics/trends which all run on a cron — worth adding if this manual-click dependency keeps causing "why hasn't this updated" moments.
+
+---
+
+#### ✅ RESOLVED — Real incident: FB published, LinkedIn + Instagram both showed Failed
+
+Richard scheduled Facebook + LinkedIn + Instagram together (8:45am). Facebook published; LinkedIn and Instagram both showed `Failed` with `Zernio POST /posts failed (409)`. Root-caused live, fully evidence-backed (not a guess): queried Zernio's own post records directly and both posts had genuinely published successfully — real post IDs, `[published]` status on Zernio's side.
+
+**Mechanism:** the worker's retry logic (from the 20 Jul duplicate-publish fix) intentionally re-calls `publish()` when a job retries while a post is still `PUBLISHING`. If the *first* attempt's response is lost to a client-side timeout — confirmed this is common for LinkedIn/Instagram, whose video-publish latency routinely exceeds the client's 20s timeout even though the platform-side publish succeeds — the retry calls Zernio's create-post endpoint a second time with identical content. Zernio's own documented "Layer 2" content-hash dedup correctly rejects that with 409, but LYRA was treating that rejection as an unrecoverable failure instead of "this already went out."
+
+**Fixed**, per Zernio's own documented idempotency guide: `zernio-client.ts` now sends a stable `x-request-id` header (derived from the LYRA `Post.id`, so every retry of the same logical publish reuses it) — a retry within Zernio's ~5 minute window now gets back the original successful post instead of racing into the dedup rejection. As a backstop, a 409 that still occurs is now treated as a successful publish using the `existingPostId` Zernio provides. Also fixed a bug where Zernio's actual error message field (`error`, not `message`) was never being read, so every error was previously showing a generic, detail-free message. The two affected posts were corrected by hand in production to `PUBLISHED` with their real Zernio post IDs.
+
+---
+
+#### ✅ RESOLVED — Inbox comment sync completely broken for every Zernio-connected account
+
+Richard left a real LinkedIn comment, synced the Inbox repeatedly, and it never appeared. Confirmed live via Zernio's own API that the comment genuinely existed on their side — so the gap was entirely on LYRA's ingestion.
+
+**Root cause:** both the manual Sync button (`app/api/comments/sync/route.ts`) and the automatic `comment-monitor.worker.ts` cron were written entirely against the old native-OAuth model — they call each platform's native API directly using `SocialAccount.accessToken`, and skip the account outright when that's null. Every Zernio-connected account (the default connection method since the Zernio Bridge migration — i.e. every account going forward) has `accessToken: null` by design, since Zernio holds the platform credentials on its own side. Confirmed directly in production logs: `"Skipping comment sync for account ... — no access token"` firing at the exact moment of each of Richard's sync attempts. This means comment ingestion via either the manual button or the cron has been **completely broken for every Zernio-connected account, on every platform, this whole time** — the only thing that was ever working was the separate real-time webhook path used for the Full Automatic AI-reply feature.
+
+**Fixed:** routed Zernio-connected accounts through `getProvider(account).fetchRecentComments(account)` — the same provider abstraction `publish()`/`replyToComment()` already correctly use — instead of a native-token fetch. Native-connected accounts are untouched, zero behavior change for them. Confirmed working end-to-end afterward: comment appeared, reply sent from the Inbox landed live on LinkedIn within seconds, then the same full loop (sync, badge, reply) confirmed on Facebook and Instagram too, all 100% successful.
+
+---
+
+#### ✅ FIXED — Analytics page: "Total reach" / "Top posts" looked empty despite real activity
+
+Richard flagged the Analytics page wasn't showing information properly. Root-caused to two compounding issues, confirmed against Zernio's live analytics for real posts: **(1)** the page's headline stat is "Total reach," and reach genuinely populates more slowly than `views`/`impressions` on Instagram and LinkedIn — brand-new posts show `0` reach for a while even with real activity; **(2)** a genuine data-loss bug — Zernio's analytics response includes a `views` field that was never declared anywhere in `zernio-client.ts`'s types, so it was silently dropped on every sync, for every post, structurally, this whole time.
+
+**Fixed:** added `views` end-to-end — new `PostMetrics.views` column, captured by the `sync-metrics` cron, aggregated in `/api/analytics`, and surfaced on the dashboard as a new "Total Views" stat card (alongside reach, not replacing it) plus a Views line on the trend chart. "Top posts" now falls back to views as a secondary sort key when reach ties at zero, so the list isn't arbitrarily ordered during that early-reach-lag window. Manually backfilled the `views` value for today's two ITWM posts so the fix was visible immediately rather than waiting up to 24h for the next natural cron cycle.
+
+---
+
+#### 📋 Live alpha testing — Testing Checklist substantially advanced, evidence-first
+
+A full session of real live testing against the ITWM workspace, with each checklist item verified against actual evidence (DB queries, live Zernio API checks, production log searches, or Richard's direct visual confirmation) rather than taken at face value — a couple of claims were specifically *not* checked off until evidence held up (e.g. a "1 hour out" schedule test was recorded as based on recollection rather than a re-traced DB record, since the original post may have since been edited).
+
+Confirmed working and checked off this session: multi-platform simultaneous scheduling (the incident above aside, delivery itself never dropped anything), next-day scheduling surviving overnight, Post Now on LinkedIn/Instagram, image and video media rendering correctly on-platform, the full Inbox loop (badge accuracy, badge clearing, manual reply, sync) across Facebook/LinkedIn/Instagram, and No Reply autonomy mode. See `docs/LYRA-Testing-Checklist.md` for the full detail and remaining open items (Post with approval mode, autonomy mode-switching, Crisis Aware trigger test, bad-token failure visibility, and Post Now still needed for Facebook/X/TikTok/Google Business).
+
+---
+
+### 2026-07-20 (evening) — Facebook connect resolved, two more real bugs, and the Schedule Generator caption export/media-gate feature shipped
+
+---
+
+#### ✅ RESOLVED — Facebook still wouldn't connect to the LYRA workspace
+
+Confirmed over several days this was **not** propagation delay (the earlier working theory) — Facebook's OAuth consent completed successfully every time, but Zernio kept reporting `no_facebook_pages`. Ruled out, in order: missing Page-level admin access (Richard had full admin, confirmed via Meta Business Suite), then missing app-level authorization under Business Settings → Integrations (checked both the broken LYRA portfolio *and* the working ITWM portfolio — both showed the identical empty "no business integrations" state, so that wasn't the differentiator either).
+
+**Actual root cause, per Zernio support:** on newer ("New Pages Experience") Facebook Pages, the per-Page access toggle inside Meta's consent popup can silently fail to activate even though the Page shows as checked in the summary — so `me/accounts` comes back empty on Zernio's side despite a seemingly clean consent flow. **Fix:** remove the existing "Social Media Connector" grant under Facebook → Business Integrations, reconnect from LYRA, and on the Meta permissions screen click "Edit settings" and explicitly toggle the Page ON (not just accept the summary). Worked immediately. Not a LYRA code issue — the callback route's error-surfacing was improved along the way (`app/api/zernio/connect/callback/route.ts` now logs and passes through Zernio's specific `error` param instead of a generic message), which is what made this diagnosable at all.
+
+Documented in `docs/LYRA-Testing-Checklist.md` and in the Social Connections section of the in-app Help docs, in case another workspace hits the same thing.
+
+---
+
+#### ✅ FIXED — Klaviyo campaigns landing on the wrong calendar day
+
+ITWM connected Klaviyo fine and scheduled a real campaign for the next morning; LYRA's manual sync first threw a 400 (wrong `fields[campaign]` name — `scheduled_send_time` isn't a real Klaviyo field, fixed to `scheduled_at`), then once that was fixed, the campaign showed up on the Calendar a full day earlier than Klaviyo's own UI displayed.
+
+**Root cause:** `scheduled_at` is genuinely the wrong field semantically, not just a naming mismatch — confirmed live via Klaviyo's own API that it's the timestamp the campaign was *scheduled at* (an audit field, i.e. the moment someone clicked "Schedule"), not when it will actually send. `send_time` is the real calculated send datetime. Fixed `services/email-marketing/klaviyo-campaigns.ts` to use `send_time`. Re-synced and confirmed the ITWM campaign landed on the correct day.
+
+---
+
+#### ✅ FIXED — YouTube missing from the Compose platform selector
+
+YouTube was already fully wired for connecting and publishing (settings page, Zernio platform mapping) but had simply been left off `components/lyra/composer/platform-selector.tsx`'s platform list, so it could never actually be selected for a post. One-line fix.
+
+---
+
+#### ✅ SHIPPED — AI Schedule Generator caption export + "Awaiting Media" gate
+
+Richard flagged a real UX gap: the Schedule Generator produces great captions/hashtags but no creative, and the only way to get them to a designer was manual copy-paste — with nothing stopping a caption-only post (which would just fail outright on Instagram, since it doesn't accept text-only posts) from being scheduled with zero media attached. Went through full brainstorming → design doc → implementation plan → subagent-driven-development execution (see `docs/superpowers/specs/2026-07-20-schedule-generator-media-gate-design.md` and the matching plan in `docs/superpowers/plans/`).
+
+**What shipped (8 commits, each independently spec-reviewed and code-quality-reviewed by fresh subagents, plus a final whole-implementation review):**
+- New `Post.requiresMedia` boolean (default false), set only by the Schedule Review screen for posts that still have no media attached when saved
+- **Export captions (CSV)** button on the Schedule Review screen — client-side generated, one row per post lacking media (Date/Time/Platform/Topic/Caption)
+- Posts saved without media show an amber **"Awaiting media"** badge on the Calendar instead of grey "Draft"
+- Scheduling is blocked server-side (both `POST /api/posts` and `PATCH /api/posts/[id]` — the two independent paths that can reach `SCHEDULED`) until media is attached, with matching client-side UX: the Calendar detail panel hides the "Mark as scheduled" action and explains why, and Compose disables Schedule/Post now with an inline warning
+- Scoped deliberately to Schedule Generator posts only — a hand-written text-only Compose post (common on LinkedIn/X/Facebook) is completely unaffected
+- `PENDING_APPROVAL` is explicitly *not* blocked — an awaiting-media post can still go through client approval; only the actual `SCHEDULED` transition (what the publish worker queues on) is gated
+
+**Caught one false-positive in the final review:** the whole-implementation reviewer flagged a "ship-blocker" claiming the new DB column had no migration — this was wrong, and disproven by querying the live production database directly (the column exists exactly as expected). The reviewer had assumed a migration-file convention this project doesn't use; it applies schema changes straight to Supabase via `apply_migration`, same as every other schema change this project has ever made.
+
+Not tested live end-to-end yet (that needs a real Schedule Generator run) — see the new checklist item added to `docs/LYRA-Testing-Checklist.md`.
+
+---
+
+#### ✅ FIXED — stuck full-screen spinner on Export captions (found via live testing of the feature above, same night)
+
+First real click-through of the new Export CSV button left a full-screen spinning LYRA logo stuck on screen indefinitely, not clearing until a page reload.
+
+**Root cause:** `components/lyra/app-shell/navigation-loader.tsx` — a pre-existing global component that shows a full-screen loading overlay during SPA route transitions — installs a document-wide, capture-phase click listener that treats any `<a href>` click as the start of an internal navigation unless the href starts with `#`/`http`/`mailto:`/`tel:`. It had no exclusion for `blob:` URLs. The Export CSV button creates a temporary `<a href="blob:...">`, appends it, and clicks it to trigger a file download (the standard technique) — that synthetic click gets caught by the same listener, which shows the overlay after 100ms and only ever clears it when the route `pathname` changes. Since a blob download never changes the route, the overlay never cleared.
+
+**Not a bug in the new feature's code** — confirmed the pre-existing Help page's "Download PDF" button (`components/lyra/help/pdf-download-button.tsx`) uses the identical blob-anchor-download pattern and has the exact same latent bug, just never previously triggered/reported. Fixed at the root: added `blob:`/`data:` to `navigation-loader.tsx`'s href-exclusion list. One-line fix, protects both download paths.
+
+---
+
+#### ✅ DONE — Medium and Low severity findings from the comprehensive review (commit `6e34496`)
+
+Follow-up to the 2026-07-18 Critical/High pass — worked through most of the Medium/Low findings from `.full-review/05-final-report.md`:
+- PDF endpoint now caches in S3 (2h TTL) instead of relaunching headless Chromium on every hit
+- OAuth `state` is HMAC-signed with an expiry (`lib/oauth-state.ts`) across all 7 connect flows instead of unsigned base64
+- Post approval requires a real reviewer role and blocks self-approval
+- Fixed a workspace-delete FK-violation bug — `SeoConnection`/`SeoPage`/`SearchConsoleData` were never in the manual cascade-delete transaction, so deleting a workspace with any SEO data threw
+- `competitor-monitor.worker.ts` now fans out one BullMQ job per competitor instead of scraping every tenant's every competitor sequentially inside one daily job
+- Consolidated duplicate BullMQ `Queue` instantiations (`ai-responding`, `comment-monitoring`, `brand-sync` each had 2+ un-synced instances) into single shared instances in `lib/queues.ts` with real `defaultJobOptions`
+- Swept 3 more spots leaking raw internal error messages to clients down to generic messages
+- Added a Zod validation helper (`lib/validate.ts`), applied to `POST`/`PATCH /api/posts` and `PATCH /api/onboarding`
+- Safety caps (`take: 200`/`100`) on the previously-unbounded `/api/posts` and `/api/seo/pages` GETs
+- Converted the two post-media-thumbnail raw `<img>` tags to `next/image`
+- Redacted subscriber emails before logging Klaviyo's error response body
+- Removed the `ZernioConnectDebugLog` write path now the connect flow has proven stable (table itself left in place — dropping it is a deliberate follow-up, not done automatically)
+- `OnboardingToken.token` now defaults to `uuid()` instead of `cuid()` (real entropy for a bearer secret), plus rate limiting and body validation on the previously-unprotected `GET`/`PATCH /api/onboarding`
+
+**Deliberately not attempted:** the 403-vs-404 "no access" convention is inconsistent across ~75 call sites, but both are defensible (404 avoids confirming resource existence to unauthorized callers) and this is a style issue, not a vulnerability — too much regression risk to sweep blind without live test coverage. Also didn't roll Zod out to all ~60 routes — the helper and reference pattern are in place for a future pass.
+
+---
+
+#### ✅ RESOLVED — "LinkedIn published, Instagram failed" on a same-time test post, plus 2 real bugs found investigating it
+
+Richard scheduled a test post to Instagram + LinkedIn at the same time. LinkedIn published; Instagram silently failed with no explanation visible anywhere.
+
+**Root cause:** the attached file was a `.gif`. Confirmed against Zernio's own docs that Instagram feed posts only accept JPEG/PNG — GIF isn't supported there (LinkedIn/Twitter/Facebook do accept it). Zernio had zero record of the Instagram post ever being created — rejected before being persisted on their side, while the identical file worked fine on LinkedIn.
+
+**Two more real bugs found while fixing this (commit `f6619b1`):**
+1. **Dead retry logic** — a failed publish was marked `FAILED` immediately and the error re-thrown for BullMQ to retry, but the retry's own first line saw `FAILED` (not `SCHEDULED`) and silently gave up before ever calling `publish()` again. The configured 5-attempt exponential-backoff retry had never actually gotten a real second attempt on *any* post, not just this one — it only ever looked like it did. Fixed: post status is no longer touched on failure until BullMQ has genuinely exhausted every attempt.
+2. **No visibility into *why* a post failed** — `Post` had no field for it; the Dashboard/Calendar just showed "Failed" with zero explanation, which is exactly what made this report confusing to start with. Added `Post.failureReason`, captured on terminal failure, surfaced in the Calendar card (tooltip + inline text) and the post detail panel.
+
+**Pre-flight protection added:** new `services/social/media-compatibility.ts` checks attached media against known platform format restrictions (currently Instagram/Threads, JPEG+PNG-only — the one combination confirmed from Zernio's docs; scoped narrowly rather than guessing at other platforms). Wired into `POST /api/posts` and `PATCH /api/posts/[id]` server-side as defense-in-depth, and into the Composer client-side.
+
+**Two follow-up UX fixes to the Composer (commits `6f4eb82`, `dcc8621`), both from direct testing feedback:**
+- The compatibility check above only ran on submit at first — Richard tested by attaching a GIF and selecting Instagram with no further action and saw nothing, since nothing had been submitted yet. Fixed to be live: recomputed on every render, shown as an inline warning right under the thumbnail the moment the bad combo exists, not gated behind clicking Schedule.
+- Added a remove (×) button on attached media thumbnails, matching the pattern already used in `schedule-review.tsx` — previously the only way to get rid of a wrongly-attached file in Compose was to abandon the page and start over; there was no delete path at all.
+
+---
+
+#### 🔧 Netlify deploy infrastructure — a genuinely rough night, documented in full since it'll recur if not understood
+
+**1. Hosted CI (git-push-triggered deploys) intermittently failed with `Host key verification failed` / `Failed during stage 'preparing repo'`.** Not a code issue — confirmed the repo, the commit, and GitHub's deploy-key config were all fine; this was Netlify's own SSH connection to GitHub for this site flapping, and it survived a full GitHub App uninstall/reinstall on the GitHub side. This is a Netlify-infrastructure-side issue, not something fixable from repo or app settings. **It self-resolved at some point overnight** — later pushes deployed cleanly via hosted CI again with no config changes on our end. If it recurs, this is a Netlify support ticket, not something to chase in dashboard settings again.
+
+**2. While hosted CI was down, used the Netlify CLI (`netlify deploy --prod`) directly to ship two pending fixes — this caused a real 502 production outage.** Root cause: stray `package-lock.json` files elsewhere in this OneDrive folder (at the Windows user profile root, and at the git root above the project) made Turbopack infer the wrong workspace root during the local build, which corrupted a Windows absolute path embedded in the deployed serverless function bundle → `ERR_MODULE_NOT_FOUND` crashing every single request. Rolled back within ~3 minutes via `netlify api restoreSiteDeploy`, then fixed by pinning `turbopack.root: __dirname` in `next.config.ts` (commit `d50ba9b`) — verified by inspecting the actual compiled bundle for leaked Windows paths before ever redeploying again.
+
+**3. The redeploy with that fix hit a second, different 500 error.** Investigated and ruled out `.env.local` contamination (a real, separate risk of local CLI deploys — they pull `.env.local` values ahead of the site's configured production env vars) via a controlled test, but couldn't fully pin down the exact mechanism — log streaming for locally-triggered deploys is itself unreliable (empty message bodies, a CLI-level crash on one attempt to fetch them). Concluded this is a Windows-specific quirk in Netlify's local bundling process itself: the exact same code ran perfectly via plain `next start` locally and via Netlify's Linux-based hosted CI. Stopped attempting local CLI deploys at that point (rolled back again, ~30 sec downtime) and waited for hosted CI, which then deployed everything correctly once the connection issue cleared on its own.
+
+**Also fixed while diagnosing:** `netlify.toml`'s base directory (`LYRA/lyra`) was only ever configured in Netlify's dashboard, never version-controlled — confirmed this actually matters (it's exactly why the local CLI deploy misbehaved on its very first attempt, running `prisma generate` from the wrong directory and grabbing an incompatible global Prisma version). Added explicitly to the toml file (commit `f978283`) so it's no longer a single point of failure living only in dashboard state.
+
+**Net effect:** two brief production outages this session (~3 min and ~30 sec), both caused by local CLI deploys attempted as a workaround for the hosted-CI connection issue, both caught within minutes via immediate verification after every deploy and rolled back via `netlify api restoreSiteDeploy` the moment something looked wrong.
+
+**Recommendation for future sessions:** don't use `netlify deploy --prod` from this Windows machine as a routine deploy path — it caused two outages from two different root causes in one night, on top of the `.env.local`-contamination risk. Prefer hosted CI (a plain `git push`); if it's failing, escalate to Netlify support rather than working around it with a local deploy, unless the situation is genuinely urgent and each step is verified live before moving to the next (draft deploy first, inspect the bundle, only then `--prod`, then curl-verify immediately — the discipline that caught both issues before they became worse).
+
+---
+
+#### ✅ RESOLVED — a duplicate-publish bug caused by the retry-logic fix above, found the same night
+
+An MP4 published successfully to Instagram, but the Calendar showed it as `Failed` with `Zernio POST /posts failed (409)`.
+
+**Root cause:** a direct consequence of the dead-retry-logic fix earlier in this same session. After `publish()` succeeded, the very next line (`prisma.post.update(...status: PUBLISHED...)`) had no error handling around it. When that specific write hit a transient DB error, the exception escaped, BullMQ saw a "failed" job and retried it — and the retry logic's guard only checks for re-claiming a `SCHEDULED` post, not a `PUBLISHING` one, so the retry fell straight through and called `publish()` a *second* time. Zernio correctly rejected the duplicate with `409`, which is what surfaced as "Failed" for a post that had, in reality, already gone out fine.
+
+**Fixed (commit `1c253d7`):** once `publish()` returns successfully, nothing in the job handler is allowed to throw anymore — the status-recording write gets a few quiet inline retry attempts (not BullMQ-level retries, so `publish()` is never called a second time); if all of them still fail, the post is left at `PUBLISHING` rather than `PUBLISHED`, which is the only acceptable degraded state here (stale-but-safe, never a duplicate live post).
+
+**Also corrected the one post this happened to** — confirmed genuinely published via Zernio's own records (`posts_list`/`posts_get`), updated directly in the DB from `FAILED` to `PUBLISHED` with the real Zernio post id.
+
+**Note for future sessions:** a good example of why BullMQ retry semantics need real care around non-idempotent side effects (anything that posts to a live external platform). Any future worker code that calls an external "create" API should follow the same pattern established here: once the external call succeeds, no code path after it should be allowed to trigger a retry of the whole job.
+
+---
+
+### 2026-07-18 — Comprehensive code review: all 5 Critical + 16 High severity findings fixed
+
+---
+
+Ran the full `/comprehensive-review:full-review` multi-agent review (architecture, security, performance, testing/docs, best-practices/CI-CD) across the entire codebase, consolidated the findings into `.full-review/05-final-report.md`, and fixed every Critical and High severity item in one continuous pass across two commits. Medium/Low findings are still in the report but out of scope for this pass — see that file if picking those up later.
+
+#### ✅ DONE — 5 Critical findings (commit `3a4dab0`)
+
+- **Cross-tenant IDOR on `/api/upload/presign`** — any authenticated user could mint a presigned S3 upload URL into *another* tenant's media prefix; no workspace access check existed at all. Added one.
+- **4 leftover debug/test routes deleted** (`ig-test`, `instagram/test-publish`, `ig-permissions-test`, `fb-subscribe-test`) — each grabbed an unscoped `socialAccount` from across *all* tenants and could publish a live post with it. Not behind auth, not behind a feature flag — live, reachable, and dangerous. Deleted outright.
+- **SSRF, with exfiltration** — the SEO on-page analyzer (`services/seo/on-page-analyzer.ts`) fetched arbitrary user-supplied URLs with zero validation and reflected the fetched content back to the client. New `lib/safe-fetch.ts` (DNS-resolves the hostname, blocks the whole RFC1918/loopback/link-local/CGNAT range including `169.254.0.0/16` for cloud metadata endpoints, HTTPS-only, re-validates on every redirect hop) is now used there plus two other spots that had weaker regex-only host checks (`content-repurposer.ts`, `competitor-scraper.ts`).
+- **Race condition in post publishing** — `post-publisher.worker.ts` used check-then-act (`findUnique` then `update`) to flip a post from `SCHEDULED` to `PUBLISHING`, so two overlapping BullMQ jobs for the same post could both pass the check and both publish it — a real double-post risk. Now an atomic `updateMany` compare-and-swap.
+- **BullMQ Queue/Worker instances weren't sharing a Redis connection** — `lib/redis.ts` exported a plain options object, which fails BullMQ's own internal check for a real shared connection, so every `Queue`/`Worker` in the codebase was silently opening its *own* independent Redis connection instead of sharing one. Fixed to export real shared `ioredis` instances.
+
+#### ✅ DONE — 16 High findings (commit `f471680`)
+
+- **Workspace DELETE/PATCH was gated on membership, not role** — any member (not just an owner/admin) could delete or rename a shared workspace. Added a role check.
+- **Account deletion destroyed every shared workspace, not just owned ones** — deleting your own user account cascaded and deleted workspaces you merely had *access* to, not just ones you owned, which could wipe out a teammate's workspace. Scoped to owned workspaces only.
+- **`checkCronAuth` was triplicated**, and the one shared copy in `lib/auth.ts` was the broken, timing-unsafe version nobody actually imported (each of the 4 cron routes had its own local, correct copy). Consolidated to one timing-safe implementation everyone now imports.
+- **Stripe webhook had no error handling or idempotency** — a mid-processing failure or a Stripe redelivery could silently double-process billing events. Added a `ProcessedWebhookEvent` table (checked/recorded around a try/catch) so retries and redeliveries are safe.
+- **Real billing bug found in the same file:** the not-yet-released LYRA Trend add-on's checkout (`/api/stripe/trend-checkout`) creates a subscription with no `plan` in its metadata by design — but the webhook's `toPlan()` helper silently defaulted *any* subscription with no recognized plan to `STARTER`. Had this add-on gone live as-is, buying it would have silently downgraded a paying AGENCY/PRO customer's entire agency (and every workspace under it) to Starter. Fixed: the webhook now explicitly skips all plan-touching logic for `trend_addon` subscriptions instead of falling through to a default.
+- **No security headers anywhere** — added CSP, HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy via `next.config.ts`. Verified live in a browser (homepage, Auth0 login redirect, pricing page) with zero CSP console violations before calling it done.
+- **Prompt injection risk in AI auto-reply** — a commenter's own text was pasted directly into the same prompt as the brand-voice/guardrail instructions with no separation, so a crafted comment could plausibly talk the model into ignoring its rules — and in Full Automatic mode, the result posts live with no human in the loop. Fixed two ways: the untrusted comment text is now clearly fenced and labeled as data-not-instructions in the prompt, *and* the model's own output is re-checked against the `neverUse`/`neverDiscuss` guardrails before it's allowed to auto-post (previously those guardrails were only checked against the incoming comment, never the AI's reply).
+- **Dead scheduler code removed** — `schedulePost`/`cancelPost` in `services/scheduler/post-queue.ts` were unused (and `cancelPost` had an id-mismatch bug). The `postQueue` export itself is very much alive (used by the publish-due-posts cron) and was untouched.
+- **The Docker worker deploy path was actually broken** — confirmed by actually running the build, not just reading it. `tsc` doesn't rewrite `@/...` path aliases to real relative paths, so the compiled output would throw `MODULE_NOT_FOUND` on literally every import as soon as `node workers/index.js` started — plus a `moduleResolution`/`rootDir` misconfiguration in `tsconfig.workers.json` that made `tsc` itself fail on an unrelated file (`lib/stripe.ts`, not even used by any worker). Added `tsc-alias` to the build step and fixed the tsconfig; verified by actually compiling, rewriting, and syntax-checking every worker file end to end. (Railway's actual production path uses `tsx` directly and was never affected by this — this only mattered if anyone ever switched the worker to the Docker build.)
+- **No request timeout anywhere** on 6 of the 8 native social API clients, the Google Search Console client, or the Anthropic SDK client — any one of those hanging would hang the whole request/cron/worker indefinitely. Added `AbortSignal.timeout(20s)` (matching the one client that already had it, `zernio-client.ts`) to every fetch call, and a 60s timeout to the Anthropic client.
+- **N+1 query pattern in comment ingestion** — both `comment-monitor.worker.ts` and `/api/comments/sync` ran a `findFirst` dedup check *then* a `create`, per comment, in a loop. Batched into a single `createManyAndReturn({ skipDuplicates: true })`, which also closes a real race: the sync-comments cron minted a new unique BullMQ job ID every tick (`monitor-${accountId}-${Date.now()}`), so two overlapping runs for the same account had no dedup at all. Job ID is now stable per account so BullMQ's own dedup applies.
+- **Unbounded, unindexed cron query** — `publish-due-posts` had no index on `(status, scheduledAt)` and no cap on how many rows it could pull in one tick (a backlog after any downtime would load everything into memory at once). Added the index (applied directly via Supabase SQL) and a `take: 500` safety cap.
+- **No rate limiting anywhere on the API surface** — added a simple Redis-backed fixed-window limiter (`lib/rate-limit.ts`) on the 4 AI generation routes, both upload routes, and the *unauthenticated* `help/pdf` route (which launches a full headless Chromium per request — an easy, cheap DoS target without a strict per-IP cap).
+- **Frontend performance** — `recharts` (a sizeable dependency) was bundled into the initial JS of every page that used it; both chart components (`EngagementChart`, `GscAnalytics`) are now lazy-loaded via `next/dynamic` with `ssr: false`. Found and fixed a genuine O(n²) bug in `performance-dashboard.tsx` (`Math.max(...)` was being recomputed *inside* a `.map()` instead of once before it). Added `React.memo` to the three hottest list-row components (`CommentCard`, `PostPreviewCard`, `CompetitorCard`) — for two of the three, this required also fixing the parent's callback to be a stable reference (`useCallback`), since `React.memo` does nothing if the parent hands the child a brand-new inline function every render.
+
+#### ✅ DONE (manual, non-code) — separate Postgres connection for the Railway worker
+
+The one Critical/High item that genuinely couldn't be fixed in code: the serverless app (Netlify) and the always-on BullMQ worker (Railway) were both using the exact same pooled `DATABASE_URL` with `connection_limit=1` — correct for serverless (each function grabs one connection, releases it), but wrong for the worker, which runs 4 BullMQ workers concurrently in one long-lived process and was effectively bottlenecked to one DB query at a time across all of them. Richard provisioned a second connection string from Supabase's **Session pooler** (port 5432, not the Transaction pooler on 6543 the app uses) with `?connection_limit=10&pool_timeout=20`, and set it as `DATABASE_URL` on the Railway worker service only — Netlify's `DATABASE_URL` is untouched. No code change was needed since Prisma just reads `DATABASE_URL` from the environment (`prisma/schema.prisma`'s `datasource` block); the two deployment platforms already have independently configured env vars, so this was a pure infra change.
+
+**How this was verified:** Railway doesn't have an MCP connection in this environment, so this couldn't be confirmed by inspecting Railway directly. Circumstantial confirmation came from Postgres's own `pg_stat_activity`, which showed 3 separate pooled sessions running the same query genuinely concurrently — not possible under the old `connection_limit=1` setup, where everything funneled through a single connection. (Caveat: Supabase's Supavisor pooler fronts every connection, so Postgres itself can't distinguish which original port/connection-string a given session came in on — this is good supporting evidence, not absolute proof. If connection-related errors ever show up in Railway's worker logs, check the `DATABASE_URL` value there first.)
+
+**If this needs revisiting:** the full list of Medium and Low severity findings from the same review (unauthenticated Puppeteer PDF DoS as a secondary concern beyond the rate limit added above, OAuth state CSRF, post self-approval, missing pagination, raw `<img>` tags instead of `next/image`, PII in logs, a temp debug table (`ZernioConnectDebugLog`) that should be dropped once all platforms have been connect-tested, onboarding token entropy, and more) are documented in `.full-review/05-final-report.md` but were explicitly deprioritized behind Critical/High for this pass.
+
+---
+
+### July 2026 — Email marketing integration + Agency Plan badge + misc fixes (alpha testing phase)
+
+---
+
+#### ✅ DONE — Email marketing read-only integration: campaigns appear in Content Calendar (commit `7d66d47`)
+
+Customers can connect their Klaviyo, Mailchimp, or Customer.io account to a LYRA workspace (read-only) and see scheduled/draft email campaigns as indigo-coloured cards on the Content Calendar alongside their social posts — giving a unified view of all outbound content in one place.
+
+**How it works:**
+- Settings → Email Marketing section: paste API key, click Connect — key is validated live against the provider before saving
+- Background sync fires on connect and on the manual Sync button; campaigns with a `scheduledAt`/`send_at` date are stored in `EmailCampaign`
+- Content Calendar fetches from `/api/email-campaigns?workspaceId=...&month=yyyy-MM` and renders indigo (`#6366f1`) non-draggable cards (Mail icon, provider label, status badge, subject line)
+
+**Providers:**
+
+| Provider | Auth | Status filter | Key location |
+|---|---|---|---|
+| Klaviyo | `Klaviyo-API-Key {key}`, revision `2024-10-15` | Draft / Scheduled | Account → Settings → API Keys |
+| Mailchimp | Basic auth `anystring:{apiKey}` | schedule / paused / save | Account → Extras → API Keys (key ends in `-us1`, `-us2`, etc.) |
+| Customer.io | `Bearer {key}` | draft / scheduled | Settings → API Credentials → App API Key |
+
+**DB schema added (applied via Supabase SQL Editor — see Schema Changes Applied section):**
+- `EmailProvider` enum: `KLAVIYO`, `MAILCHIMP`, `CUSTOMER_IO`
+- `EmailIntegration` — `(id, workspaceId, provider, apiKey, serverPrefix, accountName, isActive, lastSyncAt, createdAt)`. Unique on `(workspaceId, provider)`.
+- `EmailCampaign` — `(id, integrationId, externalId, name, subject, scheduledAt, status, previewUrl, createdAt, updatedAt)`. Unique on `(integrationId, externalId)`. Index on `(integrationId, scheduledAt)`.
+
+**Note: there is no auto-sync cron yet.** Campaigns only update when the user hits Sync in Settings, or when a new integration is first connected. Follow-up: add a cron route (`/api/cron/sync-email-campaigns`) that calls `syncEmailIntegration()` for all active integrations daily or hourly. All the sync logic is already in `services/email-marketing/sync.ts` — only the cron route + cron-job.org config is missing.
+
+**Tested in production:** Klaviyo connected successfully. Richard confirmed integration works.
+
+**Key files (all new):**
+- `services/email-marketing/klaviyo-campaigns.ts` — `validateKlaviyoKey()` / `fetchKlaviyoCampaigns()`
+- `services/email-marketing/mailchimp-campaigns.ts` — `extractMailchimpServer()` / `validateMailchimpKey()` / `fetchMailchimpCampaigns()`
+- `services/email-marketing/customerio-campaigns.ts` — `validateCustomerioKey()` / `fetchCustomerioCampaigns()`
+- `services/email-marketing/sync.ts` — `syncEmailIntegration(integrationId)` — dispatches to correct provider, upserts campaigns, updates `lastSyncAt`
+- `app/api/email-integrations/route.ts` — `GET` list / `POST` connect + validate + fire background sync
+- `app/api/email-integrations/[id]/route.ts` — `DELETE` soft-deactivate
+- `app/api/email-integrations/[id]/sync/route.ts` — `POST` manual sync, returns `{ synced: number }`
+- `app/api/email-campaigns/route.ts` — `GET` campaigns for a month range
+- `components/lyra/settings/email-marketing-section.tsx` — Settings UI (three provider cards, connect / sync / disconnect)
+- `components/lyra/calendar/email-campaign-card.tsx` — `CalendarEmailCampaign` type + indigo calendar card
+
+**Files modified:**
+- `prisma/schema.prisma` — enum + two new models
+- `app/(dashboard)/workspace/[workspaceId]/settings/page.tsx` — `<EmailMarketingSection>` between Add-ons and Danger Zone
+- `components/lyra/calendar/content-calendar.tsx` — fetches and renders email campaigns alongside social posts
+
+---
+
+#### ✅ DONE — Agency Plan badge in header for AGENCY workspaces (commit `55913ef`)
+
+AGENCY plan users now see an "Agency Plan" pill in the top-right header where STARTER/PRO users see "Upgrade". Clicking it navigates to `/account` for plan management.
+
+**Why it was missing:** `showUpgrade = plan === 'STARTER' || plan === 'PRO'` correctly hides Upgrade for AGENCY. The LYRA workspace is always on AGENCY (it's the highest plan, so it always wins the workspace-picker logic), so the Upgrade button was always hidden with no fallback — not a regression, just a missing AGENCY case. Added `showManage = plan === 'AGENCY'` and the badge alongside the existing Upgrade button logic.
+
+- Desktop: `hidden sm:inline-flex` pill with `border-background-border` styling
+- Mobile dropdown: `sm:hidden` menu item under a separator
+
+**File changed:** `components/lyra/app-shell/header.tsx`
+
+---
+
+#### ✅ DONE — LYRA Assistant placeholder page (commit `9d0c459`)
+
+The sidebar nav item "LYRA Assistant" linked to `/workspace/[id]/assistant` but no route existed, causing a 404 on every click. Added a placeholder page with a "Coming Soon" card, eliminating the broken link for alpha testers.
+
+---
+
+#### ✅ DONE — Competitor scraper improvements (commit `adbf593`)
+
+Two improvements to the competitor blog/content scraper:
+
+1. **Heading fallback** — when primary blog selectors find no posts (non-standard site layout), the scraper falls back to extracting `h2`/`h3` headings as proxy content items instead of returning an empty array. Prevents false "0 posts found" on competitors that do publish regularly.
+2. **Honest `postsPerWeek`** — changed from hardcoded `1` (which implied regular posting regardless of data) to `null` when the actual count can't be determined.
+
+---
+
+#### ✅ DONE — Earlier ad-hoc security fixes (commit hash not preserved — correcting a mislabel)
+
+**Correction:** this entry previously cited commit `f471680` — that hash actually belongs to a *different*, much larger fix (the full comprehensive-review High-severity pass, documented in its own section above/below with the correct commits `3a4dab0`/`f471680`). The mislabel is fixed here; the fixes described below are still real and still present in the current codebase, just from an earlier, smaller pass whose exact commit wasn't recorded at the time.
+
+Key issues addressed:
+
+- **XSS via `dangerouslySetInnerHTML`** in `components/lyra/seo/ai-content-panel.tsx` — replaced with safe markdown renderer
+- **SSRF on `extractArticleText()`** in `services/ai/content-repurposer.ts` — added hostname validation via `safeFetch`
+- **Missing auth on `POST /api/ai/repurpose`** — route was publicly accessible; `requireAuth()` added
+- **Missing auth on competitor routes** — `requireAuth()` added to `POST /api/competitors` and `POST /api/competitors/[id]/refresh`
+- **Competitor URL injection** — URL validation added before fetching
+
+---
+
+### July 2026 — Internal testing pass: Inbox comment ingestion, publish status accuracy, composer UX
+
+---
+
+#### ✅ RESOLVED — comments never appeared in the Inbox despite Zernio detecting them fine
+
+Found while testing the AI Comment Response Inbox for the first time with a real comment. `Comment` table was entirely empty — not just missing this one, zero rows ever. Root cause: `app/api/zernio/webhook/route.ts`'s `comment.received` handler read `payload.comment.accountId` to route the event to a workspace, but that field doesn't exist on real deliveries — confirmed against Zernio's own docs, which show comments are an "inbox event" carrying the tenant key as a top-level `account` object instead (the original code even had a `TODO` flagging this was never verified against a live payload). Every comment silently failed the accountId check, got logged, and was ack'd with `200` without ever being saved — so this had been broken since the Zernio Bridge webhook was first built, not something that broke recently. Fixed (commit `6820604`) to read `account.id`/`account.accountId` instead, accepting either since Zernio's docs show both names across different examples.
+
+**Second bug found in the same flow:** once comments started arriving, the AI's own auto-posted replies (Full Automatic mode) came back through the webhook as brand-new "comments" seconds later — the platform fires its comment webhook for any new comment on a tracked post, including ones LYRA posted itself. Confirmed live: this created two phantom `ESCALATED` entries in the Inbox whose content was literally the AI's own prior reply text, visually reading as "the same message in both Escalated and Done." Fixed (commit `7c100f3`): skip self-authored comments before saving, checked via Zernio's `isOwner` flag when present, falling back to matching the author's platform id/handle against the connected `SocialAccount`. The two existing phantom rows were deleted directly from the DB (not a code concern, just test-data cleanup).
+
+**Confirmed working end-to-end after both fixes:** a real Instagram comment landed in the Inbox, and Full Automatic mode correctly auto-generated and auto-posted a reply with no manual step — twice, on two separate test comments.
+
+---
+
+#### ✅ RESOLVED — Dashboard/Calendar showed a genuinely-published post as `FAILED`
+
+A post that published successfully to Instagram (confirmed live on the platform, with comments on it) was stuck at `status: FAILED`, `platformPostId: null` in LYRA's own `Post` table. Root cause in `services/social/provider/zernio.ts`'s `publish()`: it treated the *absence* of a `platformPostId` field in Zernio's response as an automatic failure, regardless of whether the platform actually reported success. Per Zernio's docs, the synchronous `publishNow` response's identifier field is actually named `platformPostUrl` — so this specific Instagram publish never had a chance, even though it fully succeeded on Zernio's side (confirmed via `posts_get`/`posts_list` showing `status: published`). Fixed (commit `a508a57`): only an explicit `error`/`failed` status on the platform result is now treated as a real failure; whichever identifier field Zernio actually returns is accepted. The one affected `Post` row was corrected directly in the DB to `PUBLISHED` with its real Instagram media ID.
+
+**Note for future sessions:** this is the second time in one session a Zernio integration bug traced back to trusting a speculative field name over what their docs (or a live payload) actually show — see the `comment.received` bug above too. If a future Zernio-related feature seems to silently misbehave, check the docs' exact field names again before assuming the existing code got it right.
+
+---
+
+#### Composer fixes (Compose section)
+
+- **Content score panel had no close control** (commit `2c3c090`) — the slide-out panel opened via the "Score" toolbar button, but had no way to close itself; the panel's own absolute overlay could cover that same button depending on viewport width, leaving it stuck open until navigating away. Added a back-arrow close button directly on the panel.
+- **"Edit in Composer" from the Calendar opened a blank composer** (commit `dd19bb1`) — this was a missing feature, not a wiring bug: the link never passed the post's ID or content at all. Built a real edit flow: `?postId=` query param, server-side load of the existing post, pre-filled content/media/schedule, platform selector locked (a `Post` row is tied to one `SocialAccount`, can't be changed post-creation), and submission now `PATCH`es the existing post instead of creating a new one.
+- **Drag-and-drop media upload added** (commit `28052d3`) — alongside the existing click-to-select button, not replacing it. Uses `react-dropzone` (already an installed but previously-unused dependency). Upload logic extracted to `lib/upload-media.ts` so both paths share the same code.
+
+---
+
+#### ✅ RESOLVED — Analytics tab never showed real engagement numbers (Total Reach/Total Likes stuck at 0)
+
+Not a bug in the usual sense — genuinely unbuilt functionality. `sync-metrics`'s own code comment admitted it: *"Upsert placeholder metrics rows so they exist — real platform polling will be implemented per-platform as social API access is granted."* It only ever touched `PostMetrics.lastSyncedAt`; `likes`/`reach`/`comments`/etc. stayed at their schema default of `0` forever, for every post, regardless of real activity. `postsPublished`, `commentResponseRate`, and the platform breakdown all looked fine because they don't depend on `PostMetrics` at all — only the engagement-dependent parts (Total Reach, Total Likes, the daily engagement chart) were affected, which is why it looked like a partial glitch rather than a whole feature missing.
+
+Fixed in two commits, both verified against live Zernio responses before writing code (not assumed from docs prose alone, given two earlier bugs this same day traced back to exactly that mistake):
+
+1. **`0dbf9b9`** — `sync-metrics` now calls Zernio's `GET /v1/analytics?postId=...` per post and writes the real `likes`/`comments`/`shares`/`reach`/`impressions`/`clicks`/`saves` values, which map 1:1 onto `PostMetrics`'s existing schema fields (confirmed via a live call, not guessed). Handles the two legitimate non-error outcomes Zernio's docs describe for single-post lookups — `202`/`syncStatus: "pending"` (platform-side sync still running) and `424` (platform-side sync failed) — by touching `lastSyncedAt` without overwriting existing values, so those posts retry next run instead of getting stuck.
+2. **`3b2866d`** — found immediately after deploying #1: LinkedIn posts came back `404 Post not found` even though the exact same post succeeded when queried by Zernio's own internal post id. Zernio's `postId` auto-resolution doesn't reliably handle LinkedIn's `urn:li:share:...` native id format, only e.g. Instagram's plain numeric id. Added `Post.zernioPostId` (nullable, applied directly via Supabase SQL — `prisma db push` is disabled on Netlify's build), captured from `publish()`'s response and threaded through both publish paths (the queue worker and the direct-publish route). `sync-metrics` now prefers it, falling back to `platformPostId` for posts published before this field existed. The 3 pre-existing LinkedIn posts were backfilled directly in the DB with their Zernio post ids (looked up via `posts_list`) so their analytics started working retroactively too, not just for posts published going forward.
+
+**Confirmed working:** engagement-over-time chart and comment counts populated correctly on the next sync. Reach/Likes were still `0` at verification time — confirmed via Zernio's own cached analytics snapshot that this is a delay on Zernio's own backend (their sync from Instagram/LinkedIn's APIs), not anything wrong on our side; expected to populate on a later automatic sync as Zernio's own data catches up.
+
+**Note for future sessions:** if Analytics numbers ever look wrong again, remember the split: `PostMetrics.lastSyncedAt` gets touched even on a "pending" or "failed" outcome (by design, so retries aren't blocked) — a recent `lastSyncedAt` does NOT mean real data was successfully written. Check the actual `likes`/`reach`/etc. values, not just whether the row was touched recently.
+
+---
+
+#### ✅ RESOLVED — Google Search Console connect flow was broken (redirect URI + site verification)
+
+Two separate, unrelated issues, found while auditing the SEO module's current state (nothing had actually regressed — it had just never been fully verified working):
+
+1. **`GOOGLE_SEARCH_CONSOLE_REDIRECT_URI`** in Netlify was set to the old `lyra-online-app.netlify.app` domain instead of `lyraonline.ai`, unlike every other URL env var in the project. The callback route needs the logged-in session to know which workspace to attach the connection to, and Auth0's session cookie is scoped to `lyraonline.ai` — landing on the wrong domain meant the callback couldn't identify the user. Corrected directly in Netlify.
+2. **The site itself was never verified in Google Search Console.** Added the `google80fb4721f59b630f.html` verification file to `public/` (commit `17ac09d`) and completed verification in Search Console.
+
+Confirmed working via a genuine disconnect + reconnect test (not just an already-established connection) — full OAuth flow and on-page AI content analysis both working. Also corrected a stale project-memory claim that the OAuth `state` param was HMAC-signed — it's actually plain unsigned base64; lower-priority hardening item, not currently exploitable since the callback separately verifies workspace access.
+
+---
+
+### July 2026 — LYRA Trend add-on: full scaffold committed (Phase 3, not yet implemented)
+
+---
+
+LYRA Trend is a paid per-workspace add-on that discovers and scores trending topics daily, then surfaces the most brand-relevant ones in a dedicated Trend Hub and inside the post composer. The add-on is billed via a separate Stripe subscription (à la carte on any plan).
+
+Everything below exists on disk and is committed to the repo, but every implementation body is a stub (returns 503 / `null`). The scaffold is already wired in — route files registered, components exported, worker file present — so Phase 3 implementation only needs to fill in the bodies, not touch routing config or barrel exports. The one fully-implemented piece is the Stripe checkout initiation.
+
+#### What LYRA Trend will do
+
+**Discovery + scoring pipeline (two-stage, daily via BullMQ worker):**
+1. Perplexity's real-time search model surfaces up to 20 candidate trends from TikTok, Instagram, X, Reddit, news, and the broader web.
+2. Each candidate is scored 0–100 against the workspace's `BrandProfile` by LYRA's AI, which also writes a "Why it fits" explanation anchored in brand voice, audience, and content themes.
+
+**Trend Hub (`/workspace/[id]/trends`):** Split-panel page — left panel shows up to 20 trends ordered by relevance score with source-platform badges and filter chips (All / TikTok / News / Web); right panel shows full trend description, "Why it fits" rationale, and "Use this trend" / Dismiss actions. On-demand refresh button (rate-limited to once per 10 min). Last sync timestamp shown.
+
+**Composer integration:** "Use this trend" in the Hub marks the trend as `USED` and opens the composer with an active trend chip above the editor. A "Trends" button in the composer toolbar opens a slide-in `TrendPickerPanel` for browsing without leaving the composer. When AI Generate is triggered, the caption incorporates the active trend contextually while staying true to brand voice.
+
+**Activation flow:** Settings → Add-ons → LYRA Trend card → Activate → Stripe Checkout → returns to settings with `?trend=activated`.
+
+#### DB schema changes needed (Phase 3 — not yet applied)
+
+Add to `Workspace`:
+```prisma
+trendEnabled      Boolean   @default(false)
+trendStripeSubId  String?   @unique
+trendLastSyncedAt DateTime?
+```
+
+New model:
+```prisma
+model Trend {
+  id             String      @id @default(cuid())
+  workspaceId    String
+  workspace      Workspace   @relation(...)
+  title          String
+  description    String
+  sourcePlatform String      // "TIKTOK" | "NEWS" | "WEB" | "INSTAGRAM" | "X" | "REDDIT"
+  relevanceScore Int         // 0–100
+  whyItFits      String?
+  status         TrendStatus @default(NEW)
+  discoveredAt   DateTime    @default(now())
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  @@index([workspaceId, status])
+  @@index([workspaceId, relevanceScore])
+}
+
+enum TrendStatus {
+  NEW
+  USED
+  DISMISSED
+}
+```
+
+#### New files (all stubs except `trend-addon-card.tsx` and `trend-checkout/route.ts`)
+
+| File | Status | Purpose |
+|---|---|---|
+| `app/(dashboard)/workspace/[workspaceId]/trends/page.tsx` | Stub (placeholder card) | Trends page — will render `TrendHub` |
+| `app/api/trends/route.ts` | Stub (503) | `GET` — list trends for workspace |
+| `app/api/trends/refresh/route.ts` | Stub (503) | `POST` — trigger on-demand sync |
+| `app/api/trends/[id]/status/route.ts` | Stub (503) | `PATCH` — set status to USED or DISMISSED |
+| `app/api/cron/sync-trends/route.ts` | Stub (returns `{queued:0}`) | `GET` — daily cron, enqueues BullMQ jobs |
+| `app/api/stripe/trend-checkout/route.ts` | **Fully implemented** | `POST` — creates Stripe Checkout Session (subscription mode) for the add-on |
+| `services/trends/trend-syncer.ts` | Stub (empty function) | `syncTrendsForWorkspace()` — Perplexity discovery + AI scoring + DB upsert |
+| `workers/trend-sync.worker.ts` | Stub (`null` exports) | BullMQ queue + worker for async trend syncs |
+| `components/lyra/trends/trend-hub.tsx` | Stub (`return null`) | Main Trend Hub split-panel component |
+| `components/lyra/trends/trend-picker-panel.tsx` | Stub (`return null`) | Slide-in composer panel for browsing trends |
+| `components/lyra/trends/trend-row.tsx` | Stub (`return null`) | Single trend row — title, platform badge, score |
+| `components/lyra/settings/trend-addon-card.tsx` | **Fully implemented** | Settings card — Activate button → Stripe, or Active badge + Manage when enabled |
+
+#### Integration gaps (must be addressed in Phase 3 before the add-on is functional)
+
+1. **Stripe webhook not extended** — `/api/stripe/webhook/route.ts` only handles `agencyId` metadata on `checkout.session.completed`. The `trend_addon` type is never inspected, so completing Stripe Checkout for Trend will not flip any DB flags and the Hub will never unlock. Must add a branch for `metadata.type === 'trend_addon'` on `checkout.session.completed` (set `trendEnabled = true`, store `trendStripeSubId`) and `customer.subscription.deleted` (set `trendEnabled = false`, clear `trendStripeSubId`).
+
+2. **`TrendAddonCard` not yet mounted in settings page** — component is fully implemented but not imported or rendered in `settings/page.tsx`. Also, the settings page doesn't yet query `trendEnabled` or `trendStripeSubId` (fields don't exist on the schema yet — see schema changes above).
+
+3. **Sidebar link not gated** — the help docs state the Trends link is visible only when the add-on is active. Sidebar will need to read `workspace.trendEnabled` and conditionally render it.
+
+4. **`?trend=activated` param not handled** — success redirect includes this param but the settings page has no handler for it; the "activated" banner won't appear.
+
+5. **Stripe billing portal route missing** — `TrendAddonCard.handleManage` has a `TODO` comment. Needs `/api/stripe/portal` route + `User.stripeCustomerId` field on the schema.
+
+6. **Sidebar Trends link gating** — currently the Trends page is not linked from the sidebar at all (the page exists but there's no nav item pointing to it). Once the schema is in place, add a conditional nav item that only renders when `workspace.trendEnabled`.
+
+#### New env vars required (Phase 3)
+
+| Variable | Purpose |
+|---|---|
+| `STRIPE_TREND_PRICE_ID` | Stripe Price ID for the Trend add-on monthly subscription — route throws if missing |
+| `PERPLEXITY_API_KEY` | Perplexity real-time search API — needed by the discovery stage |
+
+#### Phase 3 implementation checklist
+
+1. Add `trendEnabled`, `trendStripeSubId`, `trendLastSyncedAt` to `Workspace`; add `Trend` model and `TrendStatus` enum; apply migration via Supabase SQL Editor.
+2. Implement `syncTrendsForWorkspace()` in `services/trends/trend-syncer.ts`.
+3. Implement `trendSyncQueue` and `trendSyncWorker` in `workers/trend-sync.worker.ts`.
+4. Implement `GET /api/trends`, `POST /api/trends/refresh`, `PATCH /api/trends/[id]/status`, `GET /api/cron/sync-trends`.
+5. Extend Stripe webhook to handle `type: 'trend_addon'` events.
+6. Add `TrendAddonCard` to `settings/page.tsx`; add `?trend=activated` banner.
+7. Implement `TrendHub`, `TrendPickerPanel`, `TrendRow` components.
+8. Add conditional Trends nav item to sidebar (gated on `trendEnabled`).
+9. Build `/api/stripe/portal` route; connect it in `TrendAddonCard.handleManage`.
+10. Add `STRIPE_TREND_PRICE_ID` and `PERPLEXITY_API_KEY` to Netlify env vars and Railway.
+11. Update the `$X/month` placeholder in `TrendAddonCard` with the real price.
+12. Add `trendSyncWorker` to `workers/index.ts` startup (alongside the existing 4 workers).
+
+---
+
+### July 2026 — Media wasn't attaching to Zernio-published posts + cron jobs auto-disabled (both now fixed)
+
+---
+
+#### ✅ RESOLVED — posts published with text but the attached image/video was silently dropped
+
+Found immediately after the scheduled-posts fix above, while testing with a real MP4. Two separate, unrelated bugs stacked here too:
+
+1. **S3 bucket had no public-read policy.** Zernio's servers fetch media by URL server-side to attach it to the post — but the bucket only allowed access via our own app's authenticated AWS credentials (correct for the app's own uploads, wrong for a third party like Zernio trying to download the file over plain HTTPS). Confirmed via Zernio's own `validate_media` tool: `HTTP 403 Forbidden` on the exact media URL being sent. Fixed by adding a public-read bucket policy scoped to the bucket (`s3:GetObject` for `Principal: "*"`) and disabling the relevant "Block public access" bucket setting. This is intentional/safe here — anything uploaded through Compose is destined to be a public social post anyway.
+2. **Wrong request shape to Zernio's API** (commit `b9271e7`) — even after the media URL became publicly reachable, posts still published text-only. `services/social/zernio-client.ts`'s `publishNow()` was sending media as `mediaUrls: string[]` nested inside each `platforms[]` entry. Zernio's actual schema (confirmed via their docs) puts media in a **top-level `mediaItems: [{type: 'image'|'video', url}]` array**, sibling to `content` and `platforms` — there's no `mediaUrls` field in their schema at all, so it was being silently ignored on every single call, no error either side. Fixed: `mediaItems` built at the top level, with `type` inferred from the file extension (our own upload flow only ever produces `.jpg/.png/.gif/.webp` for images and `.mp4/.mov/.webm` for video, so extension alone is enough).
+
+**Confirmed fully working:** a scheduled LinkedIn post with an attached MP4 published automatically (no manual trigger) within ~2 minutes of its scheduled time, video attached correctly.
+
+---
+
+#### ✅ RESOLVED — 4 of 5 cron-job.org jobs had been auto-disabled ("Inactive"), not just failing
+
+After fixing the missing `Authorization` header (see the entry below), `publish-due-posts`, `sync-comments`, `sync-metrics`, and `sync-trends` were still never firing automatically. Turned out cron-job.org had auto-disabled all 4 (shown as **Inactive**, not just failing) after enough consecutive failures accumulated before the auth fix — a working auth header doesn't un-disable an already-disabled job, the two are independent switches. Fixed by manually re-toggling each job back to Active in cron-job.org's UI. `brand-refresh` never got auto-disabled (it runs far less often, so it hadn't racked up enough consecutive failures yet) and needed no toggle.
+
+Also found and removed two stale cron-job.org jobs (`ai-visibility` → `/api/cron/ai-visibility`, `sync-email` → `/api/cron/sync-email`) pointing at routes that don't exist anywhere in the codebase — leftover from an idea that was never built. Deleted rather than fixed, since there was no corresponding feature to point them at.
+
+**Interval tuning:** original intervals were long enough that a scheduled post could sit for 15-20+ minutes before cron even attempted it. Tightened to: `publish-due-posts` every 1 minute (this is the one that actually matters for on-time publishing), `sync-comments` every 5 minutes, `sync-metrics` every 15-30 minutes, `brand-refresh` every 6 hours, `sync-trends` daily (still just a stub — see the Zernio Bridge section for what it'll need once the Trend feature ships).
+
+**Note for future sessions:** if a cron-job.org job's `Authorization` header ever needs re-adding (e.g. after `CRON_SECRET` rotates, or a job gets recreated from scratch), also check whether cron-job.org has auto-disabled it from the earlier failures — both need fixing, fixing only one looks like "nothing changed."
+
+---
+
+### July 2026 — Scheduled posts silently never published: 4 stacked infra bugs, all resolved
+
+---
+
+#### ✅ RESOLVED — a test LinkedIn post sat as `SCHEDULED` for 15+ minutes, never published
+
+Started as "I scheduled a post and it never showed up." Turned out to be four separate, unrelated infrastructure bugs stacked on top of each other — fixing any one alone would not have surfaced the next, since each was silently masking the one beneath it. Full chain, in the order found and fixed:
+
+1. **cron-job.org missing the auth header** — `publish-due-posts`, `sync-comments`, `sync-metrics`, and `brand-refresh` all require `Authorization: Bearer <CRON_SECRET>` (checked via `timingSafeEqual` in each route). cron-job.org's job configs for all four had no `Authorization` header set at all, so every scheduled invocation was silently rejected with `401` — meaning **no cron job had successfully run automatically since they were set up**, not just the publish one. Confirmed via cron-job.org's own dashboard ("7 failed cronjobs, 0 successful"). Fixed by adding the header (Key: `Authorization`, Value: `Bearer <CRON_SECRET>`) to each of the 4 jobs individually in cron-job.org's UI — this is a cron-job.org config step, not something fixable from the codebase.
+2. **`sync-trends` cron route never deployed** — the 5th cron job (`LYRA Trends`) was 404ing for a totally different reason: `app/api/cron/sync-trends/route.ts` existed on disk but was never actually committed to git (see bug #3 below for why). Fixed by committing it (commit `f165cf9`).
+3. **Root `.gitignore` had an overly-broad rule silently blocking new files project-wide** — `/LYRA/` was meant to exclude a genuine nested duplicate repo at `LYRA/lyra/LYRA/lyra/` (created by a cross-repo merge at some point), but the pattern was anchored to the repo root and matched the *entire* active project instead. Since gitignore doesn't retroactively untrack already-tracked files, this went unnoticed — but **every new file created anywhere under `LYRA/` since this rule was added has been silently excluded from `git add`**, with no error or warning. This is how `sync-trends/route.ts` above went missing, and also how an entire unfinished LYRA Trend add-on codebase (`app/api/trends/`, `services/trends/`, `components/lyra/trends/`, `workers/trend-sync.worker.ts`, `app/api/stripe/trend-checkout/`) has been sitting locally, never committed, never deployed (confirmed harmless — nothing tracked imports it, so it's orphaned WIP, not a live bug). Fixed: narrowed the rule to `/LYRA/lyra/LYRA/` (commit `f165cf9`) so it only excludes the actual duplicate. **Plain `git add` now works normally for new files under `LYRA/` — the old "always use `git add -f`" guidance is obsolete.**
+4. **Railway `lyra-workers` service was missing `DATABASE_URL` entirely** — the actual reason the post never published even after cron was fixed and a job was successfully enqueued. Diagnosed by connecting directly to the production BullMQ queue (via Redis's public endpoint, since Railway's Console tab wasn't reliably showing command output in this session) and inspecting the failed job: `Authentication failed against database server` on the very first `prisma.post.findUnique()` call in `workers/post-publisher.worker.ts` — which has no try/catch around that line, so the whole job handler throws uncaught before ever touching the post's DB status. This meant **every worker on Railway** (`post-publisher`, `comment-monitor`, `ai-responder`, `brand-sync`, `competitor-monitor`) was almost certainly failing on its first DB call too, not just this one post. First fix attempt accidentally cleared the variable entirely (error changed to `Environment variable not found: DATABASE_URL`); second attempt correctly copied the value from Netlify's `DATABASE_URL` into Railway's `lyra-workers` variables. Confirmed fixed by manually retrying the stuck job (`job.retry()` via a direct BullMQ/ioredis connection) — it published successfully: `platformPostId: urn:li:share:7482671319294070785`.
+
+**Note for future sessions — if scheduled posts (or any cron-triggered sync) silently stop working again, check in this order:**
+1. cron-job.org dashboard — are the jobs actually succeeding, and does each one have the `Authorization: Bearer <CRON_SECRET>` header set? (Not automatic — has to be added per job in cron-job.org's own UI, and isn't preserved if a job is ever recreated.)
+2. Is the target route actually deployed? (`git ls-files -- app/api/cron/` should list every route file that exists on disk — if one's missing, it was never committed.)
+3. Railway `lyra-workers` → Variables — do `DATABASE_URL`/`DIRECT_URL`/`REDIS_URL` all have values, and do they match Netlify's exactly? A worker can show "Active" in Railway's dashboard while completely failing every job on its first DB call — "Active" only means the container is running, not that the app logic inside is working.
+4. To inspect or retry a specific stuck BullMQ job without relying on Railway's Console tab (unreliable in this session — commands produced no visible output): grab Redis's **public network** connection string from Railway (Redis service → Connect → Public Network tab) and run a short Node script locally using the project's own `ioredis`/`bullmq` deps — `new Queue('post-publishing', {connection}).getJob(jobId)`, then `.getState()` / `.failedReason` / `.retry()`.
+
+---
+
+### July 2026 — Media uploads fixed: bucket mismatch + CORS + IAM policy ARN (4-layer bug, now fully resolved)
+
+---
+
+#### ✅ RESOLVED — media upload (images and video, all platforms) confirmed working in production
+
+Started as "MP4 won't attach to a LinkedIn post," turned out to be four separate, stacked misconfigurations that all had to be fixed before uploads worked end-to-end. Full chain, in the order they were found and fixed:
+
+1. **Reserved env var names** (commit `7880d45`) — `lib/s3.ts`, `document-parser.ts`, and the legacy `app/api/upload/route.ts` read `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_REGION` directly. Netlify Functions run on AWS Lambda, which auto-injects those exact names for its own execution role and blocks overriding them — so the app was silently signing S3 requests with Netlify's own Lambda role (valid credentials, zero permission on our bucket) instead of throwing an error. Renamed to `S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY`/`S3_REGION` throughout.
+2. **Wrong bucket entirely** — `AWS_S3_BUCKET` was set to `lyra-media-prod`, a bucket that didn't exist in the AWS account/login actually being used to set up new credentials. The real, accessible bucket was `lyra-s3-bucket-757052694060-ap-southeast-2-an` (created fresh during this troubleshooting). `lyra-media-prod` likely lives under a different, older AWS account/login from months ago that wasn't readily accessible. Fixed by pointing `AWS_S3_BUCKET` at the bucket actually in use rather than chasing down the old one.
+3. **Missing CORS configuration** — browser-direct presigned uploads need the bucket's CORS policy to explicitly allow the app's origin; there was none. Added:
+   ```json
+   [{ "AllowedOrigins": ["https://lyraonline.ai"], "AllowedMethods": ["PUT", "GET", "HEAD"], "AllowedHeaders": ["*"], "ExposeHeaders": ["ETag"], "MaxAgeSeconds": 3000 }]
+   ```
+4. **IAM policy ARN pointed at the old bucket** — the inline policy attached to the new IAM user still referenced `arn:aws:s3:::lyra-media-prod/*` (copy-pasted from setup instructions before the bucket mismatch in step 2 was discovered). Corrected to `arn:aws:s3:::lyra-s3-bucket-757052694060-ap-southeast-2-an/*`.
+
+**Current live config:** `AWS_S3_BUCKET=lyra-s3-bucket-757052694060-ap-southeast-2-an`, `S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY` set to a dedicated IAM user (`AKIA3AQ63LYWDW2QCNZJ`) scoped only to that bucket, `S3_REGION=ap-southeast-2`. Confirmed working live: video attached successfully to a post in Compose.
+
+**Note for future sessions:** if S3 uploads ever break again, check in this order — (a) is `AWS_S3_BUCKET` pointing at a bucket that actually exists in the same AWS account as the IAM credentials, (b) does that bucket have CORS allowing `https://lyraonline.ai`, (c) does the IAM policy's `Resource` ARN match the bucket name exactly. All three misconfigurations produced different, specific browser console errors (network/CORS error, 403 Forbidden) that made each layer diagnosable once you got to it — but they were fully stacked, so fixing one just revealed the next.
+
+---
+
+### July 2026 — Zernio platform connect testing: X, TikTok, YouTube, Google Business + a Meta new-portfolio bug
+
+---
+
+#### Platform connect verification (LYRA and Into The Wild Marketing workspaces)
+
+Tested the Zernio-routed connect flow across the remaining platforms not yet verified live (Facebook, Instagram, and LinkedIn were already confirmed working — see the Zernio Bridge entry below). No code changes needed — `platform-map.ts`'s `ROUTE_TO_ZERNIO` already had `twitter`/`tiktok`/`youtube` mapped, and nothing in the connect/callback flow was platform-specific beyond the Facebook accountId-fallback logic.
+
+**Confirmed working, no issues:**
+- **X (Twitter)** — connected to LYRA workspace
+- **TikTok** — connected to LYRA workspace
+- **YouTube** — connected to Into The Wild Marketing workspace (LYRA workspace has no YouTube channel, so not applicable there)
+- **Google Business** — connected to Into The Wild Marketing workspace
+
+Current per-workspace platform state:
+- **Into The Wild Marketing:** Facebook, Instagram, LinkedIn, YouTube, Google Business — all ✅
+- **LYRA:** X (Twitter), TikTok, Instagram, LinkedIn — all ✅. Facebook — blocked, see below.
+
+---
+
+#### Known issue: Facebook won't connect to LYRA workspace — brand-new Meta Business Portfolio
+
+**Not a LYRA or Zernio code bug** — thoroughly ruled out via the `ZernioConnectDebugLog` table (temporary debug logging added during earlier Facebook/Instagram troubleshooting, see the Zernio Bridge entry below).
+
+**Symptom:** Connecting Facebook for the LYRA workspace (target page: "LYRA Online," a brand-new Meta Business Portfolio) consistently fails with `zernio_connect_failed`. The debug log shows Zernio's own backend returning `error=no_facebook_pages` on every attempt (3 attempts logged, 2026-07-13 05:22–06:17 UTC), even after:
+- Fully revoking and re-granting Facebook app access from scratch
+- Correctly selecting both the "LYRA Online" business and page during Facebook's consent flow (confirmed via screenshots during the session)
+- Receiving Facebook's own "Rich Unwin has been connected to Social Media Connector" success confirmation
+
+**Root cause (as far as diagnosable without Zernio/Meta support access):** despite the consent flow completing successfully from the user's side, **Meta Business Suite → Business Settings → Integrations for "LYRA Online" never shows "Social Media Connector" as an authorized app** — the grant isn't actually registering against the new Business Portfolio, even though it registers fine for the established `into.thewildmarketing` portfolio. Verification was checked and is not required/pending for LYRA Online, ruling that out as the cause. Most likely a Meta-side propagation delay specific to brand-new Business Portfolios (their consent UI and backend registration systems may not be fully in sync immediately after a portfolio is created), though this wasn't confirmed with certainty.
+
+**Confirmed NOT broken by this troubleshooting:** the Into The Wild Marketing workspace's existing Facebook connection stayed intact throughout multiple reconnect/re-consent attempts on the LYRA Online side — selecting only "LYRA Online" (without re-selecting `into.thewildmarketing`) during a fresh consent flow does not revoke the other business's existing grant.
+
+**Next steps (not yet done):**
+1. Retry the LYRA → Facebook connect after some time has passed (hours/overnight) — if it's a propagation delay, this should self-resolve.
+2. If still failing, escalate to Zernio support directly with the debug log timestamps above and the `no_facebook_pages` error — they have server-side visibility into what Facebook's Graph API actually returned, which isn't visible from our side.
+
+---
+
+### July 2026 — Autonomy settings control + Inbox unread badge + S3 env var reserved-name bug
+
+---
+
+#### AI Response Mode (Autonomy) control — Settings page
+
+Added a Settings-page control letting a workspace owner choose the AI comment-reply autonomy level: **No reply** / **Post with approval** / **Full Automatic**. Purely a UI addition — the backing field (`Workspace.aiResponseMode`, `Autonomy` enum: `OFF`/`DRAFT_APPROVE`/`FULL`) and the worker/webhook logic that already reads it (`app/api/zernio/webhook/route.ts`, `workers/ai-responder.worker.ts`) predate this change; there was previously no UI to set it at all (DB-only).
+
+- **`components/lyra/settings/autonomy-selector.tsx`** (new) — three-option radio-style card. Selecting "Full Automatic" opens a confirm dialog ("AI will reply to comments publicly with no review") before persisting, since it's the one option with no human review step. The other two apply instantly.
+- **`app/api/workspaces/[id]/route.ts`** — added a plan-tier gate: `aiResponseMode: 'FULL'` is rejected (403) for STARTER-plan workspaces, mirroring the existing `crisisAware` gate in the same handler. Client-side, the option renders disabled with a "Requires Pro or Agency plan" note for the same workspaces.
+- **`app/(dashboard)/workspace/[workspaceId]/settings/page.tsx`** — new "Automation" section between Timezone and Add-ons.
+- No schema changes. Spec: `docs/superpowers/specs/2026-07-09-autonomy-settings-control-design.md`.
+
+---
+
+#### Inbox unread comment count badge
+
+Outlook-style unread badge on the "Inbox" sidebar nav item — a red numbered pill (white text, capped "99+") when the sidebar is expanded, a plain red dot when collapsed to icon-only. "Unread" = comments with status `PENDING`/`AI_DRAFTED`/`AWAITING_APPROVAL`/`ESCALATED` (matches the Inbox's existing "Pending" + "Escalated" tabs combined).
+
+- **`app/(dashboard)/layout.tsx`** — one more `prisma.comment.count()` inside the existing workspace-scoped block (already `force-dynamic`, re-resolves on every navigation — no polling added). Covered by the existing `@@index([workspaceId, status])` on `Comment`, so it's cheap.
+- **`components/lyra/app-shell/sidebar.tsx`** — `renderNavItems`'s shared default-case return special-cases the Inbox item. One round of review caught a real issue here: the new layout classes (`flex-1 justify-between`) were initially applied unconditionally to every nav item's label, not just Inbox's — fixed to apply only when `hasUnread` is true, so every other nav item's rendered output is byte-identical to before.
+- Badge color is `bg-status-error text-white` (explicit user requirement, for contrast against the dark sidebar) — matches the existing pattern in `components/lyra/account/delete-account-button.tsx`. Note: this app's `background-primary` token is near-black (`#080808`), not white — don't reach for it on colored badges.
+- Spec: `docs/superpowers/specs/2026-07-09-inbox-unread-badge-design.md`.
+
+---
+
+#### Media uploads broken: S3 env vars used Netlify's reserved AWS_* names (commit `7880d45`)
+
+**Symptom:** attaching any file (image or video) to a post, on any platform, failed with a generic "Failed to upload media" toast. Initially reported as "MP4 won't attach to a LinkedIn post" — testing a JPEG on the same post failed identically, which was the key clue this wasn't file-type or platform specific.
+
+**Root cause:** `lib/s3.ts`, `services/brand-intelligence/document-parser.ts`, and the legacy (now-unused) `app/api/upload/route.ts` all read `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` / `AWS_REGION` directly from `process.env`. Netlify Functions run on AWS Lambda, which **automatically injects those exact three variable names** into every function's runtime, populated with that Lambda's own execution role's temporary credentials — and Netlify blocks you from setting your own values for them ("reserved env var"). So the app was never seeing `undefined` and throwing early; it was silently signing every S3 request with Netlify's own Lambda role, which has zero permission on `lyra-media-prod`. Every presigned upload was rejected by S3, for every file, on every platform, since day one this pattern was introduced.
+
+**Fix:** renamed to `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` / `S3_REGION` throughout (all three S3-client files, plus the CI workflow's build-time placeholder env vars). `AWS_S3_BUCKET` was untouched — that name isn't part of Lambda's reserved set, and was already working correctly.
+
+**Manual step still required (see the warning banner at the top of this document):** add real `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` values in Netlify, from an IAM user scoped to the `lyra-media-prod` bucket. The code fix alone does not restore uploads — Netlify has no credentials to inject under the new names yet.
+
+---
+
+### July 2026 — Zernio Bridge (Phases 1–4): unified social API + live connect-flow debugging
+
+---
+
+#### Why: one API instead of five separate app reviews
+
+Native per-platform OAuth apps (Facebook, LinkedIn, TikTok, etc.) each require their own developer app, scopes, and — for production use beyond the developer's own account — a platform app review that can take days to months. Zernio (formerly Getlate.dev) is a unified social API that already has reviewed access across platforms. The plan: route all *new* social connects through Zernio as a bridge while native app reviews are pending, keep native code as a fallback for accounts connected before the bridge existed, and converge later once native reviews land. `SocialAccount.provider` (`NATIVE` | `ZERNIO`) plus `getProvider(account)` (`services/social/provider/index.ts`) dispatches every publish/reply/fetch call to the right implementation transparently.
+
+#### Four phases, all merged to `main`
+
+| Phase | PR | What it built |
+|---|---|---|
+| 1 — Foundation | #2 | Schema (`SocialProviderType` enum, `SocialAccount.provider`/`zernioAccountId`, `Workspace.zernioProfileId`, `Review` model), `zernio-client.ts` (thin REST wrapper), provider seam (`getProvider()`, `mappers.ts`) |
+| 2 — Connect flow | #3 | `/api/social/connect/[platform]` rewritten to route through Zernio's hosted OAuth; `/api/zernio/connect/callback` (new) verifies account ownership before linking |
+| 3 — Publish | #4 | `getProvider(account).publish()` wired into the direct publish route and the BullMQ worker; native publish implementations added for FB/IG/LinkedIn/Twitter |
+| 4 — Webhook ingestion | #5 | `/api/zernio/webhook` (new) receives `comment.received`/`account.disconnected` events, HMAC-SHA256 signature verification, idempotent `Comment` upserts feeding the existing AI-responder pipeline |
+
+**Manual setup completed same session:** `ZERNIO_API_KEY` and `ZERNIO_WEBHOOK_SECRET` added to Netlify; a webhook subscription created in Zernio pointing at `https://lyraonline.ai/api/zernio/webhook`, subscribed to `comment.received` and `account.disconnected`.
+
+#### CI pipeline fix (unrelated pre-existing bug, surfaced by this work)
+
+`.github/workflows/deploy.yml` ran `npm ci`/`tsc`/`build` from the repo root instead of `LYRA/lyra` — silently masking real errors and, once fixed, surfacing 762 pre-existing lint errors from a legacy duplicate `app/` tree at the OneDrive root (unrelated to any LYRA session, never cleaned up). Fixed by adding `defaults.run.working-directory: LYRA/lyra` to the `lint-and-typecheck` and `build` jobs; lint set to `continue-on-error: true` until the backlog is paid down (user decision).
+
+#### Testing session: three real bugs found and fixed live against production Zernio
+
+All 13 pre-existing `SocialAccount` rows (test/demo data only — ITWM's own accounts) were deleted from production Supabase to test the connect flow from a clean slate, cascading through `Post`/`Comment`/`CommentResponse`/`PostApproval`/`Review` first (no `onDelete: Cascade` on `Post`/`Comment` → `SocialAccount`, unlike `Review`). Live testing then surfaced three genuine, distinct bugs — not one:
+
+1. **`ZernioApiError` class added** (`services/social/zernio-client.ts`) — the connect route was collapsing every Zernio API failure (including an actionable 402 "add a payment method to connect more than 2 accounts" plan-limit error) into a generic 500. Now surfaces the real status/message.
+2. **`profileId` unwrap bug** — `GET /v1/accounts` returns `profileId` as a populated object (`{_id, name}`), not a bare string as assumed. Every real connection was being rejected as cross-tenant because the comparison (`object !== string`) always failed. Confirmed live against Richard's first successful Facebook OAuth completion through Zernio.
+3. **Flaky `GET /v1/accounts` endpoint** — confirmed by calling it 4 times in a row immediately after a real, successful connection: `empty, populated, empty, empty`. The callback's one-shot lookup was wrongly killing real connections. Fixed with a 7-attempt retry + backoff (~9s worst case).
+4. **Facebook's OAuth redirect omits `accountId` entirely** — confirmed via a temporary debug log (see below): LinkedIn's redirect includes `?connected=X&profileId=Y&accountId=Z&username=W` as Zernio's docs describe, but Facebook's redirect only ever included `connected`, `profileId`, and `username` — no `accountId`, contradicting the docs. The callback required `accountId` unconditionally and rejected every real Facebook connection. Fixed: when `accountId` is missing, falls back to matching the account by the server-verified `workspace.zernioProfileId` + platform instead (exactly as safe — that profileId is read from LYRA's own DB, never trusted from the query string).
+
+**Temporary diagnostic aid:** `ZernioConnectDebugLog` table (raw SQL, no Prisma model) + logging in `app/api/zernio/connect/callback/route.ts` at every decision point, added because Netlify function logs weren't reachable from the session doing this work. This is how bug #4 above was actually found and confirmed, rather than guessed at. **Should be removed once all platforms (Google Business, TikTok, YouTube, X) have been connect-tested at least once without issues** — Facebook and LinkedIn each had a different undocumented quirk, so it's reasonable to expect another platform might too.
+
+**End state confirmed:** Facebook and LinkedIn both fully connected end-to-end for the "Into The Wild Marketing" workspace (`cmp6etbdr0001jw09rbkb79jj`) via Zernio, `SocialAccount` rows present with `provider = 'ZERNIO'`, `isActive = true`.
+
+#### Files changed (Phases 1–4 + fixes, this session)
+
+| File | Change |
+|---|---|
+| `prisma/schema.prisma` | `SocialProviderType` enum, `SocialAccount.provider`/`zernioAccountId`, nullable `accessToken`, `Workspace.zernioProfileId`, `Review` model, `Comment.platformPostId` |
+| `services/social/zernio-client.ts` | Thin REST wrapper for Zernio's API; `ZernioApiError` class carrying real HTTP status |
+| `services/social/provider/{types,mappers,zernio,native,index,platform-map}.ts` | Provider seam — `getProvider()`, normalizers, platform slug mapping |
+| `app/api/social/connect/[platform]/route.ts` | Routes all connects through Zernio's hosted OAuth; lazy per-workspace Zernio profile creation |
+| `app/api/zernio/connect/callback/route.ts` | New — verifies account ownership, retry/backoff account lookup, accountId-missing fallback, temp debug logging |
+| `app/api/zernio/webhook/route.ts` | New — HMAC-verified webhook receiver for `comment.received`/`account.disconnected` |
+| `services/social/webhook-verify.ts` | New — HMAC-SHA256 signature verification, TDD |
+| `app/api/posts/[id]/publish/route.ts`, `workers/post-publisher.worker.ts` | Rewired to `getProvider(account).publish()` |
+| `app/api/comments/[id]/reply/route.ts`, `workers/ai-responder.worker.ts` | Rewired to `getProvider(account).replyToComment()` |
+| `.github/workflows/deploy.yml` | Fixed working-directory scoping (unrelated pre-existing bug) |
+
+---
 
 ### June 2026 — Session 40: LinkedIn Community Management API
 
@@ -1076,6 +1956,8 @@ All set in Netlify dashboard under Site Settings → Environment Variables.
 | `GOOGLE_SEARCH_CONSOLE_REDIRECT_URI` | `https://lyra-online-app.netlify.app/api/seo/callback` |
 | `REDIS_URL` | Upstash Redis connection string (`rediss://...`) — required for BullMQ queues and workers |
 | `CRON_SECRET` | Bearer token shared between cron-job.org and all `/api/cron/*` endpoints — any strong random string |
+| `STRIPE_TREND_PRICE_ID` | Stripe Price ID for the LYRA Trend add-on monthly subscription — required for Phase 3 |
+| `PERPLEXITY_API_KEY` | Perplexity real-time search API key — required for Trend discovery stage in Phase 3 |
 
 **Important:** `ENCRYPTION_KEY` must never change once social accounts have been connected. Changing it will make all stored tokens unreadable.
 
@@ -1252,12 +2134,15 @@ A full SEO module has been built and deployed. It includes:
 
 ## 7. Current Workspace
 
-One workspace is currently active in production:
+Two workspaces active in production (as of July 2026 alpha testing):
 
-- **Into The Wild Marketing** — the agency's own workspace, used for testing
-- Website URL: set (intothewildmarketing.com.au or similar)
-- Social accounts: LinkedIn personal profile connected
-- Brand profile: built and visible on the Brand AI page
+**Into The Wild Marketing** — agency's primary workspace  
+- Social accounts: Facebook, Instagram, LinkedIn, YouTube, Google Business — all connected via Zernio Bridge ✅  
+- Brand profile: built and visible on the Brand AI page  
+
+**LYRA** — LYRA product workspace  
+- Social accounts: X (Twitter), TikTok, Instagram, LinkedIn — all connected via Zernio Bridge ✅  
+- Facebook blocked on this workspace — brand-new Meta Business Portfolio propagation issue (not a code bug; see Known Limitations → Zernio → *Facebook won't connect to LYRA workspace*)
 
 ---
 
@@ -1629,16 +2514,17 @@ The mobile experience is now first-class across all core pages. Key changes:
 
 ### Cron Jobs
 
-Four cron routes exist and are production-ready. All require an `Authorization: Bearer {CRON_SECRET}` header. **All four jobs are live on cron-job.org and returning 200 responses** (set up in Session 9).
+Five cron routes exist and are production-ready. All require an `Authorization: Bearer {CRON_SECRET}` header. **All five jobs are live on cron-job.org and returning 200 responses.** Intervals were tightened in July 2026 (see July changelog — 4 of 5 jobs had been auto-disabled by cron-job.org after consecutive auth failures; manually re-enabled after the auth header fix).
 
 | Route | Frequency | Purpose |
 |---|---|---|
 | `/api/cron/publish-due-posts` | Every 1 min | Enqueues SCHEDULED posts past their `scheduledAt` time into the `post-publishing` BullMQ queue |
 | `/api/cron/sync-comments` | Every 5 min | Polls platform APIs for new comments; enqueues new ones to `ai-responding` queue |
-| `/api/cron/sync-metrics` | Every hour | Fetches likes/comments/shares for PUBLISHED posts; updates `PostMetrics` rows |
-| `/api/cron/brand-refresh` | Weekly (Sun midnight) | Refreshes brand intelligence + triggers engagement analysis for all workspaces |
+| `/api/cron/sync-metrics` | Every 15–30 min | Fetches likes/comments/shares for PUBLISHED posts; updates `PostMetrics` rows |
+| `/api/cron/brand-refresh` | Every 6 hours | Refreshes brand intelligence + triggers engagement analysis for all workspaces |
+| `/api/cron/sync-trends` | Daily | Enqueues BullMQ trend sync jobs (stub until Phase 3) |
 
-All four jobs are already configured on [cron-job.org](https://cron-job.org) (free tier) with the correct schedule and `Authorization: Bearer {CRON_SECRET}` header. No action required.
+All five jobs are already configured on [cron-job.org](https://cron-job.org) (free tier) with the correct schedule and `Authorization: Bearer {CRON_SECRET}` header. No action required.
 
 Note: Netlify scheduled functions are not suitable here because they cannot pass custom headers (needed for `CRON_SECRET` auth).
 
@@ -1662,6 +2548,7 @@ Until those workers are live, the panel will remain in cold-start state. This is
 - Security audit indexes + unique constraint on `Comment` (2026-05-22 audit)
 - **P1 Crisis Aware:** `Workspace.crisisAware`, `Workspace.crisisActive`, `Workspace.crisisTriggeredAt`, `CrisisEvent` model
 - **P3 Competitor Intelligence:** `Competitor` model, `CompetitorSnapshot` model
+- **Email Marketing (2026-07-19):** `EmailProvider` enum (`KLAVIYO`, `MAILCHIMP`, `CUSTOMER_IO`), `EmailIntegration` model, `EmailCampaign` model — applied via Supabase SQL Editor (see email marketing changelog entry for full column list)
 
 **For local development:** schema changes still require a manual `prisma db push` or Supabase SQL Editor step against the development database. The automated step only runs in the Netlify build pipeline.
 
@@ -1800,6 +2687,28 @@ LYRA uses a strict dark near-black design system defined in `lyra/lib/design-tok
 | `lyra/components/lyra/repurpose/repurpose-form.tsx` | Repurpose UI — URL/text toggle, platform chips, SSE reader |
 | `lyra/app/(dashboard)/workspace/[workspaceId]/repurpose/page.tsx` | Repurpose page (server, auth-guarded) |
 | `lyra/app/(dashboard)/workspace/[workspaceId]/competitors/page.tsx` | Competitor Intelligence page |
+| `lyra/app/(dashboard)/workspace/[workspaceId]/trends/page.tsx` | Trends page — renders placeholder card now; will render `TrendHub` in Phase 3 |
+| `lyra/app/api/trends/route.ts` | Trends list route (stub) |
+| `lyra/app/api/trends/refresh/route.ts` | On-demand trend sync trigger (stub) |
+| `lyra/app/api/trends/[id]/status/route.ts` | Trend status update — USED / DISMISSED (stub) |
+| `lyra/app/api/cron/sync-trends/route.ts` | Daily trend sync cron route (stub) |
+| `lyra/app/api/stripe/trend-checkout/route.ts` | Stripe Checkout session creation for Trend add-on — fully implemented |
+| `lyra/services/trends/trend-syncer.ts` | `syncTrendsForWorkspace()` — Perplexity discovery + AI scoring (stub) |
+| `lyra/workers/trend-sync.worker.ts` | BullMQ queue + worker for async trend syncs (stub — null exports) |
+| `lyra/components/lyra/trends/trend-hub.tsx` | Trend Hub split-panel component (stub) |
+| `lyra/components/lyra/trends/trend-picker-panel.tsx` | Composer slide-in trend picker (stub) |
+| `lyra/components/lyra/trends/trend-row.tsx` | Single trend list row (stub) |
+| `lyra/components/lyra/settings/trend-addon-card.tsx` | Settings add-on card — Activate → Stripe, or Active badge when enabled; fully implemented |
+| `lyra/services/email-marketing/klaviyo-campaigns.ts` | Klaviyo API client — `validateKlaviyoKey()`, `fetchKlaviyoCampaigns()` |
+| `lyra/services/email-marketing/mailchimp-campaigns.ts` | Mailchimp API client — `extractMailchimpServer()`, `validateMailchimpKey()`, `fetchMailchimpCampaigns()` |
+| `lyra/services/email-marketing/customerio-campaigns.ts` | Customer.io API client — `validateCustomerioKey()`, `fetchCustomerioCampaigns()` |
+| `lyra/services/email-marketing/sync.ts` | `syncEmailIntegration(integrationId)` — dispatches to correct provider, upserts campaigns, updates `lastSyncAt` |
+| `lyra/app/api/email-integrations/route.ts` | `GET` list / `POST` connect-and-validate for Klaviyo, Mailchimp, Customer.io |
+| `lyra/app/api/email-integrations/[id]/route.ts` | `DELETE` soft-deactivates an integration |
+| `lyra/app/api/email-integrations/[id]/sync/route.ts` | `POST` manual sync — returns `{ synced: number }` |
+| `lyra/app/api/email-campaigns/route.ts` | `GET` campaigns for a workspace + month range |
+| `lyra/components/lyra/settings/email-marketing-section.tsx` | Settings section UI — three provider cards with connect / sync / disconnect |
+| `lyra/components/lyra/calendar/email-campaign-card.tsx` | Indigo non-draggable calendar card for email campaigns; exports `CalendarEmailCampaign` type |
 | `netlify.toml` (repo root, NOT under `lyra/`) | Build config — `rm -rf .next && npx prisma generate && npm run build`. Never create a nested `lyra/netlify.toml`. |
 
 ---
@@ -1811,20 +2720,22 @@ LYRA uses a strict dark near-black design system defined in `lyra/lib/design-tok
 - **Crisis Aware** ✅ — Banner in workspace layout when active; toggle in settings (Pro/Agency); `crisis-detector.ts` uses keyword guardrails + Claude sentiment; resolve API clears the event.
 
 **New features (ready to build):**
-2. **Media Library** (Phase 3) — S3 upload, AI topic tagging, media picker in composer and schedule review. Spec: `lyra/docs/superpowers/specs/2026-05-19-ai-content-schedule-design.md` section 3.
-3. **Stripe billing + marketing page** — create Stripe products/prices, wire up checkout flow, build public landing page.
+2. **Email marketing auto-sync cron** — `services/email-marketing/sync.ts` is complete; just needs a `/api/cron/sync-email-campaigns` route + a cron-job.org entry (same pattern as the 5 existing cron routes). Currently campaigns only sync manually via Settings → Sync button.
+3. **LYRA Trend add-on** (Phase 3 scaffold committed) — full implementation checklist in the July 2026 Trends changelog entry above. Needs: schema migration, `syncTrendsForWorkspace()` service, BullMQ worker wired in, `GET/POST/PATCH /api/trends/*` routes, Stripe webhook extended for `trend_addon`, `TrendAddonCard` mounted in settings, `TrendHub`/`TrendPickerPanel`/`TrendRow` components, sidebar nav gating, `STRIPE_TREND_PRICE_ID` + `PERPLEXITY_API_KEY` env vars. Checkout flow already works.
+3. **Media Library** (Phase 3) — S3 upload, AI topic tagging, media picker in composer and schedule review. Spec: `lyra/docs/superpowers/specs/2026-05-19-ai-content-schedule-design.md` section 3.
+4. **Stripe billing + marketing page** — create Stripe products/prices, wire up checkout flow, build public landing page.
 
 **Platform / integrations — all submitted, awaiting third-party decisions:**
 - **Twitter/X** — Connected ✅. No approval needed. Working in production.
 - **YouTube** — Connected ✅. OAuth consent in Testing mode; will need Google verification for public launch.
-- **Meta (Facebook + Instagram)** — App Review submitted 2026-06-17. Decision expected ~2026-07-07. Monitor email.
-- **TikTok** — App Review submitted 2026-06-17. Decision expected within 1–7 business days. Monitor email.
+- **Meta (Facebook + Instagram)** — App Review submitted 2026-06-17. Decision was expected ~2026-07-07 — **now 11+ days past that date, status unknown as of 2026-07-18.** Check email for any Meta decision or follow-up questions. If no decision, log into the Meta App Dashboard and check for status updates or reviewer messages.
+- **TikTok** — App Review submitted 2026-06-17. Status unknown as of 2026-07-18 — check TikTok Developer Portal or email for outcome.
 - **Google Business** — ❌ API access **REJECTED** 2026-07-03 (case `5-5485000041034`): declared website `lyraonline.ai` didn't match the ITWM listing's website `intothewildmarketing.com.au`. **Action: reapply declaring `intothewildmarketing.com.au` from the ITWM listing's owner email — do NOT create a LYRA listing (SaaS is ineligible). Full plan in the Google Business section of Known Limitations above.**
 - **LinkedIn** — LYRA Community app submitted to Microsoft Vetting Services 2026-06-21. Approval email received but Products page still "Review in progress" as of 2026-06-27 → connect returns "Bummer" until the product goes active. Code fully deployed; env vars verified. No code changes needed — just retest once the portal flips. Full detail in the LinkedIn section of Known Limitations above.
 
 **No action required on any platform until approvals arrive.**
 
-5. **Test GSC OAuth end-to-end** — navigate to SEO → connect Search Console → verify property auto-selects → add a page → Analyse → Generate
+5. ✅ **GSC OAuth end-to-end — confirmed working** (July 2026 testing) — found and fixed two real bugs (wrong redirect domain, site never verified); full OAuth flow and on-page analysis confirmed via a genuine disconnect + reconnect test. No further action needed.
 
 **Post boosting — low priority polish:**
 **UX / business:**
