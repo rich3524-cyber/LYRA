@@ -302,6 +302,7 @@ model BrandProfile {
   audienceProfile  Json?
   postingPatterns  Json?
   guidelineUrls    String[]
+  suggestedCrisisKeywords Json?
   websiteData      Json?
   socialData       Json?
   lastScrapedAt    DateTime?
