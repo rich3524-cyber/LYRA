@@ -4,16 +4,17 @@ import { toast } from 'sonner'
 import { AlertTriangle, CheckCheck, EyeOff, Sparkles, Loader2 } from 'lucide-react'
 
 interface CommentData {
-  id:              string
-  authorName:      string
-  authorHandle?:   string | null
-  content:         string
-  sentiment?:      string | null
-  status:          string
-  aiDraftResponse: string | null
-  finalResponse:   string | null
-  createdAt:       string
-  socialAccount:   { platform: string; name: string }
+  id:                string
+  authorName:        string
+  authorHandle?:     string | null
+  content:           string
+  sentiment?:        string | null
+  status:            string
+  aiDraftResponse:   string | null
+  finalResponse:     string | null
+  escalationReason?: string | null
+  createdAt:         string
+  socialAccount:     { platform: string; name: string }
 }
 
 const PLATFORM_LABELS: Record<string, string> = {
@@ -51,8 +52,14 @@ export const CommentCard = memo(function CommentCard({
   const [generating, setGen]  = useState(false)
   const [sending, setSending] = useState(false)
 
-  const showAi       = plan !== 'STARTER' && aiResponseMode !== 'OFF'
-  const isActionable = comment.status !== 'ESCALATED' && comment.status !== 'IGNORED' && comment.status !== 'RESPONDED'
+  // Escalated comments can still be replied to or ignored -- they were only kept
+  // out of AI drafting because the AI itself declined (shouldEscalate), not
+  // because a human can't act on them. Previously the whole reply box and every
+  // action button, including Ignore, were hidden for ESCALATED, leaving no way
+  // to ever clear one out of the Inbox short of direct DB access.
+  const canReply        = comment.status !== 'IGNORED' && comment.status !== 'RESPONDED'
+  const isEscalated     = comment.status === 'ESCALATED'
+  const showAiControls  = canReply && !isEscalated && plan !== 'STARTER' && aiResponseMode !== 'OFF'
 
   async function handleGenerate() {
     setGen(true)
@@ -163,10 +170,18 @@ export const CommentCard = memo(function CommentCard({
       {/* Comment content */}
       <p className="text-sm text-text-primary leading-relaxed">{comment.content}</p>
 
-      {/* Response textarea — only for actionable comments */}
-      {isActionable && (
+      {/* Escalation context — shown above the reply box so a human knows why AI declined to draft one */}
+      {isEscalated && (
+        <p className="text-xs text-status-warning flex items-center gap-1.5">
+          <AlertTriangle size={12} strokeWidth={1.5} />
+          Escalated to team{comment.escalationReason ? ` — ${comment.escalationReason}` : ''}
+        </p>
+      )}
+
+      {/* Response textarea — for any comment that can still be replied to */}
+      {canReply && (
         <div className="space-y-2">
-          {showAi && (
+          {showAiControls && (
             <div className="flex items-center justify-between">
               <span className="text-xs text-text-tertiary flex items-center gap-1">
                 <Sparkles size={12} strokeWidth={1.5} /> AI draft
@@ -178,7 +193,13 @@ export const CommentCard = memo(function CommentCard({
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             rows={3}
-            placeholder={showAi ? 'Generate or write a response.' : 'Write a reply.'}
+            placeholder={
+              showAiControls
+                ? 'Generate or write a response.'
+                : isEscalated
+                ? 'AI declined to draft a reply here — write one manually.'
+                : 'Write a reply.'
+            }
             className="w-full rounded-lg bg-background-hover border border-background-border-mid px-3 py-2 text-sm text-text-primary placeholder:text-text-tertiary resize-none focus:outline-none focus:border-text-tertiary transition-colors"
           />
         </div>
@@ -195,7 +216,7 @@ export const CommentCard = memo(function CommentCard({
       )}
 
       {/* Actions */}
-      {isActionable && (
+      {canReply && (
         <div className="flex items-center gap-2 flex-wrap">
           {draft.trim() && (
             <button
@@ -206,10 +227,10 @@ export const CommentCard = memo(function CommentCard({
               {sending
                 ? <Loader2 size={12} className="animate-spin" />
                 : <CheckCheck size={12} strokeWidth={1.5} />}
-              {showAi ? 'Approve & send' : 'Send reply'}
+              {showAiControls ? 'Approve & send' : 'Send reply'}
             </button>
           )}
-          {showAi && (
+          {showAiControls && (
             <button
               onClick={handleGenerate}
               disabled={generating}
@@ -221,12 +242,14 @@ export const CommentCard = memo(function CommentCard({
               {draft ? 'Re-generate' : 'Generate'}
             </button>
           )}
-          <button
-            onClick={handleEscalate}
-            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-background-hover border border-background-border-mid text-status-warning hover:bg-status-warning/10 transition-colors"
-          >
-            <AlertTriangle size={12} strokeWidth={1.5} /> Escalate
-          </button>
+          {!isEscalated && (
+            <button
+              onClick={handleEscalate}
+              className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-background-hover border border-background-border-mid text-status-warning hover:bg-status-warning/10 transition-colors"
+            >
+              <AlertTriangle size={12} strokeWidth={1.5} /> Escalate
+            </button>
+          )}
           <button
             onClick={handleIgnore}
             className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-background-hover border border-background-border-mid text-text-tertiary hover:text-text-secondary transition-colors"
@@ -236,11 +259,6 @@ export const CommentCard = memo(function CommentCard({
         </div>
       )}
 
-      {comment.status === 'ESCALATED' && (
-        <p className="text-xs text-status-warning flex items-center gap-1.5">
-          <AlertTriangle size={12} strokeWidth={1.5} /> Escalated to team
-        </p>
-      )}
       {comment.status === 'RESPONDED' && !comment.finalResponse && (
         <p className="text-xs text-status-success flex items-center gap-1.5">
           <CheckCheck size={12} strokeWidth={1.5} /> Response sent

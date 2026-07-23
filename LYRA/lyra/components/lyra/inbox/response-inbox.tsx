@@ -3,8 +3,11 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CommentCard } from './comment-card'
 
-// Stable reference for tabs where CommentCard is non-actionable (escalated/done)
-// and never actually calls onUpdate -- avoids passing a fresh arrow each render.
+// Stable reference for the Done tab, where CommentCard is genuinely
+// non-actionable and never calls onUpdate -- avoids passing a fresh arrow each
+// render. Escalated now uses the real handleUpdate below (23 Jul 2026 fix) --
+// escalated comments can be replied to or ignored, and need the local state
+// update or they'd stay stuck showing under Escalated until a manual refresh.
 const NOOP_UPDATE = () => {}
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
@@ -13,16 +16,17 @@ import { RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface CommentData {
-  id:              string
-  authorName:      string
-  authorHandle?:   string | null
-  content:         string
-  sentiment?:      string | null
-  status:          string
-  aiDraftResponse: string | null
-  finalResponse:   string | null
-  createdAt:       string
-  socialAccount:   { platform: string; name: string }
+  id:                string
+  authorName:        string
+  authorHandle?:     string | null
+  content:           string
+  sentiment?:        string | null
+  status:            string
+  aiDraftResponse:   string | null
+  finalResponse:     string | null
+  escalationReason?: string | null
+  createdAt:         string
+  socialAccount:     { platform: string; name: string }
 }
 
 const PLATFORM_LABELS: Record<string, string> = {
@@ -230,7 +234,7 @@ export function ResponseInbox({
                     comment={c}
                     aiResponseMode={aiResponseMode}
                     plan={plan}
-                    onUpdate={NOOP_UPDATE}
+                    onUpdate={handleUpdate}
                   />
                 </motion.div>
               ))}
