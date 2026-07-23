@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { verifyZernioSignature } from '@/services/social/webhook-verify'
 import { toNormalizedComment } from '@/services/social/provider/mappers'
 import { aiRespondQueue } from '@/lib/queues'
+import { checkAndTriggerCrisis } from '@/services/ai/crisis-detector'
 
 export const dynamic = 'force-dynamic'
 
@@ -142,6 +143,13 @@ export async function POST(req: Request) {
             { jobId: `respond-${comment.id}` }
           )
         }
+
+        // Only KEYWORD_MATCH is reachable here (one comment per webhook call) --
+        // see checkAndTriggerCrisis's own comment for why sentiment-spike still
+        // needs the polling path. Safe to call unconditionally on every delivery,
+        // including redeliveries of an already-seen comment: crisisActive is
+        // checked inside and short-circuits once a crisis is already open.
+        await checkAndTriggerCrisis(account.workspaceId, [{ id: comment.id, content: comment.content }])
         break
       }
 

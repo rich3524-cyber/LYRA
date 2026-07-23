@@ -10,6 +10,51 @@ type DetectResult =
 const SENTIMENT_THRESHOLD = -0.6
 const SENTIMENT_SPIKE_MIN_COUNT = 3
 
+/**
+ * Runs detectCrisis and, if triggered, flips the workspace into crisis mode +
+ * records the audit event. Shared by every comment-ingestion path so none of
+ * them silently skip Crisis Aware -- comment-monitor.worker.ts was the only
+ * caller until 23 Jul 2026, meaning the real-time Zernio webhook path could
+ * never trigger a crisis no matter what a comment said.
+ *
+ * Note: SENTIMENT_SPIKE needs 3+ very negative comments in one batch. The
+ * webhook delivers one comment per call, so only KEYWORD_MATCH is reachable
+ * through this path today -- sentiment-spike-via-webhook would need a rolling
+ * window of recent comments, not just the one just-delivered, which is a
+ * separate piece of work.
+ */
+export async function checkAndTriggerCrisis(workspaceId: string, comments: Comment[]): Promise<void> {
+  try {
+    const workspaceMeta = await prisma.workspace.findUnique({
+      where: { id: workspaceId },
+      select: { crisisAware: true, crisisActive: true },
+    })
+    if (!workspaceMeta?.crisisAware || workspaceMeta.crisisActive) return
+
+    const result = await detectCrisis(workspaceId, comments)
+
+    if (result.triggered) {
+      await prisma.$transaction([
+        prisma.workspace.update({
+          where: { id: workspaceId },
+          data: { crisisActive: true, crisisTriggeredAt: new Date() },
+        }),
+        prisma.crisisEvent.create({
+          data: {
+            workspaceId,
+            triggerType: result.type,
+            commentIds:  result.commentIds,
+          },
+        }),
+      ])
+      console.log(`Crisis triggered for workspace ${workspaceId}: ${result.type}`)
+    }
+  } catch (error) {
+    console.error(`Crisis detection failed for workspace ${workspaceId}:`, error)
+    // Continue — do not crash the caller
+  }
+}
+
 export async function detectCrisis(
   workspaceId: string,
   comments: Comment[]

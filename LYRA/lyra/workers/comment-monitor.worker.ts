@@ -2,7 +2,7 @@ import { Worker } from 'bullmq'
 import { redis } from '@/lib/redis'
 import { prisma } from '@/lib/prisma'
 import { decrypt } from '@/lib/encrypt'
-import { detectCrisis } from '@/services/ai/crisis-detector'
+import { checkAndTriggerCrisis } from '@/services/ai/crisis-detector'
 import * as linkedin from '@/services/social/linkedin'
 import { aiRespondQueue } from '@/lib/queues'
 import { getProvider } from '@/services/social/provider'
@@ -167,36 +167,7 @@ const worker = new Worker(
     }
 
     if (savedComments.length > 0) {
-      try {
-        const workspaceMeta = await prisma.workspace.findUnique({
-          where: { id: account.workspaceId },
-          select: { crisisAware: true, crisisActive: true },
-        })
-
-        if (workspaceMeta?.crisisAware && !workspaceMeta.crisisActive) {
-          const result = await detectCrisis(account.workspaceId, savedComments)
-
-          if (result.triggered) {
-            await prisma.$transaction([
-              prisma.workspace.update({
-                where: { id: account.workspaceId },
-                data: { crisisActive: true, crisisTriggeredAt: new Date() },
-              }),
-              prisma.crisisEvent.create({
-                data: {
-                  workspaceId: account.workspaceId,
-                  triggerType: result.type,
-                  commentIds:  result.commentIds,
-                },
-              }),
-            ])
-            console.log(`Crisis triggered for workspace ${account.workspaceId}: ${result.type}`)
-          }
-        }
-      } catch (err) {
-        console.error(`Crisis detection failed for workspace ${account.workspaceId}:`, err)
-        // Continue — do not crash the job
-      }
+      await checkAndTriggerCrisis(account.workspaceId, savedComments)
     }
   },
   { connection: redis, concurrency: 10 }
