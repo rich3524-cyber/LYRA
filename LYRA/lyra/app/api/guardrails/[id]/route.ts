@@ -17,7 +17,15 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     })
     if (!access) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-    await prisma.guardrail.delete({ where: { id } })
+    try {
+      await prisma.guardrail.delete({ where: { id } })
+    } catch (deleteError) {
+      // P2025 = record not found -- a concurrent delete (double-click, race)
+      // already removed it. The end state the caller wanted is achieved
+      // either way, so this is a success, not an error.
+      const code = (deleteError as { code?: string } | null)?.code
+      if (code !== 'P2025') throw deleteError
+    }
 
     return NextResponse.json({ ok: true })
   } catch (error) {
