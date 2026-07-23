@@ -52,8 +52,8 @@ export async function suggestCrisisKeywords(
   const prompt = `You are a crisis-management analyst for a social media monitoring tool. Suggest keywords that, if they appear in an incoming comment, should immediately escalate it to a human rather than let AI auto-reply to it.
 
 BUSINESS CONTEXT:
-Title: ${websiteData.title}
-Description: ${websiteData.description}
+Title: ${websiteData.title.slice(0, 200)}
+Description: ${websiteData.description.slice(0, 500)}
 Content themes: ${contentThemes.join(', ') || 'Not provided'}
 Audience: ${audienceProfile?.demographics ?? 'Not provided'}
 
@@ -76,7 +76,13 @@ Return ONLY valid JSON. No markdown, no explanation.`
   })
 
   const text = response.content[0].type === 'text' ? response.content[0].text : '[]'
-  const parsed = JSON.parse(text) as unknown
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    return []
+  }
 
   if (!Array.isArray(parsed)) return []
 
