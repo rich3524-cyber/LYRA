@@ -33,7 +33,11 @@ function escapeHtml(text: string): string {
 }
 
 function truncate(text: string, maxLength: number): string {
-  return text.length > maxLength ? text.slice(0, maxLength) : text
+  if (text.length <= maxLength) return text
+  // Array.from splits on code points, not UTF-16 code units -- plain
+  // .slice(0, maxLength) can cut a surrogate pair (emoji, some CJK) in half,
+  // leaving a lone surrogate that renders as a broken-character glyph.
+  return Array.from(text).slice(0, maxLength).join('')
 }
 
 export function buildCrisisAlertEmail(
