@@ -14,9 +14,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { Sparkles, CalendarIcon, Send, Zap, BarChart2, Pencil, ImagePlus, Loader2, X } from 'lucide-react'
+import { Sparkles, CalendarIcon, Send, Zap, BarChart2, Pencil, ImagePlus, Loader2, X, Layers } from 'lucide-react'
 import { PlatformSelector } from './platform-selector'
 import { MediaUploader } from './media-uploader'
+import { PlatformMediaTabs } from './platform-media-tabs'
 import { ContentScorePanel } from './content-score-panel'
 import type { ScoringResult } from '@/services/ai/content-scorer'
 import type { EditingPost } from './compose-client'
@@ -51,34 +52,63 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
   const [scoring, setScoring] = useState(false)
   const [scoreResult, setScoreResult] = useState<ScoringResult | null>(null)
   const [isDropUploading, setIsDropUploading] = useState(false)
+  const [platformMedia, setPlatformMedia] = useState<Record<string, string[]>>({})
+  const [customisePerPlatform, setCustomisePerPlatform] = useState(false)
+  const [activePlatformTab, setActivePlatformTab] = useState('')
   const scoreDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Live, not just submit-time: recomputed every render off existing state, so
-  // the warning shows the moment an incompatible platform/media combo exists
-  // (e.g. GIF + Instagram) rather than only when the user tries to submit.
-  const mediaCompatibilityIssues = checkMediaCompatibility(
-    mediaUrls,
-    (editingPost ? [editingPost.platform] : selectedPlatforms) as Platform[]
-  )
+  // In per-platform mode each tab runs its own check; the shared check would
+  // produce false positives (e.g. GIF on TikTok's slot wrongly blocking Instagram).
+  const mediaCompatibilityIssues = customisePerPlatform
+    ? []
+    : checkMediaCompatibility(
+        mediaUrls,
+        (editingPost ? [editingPost.platform] : selectedPlatforms) as Platform[]
+      )
 
-  const isAwaitingMedia = !!editingPost?.requiresMedia && mediaUrls.length === 0
+  const isAwaitingMedia = !!editingPost?.requiresMedia && (
+    customisePerPlatform
+      ? selectedPlatforms.some((p) => (platformMedia[p] ?? []).length === 0)
+      : mediaUrls.length === 0
+  )
 
   const onDropFiles = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return
     setIsDropUploading(true)
     try {
       const urls = await Promise.all(acceptedFiles.map((file) => uploadMediaFile(file, workspaceId)))
-      setMediaUrls((prev) => [...prev, ...urls])
+      if (customisePerPlatform && activePlatformTab) {
+        setPlatformMedia((prev) => ({
+          ...prev,
+          [activePlatformTab]: [...(prev[activePlatformTab] ?? []), ...urls],
+        }))
+      } else {
+        setMediaUrls((prev) => [...prev, ...urls])
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to upload media')
     } finally {
       setIsDropUploading(false)
     }
-  }, [workspaceId])
+  }, [workspaceId, customisePerPlatform, activePlatformTab])
 
   const removeMedia = useCallback((index: number) => {
     setMediaUrls((prev) => prev.filter((_, i) => i !== index))
   }, [])
+
+  function handleToggleCustomise() {
+    if (!customisePerPlatform) {
+      const init: Record<string, string[]> = {}
+      selectedPlatforms.forEach((p) => { init[p] = [...mediaUrls] })
+      setPlatformMedia(init)
+      setActivePlatformTab(selectedPlatforms[0] ?? '')
+      setCustomisePerPlatform(true)
+    } else {
+      setCustomisePerPlatform(false)
+      setPlatformMedia({})
+      setActivePlatformTab('')
+    }
+  }
 
   const { getRootProps, isDragActive } = useDropzone({
     onDrop: onDropFiles,
@@ -104,6 +134,26 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
       onContentChange?.(text)
     },
   })
+
+  // When a new platform is added while per-platform mode is on, seed its slot
+  // from the shared media snapshot at the time it was added. mediaUrls is
+  // intentionally excluded from deps -- we want a one-time seed, not a
+  // retroactive update every time shared media changes.
+  useEffect(() => {
+    if (!customisePerPlatform) return
+    setPlatformMedia((prev) => {
+      const next = { ...prev }
+      let changed = false
+      selectedPlatforms.forEach((p) => {
+        if (!(p in next)) {
+          next[p] = [...mediaUrls]
+          changed = true
+        }
+      })
+      return changed ? next : prev
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPlatforms, customisePerPlatform])
 
   useEffect(() => {
     if (!scoreOpen || content.length < 10) return
@@ -178,7 +228,15 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
           body: JSON.stringify(
             editingPost
               ? { content, scheduledAt: publishAt, mediaUrls, status }
-              : { workspaceId, content, platforms: selectedPlatforms, scheduledAt: publishAt, mediaUrls, status }
+              : {
+                  workspaceId,
+                  content,
+                  platforms: selectedPlatforms,
+                  scheduledAt: publishAt,
+                  mediaUrls,
+                  ...(customisePerPlatform && { platformMedia }),
+                  status,
+                }
           ),
         }
       )
@@ -195,6 +253,9 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
       setSelectedPlatforms([])
       setScheduledAt(undefined)
       setMediaUrls([])
+      setPlatformMedia({})
+      setCustomisePerPlatform(false)
+      setActivePlatformTab('')
     } catch {
       toast.error('Failed to save post')
     } finally {
@@ -241,6 +302,9 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
           onChange={(platforms) => {
             setSelectedPlatforms(platforms)
             onPlatformsChange?.(platforms)
+            if (customisePerPlatform && activePlatformTab && !platforms.includes(activePlatformTab)) {
+              setActivePlatformTab(platforms[0] ?? '')
+            }
           }}
         />
       </div>
@@ -250,8 +314,8 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
         <EditorContent editor={editor} />
       </div>
 
-      {/* Media previews */}
-      {mediaUrls.length > 0 && (
+      {/* Shared media previews — hidden when per-platform mode is active */}
+      {!customisePerPlatform && mediaUrls.length > 0 && (
         <div className="px-5 pb-4">
           <div className="flex gap-2 flex-wrap">
             {mediaUrls.map((url, i) => (
@@ -287,6 +351,39 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
         </div>
       )}
 
+      {/* Per-platform media tabs */}
+      {customisePerPlatform && (
+        <PlatformMediaTabs
+          selectedPlatforms={selectedPlatforms}
+          platformMedia={platformMedia}
+          workspaceId={workspaceId}
+          activeTab={activePlatformTab}
+          onActiveTabChange={setActivePlatformTab}
+          onPlatformMediaChange={(platform, urls) =>
+            setPlatformMedia((prev) => ({ ...prev, [platform]: urls }))
+          }
+        />
+      )}
+
+      {/* Customise per platform toggle */}
+      {!editingPost && selectedPlatforms.length > 0 && (customisePerPlatform || mediaUrls.length > 0) && (
+        <div className="px-5 pb-3">
+          <button
+            type="button"
+            onClick={handleToggleCustomise}
+            className={cn(
+              'inline-flex items-center gap-1.5 text-xs transition-colors',
+              customisePerPlatform
+                ? 'text-text-primary'
+                : 'text-text-tertiary hover:text-text-secondary'
+            )}
+          >
+            <Layers size={12} strokeWidth={1.5} />
+            {customisePerPlatform ? 'Using per-platform media' : 'Customise per platform'}
+          </button>
+        </div>
+      )}
+
       {/* Toolbar — row 1: content tools */}
       <div className="flex items-center gap-3 px-5 py-3 border-t border-background-border">
         <Button
@@ -300,10 +397,12 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
           <Sparkles size={14} className={cn(isGenerating && 'animate-pulse')} />
           {isGenerating ? 'Generating…' : 'AI Generate'}
         </Button>
-        <MediaUploader
-          workspaceId={workspaceId}
-          onUpload={(url) => setMediaUrls((prev) => [...prev, url])}
-        />
+        {!customisePerPlatform && (
+          <MediaUploader
+            workspaceId={workspaceId}
+            onUpload={(url) => setMediaUrls((prev) => [...prev, url])}
+          />
+        )}
         <Button
           variant="ghost"
           size="sm"
@@ -348,7 +447,7 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
             <PopoverContent className="w-auto p-0 bg-background-tertiary border-background-border">
               <Calendar mode="single" selected={scheduledAt} onSelect={setScheduledAt} />
               <div className="px-4 pb-4 pt-3 border-t border-background-border space-y-1.5">
-                <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">Time</p>
+                <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-widest">Time</p>
                 <input
                   type="time"
                   value={scheduledAt ? format(scheduledAt, 'HH:mm') : ''}

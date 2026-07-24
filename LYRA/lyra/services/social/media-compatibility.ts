@@ -52,3 +52,7 @@ export function formatCompatibilityIssue(issue: MediaCompatibilityIssue): string
   const platformLabel = issue.platform.charAt(0) + issue.platform.slice(1).toLowerCase()
   return `${platformLabel} doesn't accept .${issue.ext} images (JPEG/PNG only) -- the attached file will fail to publish there.`
 }
+
+export function checkPlatformCompatibility(mediaUrls: string[], platform: Platform): MediaCompatibilityIssue[] {
+  return checkMediaCompatibility(mediaUrls, [platform])
+}

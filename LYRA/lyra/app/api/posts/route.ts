@@ -14,6 +14,7 @@ const createPostSchema = z.object({
   platforms:     z.array(z.nativeEnum(Platform)).min(1),
   scheduledAt:   z.string().nullish(),
   mediaUrls:     z.array(z.string()).optional(),
+  platformMedia: z.record(z.string(), z.array(z.string())).optional(),
   status:        z.nativeEnum(PostStatus).optional(),
   topic:         z.string().nullish(),
   requiresMedia: z.boolean().optional(),
@@ -92,7 +93,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const user = await requireAuth()
-    const { workspaceId, content, platforms, scheduledAt, mediaUrls, status, topic, requiresMedia } = await parseBody(req, createPostSchema)
+    const { workspaceId, content, platforms, scheduledAt, mediaUrls, platformMedia, status, topic, requiresMedia } = await parseBody(req, createPostSchema)
 
     const ALLOWED_CREATE_STATUSES: PostStatus[] = ['DRAFT', 'SCHEDULED']
     const resolvedStatus: PostStatus = status && ALLOWED_CREATE_STATUSES.includes(status)
@@ -103,19 +104,28 @@ export async function POST(req: Request) {
     // submitting -- catches a known-broken platform/format combo (e.g. a GIF
     // targeting Instagram, which silently fails to publish) before it's queued.
     // Only enforced at SCHEDULED time, not for drafts (media can still change).
+    // When platformMedia is provided each platform is checked against its own
+    // media rather than the shared set to avoid false positives.
     if (resolvedStatus === 'SCHEDULED') {
-      const issues = checkMediaCompatibility(mediaUrls ?? [], platforms)
-      if (issues.length > 0) {
-        return NextResponse.json(
-          { error: issues.map(formatCompatibilityIssue).join(' ') },
-          { status: 422 }
-        )
+      const allIssues: string[] = []
+      for (const platform of platforms) {
+        const resolved = platformMedia?.[platform] ?? mediaUrls ?? []
+        const issues = checkMediaCompatibility(resolved, [platform])
+        issues.forEach((issue) => allIssues.push(formatCompatibilityIssue(issue)))
       }
-      if (requiresMedia && (mediaUrls ?? []).length === 0) {
-        return NextResponse.json(
-          { error: 'This post is awaiting media. Attach an image or video before scheduling.' },
-          { status: 422 }
+      if (allIssues.length > 0) {
+        return NextResponse.json({ error: allIssues.join(' ') }, { status: 422 })
+      }
+      if (requiresMedia) {
+        const anyEmpty = platforms.some(
+          (p) => (platformMedia?.[p] ?? mediaUrls ?? []).length === 0
         )
+        if (anyEmpty) {
+          return NextResponse.json(
+            { error: 'This post is awaiting media. Attach an image or video before scheduling.' },
+            { status: 422 }
+          )
+        }
       }
     }
 
@@ -149,7 +159,7 @@ export async function POST(req: Request) {
             socialAccountId: account.id,
             authorId: user.id,
             content: content.trim(),
-            mediaUrls: mediaUrls ?? [],
+            mediaUrls: platformMedia?.[account.platform] ?? mediaUrls ?? [],
             status: resolvedStatus,
             scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
             topic: topic ?? null,
