@@ -109,7 +109,7 @@ export async function POST(req: Request) {
     if (resolvedStatus === 'SCHEDULED') {
       const allIssues: string[] = []
       for (const platform of platforms) {
-        const resolved = platformMedia?.[platform] ?? mediaUrls ?? []
+        const resolved = platformMedia?.[platform]?.length ? platformMedia[platform] : mediaUrls ?? []
         const issues = checkMediaCompatibility(resolved, [platform])
         issues.forEach((issue) => allIssues.push(formatCompatibilityIssue(issue)))
       }
@@ -117,9 +117,10 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: allIssues.join(' ') }, { status: 422 })
       }
       if (requiresMedia) {
-        const anyEmpty = platforms.some(
-          (p) => (platformMedia?.[p] ?? mediaUrls ?? []).length === 0
-        )
+        const anyEmpty = platforms.some((p) => {
+          const resolved = platformMedia?.[p]?.length ? platformMedia[p] : mediaUrls ?? []
+          return resolved.length === 0
+        })
         if (anyEmpty) {
           return NextResponse.json(
             { error: 'This post is awaiting media. Attach an image or video before scheduling.' },
@@ -159,7 +160,7 @@ export async function POST(req: Request) {
             socialAccountId: account.id,
             authorId: user.id,
             content: content.trim(),
-            mediaUrls: platformMedia?.[account.platform] ?? mediaUrls ?? [],
+            mediaUrls: platformMedia?.[account.platform]?.length ? platformMedia[account.platform] : mediaUrls ?? [],
             status: resolvedStatus,
             scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
             topic: topic ?? null,

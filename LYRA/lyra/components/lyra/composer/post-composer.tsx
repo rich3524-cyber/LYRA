@@ -98,9 +98,9 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
 
   function handleToggleCustomise() {
     if (!customisePerPlatform) {
-      const init: Record<string, string[]> = {}
-      selectedPlatforms.forEach((p) => { init[p] = [...mediaUrls] })
-      setPlatformMedia(init)
+      // Tabs start empty — each shows the shared media as a fallback until
+      // the user uploads something platform-specific to override it.
+      setPlatformMedia({})
       setActivePlatformTab(selectedPlatforms[0] ?? '')
       setCustomisePerPlatform(true)
     } else {
@@ -360,8 +360,16 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
           activeTab={activePlatformTab}
           onActiveTabChange={setActivePlatformTab}
           onPlatformMediaChange={(platform, urls) =>
-            setPlatformMedia((prev) => ({ ...prev, [platform]: urls }))
+            setPlatformMedia((prev) => {
+              if (urls.length === 0) {
+                const next = { ...prev }
+                delete next[platform]
+                return next
+              }
+              return { ...prev, [platform]: urls }
+            })
           }
+          sharedMedia={mediaUrls}
         />
       )}
 
