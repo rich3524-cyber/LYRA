@@ -36,7 +36,7 @@ const PLATFORM_GUIDE: Record<string, string> = {
   LINKEDIN: 'professional tone, no hashtags, 600–1200 chars, one insight per paragraph',
   TWITTER: 'punchy, under 280 chars, 1–2 hashtags max, hook in first 8 words',
   FACEBOOK: 'conversational, 80–500 chars, no hashtags needed',
-  TIKTOK: 'hook-first teaser under 150 chars, curiosity gap, call to watch',
+  TIKTOK: 'hook-first teaser under 150 chars, curiosity gap, call to watch, 3–5 relevant hashtags at end',
   GOOGLE_BUSINESS: 'professional, local business tone, 300–500 chars, include a CTA',
 }
 
