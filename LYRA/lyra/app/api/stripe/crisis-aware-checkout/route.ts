@@ -11,31 +11,36 @@ export async function POST(req: Request) {
     const { workspaceId, billing = 'monthly' } = await req.json() as { workspaceId: string; billing?: 'monthly' | 'annual' }
 
     const workspace = await prisma.workspace.findFirst({
-      where:   { id: workspaceId, access: { some: { userId: user.id } } },
-      include: { agency: { select: { id: true, stripeCustomerId: true, plan: true } } },
+      where: { id: workspaceId, access: { some: { userId: user.id } } },
+      select: { id: true, plan: true },
     })
     if (!workspace) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     if (workspace.plan !== 'PRO') {
       return NextResponse.json({ error: 'Crisis Aware add-on is available on the Pro plan only' }, { status: 403 })
     }
 
+    // Find agency via user membership (same approach as create-checkout) so this
+    // works whether or not the workspace has agencyId set directly.
+    const agency = await prisma.agency.findFirst({
+      where:  { members: { some: { id: user.id } } },
+      select: { id: true, stripeCustomerId: true },
+    })
+    if (!agency) return NextResponse.json({ error: 'No agency found' }, { status: 404 })
+
     const priceId = billing === 'annual'
       ? process.env.STRIPE_CRISIS_AWARE_ANNUAL_PRICE_ID
       : process.env.STRIPE_CRISIS_AWARE_PRICE_ID
     if (!priceId) throw new Error('STRIPE_CRISIS_AWARE_PRICE_ID not configured')
 
-    const agencyId = workspace.agency?.id
-    if (!agencyId) return NextResponse.json({ error: 'No agency found' }, { status: 404 })
-
     const session = await stripe.checkout.sessions.create({
       mode:                 'subscription',
       payment_method_types: ['card'],
-      customer:             workspace.agency?.stripeCustomerId ?? undefined,
+      customer:             agency.stripeCustomerId ?? undefined,
       line_items:           [{ price: priceId, quantity: 1 }],
       success_url:          `${process.env.APP_BASE_URL}/workspace/${workspaceId}/settings?crisis_activated=1`,
       cancel_url:           `${process.env.APP_BASE_URL}/workspace/${workspaceId}/settings`,
-      metadata:             { agencyId, workspaceId, type: 'crisis_aware' },
-      subscription_data:    { metadata: { agencyId, workspaceId, type: 'crisis_aware' } },
+      metadata:             { agencyId: agency.id, workspaceId, type: 'crisis_aware' },
+      subscription_data:    { metadata: { agencyId: agency.id, workspaceId, type: 'crisis_aware' } },
     })
 
     return NextResponse.json({ url: session.url })
