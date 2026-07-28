@@ -65,7 +65,7 @@ export function TrendAddonCard({ workspaceId, enabled, subscriptionId }: TrendAd
             Daily AI-scored trend intelligence matched to your brand. Discover what is gaining traction before your competitors do.
           </p>
           <p className="text-xs font-sans text-text-tertiary mt-1">
-            {enabled ? `Subscription ID: ${subscriptionId?.slice(0, 16)}...` : '$X/month — cancel anytime'}
+            {enabled ? `Subscription ID: ${subscriptionId?.slice(0, 16)}...` : '$10/month — cancel anytime'}
           </p>
           {error && (
             <p className="text-xs font-sans text-status-error mt-1">{error}</p>
