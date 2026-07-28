@@ -104,11 +104,16 @@ Rules:
 
   let text = '[]'
   try {
+    // Per-call override, not a global bump to lib/anthropic.ts's 60s default --
+    // a full week across several platforms (e.g. 4 platforms x 3 posts/week)
+    // routinely takes ~55-60s to generate, so it was racing the client's own
+    // timeout and losing intermittently. Other call sites (report narratives,
+    // brand profile synthesis) stay on the shorter default.
     const response = await anthropic.messages.create({
       model: CLAUDE_MODEL,
       max_tokens: 8000,
       messages: [{ role: 'user', content: prompt }],
-    })
+    }, { timeout: 180_000 })
     text = response.content[0].type === 'text' ? response.content[0].text.trim() : '[]'
   } catch (err) {
     console.error('schedule-generator: Claude request failed', err instanceof Error ? err.message : err)
