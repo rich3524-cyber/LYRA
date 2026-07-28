@@ -135,26 +135,6 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
     },
   })
 
-  // When a new platform is added while per-platform mode is on, seed its slot
-  // from the shared media snapshot at the time it was added. mediaUrls is
-  // intentionally excluded from deps -- we want a one-time seed, not a
-  // retroactive update every time shared media changes.
-  useEffect(() => {
-    if (!customisePerPlatform) return
-    setPlatformMedia((prev) => {
-      const next = { ...prev }
-      let changed = false
-      selectedPlatforms.forEach((p) => {
-        if (!(p in next)) {
-          next[p] = [...mediaUrls]
-          changed = true
-        }
-      })
-      return changed ? next : prev
-    })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedPlatforms, customisePerPlatform])
-
   useEffect(() => {
     if (!scoreOpen || content.length < 10) return
     if (scoreDebounceRef.current) clearTimeout(scoreDebounceRef.current)
