@@ -78,6 +78,7 @@ model Workspace {
   crisisAware       Boolean      @default(false)
   crisisActive      Boolean      @default(false)
   crisisTriggeredAt DateTime?
+  trendSubId        String?      @unique
   zernioProfileId   String?
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt

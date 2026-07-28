@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { DeleteWorkspaceButton } from '@/components/lyra/settings/delete-workspace-button'
 import { CrisisAwareToggle } from '@/components/lyra/settings/crisis-aware-toggle'
 import { CrisisAwareAddonCard } from '@/components/lyra/settings/crisis-aware-addon-card'
+import { TrendAddonCard } from '@/components/lyra/settings/trend-addon-card'
 import { AutonomySelector } from '@/components/lyra/settings/autonomy-selector'
 import { FacebookPagePicker } from '@/components/lyra/settings/facebook-page-picker'
 import { TimezoneSelector } from '@/components/lyra/settings/timezone-selector'
@@ -89,7 +90,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
   const workspace = await prisma.workspace.findFirst({
     where: { id: workspaceId, access: { some: { userId: user.id } } },
     select: {
-      id: true, name: true, crisisAware: true, plan: true, timezone: true, aiResponseMode: true,
+      id: true, name: true, crisisAware: true, plan: true, timezone: true, aiResponseMode: true, trendSubId: true,
       agency: { select: { id: true, crisisAwareSubId: true } },
     },
   })
@@ -276,6 +277,11 @@ export default async function SettingsPage({ params, searchParams }: Props) {
       {/* Add-ons */}
       <section className="space-y-4">
         <h2 className="text-lg font-medium font-sans text-text-primary">Add-ons</h2>
+        <TrendAddonCard
+          workspaceId={workspace.id}
+          enabled={!!workspace.trendSubId}
+          subscriptionId={workspace.trendSubId}
+        />
         {hasCrisisAware ? (
           <CrisisAwareToggle
             workspaceId={workspace.id}

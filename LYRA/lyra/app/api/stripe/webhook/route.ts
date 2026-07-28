@@ -54,7 +54,10 @@ export async function POST(req: Request) {
       // Add-on subscriptions carry a `type` in metadata -- skip plan management
       // for them entirely; each add-on has its own fulfilment path below.
       if (metadata.type === 'trend_addon') {
-        console.log(`[stripe webhook] ${event.id}: trend_addon subscription ${sub.id} -- no fulfilment implemented, plan left untouched`)
+        await prisma.workspace.update({
+          where: { id: metadata.workspaceId },
+          data:  { trendSubId: sub.id },
+        })
         break
       }
       if (metadata.type === 'crisis_aware') {
@@ -93,6 +96,13 @@ export async function POST(req: Request) {
       const sub      = event.data.object
       const metadata = sub.metadata as Record<string, string>
 
+      if (metadata.type === 'trend_addon') {
+        await prisma.workspace.updateMany({
+          where: { trendSubId: sub.id },
+          data:  { trendSubId: null },
+        })
+        break
+      }
       if (metadata.type === 'crisis_aware') {
         // Add-on cancelled -- clear the subscription reference from the agency
         await prisma.agency.updateMany({
@@ -123,6 +133,13 @@ export async function POST(req: Request) {
     }
     case 'checkout.session.completed': {
       const session = event.data.object
+      if (session.mode === 'subscription' && session.metadata?.type === 'trend_addon' && session.metadata?.workspaceId) {
+        await prisma.workspace.update({
+          where: { id: session.metadata.workspaceId },
+          data:  { trendSubId: session.subscription as string },
+        })
+        break
+      }
       if (session.mode === 'subscription' && session.customer && session.metadata?.agencyId) {
         const { agencyId, plan, userId, type } = session.metadata
 
