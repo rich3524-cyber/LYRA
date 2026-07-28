@@ -66,6 +66,14 @@ export function RepurposeForm({ workspaceId }: RepurposeFormProps) {
     const decoder = new TextDecoder()
     const accumulated: PostEntry[] = []
 
+    // Provisional scheduling: start tomorrow at 9am, one post per day.
+    // Users can reschedule from the calendar after adding to it.
+    const nextDate = new Date()
+    nextDate.setDate(nextDate.getDate() + 1)
+    nextDate.setHours(9, 0, 0, 0)
+    const weekStart = new Date(nextDate)
+    weekStart.setDate(weekStart.getDate() - weekStart.getDay())
+
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
@@ -77,15 +85,18 @@ export function RepurposeForm({ workspaceId }: RepurposeFormProps) {
         try {
           const event = JSON.parse(line.slice(6)) as { type: string; platform?: string; content?: string; message?: string; total?: number }
           if (event.type === 'post' && event.platform && event.content) {
+            const scheduledAt = new Date(nextDate)
+            const weekNum = Math.floor((scheduledAt.getTime() - weekStart.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1
             accumulated.push({
               id: crypto.randomUUID(),
               platform: event.platform,
               content: event.content,
-              scheduledAt: '',
-              weekNum: 0,
+              scheduledAt: scheduledAt.toISOString(),
+              weekNum,
               mediaUrls: [],
               uploadingMedia: false,
             })
+            nextDate.setDate(nextDate.getDate() + 1)
             setProgress((prev) => [...prev, event.platform!])
           } else if (event.type === 'error') {
             setError(event.message ?? 'Generation failed')
