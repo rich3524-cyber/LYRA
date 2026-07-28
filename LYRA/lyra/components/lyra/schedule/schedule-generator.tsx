@@ -88,9 +88,6 @@ export function ScheduleGenerator({
     setProgress(0)
     setPosts([])
 
-    const platforms: Record<string, number> = {}
-    for (const p of activePlatforms) platforms[p] = postsPerWeek[p]
-
     abortRef.current = new AbortController()
 
     const baseStart = new Date()
@@ -110,22 +107,37 @@ export function ScheduleGenerator({
         const weekStartDate = new Date(baseStart)
         weekStartDate.setUTCDate(baseStart.getUTCDate() + (week - 1) * 7)
 
-        const res = await fetch('/api/schedule/generate', {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({
-            workspaceId,
-            weekNumber:    week,
-            weekStartDate: weekStartDate.toISOString(),
-            platforms,
-          }),
-          signal: abortRef.current.signal,
-        })
+        // One request per platform, not one request covering every platform --
+        // a single combined call for a whole week (e.g. 4 platforms x 3
+        // posts/week) routinely took ~55-60s of Claude generation time and lost
+        // the race against Netlify's hard 60s synchronous function ceiling.
+        // Splitting per platform keeps each individual request small and fast
+        // regardless of how many platforms/posts-per-week are selected, and
+        // runs them concurrently so total wall-clock time per week doesn't grow
+        // with platform count either.
+        const weekPosts = await Promise.all(
+          activePlatforms.map(async platform => {
+            const res = await fetch('/api/schedule/generate', {
+              method:  'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body:    JSON.stringify({
+                workspaceId,
+                weekNumber:    week,
+                weekStartDate: weekStartDate.toISOString(),
+                platform,
+                count: postsPerWeek[platform],
+              }),
+              signal: abortRef.current!.signal,
+            })
 
-        if (!res.ok) throw new Error(`Week ${week} generation failed`)
+            if (!res.ok) throw new Error(`Week ${week} generation failed for ${platform}`)
 
-        const { posts: weekPosts } = await res.json() as { posts: GeneratedPost[] }
-        const newEntries: PostEntry[] = weekPosts.map(p => ({
+            const { posts } = await res.json() as { posts: GeneratedPost[] }
+            return posts
+          })
+        )
+
+        const newEntries: PostEntry[] = weekPosts.flat().map(p => ({
           ...p,
           id:             newId(),
           weekNum:        week,

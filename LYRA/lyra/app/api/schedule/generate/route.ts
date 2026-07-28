@@ -14,24 +14,19 @@ export async function POST(req: NextRequest) {
       workspaceId: string
       weekNumber: number
       weekStartDate: string
-      platforms: Record<string, number>
+      platform: string
+      count: number
     }
-    const { workspaceId, weekNumber, weekStartDate, platforms } = body
+    const { workspaceId, weekNumber, weekStartDate, platform, count } = body
 
-    if (!workspaceId || !weekNumber || !weekStartDate || !platforms) {
+    if (!workspaceId || !weekNumber || !weekStartDate || !platform || !count) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
-    const platformEntries = Object.entries(platforms)
-    if (platformEntries.length === 0) {
-      return NextResponse.json({ error: 'At least one platform required' }, { status: 400 })
-    }
-    for (const [, count] of platformEntries) {
-      if (typeof count !== 'number' || !Number.isInteger(count) || count < 1 || count > 7) {
-        return NextResponse.json(
-          { error: 'Platform post counts must be integers between 1 and 7' },
-          { status: 400 }
-        )
-      }
+    if (typeof count !== 'number' || !Number.isInteger(count) || count < 1 || count > 7) {
+      return NextResponse.json(
+        { error: 'Post count must be an integer between 1 and 7' },
+        { status: 400 }
+      )
     }
 
     const workspace = await prisma.workspace.findFirst({
@@ -77,7 +72,8 @@ export async function POST(req: NextRequest) {
       brand,
       weekNumber,
       new Date(weekStartDate),
-      platforms,
+      platform,
+      count,
       Object.keys(postingPatterns).length > 0 ? postingPatterns : undefined,
     )
 

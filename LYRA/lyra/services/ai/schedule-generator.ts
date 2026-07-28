@@ -1,5 +1,5 @@
 import { anthropic, CLAUDE_MODEL } from '@/lib/anthropic'
-import type { PostingPatterns } from '@/services/ai/engagement-analyzer'
+import type { PostingPatterns, PlatformPattern } from '@/services/ai/engagement-analyzer'
 
 export type GeneratedPost = {
   platform: string
@@ -21,36 +21,37 @@ function fmtHour(h: number): string {
   return h === 0 ? '12am' : h < 12 ? `${h}am` : h === 12 ? '12pm' : `${h - 12}pm`
 }
 
-function buildTimingBlock(postingPatterns?: PostingPatterns): string {
-  if (!postingPatterns || Object.keys(postingPatterns).length === 0) {
-    return `Optimal posting times per platform:
-- INSTAGRAM: 09:00, 12:00, 18:00
-- LINKEDIN: 08:00, 12:00, 17:00
-- FACEBOOK: 10:00, 15:00, 20:00
-- TWITTER: 08:00, 12:00, 17:00, 20:00
-- TIKTOK: 09:00, 15:00, 19:00
-- GOOGLE_BUSINESS: 09:00, 14:00`
+const DEFAULT_SLOTS: Record<string, string> = {
+  INSTAGRAM:       '09:00, 12:00, 18:00',
+  LINKEDIN:        '08:00, 12:00, 17:00',
+  FACEBOOK:        '10:00, 15:00, 20:00',
+  TWITTER:         '08:00, 12:00, 17:00, 20:00',
+  TIKTOK:          '09:00, 15:00, 19:00',
+  GOOGLE_BUSINESS: '09:00, 14:00',
+}
+
+function buildTimingBlock(platform: string, pattern?: PlatformPattern): string {
+  if (!pattern) {
+    return `Optimal posting times for ${platform}: ${DEFAULT_SLOTS[platform] ?? '09:00, 12:00, 18:00'}`
   }
 
   const lines: string[] = ["Optimal posting times (based on this workspace's engagement data):"]
-  for (const [platform, pattern] of Object.entries(postingPatterns)) {
-    const slotStr = pattern.topSlots
-      .slice(0, 3)
+  const slotStr = pattern.topSlots
+    .slice(0, 3)
+    .map(s => `${DAY_NAMES[s.dayOfWeek]} ${fmtHour(s.hour)} (score ${s.score.toFixed(2)})`)
+    .join(', ')
+  lines.push(`- Top slots: ${slotStr}`)
+  for (const [topic, slots] of Object.entries(pattern.byTopic)) {
+    const tStr = slots
       .map(s => `${DAY_NAMES[s.dayOfWeek]} ${fmtHour(s.hour)} (score ${s.score.toFixed(2)})`)
       .join(', ')
-    lines.push(`- ${platform} top slots: ${slotStr}`)
-    for (const [topic, slots] of Object.entries(pattern.byTopic)) {
-      const tStr = slots
-        .map(s => `${DAY_NAMES[s.dayOfWeek]} ${fmtHour(s.hour)} (score ${s.score.toFixed(2)})`)
-        .join(', ')
-      lines.push(`- ${platform} — "${topic}": ${tStr}`)
-    }
+    lines.push(`- "${topic}": ${tStr}`)
   }
   lines.push('')
   lines.push('Instructions:')
-  lines.push("- For each post, prefer the highest-scoring slot that matches the post's topic if byTopic data exists")
-  lines.push('- Fall back to the platform top slots if no topic match is available')
-  lines.push('- Distribute posts to avoid scheduling two posts in the same slot on the same platform')
+  lines.push("- Prefer the highest-scoring slot that matches a post's topic if byTopic data exists")
+  lines.push('- Fall back to the top slots if no topic match is available')
+  lines.push('- Distribute posts to avoid scheduling two posts in the same slot')
   return lines.join('\n')
 }
 
@@ -58,13 +59,10 @@ export async function generateWeekPosts(
   brand: BrandContext,
   weekNumber: number,
   weekStartDate: Date,
-  platforms: Record<string, number>,
+  platform: string,
+  count: number,
   postingPatterns?: PostingPatterns,
 ): Promise<GeneratedPost[]> {
-  const platformList = Object.entries(platforms)
-    .map(([platform, count]) => `${platform}: ${count} posts`)
-    .join('\n')
-
   const themes = brand.contentThemes.length > 0 ? brand.contentThemes.join(', ') : 'General business content'
   const voice = brand.voiceSummary ?? 'Professional and engaging'
   const tone = brand.toneAttributes.length > 0 ? brand.toneAttributes.join(', ') : 'Professional'
@@ -77,19 +75,19 @@ TONE ATTRIBUTES: ${tone}
 CONTENT THEMES: ${themes}
 AUDIENCE: ${JSON.stringify(brand.audienceProfile ?? {})}
 
-PLATFORMS AND POST COUNT THIS WEEK:
-${platformList}
+PLATFORM: ${platform}
+POST COUNT THIS WEEK: ${count}
 
 WEEK START DATE: ${weekStartStr}
 
-Generate exactly the specified number of posts for each platform. Distribute posts across different days of the 7-day window starting ${weekStartStr}. Prefer different content themes for consecutive posts on the same platform.
+Generate exactly ${count} posts for ${platform}. Distribute posts across different days of the 7-day window starting ${weekStartStr}. Prefer different content themes for consecutive posts.
 
-${buildTimingBlock(postingPatterns)}
+${buildTimingBlock(platform, postingPatterns?.[platform])}
 
 Return ONLY a JSON array with no markdown fences, no explanation, and no trailing text. Use this exact shape:
 [
   {
-    "platform": "INSTAGRAM",
+    "platform": "${platform}",
     "topic": "behind the scenes at our workshop",
     "content": "Full caption text with hashtags at the end. #hashtag1 #hashtag2",
     "scheduledAt": "2026-05-26T09:00:00.000Z"
@@ -99,21 +97,26 @@ Return ONLY a JSON array with no markdown fences, no explanation, and no trailin
 Rules:
 - scheduledAt must be ISO 8601 UTC and fall within the 7 days starting ${weekStartStr}
 - Each caption must match the brand voice and include 3–8 relevant hashtags
-- No two consecutive posts on the same platform may share the same topic
+- No two consecutive posts may share the same topic
 - Do not repeat the exact same caption text for any two posts`
 
   let text = '[]'
   try {
-    // Per-call override, not a global bump to lib/anthropic.ts's 60s default --
-    // a full week across several platforms (e.g. 4 platforms x 3 posts/week)
-    // routinely takes ~55-60s to generate, so it was racing the client's own
-    // timeout and losing intermittently. Other call sites (report narratives,
-    // brand profile synthesis) stay on the shorter default.
+    // Netlify's synchronous function ceiling for this route is a hard 60s,
+    // independent of any client-side timeout -- confirmed live (a killed
+    // request logged at exactly 60000ms even after raising this client's own
+    // timeout to 180s). Generating a full week across every platform in one
+    // call routinely took ~55-60s and lost that race. Splitting into one call
+    // per platform per week (see the API route and schedule-generator.tsx)
+    // keeps each individual call small and fast regardless of how many
+    // platforms/posts-per-week are selected -- this timeout just needs to be
+    // comfortably above a single platform's generation time, not a safety net
+    // for the platform ceiling itself.
     const response = await anthropic.messages.create({
       model: CLAUDE_MODEL,
-      max_tokens: 8000,
+      max_tokens: 4000,
       messages: [{ role: 'user', content: prompt }],
-    }, { timeout: 180_000 })
+    }, { timeout: 45_000 })
     text = response.content[0].type === 'text' ? response.content[0].text.trim() : '[]'
   } catch (err) {
     console.error('schedule-generator: Claude request failed', err instanceof Error ? err.message : err)
