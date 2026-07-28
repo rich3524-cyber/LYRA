@@ -69,7 +69,8 @@ ${content}
     messages: [{ role: 'user', content: prompt }],
   })
 
-  const text = response.content[0].type === 'text' ? response.content[0].text : ''
+  const raw = response.content[0].type === 'text' ? response.content[0].text : ''
+  const text = raw.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim()
   const parsed: ScoringResult = JSON.parse(text)
 
   if (!parsed.dimensions?.hook || typeof parsed.overallScore !== 'number') {

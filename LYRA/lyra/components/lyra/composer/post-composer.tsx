@@ -149,7 +149,7 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
         })
         if (res.ok) setScoreResult(await res.json() as ScoringResult)
       } catch {
-        // silent fail — score panel stays at last result
+        toast.error('Scoring unavailable. Try again in a moment.')
       } finally {
         setScoring(false)
       }
