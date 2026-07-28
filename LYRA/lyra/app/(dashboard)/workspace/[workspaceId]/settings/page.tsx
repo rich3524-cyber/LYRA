@@ -6,6 +6,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { DeleteWorkspaceButton } from '@/components/lyra/settings/delete-workspace-button'
 import { CrisisAwareToggle } from '@/components/lyra/settings/crisis-aware-toggle'
+import { CrisisAwareAddonCard } from '@/components/lyra/settings/crisis-aware-addon-card'
 import { AutonomySelector } from '@/components/lyra/settings/autonomy-selector'
 import { FacebookPagePicker } from '@/components/lyra/settings/facebook-page-picker'
 import { TimezoneSelector } from '@/components/lyra/settings/timezone-selector'
@@ -87,9 +88,16 @@ export default async function SettingsPage({ params, searchParams }: Props) {
 
   const workspace = await prisma.workspace.findFirst({
     where: { id: workspaceId, access: { some: { userId: user.id } } },
-    select: { id: true, name: true, crisisAware: true, plan: true, timezone: true, aiResponseMode: true },
+    select: {
+      id: true, name: true, crisisAware: true, plan: true, timezone: true, aiResponseMode: true,
+      agency: { select: { id: true, crisisAwareSubId: true } },
+    },
   })
   if (!workspace) notFound()
+
+  const hasCrisisAware =
+    workspace.plan === 'AGENCY' ||
+    (workspace.plan === 'PRO' && !!workspace.agency?.crisisAwareSubId)
 
   const accounts = await prisma.socialAccount.findMany({
     where: { workspaceId, isActive: true },
@@ -164,7 +172,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
 
       {/* Social accounts */}
       <section className="space-y-3">
-        <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
+        <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-widest">
           Social Accounts
         </p>
 
@@ -239,7 +247,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
 
       {/* Timezone */}
       <section className="space-y-3">
-        <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
+        <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-widest">
           Timezone
         </p>
         <div className="p-5 rounded-xl bg-background-secondary border border-background-border space-y-1">
@@ -255,7 +263,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
 
       {/* Automation */}
       <section className="space-y-3">
-        <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
+        <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-widest">
           Automation
         </p>
         <AutonomySelector
@@ -268,11 +276,18 @@ export default async function SettingsPage({ params, searchParams }: Props) {
       {/* Add-ons */}
       <section className="space-y-4">
         <h2 className="text-lg font-medium font-sans text-text-primary">Add-ons</h2>
-        <CrisisAwareToggle
-          workspaceId={workspace.id}
-          enabled={workspace.crisisAware}
-          isPro={workspace.plan === 'PRO' || workspace.plan === 'AGENCY'}
-        />
+        {hasCrisisAware ? (
+          <CrisisAwareToggle
+            workspaceId={workspace.id}
+            enabled={workspace.crisisAware}
+            hasAccess={true}
+          />
+        ) : (
+          <CrisisAwareAddonCard
+            workspaceId={workspace.id}
+            isPro={workspace.plan === 'PRO'}
+          />
+        )}
       </section>
 
       {/* Email Marketing */}
@@ -280,7 +295,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
 
       {/* Danger zone */}
       <section className="space-y-3 pt-4 border-t border-background-border">
-        <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
+        <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-widest">
           Danger Zone
         </p>
         <div className="p-5 rounded-xl bg-background-secondary border border-background-border space-y-3">

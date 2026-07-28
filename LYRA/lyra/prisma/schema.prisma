@@ -41,6 +41,7 @@ model Agency {
   plan             Plan     @default(AGENCY)
   stripeCustomerId String?  @unique
   stripeSubId      String?  @unique
+  crisisAwareSubId String?  @unique
   maxWorkspaces    Int      @default(-1)
   maxAutonomy      Autonomy @default(FULL)
   foundingMember   Boolean  @default(false)

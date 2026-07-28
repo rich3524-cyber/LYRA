@@ -51,12 +51,18 @@ export async function POST(req: Request) {
       const sub = event.data.object
       const metadata = sub.metadata as Record<string, string>
 
-      // trend_addon subscriptions carry no `plan` metadata by design -- there's
-      // no entitlement model for this add-on yet (it's an unbuilt feature), so
-      // explicitly skip plan management for it rather than falling through to
-      // toPlan() returning undefined and relying on that alone.
+      // Add-on subscriptions carry a `type` in metadata -- skip plan management
+      // for them entirely; each add-on has its own fulfilment path below.
       if (metadata.type === 'trend_addon') {
         console.log(`[stripe webhook] ${event.id}: trend_addon subscription ${sub.id} -- no fulfilment implemented, plan left untouched`)
+        break
+      }
+      if (metadata.type === 'crisis_aware') {
+        // Subscription updated (e.g. renewal) -- ensure crisisAwareSubId stays set
+        await prisma.agency.updateMany({
+          where: { id: metadata.agencyId },
+          data:  { crisisAwareSubId: sub.id },
+        })
         break
       }
 
@@ -85,6 +91,18 @@ export async function POST(req: Request) {
     }
     case 'customer.subscription.deleted': {
       const sub      = event.data.object
+      const metadata = sub.metadata as Record<string, string>
+
+      if (metadata.type === 'crisis_aware') {
+        // Add-on cancelled -- clear the subscription reference from the agency
+        await prisma.agency.updateMany({
+          where: { crisisAwareSubId: sub.id },
+          data:  { crisisAwareSubId: null },
+        })
+        break
+      }
+
+      // Main plan subscription deleted → downgrade to Starter
       const agencies = await prisma.agency.findMany({
         where:  { stripeCustomerId: sub.customer as string },
         select: { id: true },
@@ -106,7 +124,16 @@ export async function POST(req: Request) {
     case 'checkout.session.completed': {
       const session = event.data.object
       if (session.mode === 'subscription' && session.customer && session.metadata?.agencyId) {
-        const { agencyId, plan, userId } = session.metadata
+        const { agencyId, plan, userId, type } = session.metadata
+
+        // Crisis Aware add-on purchase — record the subscription, then break
+        if (type === 'crisis_aware') {
+          await prisma.agency.update({
+            where: { id: agencyId },
+            data:  { crisisAwareSubId: session.subscription as string },
+          })
+          break
+        }
         const resolvedPlan = toPlan(plan)
         const agency = await prisma.agency.update({
           where:   { id: agencyId },

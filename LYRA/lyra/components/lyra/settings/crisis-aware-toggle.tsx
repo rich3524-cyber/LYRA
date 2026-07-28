@@ -6,16 +6,16 @@ import { Shield } from 'lucide-react'
 interface CrisisAwareToggleProps {
   workspaceId: string
   enabled: boolean
-  isPro: boolean
+  hasAccess: boolean
 }
 
-export function CrisisAwareToggle({ workspaceId, enabled, isPro }: CrisisAwareToggleProps) {
+export function CrisisAwareToggle({ workspaceId, enabled, hasAccess }: CrisisAwareToggleProps) {
   const [active, setActive] = useState(enabled)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const handleToggle = async () => {
-    if (!isPro) return
+    if (!hasAccess) return
     setError(null)
     setSaving(true)
     try {
@@ -45,7 +45,7 @@ export function CrisisAwareToggle({ workspaceId, enabled, isPro }: CrisisAwareTo
           <p className="text-sm font-sans text-text-secondary mt-1">
             Monitors comments for sentiment crises. Auto-pauses scheduled posts and alerts you when triggered.
           </p>
-          {!isPro && (
+          {!hasAccess && (
             <p className="text-xs font-sans text-text-tertiary mt-1">Requires Pro or Agency plan.</p>
           )}
           {error && (
@@ -56,7 +56,7 @@ export function CrisisAwareToggle({ workspaceId, enabled, isPro }: CrisisAwareTo
       <div className="flex items-center justify-center min-h-[44px] min-w-[44px] shrink-0 mt-0.5">
         <button
           onClick={handleToggle}
-          disabled={!isPro || saving}
+          disabled={!hasAccess || saving}
           aria-label={
             saving
               ? `${active ? 'Disabling' : 'Enabling'} Crisis Aware`
