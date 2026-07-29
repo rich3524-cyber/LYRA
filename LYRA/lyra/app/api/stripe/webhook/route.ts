@@ -84,8 +84,13 @@ export async function POST(req: Request) {
             where: { id: a.id },
             data:  { stripeSubId: sub.id, plan },
           }),
+          // Workspaces belong to an agency through their owning user's
+          // User.agencyId (via WorkspaceAccess), not Workspace.agencyId --
+          // that FK is never populated by the normal onboarding flow. See the
+          // 29 Jul 2026 fix note on the checkout.session.completed handler
+          // below for the full incident this replaced.
           prisma.workspace.updateMany({
-            where: { agencyId: a.id },
+            where: { access: { some: { user: { agencyId: a.id } } } },
             data:  { plan },
           }),
         ])
@@ -124,7 +129,7 @@ export async function POST(req: Request) {
             data:  { plan: 'STARTER', stripeSubId: null },
           }),
           prisma.workspace.updateMany({
-            where: { agencyId: a.id },
+            where: { access: { some: { user: { agencyId: a.id } } } },
             data:  { plan: 'STARTER' },
           }),
         ])
@@ -153,16 +158,27 @@ export async function POST(req: Request) {
         }
         const resolvedPlan = toPlan(plan)
         const agency = await prisma.agency.update({
-          where:   { id: agencyId },
-          data:    { stripeCustomerId: session.customer as string, plan: resolvedPlan },
-          include: { workspaces: { take: 1 } },
+          where: { id: agencyId },
+          data:  { stripeCustomerId: session.customer as string, plan: resolvedPlan },
         })
-        // Sync plan onto existing workspaces
+        // Sync plan onto existing workspaces. Workspaces belong to an agency
+        // through their owning user's User.agencyId (via WorkspaceAccess), not
+        // Workspace.agencyId -- that FK is never populated by the normal
+        // onboarding flow, so filtering on it here always matched zero rows.
+        // Confirmed live 29 Jul 2026: a real completed checkout updated
+        // Agency.plan correctly but left every existing workspace's plan
+        // untouched, AND (see below) caused the zero-workspaces check to
+        // wrongly fire on an agency that already had workspaces, silently
+        // creating a duplicate "My Workspace" on every subsequent checkout.
         await prisma.workspace.updateMany({
-          where: { agencyId },
+          where: { access: { some: { user: { agencyId } } } },
           data:  { plan: resolvedPlan },
         })
-        if (agency.workspaces.length === 0 && userId) {
+        const existingWorkspace = await prisma.workspace.findFirst({
+          where:  { access: { some: { user: { agencyId } } } },
+          select: { id: true },
+        })
+        if (!existingWorkspace && userId) {
           const workspace = await prisma.workspace.create({
             data: { name: 'My Workspace', agencyId: agency.id, plan: resolvedPlan },
           })
