@@ -61,8 +61,8 @@ export function BillingSection() {
               'Full brand intelligence (social feed analysis + document upload)',
               'AI caption generation',
               'AI comment response drafts (Draft + Approve mode)',
-              'Client onboarding links for self-service account connection',
               'Client approval workflows',
+              'Crisis Aware available as a paid add-on',
             ]}
           />
           <PlanCard
@@ -74,18 +74,27 @@ export function BillingSection() {
               'Everything in Pro',
               'Full AI autonomy (AI responds to comments automatically)',
               'Guardrail controls (Never discuss, Never use word, Always escalate, Approved answers)',
-              'Team members with role-based access (Admin, Manager, Editor)',
+              'Crisis Aware included at no extra cost',
               'Priority support',
             ]}
           />
         </div>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-4">
-          All prices are in USD and exclusive of any applicable taxes. Annual billing is
-          available at a significant discount — contact{' '}
-          <a href="mailto:billing@lyraonline.ai" className="text-text-primary hover:text-accent-platinum transition-colors">
-            billing@lyraonline.ai
-          </a>{' '}
-          for annual pricing.
+          All prices are in USD and exclusive of any applicable taxes. Annual billing (at a
+          discount) is offered when you first sign up through the public pricing page.
+          Upgrading an existing plan from within LYRA (via the <Strong>Upgrade</Strong> button)
+          is monthly billing only for now.
+        </p>
+      </Subsection>
+
+      <Subsection title="Crisis Aware add-on (Pro plan)">
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          Crisis Aware is bundled at no extra cost on the Agency plan. On Pro, it&apos;s available
+          as a monthly (or annual) add-on subscription, purchased separately from your main plan.
+          Go to <Strong>Settings → Crisis Aware</Strong> in the workspace and click{' '}
+          <Strong>Activate</Strong> — this opens a Stripe checkout for the add-on specifically.
+          Starter plans don&apos;t have access to Crisis Aware; the settings page shows a locked
+          card with an upgrade prompt instead.
         </p>
       </Subsection>
 
@@ -173,14 +182,14 @@ export function BillingSection() {
 
       <Subsection title="Free trial">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Pro and Agency plans include a 14-day free trial. No credit card is required to start.
-          At the end of the trial, you will be prompted to enter payment details to continue.
-          If you do not enter payment details, your account automatically reverts to Starter
-          at the end of the trial period.
+          Signing up through the public pricing page includes a <Strong>30-day free trial</Strong> on
+          whichever plan you choose (Starter, Pro, or Agency) — not just Pro/Agency. A payment
+          card is required upfront at checkout, but you are not charged until the trial ends.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
           Trial accounts have full access to all features of the trialled plan. Any workspaces,
-          posts, and brand profiles created during the trial are preserved if you subscribe.
+          posts, and brand profiles created during the trial are preserved once billing starts.
+          If you cancel before the trial ends, use the Stripe Billing Portal as described above.
         </p>
       </Subsection>
 

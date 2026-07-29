@@ -167,45 +167,17 @@ export function SettingsSection() {
 
       <Subsection title="Account settings — Notifications">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Configure which events trigger email notifications. Defaults:
+          Configurable, per-event email notification preferences (escalated comments, failed
+          posts, token expiry, approvals, billing) are not built yet — this is a planned,
+          larger notification-preferences project, not yet scheduled.
         </p>
-        <ul className="space-y-1.5 font-sans text-sm text-text-secondary">
-          <li><Strong>Escalated comment</Strong> — on by default. Immediate notification.</li>
-          <li><Strong>Post failed to publish</Strong> — on by default. Sent within 5 minutes of failure.</li>
-          <li><Strong>Token expired</Strong> — on by default. Sent when a social token expires.</li>
-          <li><Strong>Pending approval (yours)</Strong> — off by default. Daily digest of posts awaiting your approval.</li>
-          <li><Strong>Client approved or rejected a post</Strong> — on by default.</li>
-          <li><Strong>Billing events</Strong> — on by default. Invoices, failed payments, renewal reminders.</li>
-        </ul>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          All notification emails come from <code className="font-mono text-xs text-accent-silver bg-background-secondary px-1.5 py-0.5 rounded-md">notifications@lyraonline.ai</code>.
-          Add this to your safe sender list to avoid them landing in spam.
-        </p>
-      </Subsection>
-
-      <Subsection title="Account settings — Team (Agency plan)">
-        <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Invite team members to your LYRA account so they can manage workspaces alongside you.
-          Click <Strong>Invite team member</Strong>, enter their email, and select a role:
-        </p>
-        <ul className="space-y-2 font-sans text-sm text-text-secondary">
-          <li>
-            <Strong>Admin</Strong> — full access to all workspaces and account settings,
-            including billing. Can invite and remove other team members.
-          </li>
-          <li>
-            <Strong>Manager</Strong> — full access to all workspaces (create, edit, delete posts,
-            manage inbox, view analytics). Cannot access billing or invite team members.
-          </li>
-          <li>
-            <Strong>Editor</Strong> — can create and edit posts and manage the inbox across all
-            workspaces. Cannot change workspace settings, connect social accounts, or delete posts.
-          </li>
-        </ul>
-        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          Invited team members receive an email with a link to create their LYRA account.
-          The invitation link expires after 7 days. You can revoke an invitation at any time
-          from the Team settings page.
+          The one email LYRA sends today is a <Strong>Crisis Aware alert</Strong> — automatically,
+          with no on/off setting — to every workspace owner/admin when Crisis Aware triggers
+          (see <Strong>Workspace settings → Crisis Aware</Strong> below). It comes from{' '}
+          <code className="font-mono text-xs text-accent-silver bg-background-secondary px-1.5 py-0.5 rounded-md">notifications@lyraonline.ai</code>.
+          No other event (a failed post, an expired token, a client approval decision) triggers
+          an email today — check the relevant screen in LYRA directly instead.
         </p>
       </Subsection>
     </section>

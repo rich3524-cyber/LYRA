@@ -121,6 +121,25 @@ export function ContentCalendarSection() {
           Multiple platform filters can be active simultaneously.
         </p>
       </Subsection>
+
+      <Subsection title="AI Schedule Generator">
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          Click <Strong>Generate schedule</Strong> in the calendar toolbar to have LYRA plan and
+          write a batch of posts in one pass — pick a duration (3 or 6 weeks), choose which
+          connected platforms to include, and set how many posts per week for each. LYRA
+          generates on-brand captions for every post, one platform at a time, and streams them
+          into a review screen as they&apos;re ready.
+        </p>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
+          On the review screen, click <Strong>Export captions (CSV)</Strong> to download the
+          whole batch (date, time, platform, topic, caption) before committing anything to the
+          calendar — useful for a client sign-off pass. Click <Strong>Add all to calendar</Strong>
+          to schedule the batch. Generated posts have no media attached yet, so they show an
+          amber <Strong>Awaiting media</Strong> badge instead of a normal Draft/Scheduled status
+          and won&apos;t publish until you attach media to each one from the calendar or the
+          composer — this prevents an AI-written, image-less post from accidentally going out.
+        </p>
+      </Subsection>
     </section>
   )
 }

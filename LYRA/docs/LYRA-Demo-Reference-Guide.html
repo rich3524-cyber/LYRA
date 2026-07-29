@@ -397,7 +397,7 @@
       <span class="wordmark">LYRA</span>
       <div class="doc-meta">
         Demo Reference Guide<br>
-        23 Jul 2026<br>
+        29 Jul 2026<br>
         lyraonline.ai
       </div>
     </div>
@@ -484,7 +484,7 @@
         <span class="step-num">06</span>
         <div class="step-content">
           <p class="step-title">Crisis Aware — "The Safety Net That Knows the Business"</p>
-          <p class="step-body">Two triggers: a sentiment spike across incoming comments, or a match against the workspace's escalation keyword list. <strong>The differentiator:</strong> that keyword list isn't a generic template — Brand Intelligence generates it automatically every time the brand profile is built, tailored to this specific business (legal threats, safety incidents, discrimination claims, media inquiries, plus business-specific terms like "food poisoning" for a restaurant or "data breach" for a software company). Show it on the Brand Intelligence page: suggested keywords appear as chips to approve or dismiss, plus a manual add field. When either trigger fires, all scheduled posts pause automatically — nothing publishes during an active crisis. Triggering comments surface in the inbox, fully escalated comments can be replied to directly from there, not just viewed. Every event is audit-logged with trigger type, timestamp, and comment IDs. Disable Crisis Mode once resolved; posts resume. <strong>The scenario to tell:</strong> client posts something controversial on a Friday night — LYRA pauses their entire scheduled queue automatically while you sleep. Nothing tone-deaf goes out. And it already knew what to watch for, because it's tailored to this business, not a one-size-fits-all list.</p>
+          <p class="step-body">Two triggers: a sentiment spike across incoming comments, or a match against the workspace's escalation keyword list. <strong>The differentiator:</strong> that keyword list isn't a generic template — Brand Intelligence generates it automatically every time the brand profile is built, tailored to this specific business (legal threats, safety incidents, discrimination claims, media inquiries, plus business-specific terms like "food poisoning" for a restaurant or "data breach" for a software company). Show it on the Brand Intelligence page: suggested keywords appear as chips to approve or dismiss, plus a manual add field. When either trigger fires, all scheduled posts pause automatically — nothing publishes during an active crisis — <strong>and every workspace owner/admin gets a real email alert</strong>, immediately, with the triggering comment and a link straight into the Inbox. No one has to be watching the dashboard to find out. Triggering comments surface in the inbox, fully escalated comments can be replied to directly from there, not just viewed. Every event is audit-logged with trigger type, timestamp, and comment IDs. Disable Crisis Mode once resolved; posts resume. <strong>The scenario to tell:</strong> client posts something controversial on a Friday night — LYRA pauses their entire scheduled queue automatically and emails you immediately, while you sleep. Nothing tone-deaf goes out, and you find out the moment it happens, not whenever you next open the dashboard.</p>
         </div>
       </li>
       <li>
@@ -615,13 +615,13 @@
             <td><strong class="plan-pro">Pro</strong></td>
             <td><span class="mono">Up to 5</span></td>
             <td><span class="mono">Draft + Approve</span></td>
-            <td>Full brand intelligence, AI response drafts, content scoring, repurposing, SEO, LYRA Assistant, email marketing calendar</td>
+            <td>Full brand intelligence, AI response drafts, content scoring, repurposing, SEO, LYRA Assistant, email marketing calendar, Crisis Aware (paid add-on)</td>
           </tr>
           <tr>
             <td><strong class="plan-agency">Agency</strong></td>
             <td><span class="mono">Unlimited</span></td>
             <td><span class="mono">Full Autonomy</span></td>
-            <td>Everything in Pro + full AI autonomy, guardrails, team members, client reports, competitor intelligence, crisis aware, post boosting</td>
+            <td>Everything in Pro + full AI autonomy, guardrails, client reports, competitor intelligence, Crisis Aware (bundled free), post boosting</td>
           </tr>
         </tbody>
       </table>
@@ -702,6 +702,20 @@
         <div>
           <p class="feature-title">Scheduled posts + media — confirmed end-to-end in production</p>
           <p class="feature-desc">Scheduled posts with attached images and video now publish automatically at their scheduled time — no manual trigger. A post scheduled 2 minutes out publishes within ~1–2 minutes. Video (MP4) attaches correctly and appears on the platform. S3 media storage is fully configured and live. This was previously unverified in production; it has now been confirmed working across a real test cycle.</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <span class="feature-pnum" style="color: #4ade80;">★</span>
+        <div>
+          <p class="feature-title">Billing — real Stripe purchases confirmed working end-to-end</p>
+          <p class="feature-desc">Not a demo talking point, but worth knowing before showing pricing to anyone: a real subscription purchase was tested end-to-end this week (checkout → Stripe webhook → plan unlocked → UI reflects it) and a genuine billing-integrity bug was found and fixed along the way — a completed purchase was correctly charging the customer and updating their account record, but wasn't always unlocking the new plan's features on their actual workspace. That's now fixed and reverified live. The <strong>Upgrade</strong> button in the top nav, the Stripe-hosted checkout, and the Crisis Aware add-on purchase are all confirmed working on real (test-mode) transactions.</p>
+        </div>
+      </div>
+      <div class="feature-row">
+        <span class="feature-pnum" style="color: #60a5fa;">N</span>
+        <div>
+          <p class="feature-title">AI Schedule Generator — CSV export and an Awaiting Media safeguard, confirmed live</p>
+          <p class="feature-desc">The batch generator (<strong>Generate schedule</strong> in the Calendar toolbar) now has a review screen with an <strong>Export captions (CSV)</strong> button — useful for a client sign-off pass before anything touches the calendar. Generated posts have no media yet, so they show an amber <strong>Awaiting media</strong> badge and won't publish until media is attached — no risk of an AI-written, image-less post accidentally going out. Also fixed a real scaling bug this week: generating a full multi-platform week in one AI call was slow enough to occasionally time out; it now generates one platform at a time, in parallel, so it scales cleanly regardless of how many platforms or posts-per-week you choose.</p>
         </div>
       </div>
       <div class="feature-row">
@@ -805,8 +819,8 @@
       <div class="feature-row">
         <span class="feature-pnum" style="color: #a78bfa;">★</span>
         <div>
-          <p class="feature-title">Crisis Aware — now suggests its own escalation keywords</p>
-          <p class="feature-desc">Crisis Aware went from a sentiment-spike toggle to a real monitoring service in one update. Brand Intelligence now generates 5–10 suggested escalation keywords every time a brand profile is built — covering legal threats, safety incidents, discrimination claims, and media inquiries as a baseline, plus terms specific to the business's own industry. Suggestions appear on the Brand Intelligence page for one-click approve or dismiss, and can be edited or added to manually — nothing an AI suggests ever affects detection until a human approves it. Escalated comments in the inbox can now be replied to or dismissed directly, closing what was previously a dead end. Pro and Agency.</p>
+          <p class="feature-title">Crisis Aware — AI-suggested keywords, plus a real email alert when it triggers</p>
+          <p class="feature-desc">Crisis Aware went from a sentiment-spike toggle to a real monitoring service across two shipped updates. Brand Intelligence now generates 5–10 suggested escalation keywords every time a brand profile is built — covering legal threats, safety incidents, discrimination claims, and media inquiries as a baseline, plus terms specific to the business's own industry. Suggestions appear on the Brand Intelligence page for one-click approve or dismiss, and can be edited or added to manually — nothing an AI suggests ever affects detection until a human approves it. Second: Crisis Aware's escalation used to be in-app only — a banner nobody saw unless they had LYRA open. Now every workspace owner/admin gets a real email the moment it triggers, with the triggering comment and a direct link to the Inbox, via Resend. Escalated comments in the inbox can now be replied to or dismissed directly, closing what was previously a dead end. Available on Agency (bundled free) and Pro (paid add-on) — see Pricing below.</p>
         </div>
       </div>
       <div class="feature-row">
@@ -879,7 +893,7 @@
   <!-- Footer -->
   <div class="footer">
     <p>LYRA — Internal Use Only</p>
-    <p>lyraonline.ai &nbsp;·&nbsp; 23 Jul 2026</p>
+    <p>lyraonline.ai &nbsp;·&nbsp; 29 Jul 2026</p>
   </div>
 
 </div>

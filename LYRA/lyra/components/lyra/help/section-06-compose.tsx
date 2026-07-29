@@ -101,6 +101,14 @@ export function ComposeSection() {
           For Instagram carousel posts, drag the uploaded images to reorder them before scheduling.
           The first image is the cover shown in the feed.
         </p>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
+          Once media is attached and platforms are selected, a <Strong>Customise per platform</Strong>
+          button appears below the media strip. Click it to open a tab per selected platform —
+          useful when one file genuinely doesn&apos;t work everywhere (e.g. a 9:16 TikTok video
+          vs. a 1:1 Instagram square). Each tab shows the shared media dimmed as a fallback;
+          uploading to a tab overrides the shared media for that platform only, and tabs left
+          empty just use the shared file. A dot on a tab&apos;s label shows it has an override set.
+        </p>
       </Subsection>
 
       <Subsection title="AI caption generation">
@@ -138,11 +146,6 @@ export function ComposeSection() {
             voice, but you know the client best — adjust anything that doesn&apos;t feel right.
           </Step>
         </Steps>
-        <Note>
-          AI generation counts against your plan&apos;s AI credit allowance. Pro and Agency plans
-          include generous monthly limits. Starter plans have limited AI generation — upgrade
-          to unlock full access.
-        </Note>
       </Subsection>
 
       <Subsection title="Hashtag suggestions">
@@ -199,13 +202,12 @@ export function ComposeSection() {
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
           On Pro and Agency plans, if the workspace has client approval enabled, you will see a
           <Strong> Send for approval</Strong> option instead of (or alongside) Schedule.
-          Clicking it saves the post with a <StatusBadge color="text-status-warning border-status-warning/30">Pending Approval</StatusBadge> status
-          and sends the client a notification email with a link to review the post. The post
-          is not scheduled until they approve it.
+          Clicking it saves the post with a <StatusBadge color="text-status-warning border-status-warning/30">Pending Approval</StatusBadge> status.
+          The post is not scheduled until the client approves it from their own login.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          You can set a deadline for approval. If the client has not responded by the deadline,
-          LYRA sends them a reminder and notifies you.
+          There is currently no email notification when a post is waiting for approval — the
+          client needs to check LYRA directly to see what&apos;s pending.
         </p>
       </Subsection>
     </section>

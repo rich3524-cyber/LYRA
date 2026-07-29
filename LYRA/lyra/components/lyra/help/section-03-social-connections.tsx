@@ -231,36 +231,16 @@ export function SocialConnectionsSection() {
         </Note>
       </Subsection>
 
-      <Subsection title="Client onboarding links">
+      <Subsection title="Connecting accounts on a client's behalf">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          On Pro and Agency plans, you can let clients connect their own social accounts without
-          sharing credentials with you. This is the recommended approach for agencies managing
-          accounts on behalf of clients.
+          A self-service client onboarding link (where a client connects their own accounts
+          without you ever seeing their credentials) is not built yet. Today, connecting an
+          account for a client works the same way as any other connect — someone with access to
+          the workspace, and permission on the platform side (an admin of the Page, company page,
+          or Business Profile), goes through <Strong>Settings → Social Accounts → Connect</Strong>
+          directly. In practice this usually means the client shares admin access to the relevant
+          Page/account with you first, or connects it themselves by logging into that workspace.
         </p>
-        <Steps>
-          <Step n={1}>
-            Go to <Strong>Settings → Client Access</Strong> within the workspace.
-          </Step>
-          <Step n={2}>
-            Click <Strong>Generate onboarding link</Strong>. A unique, time-limited URL is created.
-          </Step>
-          <Step n={3}>
-            Send the link to your client by email, Slack, or any messaging tool.
-          </Step>
-          <Step n={4}>
-            The client clicks the link and is taken to a guided LYRA onboarding screen.
-            They connect each social account directly — their login credentials go only to the
-            platform, never to LYRA or to you.
-          </Step>
-          <Step n={5}>
-            Once they complete the flow, the connected accounts appear in the workspace
-            immediately. You receive an email notification.
-          </Step>
-        </Steps>
-        <Note>
-          Onboarding links expire after 7 days. If your client does not complete the flow in time,
-          generate a new link from the same settings page.
-        </Note>
       </Subsection>
     </section>
   )
