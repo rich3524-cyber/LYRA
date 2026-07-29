@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import { format, parseISO } from 'date-fns'
 import type { GeneratedPost } from '@/services/ai/schedule-generator'
 import { buildCaptionsCsv } from '@/services/schedule/captions-csv'
+import { uploadMediaFile } from '@/lib/upload-media'
 
 type PostEntry = GeneratedPost & {
   id: string
@@ -89,32 +90,15 @@ export function ScheduleReview({ workspaceId, workspaceName }: Props) {
     ))
 
     try {
-      const presignRes = await fetch('/api/upload/presign', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ filename: file.name, contentType: file.type, workspaceId }),
-      })
-      if (!presignRes.ok) throw new Error('Failed to get upload URL')
-
-      const { presignedUrl, publicUrl } = await presignRes.json() as {
-        presignedUrl: string
-        publicUrl: string
-      }
-
-      const uploadRes = await fetch(presignedUrl, {
-        method:  'PUT',
-        headers: { 'Content-Type': file.type },
-        body:    file,
-      })
-      if (!uploadRes.ok) throw new Error('Upload to S3 failed')
+      const publicUrl = await uploadMediaFile(file, workspaceId)
 
       setPosts(prev => prev.map(p =>
         p.id === postId
           ? { ...p, mediaUrls: [...p.mediaUrls, publicUrl], uploadingMedia: false }
           : p
       ))
-    } catch {
-      toast.error('Media upload failed. Try again.')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Media upload failed. Try again.')
       setPosts(prev => prev.map(p =>
         p.id === postId ? { ...p, uploadingMedia: false } : p
       ))

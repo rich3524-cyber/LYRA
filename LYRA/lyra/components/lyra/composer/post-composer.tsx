@@ -147,7 +147,11 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ workspaceId, content, platform }),
         })
-        if (res.ok) setScoreResult(await res.json() as ScoringResult)
+        if (res.ok) {
+          setScoreResult(await res.json() as ScoringResult)
+        } else {
+          toast.error('Scoring unavailable. Try again in a moment.')
+        }
       } catch {
         toast.error('Scoring unavailable. Try again in a moment.')
       } finally {
