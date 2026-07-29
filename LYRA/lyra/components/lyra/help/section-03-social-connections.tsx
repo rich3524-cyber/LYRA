@@ -149,17 +149,21 @@ export function SocialConnectionsSection() {
       <Subsection title="Reconnecting an expired account">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
           Social platform access tokens expire periodically (typically every 60–90 days for
-          most platforms). When a token expires, the account shows a
-          <StatusBadge color="text-status-warning border-status-warning/30">Token expired</StatusBadge>
-          badge in Settings and in the workspace overview.
+          most platforms). LYRA does not currently detect an expired token proactively or show
+          a dedicated warning badge for it — a bad or expired token surfaces the same way any
+          other publish failure does: the affected post shows a
+          <StatusBadge color="text-status-error border-status-error/30">Failed</StatusBadge> status
+          on the content calendar, with the underlying platform error message attached.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          To reconnect, click <Strong>Reconnect</Strong> next to the expired account and go through
-          the OAuth flow again. You do not need to reselect the page — LYRA will update the token
-          for the same account automatically.
+          If you suspect a connection has gone stale (repeated failures on one platform, or it's
+          been several months since you last connected it), click <Strong>Reconnect</Strong> next
+          to that account in <Strong>Settings → Social Accounts</Strong> and go through the OAuth
+          flow again — this works at any time, not just after a detected failure. You do not need
+          to reselect the page; LYRA updates the token for the same account automatically.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          Posts scheduled during the expiry window will not have published. Check the content
+          Posts that failed while the connection was broken are not deleted — check the content
           calendar for any posts with a <StatusBadge color="text-status-error border-status-error/30">Failed</StatusBadge> status
           and reschedule or republish them manually after reconnecting.
         </p>
