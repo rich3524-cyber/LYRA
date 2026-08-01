@@ -179,11 +179,13 @@ export async function POST(req: Request) {
           select: { id: true },
         })
         if (!existingWorkspace && userId) {
-          const workspace = await prisma.workspace.create({
-            data: { name: 'My Workspace', agencyId: agency.id, plan: resolvedPlan },
-          })
-          await prisma.workspaceAccess.create({
-            data: { userId, workspaceId: workspace.id, role: 'AGENCY_ADMIN' },
+          await prisma.$transaction(async (tx) => {
+            const workspace = await tx.workspace.create({
+              data: { name: 'My Workspace', agencyId: agency.id, plan: resolvedPlan },
+            })
+            await tx.workspaceAccess.create({
+              data: { userId, workspaceId: workspace.id, role: 'AGENCY_ADMIN' },
+            })
           })
         }
         // Subscribe the user's email to Klaviyo

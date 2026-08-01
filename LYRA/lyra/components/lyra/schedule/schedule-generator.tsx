@@ -87,6 +87,7 @@ export function ScheduleGenerator({
     setPhase('generating')
     setProgress(0)
     setPosts([])
+    sessionStorage.removeItem(`lyra:schedule-review:${workspaceId}`)
 
     abortRef.current = new AbortController()
 
@@ -115,7 +116,7 @@ export function ScheduleGenerator({
         // regardless of how many platforms/posts-per-week are selected, and
         // runs them concurrently so total wall-clock time per week doesn't grow
         // with platform count either.
-        const weekPosts = await Promise.all(
+        const weekResults = await Promise.allSettled(
           activePlatforms.map(async platform => {
             const res = await fetch('/api/schedule/generate', {
               method:  'POST',
@@ -130,12 +131,26 @@ export function ScheduleGenerator({
               signal: abortRef.current!.signal,
             })
 
-            if (!res.ok) throw new Error(`Week ${week} generation failed for ${platform}`)
+            if (!res.ok) throw new Error(`Week ${week} ${platform} generation failed`)
 
             const { posts } = await res.json() as { posts: GeneratedPost[] }
             return posts
           })
         )
+
+        const failedPlatforms: string[] = []
+        const weekPosts: GeneratedPost[][] = []
+        weekResults.forEach((result, i) => {
+          if (result.status === 'fulfilled') {
+            weekPosts.push(result.value)
+          } else {
+            failedPlatforms.push(activePlatforms[i])
+          }
+        })
+        if (failedPlatforms.length > 0) {
+          toast.error(`Week ${week}: ${failedPlatforms.join(', ')} failed to generate. Other platforms saved.`)
+        }
+        if (weekPosts.length === 0) throw new Error(`Week ${week}: all platforms failed`)
 
         const newEntries: PostEntry[] = weekPosts.flat().map(p => ({
           ...p,

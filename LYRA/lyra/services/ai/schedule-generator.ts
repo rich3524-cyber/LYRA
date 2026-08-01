@@ -123,23 +123,29 @@ Rules:
     return []
   }
 
+  const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+  let raw: unknown
   try {
-    const stripped = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
-    const raw = JSON.parse(stripped)
-    if (!Array.isArray(raw)) {
-      console.error('schedule-generator: expected array, got', typeof raw)
-      return []
-    }
-    return raw.filter((p): p is GeneratedPost =>
-      p !== null &&
-      typeof p === 'object' &&
-      typeof (p as GeneratedPost).platform === 'string' &&
-      typeof (p as GeneratedPost).content === 'string' &&
-      typeof (p as GeneratedPost).scheduledAt === 'string' &&
-      !Number.isNaN(Date.parse((p as GeneratedPost).scheduledAt))
-    )
+    raw = JSON.parse(stripped)
   } catch {
     console.error('schedule-generator: failed to parse Claude response', text.slice(0, 500))
-    return []
+    throw new Error('Claude returned unparseable JSON')
   }
+  if (!Array.isArray(raw)) {
+    console.error('schedule-generator: expected array, got', typeof raw)
+    throw new Error('Claude returned unexpected response shape')
+  }
+  const posts = raw.filter((p): p is GeneratedPost =>
+    p !== null &&
+    typeof p === 'object' &&
+    typeof (p as GeneratedPost).platform === 'string' &&
+    typeof (p as GeneratedPost).content === 'string' &&
+    typeof (p as GeneratedPost).scheduledAt === 'string' &&
+    !Number.isNaN(Date.parse((p as GeneratedPost).scheduledAt))
+  )
+  if (posts.length === 0) {
+    console.error('schedule-generator: Claude returned an empty or fully invalid post array')
+    throw new Error('No valid posts in Claude response')
+  }
+  return posts
 }

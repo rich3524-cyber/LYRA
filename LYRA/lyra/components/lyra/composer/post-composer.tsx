@@ -68,7 +68,7 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
 
   const isAwaitingMedia = !!editingPost?.requiresMedia && (
     customisePerPlatform
-      ? selectedPlatforms.some((p) => (platformMedia[p] ?? []).length === 0)
+      ? selectedPlatforms.some((p) => (platformMedia[p] ?? []).length === 0 && mediaUrls.length === 0)
       : mediaUrls.length === 0
   )
 
@@ -150,6 +150,7 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
         if (res.ok) {
           setScoreResult(await res.json() as ScoringResult)
         } else {
+          setScoreResult(null)
           toast.error('Scoring unavailable. Try again in a moment.')
         }
       } catch {
