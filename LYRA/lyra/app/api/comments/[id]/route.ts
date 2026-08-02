@@ -11,13 +11,20 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const { id } = await params
     const body = await req.json()
 
-    const comment = await prisma.comment.findUnique({ where: { id } })
-    if (!comment) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
-    const access = await prisma.workspaceAccess.findFirst({
-      where: { userId: user.id, workspaceId: comment.workspaceId },
+    // Fetch and authorize in one scoped query so there's never an unscoped
+    // comment object in scope that a future edit could mutate before an
+    // access check runs. The fallback lookup below only decides which error
+    // to return -- it plays no role in authorizing the update.
+    const comment = await prisma.comment.findFirst({
+      where: {
+        id,
+        socialAccount: { workspace: { access: { some: { userId: user.id, role: { not: 'CLIENT_VIEW' } } } } },
+      },
     })
-    if (!access) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!comment) {
+      const exists = await prisma.comment.findUnique({ where: { id }, select: { id: true } })
+      return NextResponse.json({ error: exists ? 'Forbidden' : 'Not found' }, { status: exists ? 403 : 404 })
+    }
 
     const allowed = ['status', 'aiDraftResponse', 'finalResponse', 'respondedAt', 'isEscalated', 'escalationReason'] as const
     const data: Record<string, unknown> = {}

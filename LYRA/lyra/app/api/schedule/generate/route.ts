@@ -5,10 +5,16 @@ import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { generateWeekPosts } from '@/services/ai/schedule-generator'
 import type { PostingPatterns } from '@/services/ai/engagement-analyzer'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuth()
+
+    // Fans out one Claude call per platform per week -- more expensive than
+    // the single-call AI routes (20/min), so this gets a lower ceiling.
+    const { allowed } = await checkRateLimit(`schedule-generate:${user.id}`, 10, 60)
+    if (!allowed) return rateLimitResponse()
 
     const body = await req.json() as {
       workspaceId: string
@@ -30,7 +36,7 @@ export async function POST(req: NextRequest) {
     }
 
     const workspace = await prisma.workspace.findFirst({
-      where: { id: workspaceId, access: { some: { userId: user.id } } },
+      where: { id: workspaceId, access: { some: { userId: user.id, role: { not: 'CLIENT_VIEW' } } } },
       include: {
         brandProfile: {
           select: {

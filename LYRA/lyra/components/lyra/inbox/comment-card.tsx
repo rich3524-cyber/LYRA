@@ -70,6 +70,13 @@ export const CommentCard = memo(function CommentCard({
         body:    JSON.stringify({ commentId: comment.id }),
       })
       const data = await res.json()
+      // Checked before touching anything -- a failed request (e.g. a 500) must
+      // never overwrite `draft`, or it wipes out whatever reply the operator
+      // had already typed by hand.
+      if (!res.ok) {
+        toast.error(data.error ?? 'Failed to generate response')
+        return
+      }
       if (data.shouldEscalate) {
         toast.error(`Escalated: ${data.escalationReason}`)
         onUpdate(comment.id, 'ESCALATED')

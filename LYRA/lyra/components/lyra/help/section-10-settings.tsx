@@ -92,9 +92,9 @@ export function SettingsSection() {
           situation is handled; scheduled posts resume automatically.
         </p>
         <Note>
-          Crisis Aware&apos;s alert is in-app only right now (the banner, plus the paused
-          posts) — there is no email or push notification when it triggers. Someone needs
-          to have LYRA open to see it. Email alerting is planned.
+          Crisis Aware sends an email alert — with the trigger reason and a link to the
+          workspace — to every workspace owner/admin, in addition to the in-app banner.
+          See <Strong>Account settings → Notifications</Strong> below for details.
         </Note>
       </Subsection>
 
@@ -121,16 +121,13 @@ export function SettingsSection() {
             view the calendar and analytics), or Approve (client can approve or reject posts
             submitted for approval).
           </li>
-          <li>
-            <Strong>Onboarding link</Strong> — generate a one-time link for the client to
-            connect their own social accounts. Links expire after 7 days.
-          </li>
-          <li>
-            <Strong>Approval notifications</Strong> — toggle whether the client receives email
-            notifications when posts are submitted for their approval. Also configure the
-            reminder frequency if they haven&apos;t responded.
-          </li>
         </ul>
+        <Note>
+          There is no self-service client onboarding link and no email notification when a
+          post is waiting for approval — see <Strong>Social Connections → Connecting accounts
+          on a client&apos;s behalf</Strong> and the <Strong>Compose</Strong> section for how
+          those work today.
+        </Note>
       </Subsection>
 
       <Subsection title="Workspace settings — Integrations">

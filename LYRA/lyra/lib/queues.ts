@@ -42,3 +42,17 @@ export const brandSyncQueue = new Queue('brand-sync', {
     removeOnFail:     { count: 20 },
   },
 })
+
+// One job per post, fanned out from app/api/cron/sync-metrics/route.ts instead of that
+// route fetching all ~200 posts' analytics sequentially inline -- the inline version risked
+// exceeding Netlify's function duration ceiling on any workspace with real publishing
+// volume. The worker processes these concurrently (see metrics-sync.worker.ts).
+export const metricsSyncQueue = new Queue('metrics-sync', {
+  connection: redis,
+  defaultJobOptions: {
+    attempts:         2,
+    backoff:          { type: 'exponential', delay: 5000 },
+    removeOnComplete: { count: 200 },
+    removeOnFail:     { count: 100 },
+  },
+})

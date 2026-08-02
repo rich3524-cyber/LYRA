@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { getUploadPresignedUrl } from '@/lib/s3'
 import { randomUUID } from 'crypto'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
+import { canWrite } from '@/lib/authz'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,6 +40,15 @@ export async function POST(req: Request) {
       workspaceId?: string
     }
 
+    // workspaceId used to be optional, which meant the tenant check below was
+    // skipped entirely whenever a caller omitted it -- any authenticated user
+    // could presign an upload with no workspace-access check at all. The one
+    // real caller (lib/upload-media.ts) always sends workspaceId, so requiring
+    // it here doesn't change legitimate behavior.
+    if (!workspaceId) {
+      return NextResponse.json({ error: 'workspaceId required' }, { status: 400 })
+    }
+
     const ext = ALLOWED_MIME_TYPES[contentType]
     if (!ext) {
       return NextResponse.json({ error: 'File type not permitted' }, { status: 415 })
@@ -48,15 +58,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'File too large (max 50MB)' }, { status: 413 })
     }
 
-    if (workspaceId) {
-      const access = await prisma.workspaceAccess.findFirst({ where: { workspaceId, userId: user.id } })
-      if (!access) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
+    const access = await prisma.workspaceAccess.findFirst({ where: { workspaceId, userId: user.id } })
+    if (!access || !canWrite(access.role)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const folder = workspaceId ?? user.id
-    const key = `media/${folder}/${randomUUID()}.${ext}`
+    const key = `media/${workspaceId}/${randomUUID()}.${ext}`
 
     const presignedUrl = await getUploadPresignedUrl(key, contentType)
     const publicUrl = `https://${BUCKET}.s3.${REGION}.amazonaws.com/${key}`

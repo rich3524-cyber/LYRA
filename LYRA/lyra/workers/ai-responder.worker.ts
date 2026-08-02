@@ -79,4 +79,11 @@ worker.on('failed', (job, err) => {
   console.error(`AI responder failed for comment ${job?.data.commentId}:`, err)
 })
 
+// Without this, an error the Worker can't attribute to a specific job (a lost
+// Redis connection, a malformed job payload) is an unhandled 'error' event on
+// an EventEmitter, which crashes the whole worker process.
+worker.on('error', (err) => {
+  console.error('AI responder worker error:', err)
+})
+
 export default worker

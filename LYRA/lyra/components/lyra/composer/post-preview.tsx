@@ -3,15 +3,8 @@
 import { useState } from 'react'
 import { Monitor, Smartphone } from 'lucide-react'
 import { cn } from '@/lib/utils'
-
-const PLATFORM_LABELS: Record<string, string> = {
-  INSTAGRAM:       'Instagram',
-  FACEBOOK:        'Facebook',
-  LINKEDIN:        'LinkedIn',
-  TWITTER:         'X (Twitter)',
-  GOOGLE_BUSINESS: 'Google Business',
-  TIKTOK:          'TikTok',
-}
+import { PLATFORM_LABELS } from '@/lib/platform-labels'
+import type { Platform } from '@prisma/client'
 
 interface PostPreviewProps {
   content: string
@@ -249,7 +242,7 @@ export function PostPreview({ content, selectedPlatforms, className }: PostPrevi
                     : 'text-text-tertiary hover:text-text-secondary'
                 )}
               >
-                {PLATFORM_LABELS[p] ?? p}
+                {PLATFORM_LABELS[p as Platform] ?? p}
               </button>
             ))
           )}

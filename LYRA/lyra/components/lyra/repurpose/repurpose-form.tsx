@@ -3,16 +3,10 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Scissors } from 'lucide-react'
+import { PLATFORM_LABELS } from '@/lib/platform-labels'
+import type { Platform } from '@prisma/client'
 
-const PLATFORMS = ['INSTAGRAM', 'LINKEDIN', 'TWITTER', 'FACEBOOK', 'TIKTOK', 'GOOGLE_BUSINESS']
-const PLATFORM_LABELS: Record<string, string> = {
-  INSTAGRAM: 'Instagram',
-  LINKEDIN: 'LinkedIn',
-  TWITTER: 'Twitter / X',
-  FACEBOOK: 'Facebook',
-  TIKTOK: 'TikTok',
-  GOOGLE_BUSINESS: 'Google Business',
-}
+const PLATFORMS = ['INSTAGRAM', 'LINKEDIN', 'TWITTER', 'FACEBOOK', 'TIKTOK', 'GOOGLE_BUSINESS'] as const satisfies readonly Platform[]
 
 interface PostEntry {
   id: string
@@ -183,7 +177,7 @@ export function RepurposeForm({ workspaceId }: RepurposeFormProps) {
             <div key={i} className="h-16 rounded-xl bg-background-secondary border border-background-border flex items-center px-4">
               <div className="flex items-center gap-3">
                 <div className="h-2 w-2 rounded-full bg-status-success" />
-                <p className="text-sm font-sans text-text-secondary">{PLATFORM_LABELS[platform] ?? platform} generated</p>
+                <p className="text-sm font-sans text-text-secondary">{PLATFORM_LABELS[platform as Platform] ?? platform} generated</p>
               </div>
             </div>
           ))}

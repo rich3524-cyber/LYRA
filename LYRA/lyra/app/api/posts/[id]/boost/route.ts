@@ -37,23 +37,23 @@ export async function POST(req: Request, { params }: RouteContext) {
       return NextResponse.json({ error: 'Invalid audience option.' }, { status: 400 })
     }
 
-    // Fetch post and verify workspace access
+    // Fetch and authorize in one scoped query so there's never an unscoped
+    // post object in scope that a future edit could act on before an access
+    // check runs. The fallback lookup below only decides which error to
+    // return -- it plays no role in authorizing the boost.
     const post = await prisma.post.findFirst({
-      where: { id: postId },
+      where: {
+        id: postId,
+        workspace: { access: { some: { userId: user.id, role: { not: 'CLIENT_VIEW' } } } },
+      },
       include: {
         workspace: { select: { id: true, plan: true } },
         socialAccount: true,
       },
     })
     if (!post) {
-      return NextResponse.json({ error: 'Post not found' }, { status: 404 })
-    }
-
-    const access = await prisma.workspaceAccess.findFirst({
-      where: { workspaceId: post.workspaceId, userId: user.id },
-    })
-    if (!access) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      const exists = await prisma.post.findUnique({ where: { id: postId }, select: { id: true } })
+      return NextResponse.json({ error: exists ? 'Forbidden' : 'Post not found' }, { status: exists ? 403 : 404 })
     }
 
     // Plan gate — STARTER cannot boost
@@ -132,22 +132,23 @@ export async function DELETE(req: Request, { params }: RouteContext) {
     const user = await requireAuth()
     const { id: postId } = await params
 
+    // Fetch and authorize in one scoped query so there's never an unscoped
+    // post object in scope that a future edit could act on before an access
+    // check runs. The fallback lookup below only decides which error to
+    // return -- it plays no role in authorizing the cancellation.
     const post = await prisma.post.findFirst({
-      where: { id: postId },
+      where: {
+        id: postId,
+        workspace: { access: { some: { userId: user.id, role: { not: 'CLIENT_VIEW' } } } },
+      },
       include: {
         socialAccount: true,
         boost: true,
       },
     })
     if (!post) {
-      return NextResponse.json({ error: 'Post not found' }, { status: 404 })
-    }
-
-    const access = await prisma.workspaceAccess.findFirst({
-      where: { workspaceId: post.workspaceId, userId: user.id },
-    })
-    if (!access) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+      const exists = await prisma.post.findUnique({ where: { id: postId }, select: { id: true } })
+      return NextResponse.json({ error: exists ? 'Forbidden' : 'Post not found' }, { status: exists ? 403 : 404 })
     }
 
     if (!post.boost || post.boost.status !== 'ACTIVE') {

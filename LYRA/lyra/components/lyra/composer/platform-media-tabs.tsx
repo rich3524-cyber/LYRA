@@ -6,17 +6,8 @@ import { Video, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { MediaUploader } from './media-uploader'
 import { checkPlatformCompatibility, formatCompatibilityIssue } from '@/services/social/media-compatibility'
+import { PLATFORM_LABELS } from '@/lib/platform-labels'
 import type { Platform } from '@prisma/client'
-
-const PLATFORM_LABELS: Record<string, string> = {
-  FACEBOOK:        'Facebook',
-  INSTAGRAM:       'Instagram',
-  LINKEDIN:        'LinkedIn',
-  TIKTOK:          'TikTok',
-  TWITTER:         'X',
-  GOOGLE_BUSINESS: 'Google',
-  YOUTUBE:         'YouTube',
-}
 
 const ASPECT_RATIO_HINTS: Record<string, string> = {
   FACEBOOK:        'Flexible — 1.91:1 landscape or 1:1 square',
@@ -115,7 +106,7 @@ export function PlatformMediaTabs({
                   : 'border-transparent text-text-tertiary hover:text-text-secondary'
               )}
             >
-              {PLATFORM_LABELS[p] ?? p}
+              {PLATFORM_LABELS[p as Platform] ?? p}
               {hasTabOverride && (
                 <span className="ml-1.5 inline-block w-1 h-1 rounded-full bg-accent-silver align-middle" />
               )}

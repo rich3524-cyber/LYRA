@@ -1,3 +1,9 @@
+# NOT currently used by the live Railway deployment. railway.toml drives the real
+# worker build/deploy via Nixpacks (buildCommand = "npm install", startCommand =
+# "npx tsx workers/index.ts"), running tsx directly against source -- it has no
+# `builder = "DOCKERFILE"` directive, so Railway never builds or runs this image.
+# This file is kept for a possible future move to a compiled Docker deploy, but
+# does not reflect production reality until railway.toml is repointed at it.
 FROM node:20-alpine AS base
 WORKDIR /app
 
@@ -29,6 +35,10 @@ COPY --from=builder /app/dist/services ./services
 COPY --from=builder /app/dist/lib ./lib
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY prisma ./prisma
+
+# node:alpine ships a non-root "node" user (uid 1000) out of the box -- no
+# root process needed for a BullMQ consumer with no privileged operations.
+USER node
 
 # Run all workers via the index entry point
 CMD ["node", "workers/index.js"]

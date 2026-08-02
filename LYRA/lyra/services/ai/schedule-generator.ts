@@ -1,4 +1,4 @@
-import { anthropic, CLAUDE_MODEL } from '@/lib/anthropic'
+import { anthropic, CLAUDE_MODEL, extractClaudeText } from '@/lib/anthropic'
 import type { PostingPatterns, PlatformPattern } from '@/services/ai/engagement-analyzer'
 
 export type GeneratedPost = {
@@ -117,7 +117,7 @@ Rules:
       max_tokens: 4000,
       messages: [{ role: 'user', content: prompt }],
     }, { timeout: 45_000 })
-    text = response.content[0].type === 'text' ? response.content[0].text.trim() : '[]'
+    text = extractClaudeText(response) || '[]'
   } catch (err) {
     console.error('schedule-generator: Claude request failed', err instanceof Error ? err.message : err)
     return []

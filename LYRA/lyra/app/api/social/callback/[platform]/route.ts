@@ -25,7 +25,8 @@ export async function GET(
     const { platform } = await params
     const { searchParams } = new URL(req.url)
     const code = searchParams.get('code')
-    const state = verifyState<{ workspaceId: string; codeVerifier?: string }>(searchParams.get('state'))
+    const rawState = searchParams.get('state')
+    const state = verifyState<{ workspaceId: string }>(rawState)
 
     if (!code || !state?.workspaceId) {
       return NextResponse.redirect(`${BASE_URL}?error=oauth_failed`)
@@ -135,7 +136,9 @@ export async function GET(
       }
 
       case 'twitter': {
-        const { codeVerifier } = state
+        // rawState is guaranteed non-null here: verifyState(null) would have returned
+        // null, and the !state?.workspaceId check above already rejected that case.
+        const codeVerifier = await twitter.consumeCodeVerifier(rawState!)
         if (!codeVerifier) return NextResponse.redirect(`${BASE_URL}?error=oauth_failed`)
 
         const { accessToken, refreshToken, expiresIn } = await twitter.exchangeCode(code, codeVerifier)

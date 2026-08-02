@@ -1,0 +1,14 @@
+.env
+.env.*
+!.env.example
+node_modules
+.next
+.git
+.github
+*.md
+.vscode
+.claude
+.full-review
+docs
+__tests__
+**/*.test.ts

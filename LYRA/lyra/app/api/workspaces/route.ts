@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { PLANS } from '@/lib/stripe'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,12 +43,41 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Name required' }, { status: 400 })
     }
 
+    // Plan limit + plan sync -- previously absent, so any authenticated user
+    // could create unlimited workspaces, and every new workspace started on
+    // the schema default STARTER regardless of the paying agency's actual
+    // plan (until an unrelated Stripe webhook happened to fire a fan-out and
+    // fix it). Resolved via User.agencyId (not Workspace.agencyId, which the
+    // real signup/webhook flow never populates -- see
+    // app/api/stripe/webhook/route.ts). A user with no agency yet (no billing
+    // relationship established) is let through with the schema default --
+    // this is the pre-checkout edge case, not the abuse case this targets.
+    const agency = user.agencyId
+      ? await prisma.agency.findUnique({ where: { id: user.agencyId }, select: { plan: true } })
+      : null
+
+    if (agency) {
+      const limit = PLANS[agency.plan]?.workspaces ?? PLANS.STARTER.workspaces
+      if (limit !== -1) {
+        const currentCount = await prisma.workspace.count({
+          where: { access: { some: { user: { agencyId: user.agencyId } } } },
+        })
+        if (currentCount >= limit) {
+          return NextResponse.json(
+            { error: `Your ${agency.plan.toLowerCase()} plan allows up to ${limit} workspace${limit === 1 ? '' : 's'}. Upgrade to add more.` },
+            { status: 403 }
+          )
+        }
+      }
+    }
+
     const workspace = await prisma.workspace.create({
       data: {
         name: name.trim(),
         industry,
         websiteUrl,
         agencyId:          user.agencyId ?? undefined,
+        plan:              agency?.plan,
         clientAccessLevel: clientAccessLevel ?? 'NONE',
         access: {
           create: { userId: user.id, role: 'AGENCY_ADMIN' },

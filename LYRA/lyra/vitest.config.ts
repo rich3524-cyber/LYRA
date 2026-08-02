@@ -7,5 +7,8 @@ export default defineConfig({
     environment: 'node',
     include: ['**/*.test.ts'],
     exclude: ['node_modules', '.next'],
+    env: {
+      OAUTH_STATE_SECRET: 'test-oauth-state-secret',
+    },
   },
 })

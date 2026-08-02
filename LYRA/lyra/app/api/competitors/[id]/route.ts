@@ -8,13 +8,12 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const { id } = await params
 
     const competitor = await prisma.competitor.findFirst({
-      where: { id },
-      include: { workspace: { include: { access: true } } },
+      where: {
+        id,
+        workspace: { access: { some: { userId: user.id, role: { not: 'CLIENT_VIEW' } } } },
+      },
     })
     if (!competitor) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
-    const hasAccess = competitor.workspace.access.some((a) => a.userId === user.id)
-    if (!hasAccess) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
     await prisma.competitor.delete({ where: { id } })
     return NextResponse.json({ ok: true })

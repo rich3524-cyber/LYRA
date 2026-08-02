@@ -1,5 +1,6 @@
 import crypto from 'crypto'
 import { signState } from '@/lib/oauth-state'
+import { redisClient } from '@/lib/redis'
 
 const AUTH_URL = 'https://x.com/i/oauth2/authorize'
 const TOKEN_URL = 'https://api.twitter.com/2/oauth2/token'
@@ -8,6 +9,18 @@ const API_URL = 'https://api.twitter.com/2'
 const SCOPES = ['tweet.read', 'tweet.write', 'users.read', 'offline.access'].join(' ')
 
 const TIMEOUT_MS = 20_000
+
+// PKCE code_verifier is a secret only the party that initiated the flow may hold --
+// that's the whole point of PKCE, since the authorization `code` itself is expected
+// to leak into browser history/referrers/logs. It must never round-trip through the
+// client-visible `state` param (signed but NOT encrypted). Instead it's stashed here,
+// server-side, keyed by a hash of the signed state value -- state is already this
+// attempt's unique, tamper-evident identifier, so no separate id is needed.
+const CODE_VERIFIER_TTL_SECONDS = 10 * 60
+
+function codeVerifierKey(state: string): string {
+  return `twitter-pkce:${crypto.createHash('sha256').update(state).digest('hex')}`
+}
 
 export interface TwitterAccount {
   id: string
@@ -27,11 +40,11 @@ function generateCodeChallenge(verifier: string): string {
   return crypto.createHash('sha256').update(verifier).digest('base64url')
 }
 
-export function getAuthUrl(workspaceId: string): { url: string; codeVerifier: string } {
+export async function getAuthUrl(workspaceId: string): Promise<{ url: string }> {
   const codeVerifier = generateCodeVerifier()
   const codeChallenge = generateCodeChallenge(codeVerifier)
-  // codeVerifier stored in state so we can retrieve it in the callback
-  const state = signState({ workspaceId, codeVerifier })
+  const state = signState({ workspaceId })
+  await redisClient.set(codeVerifierKey(state), codeVerifier, 'EX', CODE_VERIFIER_TTL_SECONDS)
   const params = new URLSearchParams({
     response_type: 'code',
     client_id: process.env.TWITTER_CLIENT_ID!,
@@ -41,7 +54,15 @@ export function getAuthUrl(workspaceId: string): { url: string; codeVerifier: st
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',
   })
-  return { url: `${AUTH_URL}?${params}`, codeVerifier }
+  return { url: `${AUTH_URL}?${params}` }
+}
+
+/** Single-use lookup: reads and immediately deletes the codeVerifier stashed for this state. */
+export async function consumeCodeVerifier(state: string): Promise<string | null> {
+  const key = codeVerifierKey(state)
+  const verifier = await redisClient.get(key)
+  if (verifier !== null) await redisClient.del(key)
+  return verifier
 }
 
 export async function exchangeCode(

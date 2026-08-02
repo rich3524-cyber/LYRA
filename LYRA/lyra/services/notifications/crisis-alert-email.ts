@@ -1,5 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { resend, EMAIL_FROM } from '@/lib/resend'
+import { PLATFORM_LABELS } from '@/lib/platform-labels'
+import type { Platform } from '@prisma/client'
 
 export interface CrisisAlertEmailComment {
   content:     string
@@ -13,12 +15,6 @@ export interface CrisisAlertEmailParams {
   triggerType:   'KEYWORD_MATCH' | 'SENTIMENT_SPIKE'
   comment:       CrisisAlertEmailComment | null
   appBaseUrl:    string
-}
-
-const PLATFORM_NAMES: Record<string, string> = {
-  FACEBOOK: 'Facebook', INSTAGRAM: 'Instagram', LINKEDIN: 'LinkedIn',
-  TIKTOK: 'TikTok', TWITTER: 'X', GOOGLE_BUSINESS: 'Google Business',
-  YOUTUBE: 'YouTube', PINTEREST: 'Pinterest', THREADS: 'Threads', BLUESKY: 'Bluesky',
 }
 
 const TRIGGER_DESCRIPTIONS: Record<CrisisAlertEmailParams['triggerType'], string> = {
@@ -55,7 +51,7 @@ export function buildCrisisAlertEmail(
         <tr>
           <td style="padding: 16px 20px;">
             <p style="margin: 0 0 6px; font-size: 13px; color: #666666;">
-              ${escapeHtml(comment.authorName)} · ${escapeHtml(PLATFORM_NAMES[comment.platform] ?? comment.platform)}
+              ${escapeHtml(comment.authorName)} · ${escapeHtml(PLATFORM_LABELS[comment.platform as Platform] ?? comment.platform)}
             </p>
             <p style="margin: 0; font-size: 14px; color: #111111; line-height: 1.5;">
               "${escapeHtml(truncate(comment.content, 150))}${comment.content.length > 150 ? '…' : ''}"
@@ -139,7 +135,12 @@ export async function sendCrisisAlertEmail(
     // success to this function's own try/catch, defeating the point of even
     // logging failures. Still never throws past this point -- fail-open stays
     // intact -- but a real failure is now actually visible in logs.
-    const results = await Promise.all(
+    //
+    // Promise.allSettled (not Promise.all) -- a crisis alert can go to several
+    // owners/admins, and one send rejecting (network error, etc.) must not
+    // abort the rest. Every recipient gets an attempt regardless of another's
+    // failure -- this is a safety-critical notification, not a best-effort one.
+    const results = await Promise.allSettled(
       owners.map((o) =>
         resend.emails.send({
           from:    EMAIL_FROM,
@@ -150,9 +151,14 @@ export async function sendCrisisAlertEmail(
       )
     )
 
-    const failures = results.filter((r) => r.error)
+    const failures = results.filter(
+      (r) => r.status === 'rejected' || (r.status === 'fulfilled' && r.value.error)
+    )
     if (failures.length > 0) {
-      console.error(`Crisis alert email: ${failures.length}/${owners.length} sends failed for workspace ${workspaceId}:`, failures.map((f) => f.error))
+      console.error(
+        `Crisis alert email: ${failures.length}/${owners.length} sends failed for workspace ${workspaceId}:`,
+        failures.map((f) => (f.status === 'rejected' ? f.reason : f.value.error))
+      )
     }
     const sentCount = owners.length - failures.length
     if (sentCount > 0) {

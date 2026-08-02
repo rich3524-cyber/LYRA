@@ -10,6 +10,7 @@ import {
   mergeCrisisKeywordSuggestions,
   type CrisisKeywordSuggestionState,
 } from '@/services/brand-intelligence/crisis-keyword-suggester'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,10 +18,17 @@ export const dynamic = 'force-dynamic'
 export async function POST(req: Request) {
   try {
     const user = await requireAuth()
+
+    // Multi-page scrape + two LLM calls per run -- one of the most expensive
+    // routes in the app, so this gets a much lower ceiling than a
+    // single-LLM-call route.
+    const { allowed } = await checkRateLimit(`brand-intelligence-build:${user.id}`, 5, 300)
+    if (!allowed) return rateLimitResponse()
+
     const { workspaceId, manualGuidelines } = await req.json()
 
     const workspace = await prisma.workspace.findFirst({
-      where: { id: workspaceId, access: { some: { userId: user.id } } },
+      where: { id: workspaceId, access: { some: { userId: user.id, role: { not: 'CLIENT_VIEW' } } } },
       include: { brandProfile: true, socialAccounts: { select: { platform: true, isActive: true } } },
     })
     if (!workspace) return NextResponse.json({ error: 'Not found' }, { status: 404 })

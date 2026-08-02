@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { deleteObject } from '@/lib/s3'
+import { canWrite } from '@/lib/authz'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +22,7 @@ export async function POST(req: Request) {
     }
 
     const access = await prisma.workspaceAccess.findFirst({ where: { workspaceId, userId: user.id } })
-    if (!access) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!access || !canWrite(access.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     // Atomic array push — prevents lost-update race on concurrent uploads
     await prisma.brandProfile.upsert({
@@ -55,7 +56,7 @@ export async function DELETE(req: Request) {
     }
 
     const access = await prisma.workspaceAccess.findFirst({ where: { workspaceId, userId: user.id } })
-    if (!access) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!access || !canWrite(access.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     // Remove from S3
     await deleteObject(key)

@@ -13,21 +13,14 @@ import { format, parseISO } from 'date-fns'
 import type { GeneratedPost } from '@/services/ai/schedule-generator'
 import { buildCaptionsCsv } from '@/services/schedule/captions-csv'
 import { uploadMediaFile } from '@/lib/upload-media'
+import { PLATFORM_LABELS } from '@/lib/platform-labels'
+import type { Platform } from '@prisma/client'
 
 type PostEntry = GeneratedPost & {
   id: string
   weekNum: number
   mediaUrls: string[]
   uploadingMedia: boolean
-}
-
-const PLATFORM_LABELS: Record<string, string> = {
-  INSTAGRAM:       'Instagram',
-  LINKEDIN:        'LinkedIn',
-  FACEBOOK:        'Facebook',
-  TWITTER:         'Twitter/X',
-  TIKTOK:          'TikTok',
-  GOOGLE_BUSINESS: 'Google Business',
 }
 
 interface Props {
@@ -119,7 +112,7 @@ export function ScheduleReview({ workspaceId, workspaceName }: Props) {
       .map((p) => ({
         date:     format(parseISO(p.scheduledAt), 'yyyy-MM-dd'),
         time:     format(parseISO(p.scheduledAt), 'HH:mm'),
-        platform: PLATFORM_LABELS[p.platform] ?? p.platform,
+        platform: PLATFORM_LABELS[p.platform as Platform] ?? p.platform,
         topic:    p.topic,
         caption:  p.content,
       }))
@@ -260,7 +253,7 @@ export function ScheduleReview({ workspaceId, workspaceName }: Props) {
                 {/* Platform badge + edit/delete controls */}
                 <div className="flex items-center justify-between">
                   <span className="font-sans text-xs px-2 py-0.5 rounded-md bg-background-tertiary border border-background-border-mid text-text-secondary">
-                    {PLATFORM_LABELS[post.platform] ?? post.platform}
+                    {PLATFORM_LABELS[post.platform as Platform] ?? post.platform}
                   </span>
                   <div className="flex items-center gap-1">
                     <button

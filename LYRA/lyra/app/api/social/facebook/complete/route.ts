@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { decrypt } from '@/lib/encrypt'
 import * as instagram from '@/services/social/instagram'
 import { encrypt } from '@/lib/encrypt'
+import { canWrite } from '@/lib/authz'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,12 +39,13 @@ export async function POST(req: Request) {
     const access = await prisma.workspaceAccess.findFirst({
       where: { workspaceId: pending.workspaceId, userId: user.id },
     })
-    if (!access) {
+    if (!access || !canWrite(access.role)) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
     const data = pending.data as unknown as PendingData
     const selectedPages = data.pages.filter((p) => selectedPageIds.includes(p.id))
+    let igLinkFailures = 0
 
     for (const page of selectedPages) {
       const rawToken = decrypt(page.encryptedToken)
@@ -104,15 +106,23 @@ export async function POST(req: Request) {
             },
           })
         }
-      } catch {
-        // IG account not connected to this page — skip silently
+      } catch (err) {
+        // getConnectedAccount returns null (not a throw) for the ordinary "no
+        // linked IG account" case -- reaching this catch means the Graph API
+        // call itself failed (bad/expired token, API outage, etc.), which is
+        // a real failure, not "nothing to connect". Previously swallowed
+        // silently, so a broken IG auto-link was indistinguishable from a
+        // page that simply has no Instagram account, and the response still
+        // reported full success either way.
+        console.error(`Instagram auto-link failed for Facebook page ${page.id}:`, err)
+        igLinkFailures++
       }
     }
 
     // Clean up — delete the pending record
     await prisma.facebookPending.delete({ where: { key } })
 
-    return NextResponse.json({ connected: selectedPages.length })
+    return NextResponse.json({ connected: selectedPages.length, igLinkFailures })
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

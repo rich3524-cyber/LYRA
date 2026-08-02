@@ -1,11 +1,24 @@
 import type { NextConfig } from "next";
 import path from "path";
 
-// script-src/frame-src allow GTM, Meta Pixel, and Stripe.js -- all loaded via inline
-// snippets in app/layout.tsx, hence 'unsafe-inline' (no nonce plumbing exists yet).
-// img-src/connect-src stay broad (https:) because post previews and avatars are
-// fetched live from whichever platform CDN Zernio proxies (fbcdn, cdninstagram,
-// licdn, ytimg, twimg, ...) and an exhaustive allowlist would silently break those.
+// script-src/frame-src allow GTM, Meta Pixel, and Stripe.js -- the GTM bootstrap,
+// GA4 init, and Meta Pixel init snippets in app/layout.tsx are truly inline
+// (dangerouslySetInnerHTML, no src attribute), hence 'unsafe-inline' (no nonce
+// plumbing exists yet). js.stripe.com is allowlisted for Stripe.js/Elements even
+// though today's billing flow only redirects to Stripe-hosted Checkout via
+// /api/stripe/create-checkout -- @stripe/stripe-js is a declared dependency and
+// this keeps the CSP consistent if client-side Elements are wired in later.
+// img-src stays broad (https:) because post previews and avatars are fetched live
+// from whichever platform CDN Zernio proxies (fbcdn, cdninstagram, licdn, ytimg,
+// twimg, ...) across 9+ social platforms -- an exhaustive allowlist would silently
+// break those and isn't derivable from this codebase (Zernio returns the URLs).
+// connect-src is an explicit allowlist, not "https:", so an XSS can't exfiltrate
+// data to an arbitrary host: api.stripe.com (Stripe.js tokenization calls, see
+// js.stripe.com note above), googletagmanager.com + google-analytics.com (GTM
+// container runtime + GA4 gtag.js measurement hits -- GA_ID is configured
+// directly via gtag(), not only through the GTM container), and facebook.com
+// (Meta Pixel's /tr tracking beacon -- confirmed by the noscript <img> fallback
+// below, which hits the same https://www.facebook.com/tr endpoint).
 const CSP = [
   "default-src 'self'",
   "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://connect.facebook.net https://js.stripe.com",
@@ -13,7 +26,7 @@ const CSP = [
   "img-src 'self' data: blob: https:",
   "media-src 'self' blob: https:",
   "font-src 'self' data:",
-  "connect-src 'self' https:",
+  "connect-src 'self' https://api.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.facebook.com",
   "frame-src 'self' https://js.stripe.com https://www.googletagmanager.com",
   "frame-ancestors 'none'",
   "object-src 'none'",

@@ -12,16 +12,21 @@ export async function POST(_req: Request, { params }: RouteContext) {
     const user = await requireAuth()
     const { id: postId } = await params
 
-    const post = await prisma.post.findUnique({
-      where:   { id: postId },
+    // Fetch and authorize in one scoped query so there's never an unscoped
+    // post object in scope that a future edit could publish before an
+    // access check runs. The fallback lookup below only decides which error
+    // to return -- it plays no role in authorizing the publish.
+    const post = await prisma.post.findFirst({
+      where: {
+        id: postId,
+        workspace: { access: { some: { userId: user.id, role: { not: 'CLIENT_VIEW' } } } },
+      },
       include: { socialAccount: true },
     })
-    if (!post) return NextResponse.json({ error: 'Post not found' }, { status: 404 })
-
-    const access = await prisma.workspaceAccess.findFirst({
-      where: { workspaceId: post.workspaceId, userId: user.id },
-    })
-    if (!access) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!post) {
+      const exists = await prisma.post.findUnique({ where: { id: postId }, select: { id: true } })
+      return NextResponse.json({ error: exists ? 'Forbidden' : 'Post not found' }, { status: exists ? 403 : 404 })
+    }
 
     if (post.status === 'PUBLISHED') {
       return NextResponse.json({ error: 'Post already published.' }, { status: 400 })

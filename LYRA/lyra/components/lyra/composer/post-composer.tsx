@@ -175,6 +175,12 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
         body: JSON.stringify({ workspaceId, platforms: selectedPlatforms }),
       })
       const data = await res.json()
+      // Checked before touching the editor -- a failed request must never
+      // overwrite content the user was already composing.
+      if (!res.ok) {
+        toast.error(data.error ?? 'Failed to generate content')
+        return
+      }
       editor?.commands.setContent(data.content)
     } catch {
       toast.error('Failed to generate content')

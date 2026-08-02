@@ -87,6 +87,10 @@ competitorMonitorWorker.on('failed', (job, err) => {
   console.error(`Competitor monitor job ${job?.id} (${job?.name}) failed:`, err)
 })
 
+competitorMonitorWorker.on('error', (err) => {
+  console.error('Competitor monitor worker error:', err)
+})
+
 // Schedule daily run at 4am
 competitorMonitorQueue.add(
   'daily-monitor',

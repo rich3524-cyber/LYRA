@@ -41,7 +41,11 @@ export function DraftList({ workspaceId }: { workspaceId: string }) {
 
   async function handleDelete(id: string) {
     try {
-      await fetch(`/api/posts/${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/posts/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        toast.error('Failed to delete draft')
+        return
+      }
       setDrafts((prev) => prev.filter((d) => d.id !== id))
       toast.success('Draft deleted')
     } catch {

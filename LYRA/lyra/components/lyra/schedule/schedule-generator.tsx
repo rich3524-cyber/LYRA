@@ -13,6 +13,8 @@ import { Sparkles, Calendar, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { GeneratedPost } from '@/services/ai/schedule-generator'
+import { PLATFORM_LABELS } from '@/lib/platform-labels'
+import type { Platform } from '@prisma/client'
 
 type PostEntry = GeneratedPost & {
   id: string
@@ -21,15 +23,6 @@ type PostEntry = GeneratedPost & {
   uploadingMedia: boolean
 }
 type Phase = 'config' | 'generating' | 'complete'
-
-const PLATFORM_LABELS: Record<string, string> = {
-  INSTAGRAM:       'Instagram',
-  LINKEDIN:        'LinkedIn',
-  FACEBOOK:        'Facebook',
-  TWITTER:         'Twitter/X',
-  TIKTOK:          'TikTok',
-  GOOGLE_BUSINESS: 'Google Business',
-}
 
 interface ScheduleGeneratorProps {
   workspaceId: string
@@ -248,7 +241,7 @@ export function ScheduleGenerator({
                           className="accent-accent-platinum w-4 h-4 cursor-pointer"
                         />
                         <span className="text-sm text-text-primary">
-                          {PLATFORM_LABELS[platform] ?? platform}
+                          {PLATFORM_LABELS[platform as Platform] ?? platform}
                         </span>
                       </label>
                       {selected[platform] && (

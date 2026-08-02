@@ -85,7 +85,11 @@ export function EmailMarketingSection({ workspaceId }: { workspaceId: string }) 
 
   async function handleDisconnect(id: string, provider: string) {
     try {
-      await fetch(`/api/email-integrations/${id}`, { method: 'DELETE' })
+      const res = await fetch(`/api/email-integrations/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        toast.error('Disconnect failed')
+        return
+      }
       setIntegrations((prev) => prev.filter((i) => i.id !== id))
       toast.success(`${provider} disconnected`)
     } catch {

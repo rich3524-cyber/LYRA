@@ -2,9 +2,10 @@ name: LYRA Cron Jobs
 
 on:
   schedule:
-    - cron: '*/5 * * * *'   # sync-comments — every 5 minutes
-    - cron: '0 * * * *'     # sync-metrics  — every hour
-    - cron: '0 2 * * 0'     # brand-refresh — Sunday 2am UTC
+    - cron: '*/5 * * * *'   # sync-comments        — every 5 minutes
+    - cron: '0 * * * *'     # sync-metrics         — every hour
+    - cron: '0 2 * * 0'     # brand-refresh        — Sunday 2am UTC
+    - cron: '2-59/5 * * * *' # publish-due-posts   — every 5 minutes, offset by 2 (backstop, see job below)
 
 jobs:
   sync-comments:
@@ -12,24 +13,45 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Trigger sync-comments
+        env:
+          CRON_URL:  ${{ secrets.APP_BASE_URL }}/api/cron/sync-comments
+          CRON_AUTH: Bearer ${{ secrets.CRON_SECRET }}
         run: |
-          curl -f -X GET "${{ secrets.APP_BASE_URL }}/api/cron/sync-comments" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+          curl -f -X GET "$CRON_URL" -H "Authorization: $CRON_AUTH"
 
   sync-metrics:
     if: github.event.schedule == '0 * * * *'
     runs-on: ubuntu-latest
     steps:
       - name: Trigger sync-metrics
+        env:
+          CRON_URL:  ${{ secrets.APP_BASE_URL }}/api/cron/sync-metrics
+          CRON_AUTH: Bearer ${{ secrets.CRON_SECRET }}
         run: |
-          curl -f -X GET "${{ secrets.APP_BASE_URL }}/api/cron/sync-metrics" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+          curl -f -X GET "$CRON_URL" -H "Authorization: $CRON_AUTH"
 
   brand-refresh:
     if: github.event.schedule == '0 2 * * 0'
     runs-on: ubuntu-latest
     steps:
       - name: Trigger brand-refresh
+        env:
+          CRON_URL:  ${{ secrets.APP_BASE_URL }}/api/cron/brand-refresh
+          CRON_AUTH: Bearer ${{ secrets.CRON_SECRET }}
         run: |
-          curl -f -X GET "${{ secrets.APP_BASE_URL }}/api/cron/brand-refresh" \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
+          curl -f -X GET "$CRON_URL" -H "Authorization: $CRON_AUTH"
+
+  publish-due-posts:
+    # Backstop only. The primary trigger is an external cron-job.org account
+    # (outside version control) hitting this endpoint every 1 minute — this job
+    # exists so scheduled posts still go out within a few minutes even if that
+    # external account is ever lost, lapses, or gets locked out.
+    if: github.event.schedule == '2-59/5 * * * *'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger publish-due-posts
+        env:
+          CRON_URL:  ${{ secrets.APP_BASE_URL }}/api/cron/publish-due-posts
+          CRON_AUTH: Bearer ${{ secrets.CRON_SECRET }}
+        run: |
+          curl -f -X GET "$CRON_URL" -H "Authorization: $CRON_AUTH"

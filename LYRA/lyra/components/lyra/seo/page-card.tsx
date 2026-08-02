@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { ExternalLink, RefreshCw, Sparkles, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
 import { AiContentPanel } from './ai-content-panel'
 import type { SeoPageWithContent } from '@/app/(dashboard)/workspace/[workspaceId]/seo/page'
@@ -78,7 +79,11 @@ export function PageCard({ page, onDeleted, onContentGenerated }: Props) {
   }
 
   async function handleDelete() {
-    await fetch(`/api/seo/pages/${page.id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/seo/pages/${page.id}`, { method: 'DELETE' })
+    if (!res.ok) {
+      toast.error('Failed to delete page')
+      return
+    }
     onDeleted(page.id)
   }
 

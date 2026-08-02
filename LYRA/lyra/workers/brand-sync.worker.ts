@@ -97,4 +97,8 @@ worker.on('failed', (job, err) => {
   console.error(`brand-sync failed for workspace ${job?.data.workspaceId}:`, err)
 })
 
+worker.on('error', (err) => {
+  console.error('brand-sync worker error:', err)
+})
+
 export default worker

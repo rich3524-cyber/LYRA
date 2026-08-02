@@ -1,15 +1,16 @@
 'use client'
 
 import { cn } from '@/lib/utils'
+import { getPlatformLabel } from '@/lib/platform-labels'
 
 const PLATFORMS = [
-  { id: 'FACEBOOK',        label: 'Facebook' },
-  { id: 'INSTAGRAM',       label: 'Instagram' },
-  { id: 'LINKEDIN',        label: 'LinkedIn' },
-  { id: 'TIKTOK',          label: 'TikTok' },
-  { id: 'TWITTER',         label: 'X' },
-  { id: 'GOOGLE_BUSINESS', label: 'Google' },
-  { id: 'YOUTUBE',         label: 'YouTube' },
+  { id: 'FACEBOOK',        label: getPlatformLabel('FACEBOOK') },
+  { id: 'INSTAGRAM',       label: getPlatformLabel('INSTAGRAM') },
+  { id: 'LINKEDIN',        label: getPlatformLabel('LINKEDIN') },
+  { id: 'TIKTOK',          label: getPlatformLabel('TIKTOK') },
+  { id: 'TWITTER',         label: getPlatformLabel('TWITTER') },
+  { id: 'GOOGLE_BUSINESS', label: getPlatformLabel('GOOGLE_BUSINESS') },
+  { id: 'YOUTUBE',         label: getPlatformLabel('YOUTUBE') },
 ] as const
 
 interface PlatformSelectorProps {

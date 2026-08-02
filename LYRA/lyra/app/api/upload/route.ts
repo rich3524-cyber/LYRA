@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 import { randomUUID } from 'crypto'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
+import { canWrite } from '@/lib/authz'
 
 export const dynamic = 'force-dynamic'
 
@@ -49,7 +50,7 @@ export async function POST(req: Request) {
     const access = await prisma.workspaceAccess.findFirst({
       where: { workspaceId, userId: user.id },
     })
-    if (!access) {
+    if (!access || !canWrite(access.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

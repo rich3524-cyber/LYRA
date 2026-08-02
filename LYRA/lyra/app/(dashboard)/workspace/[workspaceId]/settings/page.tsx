@@ -12,6 +12,8 @@ import { AutonomySelector } from '@/components/lyra/settings/autonomy-selector'
 import { FacebookPagePicker } from '@/components/lyra/settings/facebook-page-picker'
 import { TimezoneSelector } from '@/components/lyra/settings/timezone-selector'
 import { EmailMarketingSection } from '@/components/lyra/settings/email-marketing-section'
+import { PLATFORM_LABELS, getPlatformLabel } from '@/lib/platform-labels'
+import type { Platform } from '@prisma/client'
 
 interface Props {
   params: Promise<{ workspaceId: string }>
@@ -28,57 +30,47 @@ interface PlatformConfig {
 const PLATFORMS: PlatformConfig[] = [
   {
     id: 'facebook',
-    name: 'Facebook',
+    name: getPlatformLabel('FACEBOOK'),
     description: 'Schedule posts and respond to comments on your Facebook Page.',
     dbPlatforms: ['FACEBOOK'],
   },
   {
     id: 'instagram',
-    name: 'Instagram',
+    name: getPlatformLabel('INSTAGRAM'),
     description: 'Schedule posts and respond to comments on your Instagram Business account. Connected separately from Facebook.',
     dbPlatforms: ['INSTAGRAM'],
   },
   {
     id: 'linkedin',
-    name: 'LinkedIn',
+    name: getPlatformLabel('LINKEDIN'),
     description: 'Publish to company pages and monitor professional content engagement.',
     dbPlatforms: ['LINKEDIN'],
   },
   {
     id: 'google',
-    name: 'Google Business',
+    name: getPlatformLabel('GOOGLE_BUSINESS'),
     description: 'Respond to reviews and manage your Google Business Profile.',
     dbPlatforms: ['GOOGLE_BUSINESS'],
   },
   {
     id: 'twitter',
-    name: 'X (Twitter)',
+    name: getPlatformLabel('TWITTER'),
     description: 'Schedule posts and monitor replies.',
     dbPlatforms: ['TWITTER'],
   },
   {
     id: 'tiktok',
-    name: 'TikTok',
+    name: getPlatformLabel('TIKTOK'),
     description: 'Publish video content and monitor engagement.',
     dbPlatforms: ['TIKTOK'],
   },
   {
     id: 'youtube',
-    name: 'YouTube',
+    name: getPlatformLabel('YOUTUBE'),
     description: 'Publish videos and monitor comments on your YouTube channel.',
     dbPlatforms: ['YOUTUBE'],
   },
 ]
-
-const PLATFORM_LABELS: Record<string, string> = {
-  FACEBOOK: 'Facebook',
-  INSTAGRAM: 'Instagram',
-  LINKEDIN: 'LinkedIn',
-  GOOGLE_BUSINESS: 'Google Business',
-  TWITTER: 'X (Twitter)',
-  TIKTOK: 'TikTok',
-  YOUTUBE: 'YouTube',
-}
 
 export default async function SettingsPage({ params, searchParams }: Props) {
   const user = await getCurrentUser()
@@ -123,7 +115,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
   }
 
   const connectedPlatformLabel = connected
-    ? PLATFORM_LABELS[connected.toUpperCase()] ?? connected
+    ? PLATFORM_LABELS[connected.toUpperCase() as Platform] ?? connected
     : null
 
   const CONNECT_ERRORS: Record<string, string> = {

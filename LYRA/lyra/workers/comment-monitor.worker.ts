@@ -16,6 +16,36 @@ interface NormalizedRow {
   platformCreatedAt: Date
 }
 
+/**
+ * Enqueues an AI-response job for each newly-created comment. The comments are
+ * already persisted by the time this runs, so a mid-batch rejection must not
+ * orphan the remaining ones -- Promise.allSettled (not Promise.all) attempts
+ * every comment regardless of another's failure, and logs each failure since
+ * a comment enqueue failure here has no other retry path.
+ */
+export async function enqueueAiResponses(
+  comments: Array<{ id: string }>,
+  autoPost: boolean
+): Promise<void> {
+  const results = await Promise.allSettled(
+    comments.map((comment) =>
+      aiRespondQueue.add(
+        'generate-response',
+        { commentId: comment.id, autoPost },
+        { jobId: `respond-${comment.id}` }
+      )
+    )
+  )
+
+  const failures = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+  if (failures.length > 0) {
+    console.error(
+      `Comment monitor: failed to enqueue AI response for ${failures.length}/${comments.length} comment(s):`,
+      failures.map((f) => f.reason)
+    )
+  }
+}
+
 const worker = new Worker(
   'comment-monitoring',
   async (job) => {
@@ -157,13 +187,7 @@ const worker = new Worker(
 
     const mode = account.workspace.aiResponseMode
     if (mode === 'FULL' || mode === 'DRAFT_APPROVE') {
-      await Promise.all(createdComments.map((newComment) =>
-        aiRespondQueue.add(
-          'generate-response',
-          { commentId: newComment.id, autoPost: mode === 'FULL' },
-          { jobId: `respond-${newComment.id}` }
-        )
-      ))
+      await enqueueAiResponses(createdComments, mode === 'FULL')
     }
 
     if (savedComments.length > 0) {
@@ -175,6 +199,10 @@ const worker = new Worker(
 
 worker.on('failed', (job, err) => {
   console.error(`Comment monitor failed for account ${job?.data.socialAccountId}:`, err)
+})
+
+worker.on('error', (err) => {
+  console.error('Comment monitor worker error:', err)
 })
 
 export default worker

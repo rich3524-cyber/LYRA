@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     }
 
     const workspace = await prisma.workspace.findFirst({
-      where: { id: workspaceId, access: { some: { userId: user.id } } },
+      where: { id: workspaceId, access: { some: { userId: user.id, role: { not: 'CLIENT_VIEW' } } } },
       select: { id: true, brandProfile: { select: { id: true, postingPatterns: true } } },
     })
     if (!workspace) {

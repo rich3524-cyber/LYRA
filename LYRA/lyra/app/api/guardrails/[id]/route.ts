@@ -9,13 +9,20 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const user = await requireAuth()
     const { id } = await params
 
-    const guardrail = await prisma.guardrail.findUnique({ where: { id } })
-    if (!guardrail) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
-    const access = await prisma.workspaceAccess.findFirst({
-      where: { userId: user.id, workspaceId: guardrail.workspaceId },
+    // Fetch and authorize in one scoped query so there's never an unscoped
+    // guardrail object in scope that a future edit could delete before an
+    // access check runs. The fallback lookup below only decides which error
+    // to return -- it plays no role in authorizing the delete.
+    const guardrail = await prisma.guardrail.findFirst({
+      where: {
+        id,
+        workspace: { access: { some: { userId: user.id, role: { not: 'CLIENT_VIEW' } } } },
+      },
     })
-    if (!access) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!guardrail) {
+      const exists = await prisma.guardrail.findUnique({ where: { id }, select: { id: true } })
+      return NextResponse.json({ error: exists ? 'Forbidden' : 'Not found' }, { status: exists ? 403 : 404 })
+    }
 
     try {
       await prisma.guardrail.delete({ where: { id } })

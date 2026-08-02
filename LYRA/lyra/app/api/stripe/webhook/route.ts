@@ -219,8 +219,18 @@ export async function POST(req: Request) {
     }
   } catch (error) {
     console.error(`[stripe webhook] ${event.id} (${event.type}) failed:`, error)
-    // Un-mark as processed so Stripe's retry has a chance to succeed.
-    await prisma.processedWebhookEvent.delete({ where: { id: event.id } }).catch(() => {})
+    // Un-mark as processed so Stripe's retry has a chance to succeed. If this
+    // delete itself fails (e.g. the same transient DB blip that caused the
+    // handler to throw in the first place), the event stays marked-processed
+    // and Stripe's retry gets silently discarded by the idempotency check
+    // above -- permanently losing this billing event. That failure must be
+    // surfaced, not swallowed.
+    await prisma.processedWebhookEvent.delete({ where: { id: event.id } }).catch((deleteError) => {
+      console.error(
+        `[stripe/webhook] CRITICAL: failed to un-mark event as processed after handler error — this event will be permanently lost on Stripe retry`,
+        deleteError
+      )
+    })
     return NextResponse.json({ error: 'Webhook handler failed' }, { status: 500 })
   }
 

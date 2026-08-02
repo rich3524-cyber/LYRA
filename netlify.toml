@@ -1,3 +1,14 @@
 [build]
   base = "LYRA/lyra"
   command = "rm -rf .next && npx prisma generate && npm run build"
+
+# Deploy previews and branch deploys currently share production's DATABASE_URL,
+# STRIPE_SECRET_KEY, and AUTH0_* tenant (no staging environment exists yet), so a
+# PR preview would run against real customer data. Skip building these contexts
+# entirely until a real staging DB/Stripe/Auth0 config exists with its own
+# per-context environment variable overrides in the Netlify dashboard.
+[context.deploy-preview]
+  ignore = "exit 0"
+
+[context.branch-deploy]
+  ignore = "exit 0"

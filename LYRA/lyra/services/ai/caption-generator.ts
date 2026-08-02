@@ -1,5 +1,5 @@
 import { BrandProfile } from '@prisma/client'
-import { anthropic, CLAUDE_MODEL } from '@/lib/anthropic'
+import { anthropic, CLAUDE_MODEL, extractClaudeText } from '@/lib/anthropic'
 import { buildCaptionPrompt } from './prompt-builder'
 
 export async function generateCaption(
@@ -15,5 +15,5 @@ export async function generateCaption(
     messages:   [{ role: 'user', content: prompt }],
   })
 
-  return response.content[0].type === 'text' ? response.content[0].text.trim() : ''
+  return extractClaudeText(response)
 }

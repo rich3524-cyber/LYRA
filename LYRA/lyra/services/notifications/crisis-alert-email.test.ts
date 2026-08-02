@@ -1,6 +1,22 @@
 // services/notifications/crisis-alert-email.test.ts
-import { describe, it, expect } from 'vitest'
-import { buildCrisisAlertEmail } from './crisis-alert-email'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+
+vi.mock('@/lib/prisma', () => ({
+  prisma: {
+    workspace: { findUnique: vi.fn() },
+    workspaceAccess: { findMany: vi.fn() },
+    comment: { findUnique: vi.fn() },
+  },
+}))
+
+vi.mock('@/lib/resend', () => ({
+  resend: { emails: { send: vi.fn() } },
+  EMAIL_FROM: 'notifications@lyraonline.ai',
+}))
+
+import { buildCrisisAlertEmail, sendCrisisAlertEmail } from './crisis-alert-email'
+import { prisma } from '@/lib/prisma'
+import { resend } from '@/lib/resend'
 
 const BASE_PARAMS = {
   workspaceName: 'Into The Wild Marketing',
@@ -65,5 +81,44 @@ describe('buildCrisisAlertEmail', () => {
     const { html } = buildCrisisAlertEmail({ ...BASE_PARAMS, comment: null })
     expect(html).toContain('https://lyraonline.ai/workspace/ws_123/inbox')
     expect(html).not.toContain('undefined')
+  })
+})
+
+describe('sendCrisisAlertEmail', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    process.env.APP_BASE_URL = 'https://lyraonline.ai'
+    vi.mocked(prisma.workspace.findUnique).mockResolvedValue({ name: 'Into The Wild Marketing' } as never)
+    vi.mocked(prisma.comment.findUnique).mockResolvedValue(null)
+  })
+
+  it('still attempts every owner/admin recipient even when one send rejects', async () => {
+    vi.mocked(prisma.workspaceAccess.findMany).mockResolvedValue([
+      { user: { email: 'owner1@example.com' } },
+      { user: { email: 'owner2@example.com' } },
+    ] as never)
+
+    vi.mocked(resend.emails.send).mockImplementation((params) => {
+      const to = (params as { to: string }).to
+      if (to === 'owner2@example.com') {
+        return Promise.reject(new Error('network error'))
+      }
+      return Promise.resolve({ data: { id: 'email_1' }, error: null } as never)
+    })
+
+    await sendCrisisAlertEmail('ws_123', 'KEYWORD_MATCH', [])
+
+    expect(resend.emails.send).toHaveBeenCalledTimes(2)
+    expect(resend.emails.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'owner1@example.com' }))
+    expect(resend.emails.send).toHaveBeenCalledWith(expect.objectContaining({ to: 'owner2@example.com' }))
+  })
+
+  it('never throws even when every send rejects (fail-open)', async () => {
+    vi.mocked(prisma.workspaceAccess.findMany).mockResolvedValue([
+      { user: { email: 'owner1@example.com' } },
+    ] as never)
+    vi.mocked(resend.emails.send).mockRejectedValue(new Error('network error'))
+
+    await expect(sendCrisisAlertEmail('ws_123', 'KEYWORD_MATCH', [])).resolves.toBeUndefined()
   })
 })

@@ -4,17 +4,24 @@ import { prisma } from '@/lib/prisma'
 import { decrypt } from '@/lib/encrypt'
 import * as linkedin from '@/services/social/linkedin'
 import { getProvider } from '@/services/social/provider'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: Request) {
   try {
     const user = await requireAuth()
+
+    // Fans out an external API call per connected account -- unbounded by
+    // account count, so this needs a real ceiling rather than none at all.
+    const { allowed } = await checkRateLimit(`comments-sync:${user.id}`, 10, 60)
+    if (!allowed) return rateLimitResponse()
+
     const { workspaceId } = await req.json() as { workspaceId: string }
     if (!workspaceId) return NextResponse.json({ error: 'workspaceId required' }, { status: 400 })
 
     const workspace = await prisma.workspace.findFirst({
-      where: { id: workspaceId, access: { some: { userId: user.id } } },
+      where: { id: workspaceId, access: { some: { userId: user.id, role: { not: 'CLIENT_VIEW' } } } },
       select: { id: true },
     })
     if (!workspace) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -121,7 +128,13 @@ export async function POST(req: Request) {
             }
           }
         }
-      } catch {
+      } catch (err) {
+        // Per-account resilience is intentional here (one account's failure
+        // shouldn't block sync for the others, matching the Zernio branch
+        // above) -- but this previously logged nothing at all, so a total
+        // failure across every account was indistinguishable from "no new
+        // comments" in both the response and the logs.
+        console.error(`Comment sync failed for account ${account.id}:`, err)
         continue
       }
 

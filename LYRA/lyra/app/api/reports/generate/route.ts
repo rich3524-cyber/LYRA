@@ -3,10 +3,17 @@ import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { generateNarrative } from '@/services/reports/narrative-generator'
 import { renderReport, ReportData } from '@/services/reports/report-renderer'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 export async function POST(req: Request) {
   try {
     const user = await requireAuth()
+
+    // AI narrative generation + PDF rendering per call -- costly enough to
+    // warrant a real ceiling, not the bare 20/min single-LLM-call default.
+    const { allowed } = await checkRateLimit(`reports-generate:${user.id}`, 10, 300)
+    if (!allowed) return rateLimitResponse()
+
     const body = await req.json().catch(() => null)
     const workspaceId = body?.workspaceId as unknown
     const period = body?.period as unknown
@@ -16,7 +23,7 @@ export async function POST(req: Request) {
     const validPeriod = period as '7d' | '30d'
 
     const workspace = await prisma.workspace.findFirst({
-      where: { id: workspaceId, access: { some: { userId: user.id } } },
+      where: { id: workspaceId, access: { some: { userId: user.id, role: { not: 'CLIENT_VIEW' } } } },
       select: { id: true, name: true, plan: true },
     })
     if (!workspace) return NextResponse.json({ error: 'Not found' }, { status: 404 })

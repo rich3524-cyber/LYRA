@@ -9,40 +9,23 @@ interface TrendAddonCardProps {
   subscriptionId: string | null
 }
 
-export function TrendAddonCard({ workspaceId, enabled, subscriptionId }: TrendAddonCardProps) {
+export function TrendAddonCard({ workspaceId: _workspaceId, enabled, subscriptionId }: TrendAddonCardProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState<string | null>(null)
 
-  const handleActivate = async () => {
+  const handleManage = async () => {
     setLoading(true)
     setError(null)
     try {
-      const res = await fetch('/api/stripe/trend-checkout', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ workspaceId }),
-      })
+      const res = await fetch('/api/stripe/create-checkout')
       const data = await res.json() as { url?: string; error?: string }
       if (!res.ok || !data.url) {
-        setError(data.error ?? 'Could not start checkout. Try again.')
+        setError(data.error ?? 'Could not open billing portal. Try again.')
         return
       }
       window.location.href = data.url
     } catch {
       setError('Network error. Try again.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleManage = async () => {
-    setLoading(true)
-    try {
-      // TODO: wire up Stripe billing portal for subscription management
-      // Requires User.stripeCustomerId on the schema (currently on Agency/Workspace only).
-      // Once added: POST /api/stripe/portal → { url } → window.location.href = url
-    } catch {
-      // silent
     } finally {
       setLoading(false)
     }
@@ -65,7 +48,9 @@ export function TrendAddonCard({ workspaceId, enabled, subscriptionId }: TrendAd
             Daily AI-scored trend intelligence matched to your brand. Discover what is gaining traction before your competitors do.
           </p>
           <p className="text-xs font-sans text-text-tertiary mt-1">
-            {enabled ? `Subscription ID: ${subscriptionId?.slice(0, 16)}...` : '$10/month — cancel anytime'}
+            {enabled
+              ? `Subscription ID: ${subscriptionId?.slice(0, 16)}... — not yet functional, manage or cancel below`
+              : 'Not yet available — coming soon'}
           </p>
           {error && (
             <p className="text-xs font-sans text-status-error mt-1">{error}</p>
@@ -82,14 +67,9 @@ export function TrendAddonCard({ workspaceId, enabled, subscriptionId }: TrendAd
             {loading ? <Loader2 size={14} className="animate-spin" /> : 'Manage subscription'}
           </button>
         ) : (
-          <button
-            onClick={handleActivate}
-            disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-sans font-medium bg-accent-platinum text-background-primary hover:bg-accent-white transition-all disabled:opacity-40"
-            aria-label="Activate LYRA Trend"
-          >
-            {loading ? <Loader2 size={12} className="animate-spin" /> : 'Activate'}
-          </button>
+          <span className="text-xs font-sans font-medium text-text-tertiary whitespace-nowrap">
+            Coming soon
+          </span>
         )}
       </div>
     </div>

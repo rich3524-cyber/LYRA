@@ -16,14 +16,20 @@ export async function POST(req: Request) {
 
     const { commentId } = await req.json()
 
-    const comment = await prisma.comment.findUnique({ where: { id: commentId } })
-    if (!comment) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
-    // Verify caller has access to the workspace
-    const access = await prisma.workspaceAccess.findFirst({
-      where: { userId: user.id, workspaceId: comment.workspaceId },
+    // Fetch and authorize in one scoped query so there's never an unscoped
+    // comment object in scope that a future edit could act on before an
+    // access check runs. The fallback lookup below only decides which error
+    // to return -- it plays no role in authorizing anything downstream.
+    const comment = await prisma.comment.findFirst({
+      where: {
+        id: commentId,
+        socialAccount: { workspace: { access: { some: { userId: user.id, role: { not: 'CLIENT_VIEW' } } } } },
+      },
     })
-    if (!access) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!comment) {
+      const exists = await prisma.comment.findUnique({ where: { id: commentId }, select: { id: true } })
+      return NextResponse.json({ error: exists ? 'Forbidden' : 'Not found' }, { status: exists ? 403 : 404 })
+    }
 
     const [brandProfile, guardrails] = await Promise.all([
       prisma.brandProfile.findUnique({ where: { workspaceId: comment.workspaceId } }),

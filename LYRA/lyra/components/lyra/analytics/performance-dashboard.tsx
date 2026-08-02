@@ -88,17 +88,26 @@ function PlatformBreakdownList({ breakdown }: { breakdown: PlatformStat[] }) {
 
 export function PerformanceDashboard({ workspaceId }: { workspaceId: string }) {
   const [data, setData]           = useState<AnalyticsData | null>(null)
+  const [error, setError]         = useState<string | null>(null)
   const [period, setPeriod]       = useState(30)
   const [syncing, setSyncing]     = useState(false)
   const [refreshTick, setRefresh] = useState(0)
-  const loading = data === null
+  const loading = data === null && error === null
 
   useEffect(() => {
     let active = true
+    setError(null)
     fetch(`/api/analytics?workspaceId=${workspaceId}&period=${period}&tzOffset=${TZ_OFFSET}`)
-      .then(r => r.json())
-      .then((d: AnalyticsData) => { if (active) setData(d) })
-      .catch(() => { if (active) setData({} as AnalyticsData) })
+      .then(r => {
+        if (!r.ok) throw new Error(`Failed to load analytics (${r.status})`)
+        return r.json() as Promise<AnalyticsData>
+      })
+      .then((d) => { if (active) setData(d) })
+      // Previously fell back to `setData({})` here, which left later renders
+      // reading `data.summary.postsPublished` off an empty object and
+      // crashing the whole route. A real error state instead of a malformed
+      // `data` lets the render path fail gracefully.
+      .catch((err: Error) => { if (active) setError(err.message) })
     return () => { active = false }
   }, [workspaceId, period, refreshTick])
 
@@ -145,6 +154,13 @@ export function PerformanceDashboard({ workspaceId }: { workspaceId: string }) {
         </button>
       </div>
 
+      {error ? (
+        <div className="rounded-xl border border-background-border bg-background-secondary p-6 text-center space-y-1">
+          <p className="font-sans text-sm text-status-error">Couldn&apos;t load analytics — try refreshing</p>
+          <p className="font-sans text-xs text-text-tertiary">{error}</p>
+        </div>
+      ) : (
+      <>
       {/* KPI cards */}
       {loading ? (
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -232,6 +248,8 @@ export function PerformanceDashboard({ workspaceId }: { workspaceId: string }) {
           )}
         </div>
       </div>
+      </>
+      )}
     </div>
   )
 }

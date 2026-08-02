@@ -31,6 +31,8 @@ export default async function DashboardHome() {
 
   let brandReady = false
   let hasBrandProfile = false
+  let hasWebsiteUrl = false
+  let hasSocialAccount = false
 
   // KPI data
   let pendingComments = 0
@@ -104,7 +106,9 @@ export default async function DashboardHome() {
       }).catch(() => []),
     ])
 
-    brandReady = !!(ws?.websiteUrl && (ws._count?.socialAccounts ?? 0) > 0)
+    hasWebsiteUrl = !!ws?.websiteUrl
+    hasSocialAccount = (ws?._count?.socialAccounts ?? 0) > 0
+    brandReady = hasWebsiteUrl && hasSocialAccount
     hasBrandProfile = !!ws?.brandProfile
     pendingComments = pendingCommentsCount
     scheduledToday = scheduledTodayCount
@@ -202,19 +206,19 @@ export default async function DashboardHome() {
                 <SetupStep
                   icon={Globe}
                   label="Add your website URL"
-                  done={true}
+                  done={hasWebsiteUrl}
                   href={`/workspace/${activeWorkspaceId}/settings`}
                 />
                 <SetupStep
                   icon={Share2}
                   label="Connect at least one social account"
-                  done={false}
+                  done={hasSocialAccount}
                   href={`/workspace/${activeWorkspaceId}/settings`}
                 />
                 <SetupStep
                   icon={Zap}
                   label="Build your brand profile"
-                  done={false}
+                  done={hasBrandProfile}
                   href={`/workspace/${activeWorkspaceId}/brand`}
                   locked
                 />

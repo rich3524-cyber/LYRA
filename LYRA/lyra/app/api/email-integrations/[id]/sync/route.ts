@@ -7,28 +7,40 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const user = await requireAuth()
-  const { id } = await params
-
-  const integration = await prisma.emailIntegration.findUnique({
-    where: { id },
-    select: { workspaceId: true },
-  })
-  if (!integration) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-
-  const access = await prisma.workspace.findFirst({
-    where: { id: integration.workspaceId, access: { some: { userId: user.id } } },
-    select: { id: true },
-  })
-  if (!access) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
   try {
-    const { synced } = await syncEmailIntegration(id)
-    return NextResponse.json({ synced })
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Sync failed' },
-      { status: 500 }
-    )
+    const user = await requireAuth()
+    const { id } = await params
+
+    // Fetch and authorize in one scoped query so there's never an unscoped
+    // integration object in scope that a future edit could sync before an
+    // access check runs. The fallback lookup below only decides which error
+    // to return -- it plays no role in authorizing the sync.
+    const integration = await prisma.emailIntegration.findFirst({
+      where: {
+        id,
+        workspace: { access: { some: { userId: user.id, role: { not: 'CLIENT_VIEW' } } } },
+      },
+      select: { id: true },
+    })
+    if (!integration) {
+      const exists = await prisma.emailIntegration.findUnique({ where: { id }, select: { id: true } })
+      return NextResponse.json({ error: exists ? 'Forbidden' : 'Not found' }, { status: exists ? 403 : 404 })
+    }
+
+    try {
+      const { synced } = await syncEmailIntegration(id)
+      return NextResponse.json({ synced })
+    } catch (err) {
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : 'Sync failed' },
+        { status: 500 }
+      )
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Unauthorized') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    console.error('POST /api/email-integrations/[id]/sync error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

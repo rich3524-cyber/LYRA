@@ -17,7 +17,7 @@ export async function POST(
     const page = await prisma.seoPage.findFirst({
       where: {
         id: pageId,
-        workspace: { access: { some: { userId: user.id } } },
+        workspace: { access: { some: { userId: user.id, role: { not: 'CLIENT_VIEW' } } } },
       },
     })
     if (!page) return NextResponse.json({ error: 'Not found' }, { status: 404 })

@@ -19,7 +19,7 @@ export async function POST(
     const page = await prisma.seoPage.findFirst({
       where: {
         id: pageId,
-        workspace: { access: { some: { userId: user.id } } },
+        workspace: { access: { some: { userId: user.id, role: { not: 'CLIENT_VIEW' } } } },
       },
       include: {
         workspace: { include: { brandProfile: true } },

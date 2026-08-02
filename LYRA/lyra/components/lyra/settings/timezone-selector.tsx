@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition, useMemo } from 'react'
+import { toast } from 'sonner'
 import { Check, ChevronsUpDown, Globe } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
@@ -56,16 +57,27 @@ export function TimezoneSelector({ workspaceId, currentTimezone }: Props) {
   function handleSelect(tz: string) {
     setOpen(false)
     if (tz === selected) return
+    const previous = selected
     setSelected(tz)
     setSaved(false)
     startTransition(async () => {
-      await fetch(`/api/workspaces/${workspaceId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ timezone: tz }),
-      })
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
+      try {
+        const res = await fetch(`/api/workspaces/${workspaceId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ timezone: tz }),
+        })
+        if (!res.ok) {
+          setSelected(previous)
+          toast.error('Failed to save timezone')
+          return
+        }
+        setSaved(true)
+        setTimeout(() => setSaved(false), 2000)
+      } catch {
+        setSelected(previous)
+        toast.error('Failed to save timezone')
+      }
     })
   }
 

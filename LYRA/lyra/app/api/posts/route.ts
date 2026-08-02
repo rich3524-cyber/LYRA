@@ -5,6 +5,7 @@ import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { parseBody, ValidationError } from '@/lib/validate'
 import { checkMediaCompatibility, formatCompatibilityIssue } from '@/services/social/media-compatibility'
+import { canWrite } from '@/lib/authz'
 
 export const dynamic = 'force-dynamic'
 
@@ -133,7 +134,7 @@ export async function POST(req: Request) {
     const access = await prisma.workspaceAccess.findFirst({
       where: { workspaceId, userId: user.id },
     })
-    if (!access) {
+    if (!access || !canWrite(access.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

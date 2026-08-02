@@ -27,11 +27,11 @@ export async function PATCH(
     const { id } = await params
     const { content, status, scheduledAt, mediaUrls } = await parseBody(req, patchPostSchema)
 
-    // Verify the post belongs to a workspace the user has access to
+    // Verify the post belongs to a workspace the user has write access to
     const existing = await prisma.post.findFirst({
       where: {
         id,
-        workspace: { access: { some: { userId: user.id } } },
+        workspace: { access: { some: { userId: user.id, role: { not: 'CLIENT_VIEW' } } } },
       },
       select: {
         id: true, status: true, workspaceId: true, authorId: true,
@@ -138,7 +138,7 @@ export async function DELETE(
     const existing = await prisma.post.findFirst({
       where: {
         id,
-        workspace: { access: { some: { userId: user.id } } },
+        workspace: { access: { some: { userId: user.id, role: { not: 'CLIENT_VIEW' } } } },
       },
     })
 

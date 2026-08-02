@@ -19,11 +19,21 @@ async function publishToInstagram(
   accessToken: string,
   mediaUrls?: string[],
 ): Promise<string> {
+  // Instagram requires an image for every feed post. Falling back to a random
+  // third-party stock photo here used to silently publish the wrong image to
+  // the customer's live account whenever media resolution failed or came back
+  // empty -- refuse instead, so the post fails loudly and shows as Failed in
+  // the Calendar rather than going out with content nobody approved.
+  const imageUrl = mediaUrls?.[0]
+  if (!imageUrl) {
+    throw new Error('No media available for image post — refusing to substitute a placeholder image')
+  }
+
   const createRes = await fetch(`https://graph.facebook.com/v19.0/${igId}/media`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      image_url: mediaUrls?.[0] ?? 'https://picsum.photos/1080/1080.jpg',
+      image_url: imageUrl,
       caption: content,
       access_token: accessToken,
     }),

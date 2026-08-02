@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { canWrite } from '@/lib/authz'
 import type { CrisisKeywordSuggestionState } from '@/services/brand-intelligence/crisis-keyword-suggester'
 
 export const dynamic = 'force-dynamic'
@@ -21,7 +22,7 @@ export async function POST(req: Request) {
     const access = await prisma.workspaceAccess.findFirst({
       where: { userId: user.id, workspaceId },
     })
-    if (!access) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!access || !canWrite(access.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
     const trimmed = keyword.trim().toLowerCase()
 

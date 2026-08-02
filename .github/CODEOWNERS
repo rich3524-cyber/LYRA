@@ -1,0 +1,7 @@
+# Deploy-critical config -- these files control what gets built, tested, and
+# deployed, and where secrets/environment variables flow. Review changes to
+# them with extra care; a mistake here is a production-affecting mistake.
+/.github/workflows/  @rich3524-cyber
+/netlify.toml        @rich3524-cyber
+/LYRA/lyra/railway.toml       @rich3524-cyber
+/LYRA/lyra/Dockerfile.worker  @rich3524-cyber

@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     }
 
     const workspace = await prisma.workspace.findFirst({
-      where: { id: workspaceId, access: { some: { userId: user.id } } },
+      where: { id: workspaceId, access: { some: { userId: user.id, role: { not: 'CLIENT_VIEW' } } } },
     })
     if (!workspace) {
       return new Response(JSON.stringify({ error: 'Not found' }), { status: 404 })

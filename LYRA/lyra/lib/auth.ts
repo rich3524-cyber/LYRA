@@ -1,8 +1,9 @@
 import { timingSafeEqual } from 'crypto'
+import { cache } from 'react'
 import { auth0 } from './auth0'
 import { prisma } from './prisma'
 
-export async function getCurrentUser() {
+export const getCurrentUser = cache(async () => {
   let session: Awaited<ReturnType<typeof auth0.getSession>>
   try {
     session = await auth0.getSession()
@@ -37,7 +38,7 @@ export async function getCurrentUser() {
     console.error('[getCurrentUser] prisma.user.upsert failed:', err)
     return null
   }
-}
+})
 
 export async function requireAuth() {
   const user = await getCurrentUser()
