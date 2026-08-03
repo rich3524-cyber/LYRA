@@ -119,19 +119,13 @@ jobs:
 
   # Netlify deploys automatically via its GitHub integration (connected in Netlify dashboard).
   # No deploy step needed here — Netlify triggers on push to main with its own build servers.
-
-  deploy-workers:
-    name: Deploy workers to Railway
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
-
-      - name: Deploy worker service
-        run: railway up --service lyra-workers --detach
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+  #
+  # Railway also deploys the worker service automatically via its own GitHub integration
+  # (confirmed 2 Aug 2026: a push-triggered Railway deployment completed ~3 minutes before
+  # a `railway up` step here would even have started). A `deploy-workers` job using the
+  # Railway CLI used to exist here as a second, redundant deploy path -- it consistently
+  # failed fast (~11s, too fast to be a real build attempt) because Railway was already
+  # deploying via its native integration, and once `continue-on-error` was removed from it
+  # (to stop failures being silently swallowed), those redundant failures started emailing
+  # as if the real deploy had broken, when it hadn't. Removed rather than fixed, since
+  # Railway's native integration already does the job.

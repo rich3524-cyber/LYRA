@@ -1,6 +1,6 @@
 # LYRA — Project Handover Document
 
-**Date:** May 2026 (updated July 2026 — internal testing pass: ✅ Analytics tab now shows real engagement data (was entirely unbuilt — `sync-metrics` only ever wrote placeholder zeros — now fetches real numbers from Zernio, plus a follow-up fix so LinkedIn posts resolve correctly too); ✅ Inbox comment ingestion fixed (webhook was reading a field that doesn't exist on real deliveries, so zero comments had ever landed since the Zernio webhook was built) + a self-reply feedback loop fixed; ✅ Dashboard false-FAILED status on a genuinely-published post fixed (same class of bug — trusted a speculative Zernio response field name over their actual docs); ✅ Google Search Console connect flow fixed (wrong redirect domain + site never verified) and confirmed working via a real reconnect test; composer UX fixes (score panel close button, real edit-existing-post flow, drag-and-drop media upload); LYRA Trend add-on scaffold committed (Phase 3); ✅ scheduled posts with media confirmed fully automatic end-to-end: fixed 4 stacked infra bugs (missing cron-job.org auth headers, an undeployed cron route, an overly-broad root `.gitignore` silently blocking new files project-wide, and a missing `DATABASE_URL` on the Railway worker fleet), plus a separate media-attachment bug (S3 bucket needed a public-read policy for Zernio to fetch files, and Zernio's `mediaItems` field was in the wrong place in our request shape), plus 4 of 5 cron-job.org jobs having been auto-disabled and needing re-activation + faster intervals; ✅ media uploads fixed (was a 4-layer AWS misconfiguration, now confirmed working); Zernio platform testing: X/TikTok/YouTube/Google Business connected, Facebook blocked on LYRA workspace by a Meta new-Business-Portfolio issue (not a code bug); Autonomy settings control; Inbox unread badge; Zernio Bridge Phases 1–4: unified social API replaces per-platform native OAuth for new connects; updated June 2026 — Session 40: LinkedIn Community Management API + token introspection; Session 39: full mobile UI/UX audit + fixes; Session 38: media upload fix, client approval workflow, tsconfig dedup fix; updated 2026-07-19 — ✅ email marketing integration (Klaviyo/Mailchimp/Customer.io campaigns in Content Calendar — Klaviyo confirmed working); Agency Plan badge in header; LYRA Assistant placeholder page; competitor scraper heading-fallback + honest postsPerWeek; updated 2026-07-18 — ✅ full comprehensive code review completed and every Critical + High finding fixed (5 Critical in commit `3a4dab0`, all 16 High in commit `f471680`): cross-tenant IDOR on upload presign, 4 live debug/publish routes deleted, SSRF hardening via new `lib/safe-fetch.ts`, atomic post-publish status transition, shared Redis connection for BullMQ, workspace role-gating, account-deletion scope fix, Stripe webhook idempotency + a real billing-downgrade bug fixed on the unreleased Trend add-on, security headers (CSP/HSTS/etc., verified live in-browser), AI auto-reply hardened against prompt injection, a genuinely broken Docker worker deploy path fixed, HTTP timeouts added across every external client, N+1 query batching, a DB index + safety cap on the publish-due-posts cron, Redis-backed rate limiting on AI/upload/PDF routes, and frontend perf fixes (lazy-loaded charts, an O(n²) bug, React.memo); plus the one non-code follow-up item (a separate Postgres connection for the Railway worker) completed manually in Supabase/Railway); updated 2026-07-20 — ✅ Medium/Low review findings fixed (commit `6e34496`); ✅ Instagram GIF-format publish failure fixed (JPEG/PNG only on Instagram/Threads, now checked live in Compose before scheduling) plus 2 real bugs found alongside it (dead BullMQ retry logic, no visibility into failure reasons — both fixed); ✅ a duplicate-publish bug found the same night (a DB write failing after a successful platform publish could trigger a real second publish attempt via BullMQ retry — fixed so nothing can throw after a successful publish); 🔧 a rough night of Netlify deploys — hosted CI's SSH connection to GitHub was intermittently broken (Netlify-side, self-resolved), two brief local-CLI-deploy-caused outages (~3 min, ~30 sec) both caught and rolled back immediately, root-caused (Turbopack workspace-root misdetection from stray lockfiles, fixed via `turbopack.root`) and documented in full — **recommendation: avoid local `netlify deploy --prod` from this machine going forward, prefer hosted CI**; updated 2026-07-20 (evening) — ✅ Facebook connect to the LYRA workspace resolved (a confirmed Meta-side stuck permission grant, not a LYRA code issue — Zernio support pinpointed the fix); ✅ Klaviyo campaign dates showing a day off on the calendar, root-caused to a decoy API field (`scheduled_at` is an audit timestamp, not the send time — switched to `send_time`); ✅ YouTube added to the Compose platform selector (was fully wired everywhere else, just missing from that one list); ✅ AI Schedule Generator caption CSV export + an "Awaiting Media" gate shipped end-to-end (new `requiresMedia` field, export button, Calendar/detail-panel/Compose enforcement, all server-side-gated) via full brainstorm → spec → plan → subagent-driven implementation with two-stage review per task; ✅ a stuck full-screen loading-spinner bug found and fixed in `NavigationLoader` (was misreading `blob:` download links as SPA navigation — also silently affected the pre-existing Help PDF download, never previously reported); updated 2026-07-21 (afternoon) — ✅ dashboard YouTube label overflow fixed; ✅ Inbox self-comment filter added to sync route; ✅ Analytics inboxPending count fixed (was counting IGNORED as pending); ✅ on-demand Sync button added to Analytics page (new /api/analytics/sync endpoint); ✅ Analytics engagement chart now buckets by local date not UTC (timezone offset param); ✅ response rate now excludes IGNORED comments from denominator; ✅ GSC SEO connection now surfaces a reconnect prompt instead of silent "no data" when token expires; updated 2026-07-21 — ✅ Klaviyo campaigns now sync through to Sent → Published (was permanently stuck at Scheduled once a campaign actually sent); ✅ a real "FB published, LinkedIn+Instagram showed Failed" incident root-caused to a client-side timeout + BullMQ retry racing Zernio's own duplicate-post detection — fixed with a proper idempotency key, the two affected posts corrected in the DB to match reality (they had genuinely published); ✅ Inbox comment sync found completely broken for every Zernio-connected account, on every platform, both the manual Sync button and the automatic cron — root-caused live via a real LinkedIn comment test, fixed by routing through the same provider abstraction publish() already uses, confirmed working end-to-end on LinkedIn, Facebook, and Instagram; ✅ Analytics page's "Total reach"/"Top posts" looked empty despite real activity — root-caused to `views` (populates before `reach` on IG/LinkedIn) being silently dropped since the field was never declared anywhere in the codebase; added end-to-end (schema, sync cron, API, dashboard, chart); extensive live alpha testing this session with the Testing Checklist updated throughout, evidence-first (DB queries, production log checks, and direct visual confirmation) rather than taking test results at face value; updated 2026-07-22 — ✅ page heading font/size unified across all dashboard pages to `font-display text-4xl text-text-primary` (Analytics page had a fully wrong style — hardcoded hex color, extra font-weight — others had legitimate but unwanted size variance); evaluated Google Pomelli (Google Labs/DeepMind) as a possible addition to the Creative Studio Phase 2 platform lineup — no public API exists, so there's no ingestion path into LYRA's launcher+ingestion architecture, and its "Business DNA" concept duplicates LYRA's existing Brand AI rather than adding new capability; not integrated, logged as a watch-list note in the Creative Studio scope doc's Open Questions section instead; updated 2026-07-23 — ✅ publish-idempotency fix and drag-and-drop reschedule both confirmed live: the 4 posts dragged to a new time on 22 Jul all published clean and showed Published on the calendar, closing out both open checklist items in one real test; ✅ Inbox unread badge staleness fixed — badge stayed lit after switching workspaces even with nothing genuinely pending, root-caused to the badge count being computed once server-side and never refreshed on a client-side workspace switch (unlike the active-workspace-id itself, which already had this exact workaround) — fixed with a new live-count endpoint fetched client-side, keyed on the active workspace; ✅ media upload had no real file-size limit — the actual upload path Compose uses had zero size validation (a 50MB check existed only in dead, unreachable code), so a large file's fate depended on whether it finished before the presigned URL's 5-minute expiry rather than any real policy; added a real 50MB limit enforced client- and server-side, plus stopped swallowing the real error message on failed uploads; ✅ Content Calendar confirmed matching the DB exactly (20 ITWM posts, 21–29 Jul, cross-checked directly) — no phantom or missing entries; ✅ Crisis Aware fully confirmed working end-to-end after fixing a real gap — it never checked comments arriving via the real-time webhook (only the polling cron, separately broken for Facebook on a Meta permission error), fixed by wiring the same check into the webhook handler, re-tested and confirmed (crisisActive flips, CrisisEvent created, banner shown); also confirmed a real UX gap along the way — Crisis Aware's escalation is in-app only, no email/notification exists anywhere in the app, flagged for later; ✅ escalated Inbox comments had zero way to be replied to or dismissed (pure frontend gap, backend never blocked it) — fixed and confirmed live (manual reply posted to Facebook within seconds), AI Generate stays hidden for escalated ones since AI itself declined to draft a reply, escalationReason now surfaced too; ✅ self-reply loop recurred a third time via the webhook's self-comment filter — its native-id and username fallbacks were structurally broken for Zernio-connected accounts (platformId stores Zernio's own id, not the native one; Facebook Pages have no username), fixed by adding the same name-match fallback the other two ingestion paths already had; ✅ shipped Crisis Aware AI-suggested keywords end-to-end via full brainstorm → spec → plan → subagent-driven implementation (10 tasks, two-stage review per task plus a final cross-task review) — Brand AI now generates suggested crisis-escalation keywords (legal/safety/discrimination/media/business-specific) during a rebuild, reviewable on the Brand AI page (only shown when Crisis Aware is on) with approve/dismiss/manual-add/remove; suggestions live separately from the live `Guardrail` table until approved, so detection is provably unaffected until a human acts; real bugs caught and fixed along the way (an intra-batch AI-suggestion dedup gap, a malformed-JSON fail-open gap, a genuine race condition on concurrent approves closed with a DB unique constraint + atomic upsert, an accessibility gap, an idempotent-delete gap, and a final-review catch where the race fix had silently made duplicate detection case-sensitive, contradicting the spec — fixed by normalizing to lowercase on write); email notification on crisis trigger intentionally scoped out as a separate follow-up spec, not yet built; updated 2026-07-24 — ✅ per-platform media slots shipped in Compose: a "Customise per platform" toggle appears once media is attached and platforms are selected, opening a tab per platform; each tab shows the shared media dimmed as a fallback and accepts its own upload to override for that platform only; tabs with no override fall back to shared at post-creation time (no schema change — each Post row already holds its own mediaUrls); a UX bug found immediately in live testing (tabs were pre-seeded with shared media copies, causing users to accidentally send 2 videos to TikTok/LinkedIn which reject multi-video posts — root-caused via DB query showing FAILED rows with 2-file mediaUrls and Zernio's explicit "single video file only" error) and fixed the same session: tabs now open empty showing shared as read-only fallback, API hardened to treat empty platformMedia array as no-override; TikTok and LinkedIn hints updated to flag single-video-only restriction; dots on tab labels indicate which platforms have an active override; updated 2026-07-28 — ✅ Stripe CLI installed (winget) and authenticated to the LYRA live Stripe account; all Stripe price IDs (Starter/Pro/Agency monthly + annual, Trend monthly + annual, Crisis Aware monthly + annual) added to `.env.local` and Netlify environment variables; `STRIPE_WEBHOOK_SECRET` (`whsec_...`) and `ENCRYPTION_KEY` (AES-256 hex) filled in (both were placeholders); stray `STRIPE ACCOUNT BACKUP` line removed from env file; ✅ Crisis Aware billing integration shipped — Option A pricing (Agency plan includes Crisis Aware free, Pro plan can add it for a monthly subscription, Starter sees a locked card): new `crisisAwareSubId` field on `Agency` schema (DB column added via Supabase SQL Editor), new `/api/stripe/crisis-aware-checkout` route, webhook handling for `crisis_aware` subscription type on `checkout.session.completed` / `subscription.updated` / `subscription.deleted`, new `CrisisAwareAddonCard` component, `CrisisAwareToggle.isPro` renamed to `hasAccess`, settings page computes access from plan + `crisisAwareSubId` and renders toggle or addon card accordingly; two bugs fixed during testing: (1) new Stripe price IDs not set in Netlify env vars → Internal server error on Activate (fixed by adding all price IDs to Netlify); (2) standalone workspaces with no `agencyId` link caused "No agency found" (fixed by looking up agency via user membership, same approach as the main plan checkout) — Stripe checkout form confirmed opening correctly for a Pro-plan workspace after both fixes
+**Date:** May 2026 (updated July 2026 — internal testing pass: ✅ Analytics tab now shows real engagement data (was entirely unbuilt — `sync-metrics` only ever wrote placeholder zeros — now fetches real numbers from Zernio, plus a follow-up fix so LinkedIn posts resolve correctly too); ✅ Inbox comment ingestion fixed (webhook was reading a field that doesn't exist on real deliveries, so zero comments had ever landed since the Zernio webhook was built) + a self-reply feedback loop fixed; ✅ Dashboard false-FAILED status on a genuinely-published post fixed (same class of bug — trusted a speculative Zernio response field name over their actual docs); ✅ Google Search Console connect flow fixed (wrong redirect domain + site never verified) and confirmed working via a real reconnect test; composer UX fixes (score panel close button, real edit-existing-post flow, drag-and-drop media upload); LYRA Trend add-on scaffold committed (Phase 3); ✅ scheduled posts with media confirmed fully automatic end-to-end: fixed 4 stacked infra bugs (missing cron-job.org auth headers, an undeployed cron route, an overly-broad root `.gitignore` silently blocking new files project-wide, and a missing `DATABASE_URL` on the Railway worker fleet), plus a separate media-attachment bug (S3 bucket needed a public-read policy for Zernio to fetch files, and Zernio's `mediaItems` field was in the wrong place in our request shape), plus 4 of 5 cron-job.org jobs having been auto-disabled and needing re-activation + faster intervals; ✅ media uploads fixed (was a 4-layer AWS misconfiguration, now confirmed working); Zernio platform testing: X/TikTok/YouTube/Google Business connected, Facebook blocked on LYRA workspace by a Meta new-Business-Portfolio issue (not a code bug); Autonomy settings control; Inbox unread badge; Zernio Bridge Phases 1–4: unified social API replaces per-platform native OAuth for new connects; updated June 2026 — Session 40: LinkedIn Community Management API + token introspection; Session 39: full mobile UI/UX audit + fixes; Session 38: media upload fix, client approval workflow, tsconfig dedup fix; updated 2026-07-19 — ✅ email marketing integration (Klaviyo/Mailchimp/Customer.io campaigns in Content Calendar — Klaviyo confirmed working); Agency Plan badge in header; LYRA Assistant placeholder page; competitor scraper heading-fallback + honest postsPerWeek; updated 2026-07-18 — ✅ full comprehensive code review completed and every Critical + High finding fixed (5 Critical in commit `3a4dab0`, all 16 High in commit `f471680`): cross-tenant IDOR on upload presign, 4 live debug/publish routes deleted, SSRF hardening via new `lib/safe-fetch.ts`, atomic post-publish status transition, shared Redis connection for BullMQ, workspace role-gating, account-deletion scope fix, Stripe webhook idempotency + a real billing-downgrade bug fixed on the unreleased Trend add-on, security headers (CSP/HSTS/etc., verified live in-browser), AI auto-reply hardened against prompt injection, a genuinely broken Docker worker deploy path fixed, HTTP timeouts added across every external client, N+1 query batching, a DB index + safety cap on the publish-due-posts cron, Redis-backed rate limiting on AI/upload/PDF routes, and frontend perf fixes (lazy-loaded charts, an O(n²) bug, React.memo); plus the one non-code follow-up item (a separate Postgres connection for the Railway worker) completed manually in Supabase/Railway); updated 2026-07-20 — ✅ Medium/Low review findings fixed (commit `6e34496`); ✅ Instagram GIF-format publish failure fixed (JPEG/PNG only on Instagram/Threads, now checked live in Compose before scheduling) plus 2 real bugs found alongside it (dead BullMQ retry logic, no visibility into failure reasons — both fixed); ✅ a duplicate-publish bug found the same night (a DB write failing after a successful platform publish could trigger a real second publish attempt via BullMQ retry — fixed so nothing can throw after a successful publish); 🔧 a rough night of Netlify deploys — hosted CI's SSH connection to GitHub was intermittently broken (Netlify-side, self-resolved), two brief local-CLI-deploy-caused outages (~3 min, ~30 sec) both caught and rolled back immediately, root-caused (Turbopack workspace-root misdetection from stray lockfiles, fixed via `turbopack.root`) and documented in full — **recommendation: avoid local `netlify deploy --prod` from this machine going forward, prefer hosted CI**; updated 2026-07-20 (evening) — ✅ Facebook connect to the LYRA workspace resolved (a confirmed Meta-side stuck permission grant, not a LYRA code issue — Zernio support pinpointed the fix); ✅ Klaviyo campaign dates showing a day off on the calendar, root-caused to a decoy API field (`scheduled_at` is an audit timestamp, not the send time — switched to `send_time`); ✅ YouTube added to the Compose platform selector (was fully wired everywhere else, just missing from that one list); ✅ AI Schedule Generator caption CSV export + an "Awaiting Media" gate shipped end-to-end (new `requiresMedia` field, export button, Calendar/detail-panel/Compose enforcement, all server-side-gated) via full brainstorm → spec → plan → subagent-driven implementation with two-stage review per task; ✅ a stuck full-screen loading-spinner bug found and fixed in `NavigationLoader` (was misreading `blob:` download links as SPA navigation — also silently affected the pre-existing Help PDF download, never previously reported); updated 2026-07-21 (afternoon) — ✅ dashboard YouTube label overflow fixed; ✅ Inbox self-comment filter added to sync route; ✅ Analytics inboxPending count fixed (was counting IGNORED as pending); ✅ on-demand Sync button added to Analytics page (new /api/analytics/sync endpoint); ✅ Analytics engagement chart now buckets by local date not UTC (timezone offset param); ✅ response rate now excludes IGNORED comments from denominator; ✅ GSC SEO connection now surfaces a reconnect prompt instead of silent "no data" when token expires; updated 2026-07-21 — ✅ Klaviyo campaigns now sync through to Sent → Published (was permanently stuck at Scheduled once a campaign actually sent); ✅ a real "FB published, LinkedIn+Instagram showed Failed" incident root-caused to a client-side timeout + BullMQ retry racing Zernio's own duplicate-post detection — fixed with a proper idempotency key, the two affected posts corrected in the DB to match reality (they had genuinely published); ✅ Inbox comment sync found completely broken for every Zernio-connected account, on every platform, both the manual Sync button and the automatic cron — root-caused live via a real LinkedIn comment test, fixed by routing through the same provider abstraction publish() already uses, confirmed working end-to-end on LinkedIn, Facebook, and Instagram; ✅ Analytics page's "Total reach"/"Top posts" looked empty despite real activity — root-caused to `views` (populates before `reach` on IG/LinkedIn) being silently dropped since the field was never declared anywhere in the codebase; added end-to-end (schema, sync cron, API, dashboard, chart); extensive live alpha testing this session with the Testing Checklist updated throughout, evidence-first (DB queries, production log checks, and direct visual confirmation) rather than taking test results at face value; updated 2026-07-22 — ✅ page heading font/size unified across all dashboard pages to `font-display text-4xl text-text-primary` (Analytics page had a fully wrong style — hardcoded hex color, extra font-weight — others had legitimate but unwanted size variance); evaluated Google Pomelli (Google Labs/DeepMind) as a possible addition to the Creative Studio Phase 2 platform lineup — no public API exists, so there's no ingestion path into LYRA's launcher+ingestion architecture, and its "Business DNA" concept duplicates LYRA's existing Brand AI rather than adding new capability; not integrated, logged as a watch-list note in the Creative Studio scope doc's Open Questions section instead; updated 2026-07-23 — ✅ publish-idempotency fix and drag-and-drop reschedule both confirmed live: the 4 posts dragged to a new time on 22 Jul all published clean and showed Published on the calendar, closing out both open checklist items in one real test; ✅ Inbox unread badge staleness fixed — badge stayed lit after switching workspaces even with nothing genuinely pending, root-caused to the badge count being computed once server-side and never refreshed on a client-side workspace switch (unlike the active-workspace-id itself, which already had this exact workaround) — fixed with a new live-count endpoint fetched client-side, keyed on the active workspace; ✅ media upload had no real file-size limit — the actual upload path Compose uses had zero size validation (a 50MB check existed only in dead, unreachable code), so a large file's fate depended on whether it finished before the presigned URL's 5-minute expiry rather than any real policy; added a real 50MB limit enforced client- and server-side, plus stopped swallowing the real error message on failed uploads; ✅ Content Calendar confirmed matching the DB exactly (20 ITWM posts, 21–29 Jul, cross-checked directly) — no phantom or missing entries; ✅ Crisis Aware fully confirmed working end-to-end after fixing a real gap — it never checked comments arriving via the real-time webhook (only the polling cron, separately broken for Facebook on a Meta permission error), fixed by wiring the same check into the webhook handler, re-tested and confirmed (crisisActive flips, CrisisEvent created, banner shown); also confirmed a real UX gap along the way — Crisis Aware's escalation is in-app only, no email/notification exists anywhere in the app, flagged for later; ✅ escalated Inbox comments had zero way to be replied to or dismissed (pure frontend gap, backend never blocked it) — fixed and confirmed live (manual reply posted to Facebook within seconds), AI Generate stays hidden for escalated ones since AI itself declined to draft a reply, escalationReason now surfaced too; ✅ self-reply loop recurred a third time via the webhook's self-comment filter — its native-id and username fallbacks were structurally broken for Zernio-connected accounts (platformId stores Zernio's own id, not the native one; Facebook Pages have no username), fixed by adding the same name-match fallback the other two ingestion paths already had; ✅ shipped Crisis Aware AI-suggested keywords end-to-end via full brainstorm → spec → plan → subagent-driven implementation (10 tasks, two-stage review per task plus a final cross-task review) — Brand AI now generates suggested crisis-escalation keywords (legal/safety/discrimination/media/business-specific) during a rebuild, reviewable on the Brand AI page (only shown when Crisis Aware is on) with approve/dismiss/manual-add/remove; suggestions live separately from the live `Guardrail` table until approved, so detection is provably unaffected until a human acts; real bugs caught and fixed along the way (an intra-batch AI-suggestion dedup gap, a malformed-JSON fail-open gap, a genuine race condition on concurrent approves closed with a DB unique constraint + atomic upsert, an accessibility gap, an idempotent-delete gap, and a final-review catch where the race fix had silently made duplicate detection case-sensitive, contradicting the spec — fixed by normalizing to lowercase on write); email notification on crisis trigger intentionally scoped out as a separate follow-up spec, not yet built; updated 2026-07-24 — ✅ per-platform media slots shipped in Compose: a "Customise per platform" toggle appears once media is attached and platforms are selected, opening a tab per platform; each tab shows the shared media dimmed as a fallback and accepts its own upload to override for that platform only; tabs with no override fall back to shared at post-creation time (no schema change — each Post row already holds its own mediaUrls); a UX bug found immediately in live testing (tabs were pre-seeded with shared media copies, causing users to accidentally send 2 videos to TikTok/LinkedIn which reject multi-video posts — root-caused via DB query showing FAILED rows with 2-file mediaUrls and Zernio's explicit "single video file only" error) and fixed the same session: tabs now open empty showing shared as read-only fallback, API hardened to treat empty platformMedia array as no-override; TikTok and LinkedIn hints updated to flag single-video-only restriction; dots on tab labels indicate which platforms have an active override; updated 2026-07-28 — ✅ Stripe CLI installed (winget) and authenticated to the LYRA live Stripe account; all Stripe price IDs (Starter/Pro/Agency monthly + annual, Trend monthly + annual, Crisis Aware monthly + annual) added to `.env.local` and Netlify environment variables; `STRIPE_WEBHOOK_SECRET` (`whsec_...`) and `ENCRYPTION_KEY` (AES-256 hex) filled in (both were placeholders); stray `STRIPE ACCOUNT BACKUP` line removed from env file; ✅ Crisis Aware billing integration shipped — Option A pricing (Agency plan includes Crisis Aware free, Pro plan can add it for a monthly subscription, Starter sees a locked card): new `crisisAwareSubId` field on `Agency` schema (DB column added via Supabase SQL Editor), new `/api/stripe/crisis-aware-checkout` route, webhook handling for `crisis_aware` subscription type on `checkout.session.completed` / `subscription.updated` / `subscription.deleted`, new `CrisisAwareAddonCard` component, `CrisisAwareToggle.isPro` renamed to `hasAccess`, settings page computes access from plan + `crisisAwareSubId` and renders toggle or addon card accordingly; two bugs fixed during testing: (1) new Stripe price IDs not set in Netlify env vars → Internal server error on Activate (fixed by adding all price IDs to Netlify); (2) standalone workspaces with no `agencyId` link caused "No agency found" (fixed by looking up agency via user membership, same approach as the main plan checkout) — Stripe checkout form confirmed opening correctly for a Pro-plan workspace after both fixes; ✅ Agency PDF report confirmed correct (19 posts, 251 impressions, 5.18% engagement rate, AI narrative — all accurate, all formatting clean); ✅ Brand Intelligence rebuild confirmed on-brand; ✅ Pre-Publish Content Scoring confirmed working after fixing a silent bug (Claude wrapping JSON in markdown code fences caused `JSON.parse` to throw → 503 → silent failure in the composer; fixed by stripping fences before parse and surfacing errors as a toast); updated 2026-07-30 — ✅ LYRA Trend add-on billing wired end-to-end: `trendSubId` added to `Workspace` schema (DB column via Supabase MCP), webhook fulfillment added for all three subscription event types, `TrendAddonCard` rendered in Settings Add-ons section with live `enabled` state, price set to $10/month; updated 2026-08-01 — ✅ six /code-review findings fixed (commit `9d29b8f`): Critical — Stripe webhook workspace creation now atomic in `$transaction` (orphaned workspace + infinite retry loop closed); Medium — `isAwaitingMedia` in per-platform mode now respects shared mediaUrls fallback; Medium — sessionStorage cleared at schedule generation start to prevent stale prior-run review; Medium — `Promise.allSettled` replaces `Promise.all` in schedule generator (one platform failure no longer discards all others); Medium — schedule-generator.ts throws on Claude parse failure so route returns 500 and client can surface it; Low — stale score cleared alongside toast on non-OK scoring response; updated 2026-07-28 (later) — ✅ AI Schedule Generator "Schedule generation failed" bug root-caused and fixed — a first fix (raising the Claude client's own timeout) proved insufficient; the real constraint was Netlify's own hard 60s synchronous function ceiling, independent of any client-side timeout; fixed by splitting generation into one Claude call per platform per week (run concurrently) instead of one call covering every platform, verified live at 17–23s per call; feature then fully live-tested end-to-end (generate → CSV export → Awaiting Media badges → attach media → gate clears → SCHEDULED), closing out Testing Checklist line 89; also fixed a GitHub push permission conflict between two accounts used on this machine (LYRA vs. Spice Space) by scoping LYRA's remote URL to its own credential slot; updated 2026-07-29 (later) — ✅ full 48-item alpha Testing Checklist complete (last item, bad-token failure visibility, answered via code review — no dedicated "reconnect needed" detection exists, Help page corrected); ✅ post-completion regression sweep across all 48 items found zero cross-fix regressions, but surfaced and fixed two unrelated real gaps (Schedule Review's media upload bypassing the 50MB limit; content scoring failing silently on a real API error) plus cleanup (a 22MB stale duplicate project directory, a dead Redis-based route); ✅ Demo Guide + in-app Help docs audited against actual code (not just dates) — found and corrected four entirely fictional features that had zero implementation (client self-service onboarding links, team member invitations with named roles, configurable per-event email notifications, an AI credit/allowance system), plus two smaller inaccuracies (free trial length/scope, annual billing availability); added Help docs for two real undocumented features (per-platform media, AI Schedule Generator); ✅ Wishlist audited the same way — 4 items marked done (Stripe billing, full autonomous AI response loop, PDF reports, social feed analysis for Brand AI) with 2 more given partial-completion notes; 🔍 investigated the Brand AI "Engagement Insights" counter not updating — root-caused to the query excluding `views` entirely (only counts likes/comments/shares/saves/clicks), a real design gap left for a product decision, not yet fixed
 **Prepared by:** Claude Code (Anthropic)  
 **Project owner:** Richard Unwin, Into The Wild Marketing
 
@@ -8,7 +8,277 @@
 
 ## Changelog
 
-### 2026-07-28 (latest) — Stripe setup + Crisis Aware billing
+### 2026-08-02 (latest 3) — Removed redundant/failing Railway deploy step from CI
+
+---
+
+#### ✅ Diagnosed a false-failure email and removed its cause
+
+The second remediation wave's push (below) triggered a "workflow failed" email. Investigated directly via Railway CLI (`railway status`, `railway logs`, `railway deployment list`) and the GitHub Actions API: the worker service was healthy and the actual deployment (`c6c6362c...`) had already succeeded via Railway's own native GitHub integration at 11:24am — three minutes *before* `.github/workflows/deploy.yml`'s separate `deploy-workers` job even started. That job's own `railway up --service lyra-workers --detach` call failed fast (~11s) against Railway's already-completed deploy — a redundant, conflicting deploy path, not a real outage. It only started emailing because last session's fix removed `continue-on-error: true` from that job (previously it silently swallowed exactly this kind of failure). Removed the `deploy-workers` job entirely rather than fixing it, since Railway's native integration already does the job on its own; updated `README.md`'s two references to it accordingly. No production impact at any point — the worker fleet ran the new code correctly throughout.
+
+Separately noted while investigating: two Facebook-connected pages are hitting a recurring Meta permissions error (`pages_read_user_content`/Page Public Content Access) on comment sync — pre-existing, unrelated to any of this session's changes, not yet fixed.
+
+---
+
+### 2026-08-02 (latest 2) — Second remediation wave: remaining High/Medium findings
+
+---
+
+#### ✅ Continued remediation of the 2 Aug review — everything from the "not done in this pass" list, plus more
+
+Following directly on from the same-day full remediation below. `tsc` clean, 76/76 tests passing (up from 73), lint shows only the same pre-existing documented backlog (8 instances of one already-known rule, `react-hooks/set-state-in-effect`, matching the already-logged "14+ components fetch-on-mount" finding — no new violations).
+
+**Reliability/operations:**
+- All 6 BullMQ workers now have `.on('error', ...)` listeners (previously only `.on('failed', ...)`, so an error BullMQ couldn't attribute to a specific job crashed the whole process silently).
+- `workers/index.ts` rewritten for real graceful shutdown — `SIGTERM`/`SIGINT` now call `Worker.close()` on all 6 workers (waits for in-flight jobs, 25s cap) before exiting, instead of the previous immediate `process.exit(0)` with zero drain.
+- New `/api/health` endpoint (DB + Redis connectivity check) for external uptime monitoring — covers the Netlify app; the Railway worker fleet has no HTTP server to expose an equivalent on (would need a dedicated listener added to `workers/index.ts`, not done).
+- 4 routes with zero try/catch fixed (`email-campaigns`, `email-integrations` GET+POST, `email-integrations/[id]` DELETE, `email-integrations/[id]/sync` POST) — were producing raw 500s instead of 401 on an unauthenticated request.
+
+**Security:**
+- Workspace-creation entitlement check added (`POST /api/workspaces`) — any authenticated user could previously create unlimited workspaces regardless of plan; also fixed new workspaces silently defaulting to STARTER regardless of the paying agency's actual plan.
+- Rate limiting added to 4 previously-unrated expensive routes (`schedule/generate`, `brand-intelligence/build`, `reports/generate`, `comments/sync`) — inverted before (cheap single-LLM-call routes were capped, the most expensive ones weren't).
+- `lib/rate-limit.ts`'s INCR+EXPIRE race fixed — now a single atomic Lua script, so a crash between the two calls can no longer permanently exhaust a bucket.
+- **RBAC rollout extended**: `canWrite()` applied to 34 previously-ungated routes in the same-day pass below; this wave additionally fixed the **fetch-then-authorize race** at 10 more routes (comments, guardrails, post boost/publish, email integrations) — resource was fetched unscoped, then access checked separately; consolidated into one scoped query per route (matching `posts/[id]/route.ts`'s existing correct pattern), closing the "one-line refactor away from a real IDOR" hazard.
+- **PKCE code_verifier no longer travels through the OAuth `state` parameter** (Twitter connect flow) — was signed-but-not-encrypted, fully readable in the redirect URL, defeating PKCE's actual purpose. Now stored server-side in Redis with a 10-minute TTL, single-use, keyed by the signed state value.
+- Prompt-injection fencing extended from 1 of 11 Claude call sites to all sites that actually interpolate untrusted external content (scraped websites, uploaded documents, competitor posts, public comments) — 7 sites fenced, 3 correctly left unfenced after tracing their inputs back to LYRA's own internal data. Added a shared `neutralizeFenceCloser()` helper so embedded content can't prematurely close its own fence tag.
+- CSP `connect-src` tightened from a blanket `https:` allowlist to the 4 specific hosts the browser actually calls (Stripe, GTM, GA4, Meta Pixel) — verified against the real inline scripts in `app/layout.tsx`, not assumed. `script-src`'s `unsafe-inline` investigated for a nonce-based fix; **not implemented** — Next.js 16 requires forcing every page into dynamic rendering to read a per-request nonce, and a misconfiguration would silently break payment/analytics scripts with no build-time signal. Full implementation plan written as a comment in `middleware.ts` for a human to review and decide on.
+- Klaviyo's public subscribe endpoint rate-limited (5/10min per IP) — was completely open.
+- `.dockerignore` added (the dormant `.env`-in-Docker-image risk from Phase 2 is now closed if the currently-unused `Dockerfile.worker` is ever activated) + a non-root `USER node` instruction added to the same file.
+
+**Maintainability:**
+- New `lib/platform-labels.ts` — canonical `Record<Platform, string>` display-label map, replacing 8 independently-drifted copies (`'Twitter/X'` vs `'X'` vs `'Twitter / X'` etc.) across composer/schedule/settings components and the crisis alert email.
+- `.env.example` added (names only, no values) — was previously impossible to create without hitting the blanket `.env*` gitignore rule; added a `!.env.example` exception.
+- `.github/CODEOWNERS` added for the deploy-critical config files (workflows, `netlify.toml`, `railway.toml`, `Dockerfile.worker`).
+
+**Not done, flagged for later:** nonce-based CSP `script-src` (see above, needs live-browser verification); the OAuth `getAuthUrl`/`exchangeCode` duplication across 6 platform files (deferred to avoid conflicting with the concurrent PKCE fix touching the same files); converting 3 raw-string schema fields (`CrisisEvent.triggerType`, `Review.status`, `EmailCampaign.status`) to real Prisma enums (low-value type-safety polish, not a runtime bug); the remaining Medium/Low findings not covered by either wave (analytics-duplication between dashboard/PDF report, `noUncheckedIndexedAccess` tsconfig flag, `satisfies`/discriminated-union adoption, branch protection on `main` — a GitHub UI setting, not something fixable in code, no `gh` CLI on this machine either).
+
+---
+
+#### ✅ Full remediation of the 29 Jul–2 Aug `/comprehensive-review` (212 findings: 26 Critical, 62 High, 74 Medium, 50 Low across 5 phases)
+
+Worked through the review's own prioritized action plan. Not every Medium/Low item was individually touched — this pass focused on every Critical, every High that was safe to fix without a larger design process, and the two largest structural items (RBAC, DB indexes). Summary by area:
+
+**Security — stopped active harm:**
+- Live hardcoded Meta API token (`scripts/meta-api-test.mjs`) removed from code, moved to `META_TEST_TOKEN` env var. **Token itself still needs manual revocation at developers.facebook.com — not done by this pass**, since only the account owner can do that.
+- LYRA Trend Stripe checkout disabled (`app/api/stripe/trend-checkout/route.ts` now returns 503) — was live and billable despite the feature being entirely unimplemented. Billing portal (`TrendAddonCard`) rewired to the real, already-existing `/api/stripe/create-checkout` GET billing-portal endpoint so any existing subscribers can still cancel.
+- **RBAC rollout**: new `lib/authz.ts` (`canWrite(role)`, blocks the read-only `CLIENT_VIEW` role) applied across 34 previously-ungated mutating routes — closes the Critical finding where a `CLIENT_VIEW` client could call routes directly to publish posts, spend ad budget, delete Crisis Aware keywords, or reply as the brand. `app/api/upload/presign/route.ts` additionally hardened: `workspaceId` is now unconditionally required (was previously skippable). One deviation flagged and reviewed: `stripe/create-checkout` has no `WorkspaceAccess` context, gated on `User.role` instead — confirmed this is currently a no-op (nothing in the app ever sets `User.role` away from its schema default) but is not a live hole either, since the route's pre-existing `Agency.members` filter already structurally excludes CLIENT_VIEW-only clients (they only ever get a `WorkspaceAccess` row, never `Agency.members`).
+- SSRF gap closed: `services/brand-intelligence/scraper.ts` now uses `safeFetch()` (was calling raw `fetch()` after its own weaker check, missing redirect-hop re-validation) — also covers `workers/brand-sync.worker.ts`, which calls the scraper directly.
+- `EmailIntegration.apiKey` (Klaviyo/Mailchimp/Customer.io keys) now encrypted at rest via `lib/encrypt.ts`, matching `SocialAccount`/`SeoConnection`. Existing plaintext rows self-heal on next read (decrypt failure → treated as legacy plaintext → re-encrypted-and-saved), since a live migration script couldn't be safely run from here.
+- Stripe webhook idempotency: the compensating-delete's silently-swallowed failure (`.catch(() => {})`) now logs a `CRITICAL` error instead of vanishing — the underlying "event permanently lost on Stripe retry" edge case still exists (no structured alerting in this codebase yet) but is no longer invisible.
+
+**Reliability:**
+- Crisis Aware post-stranding bug fixed: the publish worker was `return`-ing (not throwing) on a crisis-active check, which BullMQ resolves as *completed* — combined with a stable job id, re-enqueueing after the crisis cleared was a silent no-op. Now throws (real retry) and `publish-due-posts` proactively clears any stuck completed/failed job before re-adding.
+- Random stock-photo fallback removed (`services/social/provider/native.ts` was substituting a `picsum.photos` placeholder when media resolution failed — now throws and the post fails visibly instead of publishing the wrong image).
+- Analytics page hard-crash fixed (`data === null` loading/`data = {}` poison-value pattern replaced with a real error state).
+- Dashboard setup checklist's hardcoded `done={true}/{false}` now wired to real computed state.
+- 6 UI mutations that skipped `res.ok` before showing success now check it properly (notably: AI-respond and AI-generate handlers no longer wipe an operator's in-progress draft on a failed response).
+
+**Testing** — 37 → 73 tests (13 files, up from 7), plus `npm test` now actually gates CI (see below): new coverage for `lib/oauth-state.ts`, `lib/safe-fetch.ts`, the Stripe webhook, `workers/post-publisher.worker.ts` (extracted into a testable `processPublishJob`), `workers/comment-monitor.worker.ts`, and the new `workers/metrics-sync.worker.ts`. Two `Promise.all`→`Promise.allSettled` fixes (crisis alert email fan-out, AI-response enqueue fan-out) so one failure no longer silently drops the rest of a batch.
+
+**Performance:**
+- `sync-metrics` no longer runs ~200 sequential Zernio API calls inline in a Netlify function (real risk of exceeding the function timeout ceiling on any workspace with volume) — now fans out to a new `metrics-sync` BullMQ queue/worker, matching the pattern every other sync job already uses.
+- **Correction to the review's own Critical finding**: verified directly against live `netlify env:get`/`railway variables` that the app and worker fleet do **not** share one `connection_limit=1` connection — Railway already has its own separate `DATABASE_URL` (`connection_limit=10`, direct port 5432) distinct from Netlify's PgBouncer-pooled one. The review had read `.env.local` (which does say `connection_limit=1`) as if it were the deployed config. No code change needed; correction logged in `.full-review/02-security-performance.md`.
+- 4 missing indexes added and verified live: `SocialAccount.zernioAccountId`, `Post.publishedAt`, `Post.socialAccountId`, `CrisisEvent.workspaceId` (`prisma/migrations-sql/2026-08-02-missing-fk-indexes.sql`).
+
+**CI/CD:**
+- `npm test` now gates the build in `.github/workflows/deploy.yml` (previously only lint+typecheck+build ran — the 37/73 tests provided zero real regression protection).
+- Worker deploy job's `continue-on-error: true` removed — a failed Railway deploy now fails the pipeline instead of silently showing green.
+- `deploy.yml`/`crons.yml` scoped with `paths: ['LYRA/lyra/**', ...]` — previously any commit anywhere in this OneDrive-rooted repo triggered a full build + live worker redeploy.
+- Netlify PR previews/branch deploys disabled (`netlify.toml`) until a real staging DB/Stripe/Auth0 config exists — previously every preview ran against production data.
+- `crons.yml`: `CRON_SECRET` moved to `env:` blocks (was shell-interpolated); added a 5-minute-offset in-repo backstop trigger for `publish-due-posts` (previously had zero version-controlled fallback — 100% dependent on an external cron-job.org account).
+- Fixed a stale `AUTH0_ISSUER_BASE_URL` placeholder in the CI build env that didn't match any real code (`AUTH0_DOMAIN` is what's actually read).
+
+**Documentation:**
+- `README.md` rewritten from unmodified `create-next-app` boilerplate (was telling contributors to deploy on Vercel) to real setup/architecture/env-var/deploy docs.
+- LYRA Trend's fictional "fully working" description removed from `docs/LYRA-Demo-Reference-Guide.html` (5 locations) and `components/lyra/help/section-13-trends.tsx` (rewritten to an honest "not yet available" placeholder).
+- A **fifth** instance of the fictional-feature pattern found last week's docs audit missed: `section-10-settings.tsx` still had a fictional "Onboarding link"/"Approval notifications" bullet pair (duplicating a lie the earlier audit already corrected in `section-03-social-connections.tsx` but missed here) plus a stale "Crisis Aware email is only planned" note contradicting the same file's own correct description 70 lines later. All three fixed.
+- `LYRA-Handover.md` §5 env var table: added `RESEND_API_KEY`, `STRIPE_CRISIS_AWARE_PRICE_ID`/`_ANNUAL`, `S3_REGION`/`S3_ACCESS_KEY_ID`/`S3_SECRET_ACCESS_KEY` (were missing despite being required by shipped features). §6.8 API route table regenerated from source — was covering under half of the real 66 routes and omitted `publish-due-posts` entirely.
+- `docs/LYRA-Wishlist.md`: added an honest "LYRA Trend — In Progress, not yet shipped" entry (previously had zero mention of Trend in either the shipped or not-shipped sense).
+
+**Dead code / infra cleanup:**
+- Deleted a confirmed-stale duplicate LYRA app tree sitting at the OneDrive repo root (`app/`, `components/`, `lib/`, `services/`, `workers/`, `package.json`, `Dockerfile.worker`, `vercel.json`, etc. — last touched 21 Jun 2026, superseded by `LYRA/lyra/` which has had continuous commits through 1 Aug). One file, `email-subscribe.tsx`, was mistakenly deleted along with a dead `components/lyra/marketing/` subtree and had to be restored — it's the one component in that directory actually used by the live landing page.
+- Deleted the dead nested `LYRA/lyra/.github/workflows/` copy (GitHub Actions only ever reads workflows from the true repo root; this copy had already drifted).
+- `axios` removed (zero import sites); `shadcn` moved from `dependencies` to `devDependencies` (it's a CLI scaffolding tool, never imported at runtime).
+- `getCurrentUser()` (`lib/auth.ts`) wrapped in React's `cache()` — was firing an Auth0 session fetch + a Prisma **write** twice per dashboard page load.
+- Added `engines: { node: "20.x" }` to `package.json`; `Dockerfile.worker` now has a header comment stating it's not actually wired into Railway's deploy (which uses Nixpacks via `railway.toml`, not this Dockerfile).
+- New `lib/anthropic.ts` `extractClaudeText()` helper replaces a duplicated unsafe `content[0]` indexing pattern across 10 AI service files.
+- **Prisma migration ledger baseline created** (`prisma/migrations/20260802000000_baseline/`) — but the final `migrate resolve --applied` step needs to run from an environment that can reach Supabase's direct connection (`DIRECT_URL` timed out from this machine — likely why past sessions found `migrate dev`/`db push` "hang," they were actually failing to connect, not hanging). See `prisma/migrations/README.md` for the exact command.
+
+**Not done in this pass** (flagged, needs a human decision or a dedicated session): revoking the Meta token itself; the actual Prisma migration baseline resolve step; further Medium/Low findings not listed above (duplication cleanup, CSP `unsafe-inline` tightening, prompt-injection fencing at the 10 remaining Claude call sites, `noUncheckedIndexedAccess` tsconfig flag, branch protection on `main`, monitoring/error-tracking (Sentry etc.), a `/api/health` endpoint, `CODEOWNERS`, `.env.example`).
+
+Verification: `npx tsc --noEmit` clean, `npm test` 73/73 passing (13 files), `npm run lint` shows only the pre-existing documented 762-error backlog (non-blocking) plus warnings, no new errors outside one now-fixed test file.
+
+---
+
+### 2026-08-01 — Six code-review findings fixed
+
+---
+
+#### ✅ FIXED — Six verified bugs from /code-review pass, commit `9d29b8f`
+
+**1. Critical — Stripe webhook: non-atomic workspace creation** (`app/api/stripe/webhook/route.ts`)
+`workspace.create` and `workspaceAccess.create` ran as two separate DB writes. A failure between them left an orphaned workspace the user could never access, and the idempotency marker deletion caused Stripe to retry indefinitely — creating one new orphaned workspace per retry over its ~72-hour window. Fixed by wrapping both writes in `prisma.$transaction(async (tx) => { ... })`.
+
+**2. Medium — Composer: `isAwaitingMedia` blocked scheduling with shared media in per-platform mode** (`components/lyra/composer/post-composer.tsx`)
+When a user attached shared media then enabled "Customise per platform", `platformMedia` reset to `{}`. The gate checked only `platformMedia[p].length === 0`, ignoring `mediaUrls` (shared media that would be used as fallback at publish time) — permanently disabling the Schedule button despite valid media being attached. Fixed: `selectedPlatforms.some((p) => (platformMedia[p] ?? []).length === 0 && mediaUrls.length === 0)`.
+
+**3. Medium — Schedule generator: stale prior-run posts reaching review page on failed regeneration** (`components/lyra/schedule/schedule-generator.tsx`)
+`sessionStorage` was only written on successful generation completion, never cleared at the start of a new run. A failed mid-run regeneration left the prior run's posts in sessionStorage; navigating to the review page silently showed the old schedule as if it were the new one. Fixed by calling `sessionStorage.removeItem(key)` at the start of `handleGenerate`.
+
+**4. Medium — Schedule generator: one platform's 5xx discards all other platforms' results** (`components/lyra/schedule/schedule-generator.tsx`)
+`Promise.all` rejected the entire week the moment any single platform's API call returned non-OK. Three platforms that succeeded would be thrown away alongside the one that failed. Fixed with `Promise.allSettled`: fulfilled platforms' posts are kept, failed platforms surface a named toast (`"Week N: INSTAGRAM failed to generate. Other platforms saved."`), and only an all-platforms-failed week throws to abort generation.
+
+**5. Medium — Schedule generator: Claude parse failure silently returns empty posts with 200 OK** (`services/ai/schedule-generator.ts`)
+On a parse error or non-array response from Claude, `generateWeekPosts` returned `[]` — the route responded `{ posts: [] }` with status 200. The client's `!res.ok` guard never fired, generation completed "successfully" with missing platforms, and the user proceeded to the review page with an incomplete schedule. Fixed by throwing on parse failure, non-array shape, or empty validated array — the route's catch block now propagates a 500, and the client (now using `Promise.allSettled`) surfaces it as a per-platform error.
+
+**6. Low — Composer: stale score displayed alongside "Scoring unavailable" toast** (`components/lyra/composer/post-composer.tsx`)
+When the scoring API returned a non-OK response, the toast fired but `scoreResult` was not cleared. The `ContentScorePanel` continued showing the previous successful score for the edited (unscored) draft. Fixed by adding `setScoreResult(null)` in the `else` branch before the toast.
+
+---
+
+### 2026-07-30 (latest 2) — Trend add-on billing wired end-to-end
+
+---
+
+#### ✅ SHIPPED — LYRA Trend add-on now fully integrated into billing and settings
+
+The Trend add-on was previously scaffolded but entirely disconnected — the `TrendAddonCard` component and `/api/stripe/trend-checkout` route existed as untracked files, but the settings page never rendered the card, the webhook had a logged stub ("no fulfilment implemented"), and there was no DB field to track whether a workspace had an active subscription.
+
+**What was built:**
+
+- `lyra/prisma/schema.prisma` — `trendSubId String? @unique` added to `Workspace` model. DB column applied via Supabase MCP (`ALTER TABLE "Workspace" ADD COLUMN IF NOT EXISTS "trendSubId" TEXT UNIQUE`). `npx prisma generate` regenerated types.
+- `lyra/app/api/stripe/webhook/route.ts` — replaced the stub with real fulfillment in all three relevant handlers:
+  - `customer.subscription.created/updated`: `prisma.workspace.update({ where: { id: metadata.workspaceId }, data: { trendSubId: sub.id } })`
+  - `customer.subscription.deleted`: clears `trendSubId` (without touching plan — same pattern as Crisis Aware)
+  - `checkout.session.completed`: new early branch checks `metadata.type === 'trend_addon'` before the existing `agencyId`-gated branch (Trend metadata carries `workspaceId` but no `agencyId`, so it was always skipped by the existing code)
+- `lyra/components/lyra/settings/trend-addon-card.tsx` — price placeholder updated from `$X/month` to `$10/month`.
+- `lyra/app/(dashboard)/workspace/[workspaceId]/settings/page.tsx` — imported `TrendAddonCard`; added `trendSubId` to the Prisma select; renders `<TrendAddonCard enabled={!!workspace.trendSubId} subscriptionId={workspace.trendSubId} />` in the Add-ons section above Crisis Aware.
+
+**Pricing:** $10/month, cancel anytime. No annual pricing configured yet (only monthly price ID exists in Stripe — `STRIPE_TREND_PRICE_ID`). The "Manage subscription" button on the active state is a stub (TODO: wire to Stripe billing portal once `User.stripeCustomerId` is on the schema).
+
+Commits: `8ffc465` (full integration), `e93e3da` (price $10/month).
+
+---
+
+### 2026-07-29 (latest 2) — Full alpha checklist complete (48/48); post-completion regression sweep; docs audit found and fixed real gaps
+
+---
+
+#### ✅ TESTING CHECKLIST COMPLETE — all 48 items checked off, last one (bad token visibility) answered via code, not live risk
+
+Closed the final open item (Week 2 — Failure visibility: does LYRA show a "reconnect needed" state for a bad/expired token, or fail silently?) without touching any real platform connection. Read `workers/post-publisher.worker.ts` directly: a token/auth failure is handled identically to any other publish failure — `Post.status → FAILED` with the raw platform error in `failureReason`. No code anywhere distinguishes an auth error from a media/rate-limit/network error, no `SocialAccount`-level flag gets set, and Settings shows the same "Reconnect" link on every account unconditionally, not conditionally on a detected problem. Answer: **not silent** (a real error message is visible), **but no dedicated detection or badge exists** — which contradicted the in-app Help page's claim of a "Token expired" badge that was never actually built. Corrected the Help page to describe the real behavior.
+
+---
+
+#### ✅ FIXED — Full regression sweep of all 48 checklist items after completion, two real (unrelated) gaps found and fixed
+
+Richard asked for a double-check that no fix had broken another across the whole 48-item list. Ran a baseline `tsc`/`vitest` pass (clean), then three parallel code-review sweeps covering every fix by area (scheduling/publishing/media, Inbox/AI-response/Crisis Aware, billing/analytics/SEO/misc), each explicitly checking for cross-fix interference — particularly the files touched multiple times this week (`schedule-generator.ts`, `crisis-detector.ts`, the Stripe webhook). Verdict: **no regressions** — every fix is still intact and none conflict with each other, including the trickiest case (today's webhook fix coexisting cleanly with the 18 Jul `toPlan()`-undefined fix and the Crisis Aware add-on logic).
+
+The sweep did turn up two genuine, pre-existing gaps unrelated to any of this week's fixes:
+- **Schedule Review's "Attach media" flow bypassed the 50MB upload limit entirely** — it called `/api/upload/presign` directly without sending a file size, so neither client nor server enforced any cap on that one screen, unlike every other upload path in the app. Fixed by routing through the shared `uploadMediaFile()` helper instead of duplicating the presign+PUT logic.
+- **Content scoring failed silently on a real API error** — the toast-on-failure logic only caught network-level exceptions (`catch`); an actual 5xx from the scoring endpoint (`res.ok === false`) fell through a missing `else` branch with no toast, no error state, just the spinner stopping.
+
+Also cleaned up two things found along the way: a 22MB gitignored stale duplicate of the entire project sitting at `LYRA/lyra/` (untracked, last touched June, a real trap for accidental edits) and a dead Redis-based Facebook pages route left over from a superseded DB-backed implementation. Commit `5555abb`.
+
+---
+
+#### ✅ FIXED — Demo Reference Guide, in-app Help docs, and Wishlist all brought current; four entirely fictional features found and corrected
+
+Richard asked for a check that the Demo Guide and Help docs were up to date. Went further than a date-stamp pass — cross-checked specific claims against actual code rather than trusting the existing copy, and found four features documented as real that don't exist anywhere in the codebase (confirmed via grep, not just review):
+- **Client self-service onboarding links** (a "Generate onboarding link" button, 7-day expiry, described in two separate Help sections) — no such route, button, or flow exists anywhere.
+- **Team member invitations with Admin/Manager/Editor roles** — described in detail (invite-by-email, 7-day link expiry, three permission tiers) in a Help section and in the Demo Guide's pricing table; zero implementation. The real `UserRole` enum doesn't even have those role names.
+- **Configurable per-event email notification preferences** (six event types, per-toggle) — already known to be aspirational; it was explicitly flagged as a deferred, separate project in the Crisis Aware email alert's own design spec from earlier this week, but the Help page never got updated to say so.
+- **An AI generation credit/allowance system** — no such limit exists in the codebase at all.
+
+All four corrected to describe actual current behavior rather than just deleting the topic, so a user who hits the real limitation understands why instead of chasing a button that isn't there. Also fixed two smaller inaccuracies caught while verifying claims: the free trial is 30 days (not 14) and applies to any plan via the public signup flow (not just Pro/Agency), and does require a card upfront; annual billing is signup-only, not available via the in-app Upgrade flow. Added Help documentation for two real, shipped, previously-undocumented features: per-platform media customisation and the AI Schedule Generator (CSV export + Awaiting Media gate). Demo Guide dates updated to 29 Jul, Crisis Aware entries now cover the email alert as well as keyword suggestions, new entries added for Stripe billing going live and the Schedule Generator's scaling fix, and the pricing table corrected to show Crisis Aware as Agency-bundled-or-Pro-add-on rather than Agency-exclusive. Commit `bd7971f`.
+
+Separately, did the same real-verification pass on `docs/LYRA-Wishlist.md` — checked every unmarked item against actual code rather than assuming. Marked four items done: **Stripe billing integration** (verified end-to-end this week), **full end-to-end autonomous AI response** (validated live on both autonomy modes — turned out the item's stated blocker, Meta App Review, was never actually the blocker, since Zernio Bridge sidesteps it), **PDF export reports** (confirmed correct 28 Jul), and **social feed analysis for Brand AI** (checked `app/api/brand-intelligence/build/route.ts` directly — `analyzeSocialPosts()` is genuinely wired up to the workspace's own post history now, not an empty array as the wishlist claimed). Two items got partial-completion notes instead of a full check (Analytics depth, Notifications). Commit `e7de2a3`.
+
+---
+
+#### 🔍 INVESTIGATED — Brand AI's "Engagement Insights" counter explained; doesn't count views, only likes/comments/shares/saves/clicks
+
+Richard asked what actually triggers the counter and why it "doesn't seem to be updating." Traced it to `services/ai/engagement-analyzer.ts`: the query explicitly filters for posts with `likes > 0 OR comments > 0 OR shares > 0 OR saves > 0 OR clicks > 0` — **`views` is not in that list at all**. Checked ITWM's real data: Facebook and YouTube are stuck at 1 of 12 qualifying posts each despite 5 published posts on each platform, because most of their real activity shows up as views (confirmed populating correctly — one YouTube post has 12 real views) rather than likes/comments. Since the same filtered post set feeds the entire feature (not just the progress bar — the heatmap and best-posting-times logic too), a view-heavy platform like YouTube may functionally never reach the 12-post threshold. Not fixed yet — this is a design decision (should `views > 0` count as "has engagement," or is the definition intentionally narrower?), left for Richard to decide. Also confirmed separately: LYRA's engagement/analytics features only ever see posts LYRA itself published (verified `Post` rows are only ever created via `app/api/posts/route.ts` — no historical backfill of a platform account's pre-existing posts exists anywhere), while the Inbox is broader and pulls in comments at the account level regardless of whether LYRA published the underlying post (`Comment.postId` is nullable).
+
+---
+
+### 2026-07-29 — Stripe billing end-to-end verified live; real billing-integrity bug found and fixed
+
+---
+
+#### ✅ FIXED — Real Stripe purchases weren't updating existing workspaces' plan, and were silently creating duplicate workspaces
+
+Closed out Testing Checklist line 87 (the last of three items — 87, 89, 90 — tackled this session), the one flagged since the pre-alpha pass as unverified because live Stripe keys meant any real test would be a genuine charge.
+
+**Setup:** reinstalled the Stripe CLI (uninstalled itself somehow since 28 Jul), re-authenticated, created test-mode Starter and Pro products/prices, temporarily swapped `.env.local` to test-mode keys, ran the dev server locally with `stripe listen` forwarding webhooks. Along the way also fixed two other things blocking local dev entirely: `.env.local`'s `DATABASE_URL`/`DIRECT_URL` still had the stale password flagged back on 23 Jul (fixed to match Netlify's real value — kept permanently, not just for this test), and Auth0 was completely unconfigured for localhost (`AUTH0_DOMAIN="your-tenant.auth0.com"` — literal template placeholder, never filled in). Pulled the real Auth0 credentials from Netlify's production env and had Richard add `localhost:3000` to the Auth0 app's allowed callback/logout/origin URLs — same Auth0 application as production, just an additional allowed URL.
+
+**Downgraded ITWM/LYRA's shared Agency to Starter** to make a real upgrade purchase possible, first confirming via code review that nothing in this codebase actually enforces `maxAutonomy`/`maxWorkspaces` at runtime — no worker or cron checks plan at all except `competitor-monitor.worker.ts`'s all-workspaces cron (PRO/AGENCY-only), so scheduled posts and AI auto-reply kept running throughout, unaffected.
+
+**Real bug found and fixed:** completed a genuine test-mode checkout (Stripe test card, real webhook delivery) and DB-verified the result — `Agency.plan` updated to PRO correctly, but **both LYRA and ITWM workspaces' own `plan` field stayed at STARTER**. Root cause: `app/api/stripe/webhook/route.ts` resolved "this agency's workspaces" via `Workspace.agencyId`, a FK that's never populated by the normal onboarding flow (workspaces are actually linked to an agency through their owning user's `User.agencyId`, via `WorkspaceAccess` — the same indirection `create-checkout` and `crisis-aware-checkout` already had to work around for exactly this reason on 28 Jul). Worse: the same broken relation backed the webhook's "does this agency already have a workspace" check, so it also silently created a duplicate empty **"My Workspace"** on the completed checkout — meaning every future real purchase for an existing customer would keep spawning phantom workspaces, on top of never actually unlocking the plan they paid for.
+
+Fixed all three affected handlers (`checkout.session.completed`, `customer.subscription.created`/`updated`, `customer.subscription.deleted`) to resolve workspaces via `access.some.user.agencyId` instead. Re-verified live with a second real checkout: plan synced to both workspaces correctly, no duplicate workspace created this time. Commit `34f9dde`.
+
+**Cleanup:** deleted the spurious test "My Workspace", restored `.env.local` to live Stripe keys/prices, restored ITWM to Agency and LYRA to Pro (Richard's choice, not a plain revert to the original all-Agency state).
+
+---
+
+### 2026-07-28 (latest 2) — AI Schedule Generator "Schedule generation failed" fixed and verified live
+
+---
+
+#### ✅ FIXED — AI Schedule Generator failing with a generic "Schedule generation failed. Try again." toast
+
+Richard hit this trying to generate a 3-week schedule (3 posts/week × 4 platforms) for the Testing Checklist's line 89 item. Investigated systematically rather than guessing at a fix.
+
+**First hypothesis, confirmed then found insufficient:** `lib/anthropic.ts`'s Claude client has a global 60s request timeout. A live timing test against production Claude reproducing the exact scenario (12 posts: 4 platforms × 3/week, one combined call) took 57.5s — right on the edge. Production function logs for the actual failed request showed a duration of exactly `60000ms`, the signature of a timeout firing mid-generation. Fixed by raising this specific call's timeout to a 180s per-request override (not a global bump — other Claude call sites like report narratives and brand profile synthesis keep the shorter default). Deployed, retested — **still failed, same way.**
+
+**Real root cause:** Netlify enforces its own hard 60-second ceiling on synchronous function execution for this site (Pro plan), completely independent of whatever timeout the Claude client itself is configured with. Confirmed by re-checking live function logs after the first fix deployed — the request was killed at exactly `60000ms` again, despite the client now being willing to wait 180s. The client-side timeout was never the binding constraint; Netlify's own platform ceiling was.
+
+**Actual fix:** restructured `generateWeekPosts` (`services/ai/schedule-generator.ts`), the `/api/schedule/generate` route, and the client (`schedule-generator.tsx`) to make **one Claude call per platform per week** instead of one call covering every selected platform at once. The client now fires these concurrently (`Promise.all`) across a week's active platforms, so total wall-clock time per week doesn't grow with platform count either. Verified live before deploying: 4 concurrent single-platform calls (the same 4-platform scenario that was failing) each completed in 17–23 seconds — 2-3x headroom under the 60s ceiling, and this holds regardless of how many platforms or posts-per-week get selected, unlike the old single-combined-call design which got proportionally slower (and closer to the wall) as more platforms/posts were added.
+
+Commits: `0003064` (first fix, insufficient alone), `27973e2` (actual fix).
+
+**Confirmed live, same session:** Richard regenerated the same 3-week/4-platform schedule successfully, exported captions to CSV, and confirmed the calendar showed 27 posts from 3 Aug onward with the amber "Awaiting media" badge. DB-verified directly: all 27 posts `status: DRAFT`, `requiresMedia: true`, 0 media attached — matching the badges exactly. Richard then attached media to all 27; DB-reconfirmed every post flipped `status: DRAFT → SCHEDULED` with `mediaCount: 1`, closing out the "attach media clears the gate" half of the checklist item too. (Testing Checklist line 89 marked done — see that file for full detail.)
+
+---
+
+#### 🔧 Fixed a GitHub push permission conflict between two accounts used on this machine
+
+`git push` started failing with `Permission to rich3524-cyber/LYRA.git denied to SpiceSpaceOnline` — Git Credential Manager was handing over a cached credential for Richard's other GitHub account (used for the separate Spice Space project) instead of `rich3524-cyber`, because both accounts were competing for the same single `github.com` credential slot in Windows Credential Manager. Since Richard needs to keep switching between both projects on this machine, deleting the cached credential would've just flipped which project broke next.
+
+**Fixed:** set LYRA's git remote to include the username explicitly (`https://rich3524-cyber@github.com/rich3524-cyber/LYRA.git`), which gives Git Credential Manager a distinct, separately-keyed credential slot instead of the one shared generic `github.com` entry — so LYRA and Spice Space can each hold their own cached login without colliding. **If Spice Space ever hits the same 403,** the identical fix applies there: add `SpiceSpaceOnline@` to that repo's remote URL too.
+
+---
+
+### 2026-07-28 (latest) — Alpha testing pass: PDF report, Brand Intelligence, Content Scoring + bug fixes
+
+---
+
+#### ✅ TESTED — Agency PDF report (line 85)
+
+Generated a 30-day PDF report for the Into The Wild Marketing workspace. Confirmed correct: cover page with agency name and generation date, executive summary (19 posts, 251 impressions, 13 engagements, 5.18% avg engagement rate, best platform LinkedIn), platform breakdown table (LinkedIn/Instagram/Facebook/YouTube), top posts section with preview text and stats, and AI-written performance analysis narrative. All data accurate, formatting clean. Checklist item marked done.
+
+---
+
+#### ✅ TESTED — Brand Intelligence (line 82)
+
+Regenerated brand profile for Into The Wild Marketing workspace. Confirmed AI captions still feel on-brand after rebuild. Checklist item marked done.
+
+---
+
+#### ✅ TESTED — Pre-Publish Content Scoring (line 83)
+
+Tested with a deliberately weak draft ("We do marketing. Contact us if you want to know more..."). Scorer returned sensible low scores across all 6 dimensions (hook, clarity, CTA, length, hashtags, emotional resonance).
+
+**Bug found and fixed same session:** Claude was wrapping its JSON response in markdown code fences (` ```json ... ``` `) despite being told not to. `JSON.parse(text)` threw, the route returned 503, and the composer silently swallowed it — the panel showed the skeleton loader briefly then went blank with no feedback. Fixed in two parts:
+1. `lyra/services/ai/content-scorer.ts` — strip markdown code fences from Claude's response before parsing
+2. `lyra/components/lyra/composer/post-composer.tsx` — surface scoring failures as a toast instead of silently failing
+
+Commit: `1d632e3`. Confirmed working on production after deploy.
+
+---
+
+### 2026-07-28 — Stripe setup + Crisis Aware billing
 
 ---
 
@@ -2001,6 +2271,9 @@ All set in Netlify dashboard under Site Settings → Environment Variables.
 | `STRIPE_STUDIO_PRICE_ID` | Stripe price ID (Studio tier, if applicable) |
 | `STRIPE_STUDIO_ANNUAL_PRICE_ID` | Stripe price ID (Studio annual) |
 | `AWS_S3_BUCKET` | S3 bucket name for brand guidelines / media storage |
+| `S3_REGION` | S3 region — deliberately `S3_*` not `AWS_*` (Netlify's Lambda runtime reserves `AWS_*` names and silently injects its own wrong credentials, see `lib/s3.ts` comment) |
+| `S3_ACCESS_KEY_ID` | S3 access key ID |
+| `S3_SECRET_ACCESS_KEY` | S3 secret access key |
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID — used for YouTube and Google Business |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret — used for YouTube and Google Business |
 | `GOOGLE_SEARCH_CONSOLE_CLIENT_ID` | GSC OAuth client ID |
@@ -2008,8 +2281,12 @@ All set in Netlify dashboard under Site Settings → Environment Variables.
 | `GOOGLE_SEARCH_CONSOLE_REDIRECT_URI` | `https://lyra-online-app.netlify.app/api/seo/callback` |
 | `REDIS_URL` | Upstash Redis connection string (`rediss://...`) — required for BullMQ queues and workers |
 | `CRON_SECRET` | Bearer token shared between cron-job.org and all `/api/cron/*` endpoints — any strong random string |
-| `STRIPE_TREND_PRICE_ID` | Stripe Price ID for the LYRA Trend add-on monthly subscription — required for Phase 3 |
-| `PERPLEXITY_API_KEY` | Perplexity real-time search API key — required for Trend discovery stage in Phase 3 |
+| `STRIPE_TREND_PRICE_ID` | Stripe Price ID for the LYRA Trend add-on monthly subscription — Trend checkout is currently **disabled** (`app/api/stripe/trend-checkout/route.ts`) since the feature has no functional backend; not read at runtime today |
+| `STRIPE_TREND_ANNUAL_PRICE_ID` | Same, annual — also not read while checkout is disabled |
+| `PERPLEXITY_API_KEY` | Perplexity real-time search API key — required for Trend discovery stage once built; not used today |
+| `STRIPE_CRISIS_AWARE_PRICE_ID` | Stripe Price ID for the Crisis Aware add-on monthly subscription (shipped 28 Jul 2026, live) — required by `app/api/stripe/crisis-aware-checkout/route.ts` |
+| `STRIPE_CRISIS_AWARE_ANNUAL_PRICE_ID` | Same, annual |
+| `RESEND_API_KEY` | Resend transactional email — required by `lib/resend.ts` for the Crisis Aware email alert (shipped 23 Jul 2026, live); the only email LYRA sends today |
 
 **Important:** `ENCRYPTION_KEY` must never change once social accounts have been connected. Changing it will make all stored tokens unreadable.
 
@@ -2091,43 +2368,76 @@ All access tokens are AES-256-GCM encrypted using `ENCRYPTION_KEY` before being 
 
 ### 6.8 API Routes Built
 
+Full list, generated against `app/api/**/route.ts` — previously this table covered under half of the real 66 routes and omitted `publish-due-posts` entirely, the single route that actually publishes scheduled content. Regenerate this list from source rather than hand-maintaining it if it drifts again.
+
 | Route | Methods | Purpose |
 |---|---|---|
-| `/api/workspaces` | GET, POST | List workspaces, create workspace |
-| `/api/workspaces/[id]` | GET, PATCH, DELETE | Workspace CRUD |
-| `/api/posts` | GET, POST | List posts by month, create post |
-| `/api/posts/[id]` | GET, PATCH, DELETE | Post CRUD |
-| `/api/posts/[id]/boost` | POST, DELETE | Create boost (Meta Marketing API) / Cancel boost |
+| `/api/account` | DELETE | Delete own account |
+| `/api/ai/generate` | POST | AI caption generation |
+| `/api/ai/repurpose` | POST (SSE) | Repurpose long-form content into platform-native posts |
+| `/api/ai/respond` | POST | AI comment response draft |
+| `/api/ai/score-content` | POST | Score post content across 6 dimensions |
+| `/api/analytics` | GET | Fetch post metrics |
+| `/api/analytics/sync` | POST | Manually trigger analytics sync |
+| `/api/brand-intelligence/analyze-engagement` | POST | Manually trigger engagement pattern analysis |
+| `/api/brand-intelligence/build` | POST | Trigger brand profile build |
+| `/api/brand-intelligence/crisis-keywords/approve` | POST | Approve an AI-suggested Crisis Aware keyword |
+| `/api/brand-intelligence/crisis-keywords/dismiss` | POST | Dismiss an AI-suggested Crisis Aware keyword |
+| `/api/brand-intelligence/guidelines` | POST, DELETE | Upload/remove brand guideline documents |
+| `/api/brand-intelligence/guidelines/presigned` | POST | Presigned S3 upload URL for guideline documents |
 | `/api/comments` | GET | Comments inbox |
 | `/api/comments/[id]` | PATCH | Update comment status |
-| `/api/brand-intelligence/build` | POST | Trigger brand profile build |
-| `/api/brand-intelligence/analyze-engagement` | POST | Manually trigger engagement pattern analysis |
-| `/api/schedule/generate` | POST | AI schedule generator — generates a week of posts |
-| `/api/ai/generate` | POST | AI caption generation |
-| `/api/ai/respond` | POST | AI comment response draft |
-| `/api/social/connect/[platform]` | GET | Initiate platform OAuth |
-| `/api/social/callback/[platform]` | GET | Handle OAuth callback |
-| `/api/analytics` | GET | Fetch post metrics |
-| `/api/upload` | POST | S3 media upload |
-| `/api/onboarding` | POST | Generate client onboarding token |
-| `/api/stripe/create-checkout` | POST | Create Stripe checkout session |
-| `/api/stripe/webhook` | POST | Handle Stripe subscription events |
-| `/api/cron/sync-comments` | GET | Sync comments from platforms |
-| `/api/cron/sync-metrics` | GET | Sync post performance metrics |
-| `/api/cron/brand-refresh` | GET | Weekly brand profile refresh |
-| `/api/seo/connect` | GET | Initiate GSC OAuth |
+| `/api/comments/[id]/reply` | POST | Reply to a comment directly from the inbox |
+| `/api/comments/sync` | POST | Manually trigger comment sync |
+| `/api/comments/unread-count` | GET | Unread inbox count badge |
+| `/api/competitors` | GET, POST | List / add competitor profiles |
+| `/api/competitors/[id]` | DELETE | Remove a competitor |
+| `/api/crisis/resolve` | POST | Resolve an active Crisis Aware event, resume paused posts |
+| `/api/crisis/status` | GET | Current Crisis Aware status for a workspace |
+| `/api/cron/brand-refresh` | GET | Weekly brand profile refresh (cron-triggered) |
+| `/api/cron/publish-due-posts` | GET | **Publishes scheduled posts that are due.** Primary trigger is an external cron-job.org account every 1 minute (outside version control); `.github/workflows/crons.yml` runs it as a 5-minute backstop |
+| `/api/cron/sync-comments` | GET | Sync comments from platforms (cron-triggered) |
+| `/api/cron/sync-metrics` | GET | Sync post performance metrics (cron-triggered) |
+| `/api/cron/sync-trends` | GET | LYRA Trend sync — currently a no-op stub, Trend has no functional backend yet |
+| `/api/email-campaigns` | GET | List email campaigns for calendar overlay |
+| `/api/email-integrations` | GET, POST | List / connect email marketing providers (Klaviyo, Mailchimp, Customer.io) |
+| `/api/email-integrations/[id]` | DELETE | Disconnect an email integration |
+| `/api/email-integrations/[id]/sync` | POST | Manually trigger campaign sync for one integration |
+| `/api/guardrails/[id]` | DELETE | Remove a guardrail |
+| `/api/help/pdf` | GET | Renders the Help Guide as a downloadable PDF (S3-cached) |
+| `/api/klaviyo/subscribe` | POST | Public newsletter subscribe endpoint |
+| `/api/onboarding` | POST, GET, PATCH | Client onboarding token flow |
+| `/api/posts` | GET, POST | List posts by month, create post |
+| `/api/posts/[id]` | PATCH, DELETE | Post update / delete |
+| `/api/posts/[id]/boost` | POST, DELETE | Create boost (Meta Marketing API) / cancel boost |
+| `/api/posts/[id]/boost/reach` | GET | Estimated reach for a boost |
+| `/api/posts/[id]/publish` | POST | Publish a single post immediately |
+| `/api/reports/generate` | POST | Generate PDF client report (7-day or 30-day) |
+| `/api/schedule/generate` | POST | AI schedule generator — generates a week of posts, fanned out per-platform |
 | `/api/seo/callback` | GET | Handle GSC OAuth callback |
+| `/api/seo/connect` | GET | Initiate GSC OAuth |
+| `/api/seo/gsc-data` | GET | Fetch GSC queries + trend data |
 | `/api/seo/pages` | GET, POST | List/create tracked SEO pages |
 | `/api/seo/pages/[pageId]` | DELETE | Delete a tracked page |
 | `/api/seo/pages/[pageId]/analyze` | POST | Score page on-page SEO |
 | `/api/seo/pages/[pageId]/generate` | POST | Generate AI SEO content |
-| `/api/seo/gsc-data` | GET | Fetch GSC queries + trend data |
-| `/api/competitors` | GET, POST | List / add competitor profiles |
-| `/api/competitors/[id]` | DELETE | Remove a competitor |
-| `/api/competitors/[id]/snapshot` | POST | Scrape + store a competitor snapshot |
-| `/api/ai/score-content` | POST | Score post content across 6 dimensions |
-| `/api/ai/repurpose` | POST (SSE) | Repurpose long-form content into platform-native posts |
-| `/api/reports/generate` | POST | Generate PDF client report (7-day or 30-day) |
+| `/api/social/callback/[platform]` | GET | Handle OAuth callback |
+| `/api/social/connect/[platform]` | GET | Initiate platform OAuth |
+| `/api/social/facebook/complete` | POST | Complete pending Facebook Page selection |
+| `/api/social/facebook/pending` | GET | List pending Facebook Pages awaiting selection |
+| `/api/stripe/create-checkout` | POST, GET | Create Stripe checkout session (POST); billing portal session (GET) |
+| `/api/stripe/crisis-aware-checkout` | POST | Create Stripe checkout for the Crisis Aware add-on |
+| `/api/stripe/trend-checkout` | POST | LYRA Trend checkout — **disabled**, returns 503 (no functional backend) |
+| `/api/stripe/webhook` | POST | Handle Stripe subscription events |
+| `/api/trends` | GET | List discovered trends — Trend has no functional backend yet |
+| `/api/trends/[id]/status` | PATCH | Update trend status (used/dismissed) — not yet functional |
+| `/api/trends/refresh` | POST | Manual trend refresh — not yet functional |
+| `/api/upload` | POST | S3 media upload (dead route — superseded by `/api/upload/presign`, still instantiates its own S3 client) |
+| `/api/upload/presign` | POST | Presigned S3 upload URL — the real upload path used by the composer/schedule review |
+| `/api/workspaces` | GET, POST | List workspaces, create workspace |
+| `/api/workspaces/[id]` | GET, PATCH, DELETE | Workspace CRUD |
+| `/api/zernio/connect/callback` | GET | Zernio Bridge OAuth callback |
+| `/api/zernio/webhook` | POST | Zernio webhook — incoming comments, account disconnects, messages |
 
 ### 6.9 Database Schema
 
