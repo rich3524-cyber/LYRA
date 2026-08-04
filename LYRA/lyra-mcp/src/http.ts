@@ -61,7 +61,15 @@ export async function requireBearerAuth(req: Request, res: Response, next: NextF
 function protectedResourceMetadataHandler(_req: Request, res: Response) {
   const appBaseUrl = process.env.APP_BASE_URL
   res.status(200).json({
-    resource: `${appBaseUrl}/mcp`,
+    // Must exactly equal AUTH0_MCP_AUDIENCE (the real Auth0 API identifier
+    // configured in the dashboard, no path suffix) -- confirmed live: an
+    // MCP client sends this resource value verbatim as the RFC 8707
+    // resource/audience parameter on the Auth0 authorize request, and Auth0
+    // rejects it with "Service not found" if it doesn't match a real
+    // registered API. mcp.lyraonline.ai is a dedicated subdomain solely for
+    // this gateway, so the bare origin unambiguously identifies it -- no
+    // need for a path component the way a multi-service host might need one.
+    resource: appBaseUrl,
     // Points at the RFC 8414 document LYRA's own app serves (Phase 0,
     // docs/LYRA-mcp-server-design.md §2.2) -- this is where the
     // registration_endpoint (the DCR shim) and Auth0's real
