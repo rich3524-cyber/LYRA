@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { callLyraApi, LyraApiError } from './lyra-api-client'
+import { callLyraApi, LyraApiError, LyraApiTimeoutError, LyraApiNetworkError } from './lyra-api-client'
 
 const originalEnv = { ...process.env }
 
@@ -71,5 +71,71 @@ describe('callLyraApi', () => {
       expect(err).toBeInstanceOf(Error)
       expect((err as LyraApiError).message).toContain('401')
     }
+  })
+
+  it('normalizes a fetch timeout (AbortSignal.timeout rejection) into LyraApiTimeoutError', async () => {
+    // fetch() rejects with a DOMException named 'TimeoutError' when the
+    // AbortSignal.timeout() passed as `signal` fires. Simulate that directly
+    // rather than waiting out a real 20s timeout.
+    const timeoutError = new DOMException('The operation timed out.', 'TimeoutError')
+    const fetchMock = vi.fn().mockRejectedValue(timeoutError)
+    vi.stubGlobal('fetch', fetchMock)
+
+    try {
+      await callLyraApi('/api/workspaces', 'token-abc')
+      expect.unreachable()
+    } catch (err) {
+      expect(err).toBeInstanceOf(LyraApiTimeoutError)
+      expect(err).toBeInstanceOf(Error)
+      expect(err).not.toBeInstanceOf(LyraApiError)
+      expect((err as LyraApiTimeoutError).cause).toBe(timeoutError)
+    }
+  })
+
+  it('normalizes a network failure (fetch TypeError rejection) into LyraApiNetworkError', async () => {
+    const networkError = new TypeError('fetch failed')
+    const fetchMock = vi.fn().mockRejectedValue(networkError)
+    vi.stubGlobal('fetch', fetchMock)
+
+    try {
+      await callLyraApi('/api/workspaces', 'token-abc')
+      expect.unreachable()
+    } catch (err) {
+      expect(err).toBeInstanceOf(LyraApiNetworkError)
+      expect(err).toBeInstanceOf(Error)
+      expect(err).not.toBeInstanceOf(LyraApiTimeoutError)
+      expect((err as LyraApiNetworkError).cause).toBe(networkError)
+    }
+  })
+
+  it('normalizes a malformed response body (res.json() rejection) into LyraApiNetworkError', async () => {
+    const parseError = new SyntaxError('Unexpected token in JSON')
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => {
+        throw parseError
+      },
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    try {
+      await callLyraApi('/api/workspaces', 'token-abc')
+      expect.unreachable()
+    } catch (err) {
+      expect(err).toBeInstanceOf(LyraApiNetworkError)
+      expect((err as LyraApiNetworkError).cause).toBe(parseError)
+    }
+  })
+
+  it('calls AbortSignal.timeout with the configured timeout duration', async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout')
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({}) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await callLyraApi('/api/workspaces', 'token-abc')
+
+    expect(timeoutSpy).toHaveBeenCalledWith(20_000)
+    timeoutSpy.mockRestore()
   })
 })
