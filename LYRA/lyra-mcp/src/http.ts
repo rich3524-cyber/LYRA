@@ -62,14 +62,18 @@ function protectedResourceMetadataHandler(_req: Request, res: Response) {
   const appBaseUrl = process.env.APP_BASE_URL
   res.status(200).json({
     // Must exactly equal AUTH0_MCP_AUDIENCE (the real Auth0 API identifier
-    // configured in the dashboard, no path suffix) -- confirmed live: an
-    // MCP client sends this resource value verbatim as the RFC 8707
-    // resource/audience parameter on the Auth0 authorize request, and Auth0
-    // rejects it with "Service not found" if it doesn't match a real
-    // registered API. mcp.lyraonline.ai is a dedicated subdomain solely for
-    // this gateway, so the bare origin unambiguously identifies it -- no
-    // need for a path component the way a multi-service host might need one.
-    resource: appBaseUrl,
+    // configured in the dashboard). Confirmed live against a real MCP
+    // client (MCP Inspector): a client sends the exact URL it connects to
+    // (i.e. this gateway's /mcp endpoint, not the bare origin) as the RFC
+    // 8707 resource/audience parameter on the Auth0 authorize request --
+    // this is correct per-spec client behavior (RFC 8707 identifies the
+    // specific protected resource being accessed), not a client quirk. An
+    // earlier version of this code used the bare origin here to match a
+    // pre-existing Auth0 API identifier that didn't include the path --
+    // that was backwards; the Auth0 API identifier was changed to match
+    // this (the spec-correct) value instead, since Auth0 doesn't allow
+    // editing an existing API's identifier post-creation.
+    resource: `${appBaseUrl}/mcp`,
     // Points at the RFC 8414 document LYRA's own app serves (Phase 0,
     // docs/LYRA-mcp-server-design.md §2.2) -- this is where the
     // registration_endpoint (the DCR shim) and Auth0's real

@@ -33,7 +33,7 @@ describe('GET /.well-known/oauth-protected-resource', () => {
     const res = await request(app).get('/.well-known/oauth-protected-resource')
     expect(res.status).toBe(200)
     expect(res.body).toEqual({
-      resource: 'https://mcp.lyraonline.ai',
+      resource: 'https://mcp.lyraonline.ai/mcp',
       authorization_servers: ['https://lyraonline.ai'],
       bearer_methods_supported: ['header'],
       scopes_supported: [
