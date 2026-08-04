@@ -23,6 +23,13 @@ export async function listScheduledPosts(params: ListScheduledPostsParams, beare
   if (params.status) queryParams.status = params.status
   if (params.month) queryParams.month = params.month
 
+  // `/api/posts` applies a `take: 200` safety cap on the underlying route
+  // (see app/api/posts/route.ts in the main app) with no truncation signal.
+  // Unlike get-workspace-overview.ts (where this same cap only skews a
+  // count), here it can silently drop actual posts the caller is relying on
+  // to reason about scheduled/failed content -- e.g. a workspace with 250
+  // FAILED posts and no `month` filter returns exactly 200 with no
+  // indication 50 more exist.
   const posts = await callLyraApi<Post[]>('/api/posts', bearerToken, queryParams)
 
   return {
