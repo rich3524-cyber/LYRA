@@ -11,5 +11,14 @@ interface WorkspaceSummary {
 
 export async function listWorkspaces(_params: Record<string, never>, bearerToken: string) {
   const workspaces = await callLyraApi<WorkspaceSummary[]>('/api/workspaces', bearerToken)
-  return { workspaces }
+  return {
+    workspaces: workspaces.map(({ id, name, industry, plan, role, platforms }) => ({
+      id,
+      name,
+      industry,
+      plan,
+      role,
+      platforms,
+    })),
+  }
 }
