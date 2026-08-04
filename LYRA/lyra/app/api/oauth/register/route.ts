@@ -1,6 +1,10 @@
 // app/api/oauth/register/route.ts
 import { NextResponse } from 'next/server'
 import { createAuth0Client } from '@/lib/auth0-management'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
+
+const MAX_REDIRECT_URIS = 10
+const MAX_STRING_LENGTH = 500
 
 // RFC 7591 Dynamic Client Registration. Unauthenticated by design -- this is
 // the entry point a not-yet-known OAuth client (e.g. Claude's MCP connector)
@@ -9,6 +13,20 @@ import { createAuth0Client } from '@/lib/auth0-management'
 // as a public client (no secret, PKCE-only), scoped to authorization_code +
 // refresh_token grants -- see docs/LYRA-mcp-server-design.md section 2.2.
 export async function POST(req: Request) {
+  // Unauthenticated + each call provisions a real, permanent Auth0
+  // Application via two Management API round-trips -- cap per-IP so this
+  // can't be used for abuse/cost amplification against the Auth0 tenant.
+  // Registration is expected to be rare (a new MCP client connecting for
+  // the first time), so a conservative limit matching klaviyo-subscribe's
+  // is appropriate.
+  const { allowed } = await checkRateLimit(`oauth-register:${getClientIp(req)}`, 5, 600)
+  if (!allowed) {
+    return NextResponse.json(
+      { error: 'invalid_client_metadata', error_description: 'Too many registration requests, try again later' },
+      { status: 429 }
+    )
+  }
+
   let body: { redirect_uris?: unknown; client_name?: unknown }
   try {
     body = await req.json()
@@ -16,10 +34,38 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'invalid_client_metadata', error_description: 'Request body must be valid JSON' }, { status: 400 })
   }
 
+  if (!body || typeof body !== 'object') {
+    return NextResponse.json(
+      { error: 'invalid_client_metadata', error_description: 'Request body must be a JSON object' },
+      { status: 400 }
+    )
+  }
+
   const redirectUris = body.redirect_uris
   if (!Array.isArray(redirectUris) || redirectUris.length === 0 || !redirectUris.every((u) => typeof u === 'string')) {
     return NextResponse.json(
       { error: 'invalid_client_metadata', error_description: 'redirect_uris must be a non-empty array of strings' },
+      { status: 400 }
+    )
+  }
+
+  if (redirectUris.length > MAX_REDIRECT_URIS) {
+    return NextResponse.json(
+      { error: 'invalid_client_metadata', error_description: `redirect_uris must not exceed ${MAX_REDIRECT_URIS} entries` },
+      { status: 400 }
+    )
+  }
+
+  if (redirectUris.some((u) => u.length > MAX_STRING_LENGTH)) {
+    return NextResponse.json(
+      { error: 'invalid_client_metadata', error_description: `Each redirect_uri must not exceed ${MAX_STRING_LENGTH} characters` },
+      { status: 400 }
+    )
+  }
+
+  if (typeof body.client_name === 'string' && body.client_name.length > MAX_STRING_LENGTH) {
+    return NextResponse.json(
+      { error: 'invalid_client_metadata', error_description: `client_name must not exceed ${MAX_STRING_LENGTH} characters` },
       { status: 400 }
     )
   }
