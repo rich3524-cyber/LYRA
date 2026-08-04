@@ -651,11 +651,17 @@ function assertAuth0EnvConfigured() {
 
 export async function verifyAuth0AccessToken(
   token: string,
-  jwks: JWTVerifyGetKey = getDefaultJwks()
+  jwks?: JWTVerifyGetKey
 ): Promise<Auth0AccessTokenPayload | null> {
   try {
     assertAuth0EnvConfigured()
-    const { payload } = await jwtVerify(token, jwks, {
+    // jwks resolved INSIDE the try, not as a default-parameter expression --
+    // default params evaluate before the function body runs, so a throw from
+    // getDefaultJwks() (e.g. a malformed AUTH0_DOMAIN making `new URL(...)`
+    // throw) would otherwise escape this catch entirely instead of
+    // fail-closing to null. Matches the main app's lib/jwt-verify.ts pattern.
+    const resolvedJwks = jwks ?? getDefaultJwks()
+    const { payload } = await jwtVerify(token, resolvedJwks, {
       issuer: `https://${process.env.AUTH0_DOMAIN}/`,
       audience: process.env.AUTH0_MCP_AUDIENCE,
       algorithms: ['RS256'],
