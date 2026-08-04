@@ -62,6 +62,7 @@ describe('createAuth0Client', () => {
       grant_types: ['authorization_code', 'refresh_token'],
       callbacks: ['https://claude.ai/callback'],
       jwt_configuration: { alg: 'RS256' },
+      oidc_conformant: true,
       refresh_token: {
         rotation_type: 'rotating',
         expiration_type: 'expiring',

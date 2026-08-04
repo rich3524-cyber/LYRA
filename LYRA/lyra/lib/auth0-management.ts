@@ -66,6 +66,11 @@ export async function createAuth0Client(params: CreateAuth0ClientParams): Promis
       grant_types:                ['authorization_code', 'refresh_token'],
       callbacks:                  params.redirectUris,
       jwt_configuration:          { alg: 'RS256' },
+      // Auth0's Management API rejects refresh_token.rotation_type:
+      // 'rotating' with a 400 ("Application must be OIDC Conformant when
+      // Refresh Token rotation is enabled") unless oidc_conformant is
+      // explicitly set -- confirmed live against the real tenant.
+      oidc_conformant: true,
       refresh_token: {
         rotation_type:   'rotating',
         expiration_type: 'expiring',
