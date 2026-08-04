@@ -5,6 +5,8 @@
 // client connecting for the first time), so the extra token round-trip per
 // call is not worth the complexity of a cache with expiry tracking.
 
+const TIMEOUT_MS = 20_000
+
 interface Auth0TokenResponse {
   access_token: string
 }
@@ -20,6 +22,7 @@ async function getManagementApiToken(): Promise<string> {
       audience:      `https://${domain}/api/v2/`,
       grant_type:    'client_credentials',
     }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   })
   if (!res.ok) {
     throw new Error(`Auth0 Management API token request failed: ${res.status} ${await res.text()}`)
@@ -49,6 +52,8 @@ export async function createAuth0Client(params: CreateAuth0ClientParams): Promis
       'Content-Type': 'application/json',
       Authorization:  `Bearer ${token}`,
     },
+    // Public client (native app + PKCE): no client secret is issued, so
+    // there's nothing for a leaked callback/redirect to expose.
     body: JSON.stringify({
       name:                       params.name,
       app_type:                   'native',
@@ -57,6 +62,7 @@ export async function createAuth0Client(params: CreateAuth0ClientParams): Promis
       callbacks:                  params.redirectUris,
       jwt_configuration:          { alg: 'RS256' },
     }),
+    signal: AbortSignal.timeout(TIMEOUT_MS),
   })
   if (!res.ok) {
     throw new Error(`Auth0 Management API client creation failed: ${res.status} ${await res.text()}`)

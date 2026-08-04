@@ -65,6 +65,21 @@ describe('createAuth0Client', () => {
     })
   })
 
+  it('fetches a fresh Management API token on every call, without caching', async () => {
+    const fetchMock = mockFetchSequence([
+      { ok: true, json: { access_token: 'mgmt-token-abc' } },
+      { ok: true, json: { client_id: 'client-1', name: 'Claude', callbacks: ['https://claude.ai/callback'] } },
+      { ok: true, json: { access_token: 'mgmt-token-def' } },
+      { ok: true, json: { client_id: 'client-2', name: 'Claude', callbacks: ['https://claude.ai/callback'] } },
+    ])
+
+    await createAuth0Client({ name: 'Claude', redirectUris: ['https://claude.ai/callback'] })
+    await createAuth0Client({ name: 'Claude', redirectUris: ['https://claude.ai/callback'] })
+
+    const tokenRequestCalls = fetchMock.mock.calls.filter(([url]) => url === 'https://test-tenant.auth0.com/oauth/token')
+    expect(tokenRequestCalls).toHaveLength(2)
+  })
+
   it('throws with the response body when the token request fails', async () => {
     mockFetchSequence([{ ok: false, status: 401, text: 'invalid_client' }])
 
