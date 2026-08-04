@@ -48,6 +48,10 @@ export async function getUserFromBearerToken(
 export const getCurrentUser = cache(async () => {
   const hdrs = await headers()
   const bearerUser = await getUserFromBearerToken(hdrs.get('authorization'))
+  // Bearer wins over any session cookie also present on the request: an
+  // MCP/API caller presenting a bearer token is asserting a specific
+  // identity and should authenticate as that token's user, not whatever
+  // stale browser session cookie happens to be riding along.
   if (bearerUser) return bearerUser
 
   let session: Awaited<ReturnType<typeof auth0.getSession>>

@@ -40,7 +40,8 @@ export async function verifyAuth0AccessToken(
     })
     if (typeof payload.sub !== 'string' || payload.sub.length === 0) return null
     return payload as Auth0AccessTokenPayload
-  } catch {
+  } catch (err) {
+    console.error('[verifyAuth0AccessToken] token verification failed:', err)
     return null
   }
 }
