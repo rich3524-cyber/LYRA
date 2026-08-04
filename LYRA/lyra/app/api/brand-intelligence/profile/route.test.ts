@@ -53,6 +53,10 @@ describe('GET /api/brand-intelligence/profile', () => {
       where: { workspaceId: 'ws-1' },
       select: { voiceSummary: true, toneAttributes: true, contentThemes: true },
     })
+    expect(prisma.guardrail.findMany).toHaveBeenCalledWith({
+      where: { workspaceId: 'ws-1' },
+      select: { type: true, value: true },
+    })
   })
 
   it('returns nulls/empty defaults when no BrandProfile exists yet for the workspace', async () => {
