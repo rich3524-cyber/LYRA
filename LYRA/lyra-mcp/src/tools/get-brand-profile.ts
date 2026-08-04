@@ -9,5 +9,10 @@ interface BrandProfile {
 
 export async function getBrandProfile(params: { workspace_id: string }, bearerToken: string) {
   if (!params.workspace_id) throw new Error('workspace_id is required')
-  return callLyraApi<BrandProfile>('/api/brand-intelligence/profile', bearerToken, { workspaceId: params.workspace_id })
+  const { voiceSummary, toneAttributes, contentThemes, guardrails } = await callLyraApi<BrandProfile>(
+    '/api/brand-intelligence/profile',
+    bearerToken,
+    { workspaceId: params.workspace_id }
+  )
+  return { voiceSummary, toneAttributes, contentThemes, guardrails }
 }

@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('../lyra-api-client', () => ({ callLyraApi: vi.fn() }))
+vi.mock('../lyra-api-client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lyra-api-client')>()
+  return { ...actual, callLyraApi: vi.fn() }
+})
 
-import { callLyraApi } from '../lyra-api-client'
+import { callLyraApi, LyraApiError } from '../lyra-api-client'
 import { getBrandProfile } from './get-brand-profile'
 
 describe('getBrandProfile', () => {
@@ -14,6 +17,7 @@ describe('getBrandProfile', () => {
       toneAttributes: ['warm'],
       contentThemes: ['community'],
       guardrails: [{ type: 'NEVER_DISCUSS', value: 'pricing' }],
+      workspaceId: 'ws-1',
     })
 
     const result = await getBrandProfile({ workspace_id: 'ws-1' }, 'token-abc')
@@ -25,9 +29,17 @@ describe('getBrandProfile', () => {
       contentThemes: ['community'],
       guardrails: [{ type: 'NEVER_DISCUSS', value: 'pricing' }],
     })
+    expect(result).not.toHaveProperty('workspaceId')
+  })
+
+  it('propagates errors from callLyraApi unchanged', async () => {
+    vi.mocked(callLyraApi).mockRejectedValue(new LyraApiError(500, {}))
+
+    await expect(getBrandProfile({ workspace_id: 'ws-1' }, 'token-abc')).rejects.toThrow(LyraApiError)
   })
 
   it('throws when workspace_id is missing', async () => {
     await expect(getBrandProfile({} as any, 'token-abc')).rejects.toThrow('workspace_id is required')
+    expect(callLyraApi).not.toHaveBeenCalled()
   })
 })
