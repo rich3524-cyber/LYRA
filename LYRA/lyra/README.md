@@ -49,6 +49,8 @@ LYRA is a social-media-management SaaS: content scheduling, an AI content compos
 | `DATABASE_URL`, `DIRECT_URL` | Supabase Postgres — pooled and direct connections |
 | `REDIS_URL` | BullMQ queues (app + workers) |
 | `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, `AUTH0_CLIENT_SECRET`, `AUTH0_SECRET` | Auth0 session/auth |
+| `AUTH0_MCP_AUDIENCE` | Identifier of the "LYRA MCP API" Auth0 Resource Server — the OAuth audience MCP access tokens are issued for |
+| `AUTH0_MGMT_CLIENT_ID`, `AUTH0_MGMT_CLIENT_SECRET` | Dedicated Auth0 M2M application, scoped only to `create:clients`/`read:clients` on the Management API — used solely by the Dynamic Client Registration shim (`app/api/oauth/register`) |
 | `APP_BASE_URL` | Canonical app URL — used in auth redirects, email links, OAuth callbacks |
 | `ANTHROPIC_API_KEY` | Claude API (composer, crisis detection, schedule generation, etc.) |
 | `ENCRYPTION_KEY` | Encrypts stored social/SEO OAuth tokens (`lib/encrypt.ts`) |
