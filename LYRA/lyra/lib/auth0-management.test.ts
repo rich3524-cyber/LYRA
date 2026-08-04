@@ -42,6 +42,7 @@ describe('createAuth0Client', () => {
 
     const [tokenUrl, tokenInit] = fetchMock.mock.calls[0]
     expect(tokenUrl).toBe('https://test-tenant.auth0.com/oauth/token')
+    expect(tokenInit.headers).toEqual({ 'Content-Type': 'application/json' })
     const tokenBody = JSON.parse(tokenInit.body as string)
     expect(tokenBody).toEqual({
       client_id: 'mgmt-client-id',
@@ -52,7 +53,7 @@ describe('createAuth0Client', () => {
 
     const [clientUrl, clientInit] = fetchMock.mock.calls[1]
     expect(clientUrl).toBe('https://test-tenant.auth0.com/api/v2/clients')
-    expect((clientInit.headers as Record<string, string>).Authorization).toBe('Bearer mgmt-token-abc')
+    expect(clientInit.headers).toEqual({ 'Content-Type': 'application/json', Authorization: 'Bearer mgmt-token-abc' })
     const clientBody = JSON.parse(clientInit.body as string)
     expect(clientBody).toEqual({
       name: 'Claude',
