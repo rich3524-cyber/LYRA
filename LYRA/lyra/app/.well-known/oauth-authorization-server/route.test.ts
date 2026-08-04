@@ -20,7 +20,7 @@ describe('GET /.well-known/oauth-authorization-server', () => {
     const body = await res.json()
 
     expect(body).toEqual({
-      issuer:                                'https://test-tenant.auth0.com/',
+      issuer:                                'https://lyraonline.ai',
       authorization_endpoint:                'https://test-tenant.auth0.com/authorize',
       token_endpoint:                        'https://test-tenant.auth0.com/oauth/token',
       registration_endpoint:                 'https://lyraonline.ai/api/oauth/register',

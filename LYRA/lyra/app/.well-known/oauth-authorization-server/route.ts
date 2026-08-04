@@ -6,13 +6,24 @@ import { NextResponse } from 'next/server'
 // where to find LYRA's own Dynamic Client Registration shim (Task 5). The six
 // LYRA-specific scopes here match docs/LYRA-mcp-server-design.md section 3.3
 // exactly -- keep them in sync if that list ever changes.
+//
+// `issuer` is set to APP_BASE_URL (where this document is actually served),
+// not Auth0's domain -- RFC 8414 §3.3 requires a client fetching this exact
+// URL to see an `issuer` value it's self-consistent with, and a strict
+// client (confirmed live: MCP Inspector) rejects the document otherwise.
+// This is independent of bearer-token validation: lib/jwt-verify.ts checks
+// a token's real `iss` claim against AUTH0_DOMAIN directly (hardcoded, not
+// derived from this document at runtime), since Auth0 -- not this endpoint
+// -- is what actually signs and issues the tokens. The two concerns
+// (metadata self-consistency for discovery vs. real token issuer identity
+// for cryptographic validation) are allowed to differ.
 export async function GET() {
   const authDomain = process.env.AUTH0_DOMAIN
   const appBaseUrl = process.env.APP_BASE_URL
 
   return NextResponse.json(
     {
-      issuer:                                `https://${authDomain}/`,
+      issuer:                                appBaseUrl,
       authorization_endpoint:                `https://${authDomain}/authorize`,
       token_endpoint:                        `https://${authDomain}/oauth/token`,
       registration_endpoint:                 `${appBaseUrl}/api/oauth/register`,
