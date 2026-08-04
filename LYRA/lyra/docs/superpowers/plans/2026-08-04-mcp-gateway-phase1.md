@@ -977,8 +977,8 @@ describe('bearer auth middleware (applied to /mcp)', () => {
     expect(res.headers['www-authenticate']).toContain('Bearer')
   })
 
-  it('calls next() and attaches the bearer token to the request when the token is valid', async () => {
-    vi.mocked(verifyAuth0AccessToken).mockResolvedValue({ sub: 'auth0|user123' })
+  it('calls next() and attaches req.auth when the token is valid', async () => {
+    vi.mocked(verifyAuth0AccessToken).mockResolvedValue({ sub: 'auth0|user123', scope: 'workspaces:read content:read' })
     const app = createApp()
     // /mcp has no downstream handler mounted yet in this task -- a valid
     // token should reach past the auth middleware and 404 (no route),
@@ -988,6 +988,10 @@ describe('bearer auth middleware (applied to /mcp)', () => {
   })
 })
 ```
+
+**IMPORTANT — corrects an assumption in this task made before Task 3's SDK grounding:** Task 3 confirmed (by reading the actual installed `@modelcontextprotocol/node`/`@modelcontextprotocol/server` type definitions and compiling against them) that the SDK's real pass-through auth mechanism is a property named **`req.auth`**, typed as the SDK's own `AuthInfo` shape — **not** a custom `req.bearerToken: string` as originally drafted here. `toNodeHandler` reads `req.auth` and forwards it as `authInfo` into the MCP request context, where Task 14's tool callbacks read it back via `ctx.http?.authInfo`. The implementation below has been corrected to match; do not reintroduce `req.bearerToken`.
+
+Before writing the `declare global` block below, check whether `@modelcontextprotocol/node` already declares `req.auth`'s type via its own Express module augmentation (search its `.d.mts`/`.d.ts` files for `declare global` or `declare module 'express'`). If it does, **do not** add a second, possibly-conflicting declaration — just import whatever `AuthInfo` type it exports (check `@modelcontextprotocol/server`'s and `@modelcontextprotocol/node`'s exports for an `AuthInfo` type) and use it directly. Only add the local `declare global` block below if nothing like it already exists.
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
@@ -1005,10 +1009,21 @@ Expected: `FAIL` — `src/http.ts` doesn't exist yet.
 import express, { type Request, type Response, type NextFunction } from 'express'
 import { verifyAuth0AccessToken } from './jwt-verify'
 
+// Only add this augmentation if @modelcontextprotocol/node doesn't already
+// declare req.auth's type itself (check its .d.mts files first -- see the
+// note above this code block). If it already provides an AuthInfo type,
+// import and use that instead of this local interface.
+interface AuthInfo {
+  token: string
+  clientId: string
+  scopes: string[]
+  expiresAt?: number
+}
+
 declare global {
   namespace Express {
     interface Request {
-      bearerToken?: string
+      auth?: AuthInfo
     }
   }
 }
@@ -1038,7 +1053,15 @@ async function requireBearerAuth(req: Request, res: Response, next: NextFunction
     return res.status(401).json({ error: 'invalid_token', error_description: 'Token verification failed' })
   }
 
-  req.bearerToken = token
+  // req.auth is read by toNodeHandler (Task 14) and forwarded as
+  // pass-through auth context into every tool callback's ctx.http.authInfo
+  // -- confirmed against the SDK's real installed types in Task 3.
+  req.auth = {
+    token,
+    clientId: typeof payload.azp === 'string' ? payload.azp : '',
+    scopes: typeof payload.scope === 'string' ? payload.scope.split(' ') : [],
+    expiresAt: typeof payload.exp === 'number' ? payload.exp : undefined,
+  }
   next()
 }
 
@@ -1982,20 +2005,29 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
   },
 }
 
-// Adjust this factory to match the real McpServer/registerTool signatures
-// confirmed in Task 3's grounding step -- the shape below is this plan's
-// best-confidence understanding, not independently verified against the
-// installed package's actual type definitions.
+// Task 3's SDK grounding (compiled and confirmed against the real installed
+// @modelcontextprotocol/server and @modelcontextprotocol/node types) found:
+// - McpServer's constructor takes (serverInfo, options?) -- new McpServer({name, version}) is correct.
+// - registerTool's callback receives TWO args: (args, ctx) -- not just (params,).
+// - The bearer token set as req.auth by Task 6's middleware is forwarded by
+//   toNodeHandler as authInfo, surfacing in each tool callback as
+//   ctx.http?.authInfo?.token (ServerContext.http.authInfo, both optional).
+// requireBearerAuth (Task 6) already rejects any request with no valid
+// token before it reaches here, so authInfo should always be present in
+// practice -- the guard below is defense-in-depth, not the primary check.
+import { McpServer } from '@modelcontextprotocol/server'
+
 export function createLyraMcpServer() {
-  // import { McpServer } from '@modelcontextprotocol/server' -- add at top of file
   const server = new McpServer({ name: 'lyra', version: '0.1.0' })
 
   for (const [name, tool] of Object.entries(TOOL_REGISTRY)) {
     server.registerTool(
       name,
       { description: tool.description, inputSchema: tool.inputSchema },
-      async (params: unknown, ctx: { http: { authInfo: { token: string } } }) => {
-        const result = await tool.handler(params, ctx.http.authInfo.token)
+      async (params: unknown, ctx: { http?: { authInfo?: { token: string } } }) => {
+        const token = ctx.http?.authInfo?.token
+        if (!token) throw new Error('No authenticated bearer token in request context')
+        const result = await tool.handler(params, token)
         return { content: [{ type: 'text', text: JSON.stringify(result) }] }
       }
     )
@@ -2020,8 +2052,8 @@ Modify `LYRA/lyra-mcp/src/http.ts` — replace the placeholder `app.post('/mcp',
 ```typescript
 // Add near the top of the file:
 import { createLyraMcpServer } from './mcp-server'
-// import { createMcpHandler } from '@modelcontextprotocol/server'
-// import { toNodeHandler } from '@modelcontextprotocol/node'
+import { createMcpHandler } from '@modelcontextprotocol/server'
+import { toNodeHandler } from '@modelcontextprotocol/node'
 ```
 
 ```typescript
@@ -2030,11 +2062,18 @@ import { createLyraMcpServer } from './mcp-server'
   const nodeHandler = toNodeHandler(mcpHandler)
 
   app.post('/mcp', requireBearerAuth, (req, res) => {
+    // Must forward req.body explicitly -- toNodeHandler's third param is
+    // ignored by Express's own (req, res, next) call convention if you
+    // mount it bare, and the request stream is already drained by
+    // express.json() by this point. req.auth (set by requireBearerAuth)
+    // is read directly off req by toNodeHandler and forwarded into the MCP
+    // request context automatically -- no extra glue needed here. Both
+    // confirmed against real installed SDK types in Task 3.
     void nodeHandler(req, res, req.body)
   })
 ```
 
-Adjust this to match whatever Task 3's grounding found for `createMcpHandler`/`toNodeHandler`'s real signatures, and whatever mechanism actually carries `req.bearerToken` (set by `requireBearerAuth`) into the tool handler's `ctx.http.authInfo.token` reference in `mcp-server.ts` — if the SDK doesn't automatically bridge Express's `req` into that context, add the glue here (e.g. passing `req.bearerToken` explicitly into `createMcpHandler`'s factory closure instead of via `ctx`).
+This matches Task 3's grounding exactly (`toNodeHandler`'s real signature and the `req.auth` pass-through mechanism) — no adjustment should be needed here, but re-confirm against `node_modules/@modelcontextprotocol/node`'s actual types if `tsc` disagrees in Step 6 below.
 
 - [ ] **Step 6: Run the full test suite and typecheck**
 
