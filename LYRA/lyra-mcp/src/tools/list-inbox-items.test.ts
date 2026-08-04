@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('../lyra-api-client', () => ({ callLyraApi: vi.fn() }))
+vi.mock('../lyra-api-client', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../lyra-api-client')>()
+  return { ...actual, callLyraApi: vi.fn() }
+})
 
-import { callLyraApi } from '../lyra-api-client'
+import { callLyraApi, LyraApiError } from '../lyra-api-client'
 import { listInboxItems } from './list-inbox-items'
 
 describe('listInboxItems', () => {
@@ -27,5 +30,11 @@ describe('listInboxItems', () => {
 
   it('throws when workspace_id is missing', async () => {
     await expect(listInboxItems({} as any, 'token-abc')).rejects.toThrow('workspace_id is required')
+  })
+
+  it('propagates errors from callLyraApi unchanged', async () => {
+    vi.mocked(callLyraApi).mockRejectedValue(new LyraApiError(500, {}))
+
+    await expect(listInboxItems({ workspace_id: 'ws-1' }, 'token-abc')).rejects.toThrow(LyraApiError)
   })
 })
