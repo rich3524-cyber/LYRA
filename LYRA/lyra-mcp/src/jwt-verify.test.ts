@@ -51,6 +51,18 @@ describe('verifyAuth0AccessToken', () => {
     expect(await verifyAuth0AccessToken(token, testJwks)).toBeNull()
   })
 
+  it('returns null for the wrong issuer', async () => {
+    const token = await new SignJWT({ sub: 'auth0|user123' })
+      .setProtectedHeader({ alg: 'RS256', kid: 'test-key' })
+      .setIssuedAt()
+      .setIssuer('https://attacker.example.com/')
+      .setAudience('https://mcp.lyraonline.ai')
+      .setExpirationTime('1h')
+      .sign(privateKey)
+
+    expect(await verifyAuth0AccessToken(token, testJwks)).toBeNull()
+  })
+
   it('returns null for the wrong audience', async () => {
     const token = await new SignJWT({ sub: 'auth0|user123' })
       .setProtectedHeader({ alg: 'RS256', kid: 'test-key' })
@@ -75,9 +87,40 @@ describe('verifyAuth0AccessToken', () => {
     expect(await verifyAuth0AccessToken(token, testJwks)).toBeNull()
   })
 
+  it('returns null for a token with no sub claim', async () => {
+    const token = await new SignJWT({})
+      .setProtectedHeader({ alg: 'RS256', kid: 'test-key' })
+      .setIssuedAt()
+      .setIssuer('https://test-tenant.auth0.com/')
+      .setAudience('https://mcp.lyraonline.ai')
+      .setExpirationTime('1h')
+      .sign(privateKey)
+
+    expect(await verifyAuth0AccessToken(token, testJwks)).toBeNull()
+  })
+
   it('returns null when AUTH0_MCP_AUDIENCE is not set (fail closed, not a silent bypass)', async () => {
     delete process.env.AUTH0_MCP_AUDIENCE
     const token = await signTestToken()
+    expect(await verifyAuth0AccessToken(token, testJwks)).toBeNull()
+  })
+
+  it('returns null (not throw) when AUTH0_DOMAIN is not set, even for an otherwise-valid token', async () => {
+    const token = await signTestToken()
+    delete process.env.AUTH0_DOMAIN
+
+    await expect(verifyAuth0AccessToken(token, testJwks)).resolves.toBeNull()
+  })
+
+  it('returns null when the token kid does not match any key in the JWKS', async () => {
+    const token = await new SignJWT({ sub: 'auth0|user123' })
+      .setProtectedHeader({ alg: 'RS256', kid: 'nonexistent-key' })
+      .setIssuedAt()
+      .setIssuer('https://test-tenant.auth0.com/')
+      .setAudience('https://mcp.lyraonline.ai')
+      .setExpirationTime('1h')
+      .sign(privateKey)
+
     expect(await verifyAuth0AccessToken(token, testJwks)).toBeNull()
   })
 
