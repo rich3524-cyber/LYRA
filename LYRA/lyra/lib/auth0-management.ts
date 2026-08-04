@@ -53,7 +53,12 @@ export async function createAuth0Client(params: CreateAuth0ClientParams): Promis
       Authorization:  `Bearer ${token}`,
     },
     // Public client (native app + PKCE): no client secret is issued, so
-    // there's nothing for a leaked callback/redirect to expose.
+    // there's nothing for a leaked callback/redirect to expose. Refresh
+    // token rotation is a per-Application setting in Auth0 (not settable
+    // once on the API/Resource Server the way the token-expiration fields
+    // are), so it must be requested explicitly for every client this shim
+    // provisions -- leeway: 0 matches "Reuse Interval: 0" in the dashboard's
+    // equivalent Application-level control.
     body: JSON.stringify({
       name:                       params.name,
       app_type:                   'native',
@@ -61,6 +66,11 @@ export async function createAuth0Client(params: CreateAuth0ClientParams): Promis
       grant_types:                ['authorization_code', 'refresh_token'],
       callbacks:                  params.redirectUris,
       jwt_configuration:          { alg: 'RS256' },
+      refresh_token: {
+        rotation_type:   'rotating',
+        expiration_type: 'expiring',
+        leeway:          0,
+      },
     }),
     signal: AbortSignal.timeout(TIMEOUT_MS),
   })
