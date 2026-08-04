@@ -53,7 +53,14 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
 }
 
 export function createLyraMcpServer() {
-  const server = new McpServer({ name: 'lyra', version: '0.1.0' })
+  const server = new McpServer({
+    name: 'lyra',
+    version: '0.1.0',
+    // Purely cosmetic -- shown in a connecting client's UI (e.g. Claude's
+    // connector list). No effect on protocol behavior. Points at the same
+    // app-icon asset the main LYRA app itself uses.
+    icons: [{ src: 'https://lyraonline.ai/brand/lyra-app-icon-512.svg', mimeType: 'image/svg+xml', sizes: ['512x512'] }],
+  })
 
   for (const [name, tool] of Object.entries(TOOL_REGISTRY)) {
     server.registerTool(
