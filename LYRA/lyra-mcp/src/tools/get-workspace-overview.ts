@@ -1,4 +1,5 @@
 import { callLyraApi } from '../lyra-api-client'
+import { resolveWorkspaceId } from '../resolve-workspace-id'
 
 interface WorkspaceDetail {
   id: string
@@ -14,9 +15,8 @@ interface WorkspaceOverviewWorkspace {
   plan: string
 }
 
-export async function getWorkspaceOverview(params: { workspace_id: string }, bearerToken: string) {
-  if (!params.workspace_id) throw new Error('workspace_id is required')
-  const { workspace_id } = params
+export async function getWorkspaceOverview(params: { workspace_id?: string }, bearerToken: string) {
+  const workspace_id = await resolveWorkspaceId(params.workspace_id, bearerToken)
 
   // Promise.allSettled (not Promise.all) -- these four calls are independent
   // data sources being gathered for one overview, and this is a "several

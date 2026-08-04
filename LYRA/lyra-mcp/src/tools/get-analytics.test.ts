@@ -4,8 +4,10 @@ vi.mock('../lyra-api-client', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../lyra-api-client')>()
   return { ...actual, callLyraApi: vi.fn() }
 })
+vi.mock('../resolve-workspace-id', () => ({ resolveWorkspaceId: vi.fn() }))
 
 import { callLyraApi, LyraApiError } from '../lyra-api-client'
+import { resolveWorkspaceId } from '../resolve-workspace-id'
 import { getAnalytics } from './get-analytics'
 
 const sampleResponse = {
@@ -35,7 +37,10 @@ const sampleResponse = {
 }
 
 describe('getAnalytics', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(resolveWorkspaceId).mockResolvedValue('ws-1')
+  })
 
   it('calls GET /api/analytics with workspace_id and default period, returns the response as-is', async () => {
     vi.mocked(callLyraApi).mockResolvedValue(sampleResponse)
@@ -52,8 +57,21 @@ describe('getAnalytics', () => {
     expect(callLyraApi).toHaveBeenCalledWith('/api/analytics', 'token-abc', { workspaceId: 'ws-1', period: '7' })
   })
 
-  it('throws when workspace_id is missing', async () => {
-    await expect(getAnalytics({} as any, 'token-abc')).rejects.toThrow('workspace_id is required')
+  it('delegates workspace_id resolution to resolveWorkspaceId and uses its resolved value', async () => {
+    vi.mocked(resolveWorkspaceId).mockResolvedValue('ws-resolved')
+    vi.mocked(callLyraApi).mockResolvedValue(sampleResponse)
+
+    await getAnalytics({} as any, 'token-abc')
+
+    expect(resolveWorkspaceId).toHaveBeenCalledWith(undefined, 'token-abc')
+    expect(callLyraApi).toHaveBeenCalledWith('/api/analytics', 'token-abc', { workspaceId: 'ws-resolved', period: '30' })
+  })
+
+  it('propagates errors thrown by resolveWorkspaceId', async () => {
+    vi.mocked(resolveWorkspaceId).mockRejectedValue(new Error('workspace_id is required: caller has access to multiple workspaces (A, B) -- specify which one'))
+
+    await expect(getAnalytics({} as any, 'token-abc')).rejects.toThrow('multiple workspaces')
+    expect(callLyraApi).not.toHaveBeenCalled()
   })
 
   it('propagates errors from callLyraApi unchanged', async () => {

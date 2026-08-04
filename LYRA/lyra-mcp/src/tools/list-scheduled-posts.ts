@@ -1,4 +1,5 @@
 import { callLyraApi } from '../lyra-api-client'
+import { resolveWorkspaceId } from '../resolve-workspace-id'
 
 interface Post {
   id: string
@@ -11,15 +12,15 @@ interface Post {
 }
 
 interface ListScheduledPostsParams {
-  workspace_id: string
+  workspace_id?: string
   status?: string
   month?: string
 }
 
 export async function listScheduledPosts(params: ListScheduledPostsParams, bearerToken: string) {
-  if (!params.workspace_id) throw new Error('workspace_id is required')
+  const workspace_id = await resolveWorkspaceId(params.workspace_id, bearerToken)
 
-  const queryParams: Record<string, string> = { workspaceId: params.workspace_id }
+  const queryParams: Record<string, string> = { workspaceId: workspace_id }
   if (params.status) queryParams.status = params.status
   if (params.month) queryParams.month = params.month
 

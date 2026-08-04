@@ -1,4 +1,5 @@
 import { callLyraApi, LyraApiError } from '../lyra-api-client'
+import { resolveWorkspaceId } from '../resolve-workspace-id'
 import { wrapUntrusted } from '../untrusted-content'
 
 interface Trend {
@@ -9,7 +10,7 @@ interface Trend {
 }
 
 interface ListTrendsParams {
-  workspace_id: string
+  workspace_id?: string
 }
 
 // `GET /api/trends` in the main app hard-returns 503 "LYRA Trend launches in
@@ -19,10 +20,10 @@ interface ListTrendsParams {
 // unavailability message independent of the real endpoint. Once LYRA Trend
 // ships, this tool works with zero changes.
 export async function listTrends(params: ListTrendsParams, bearerToken: string) {
-  if (!params.workspace_id) throw new Error('workspace_id is required')
+  const workspace_id = await resolveWorkspaceId(params.workspace_id, bearerToken)
 
   try {
-    const trends = await callLyraApi<Trend[]>('/api/trends', bearerToken, { workspaceId: params.workspace_id })
+    const trends = await callLyraApi<Trend[]>('/api/trends', bearerToken, { workspaceId: workspace_id })
     return {
       available: true,
       trends: trends.map((t) => ({

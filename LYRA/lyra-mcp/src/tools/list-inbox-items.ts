@@ -1,4 +1,5 @@
 import { callLyraApi } from '../lyra-api-client'
+import { resolveWorkspaceId } from '../resolve-workspace-id'
 import { wrapUntrusted } from '../untrusted-content'
 
 interface Comment {
@@ -9,7 +10,7 @@ interface Comment {
 }
 
 interface ListInboxItemsParams {
-  workspace_id: string
+  workspace_id?: string
 }
 
 // wrapUntrusted's `source` parameter is documented as static and
@@ -39,7 +40,7 @@ const KNOWN_PLATFORM_SOURCES: Record<string, string> = {
 // wrapUntrusted before being returned, or this becomes a real
 // prompt-injection vector rather than a style nit.
 export async function listInboxItems(params: ListInboxItemsParams, bearerToken: string) {
-  if (!params.workspace_id) throw new Error('workspace_id is required')
+  const workspace_id = await resolveWorkspaceId(params.workspace_id, bearerToken)
 
   // `/api/comments` applies a `take: 100` safety cap on the underlying route
   // (see app/api/comments/route.ts in the main app), ordered by
@@ -48,7 +49,7 @@ export async function listInboxItems(params: ListInboxItemsParams, bearerToken: 
   // comments, older pending/escalated comments silently fall off the list
   // with nothing distinguishing that from "nothing else to see."
   const comments = await callLyraApi<Comment[]>('/api/comments', bearerToken, {
-    workspaceId: params.workspace_id,
+    workspaceId: workspace_id,
   })
 
   return {

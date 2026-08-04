@@ -1,7 +1,8 @@
 import { callLyraApi } from '../lyra-api-client'
+import { resolveWorkspaceId } from '../resolve-workspace-id'
 
 interface GetAnalyticsParams {
-  workspace_id: string
+  workspace_id?: string
   period?: number
 }
 
@@ -54,10 +55,10 @@ interface AnalyticsResponse {
 }
 
 export async function getAnalytics(params: GetAnalyticsParams, bearerToken: string) {
-  if (!params.workspace_id) throw new Error('workspace_id is required')
+  const workspace_id = await resolveWorkspaceId(params.workspace_id, bearerToken)
   const period = params.period ?? 30
   return callLyraApi<AnalyticsResponse>('/api/analytics', bearerToken, {
-    workspaceId: params.workspace_id,
+    workspaceId: workspace_id,
     period: String(period),
   })
 }
