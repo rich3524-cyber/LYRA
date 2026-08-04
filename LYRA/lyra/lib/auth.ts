@@ -1,9 +1,55 @@
 import { timingSafeEqual } from 'crypto'
 import { cache } from 'react'
+import { headers } from 'next/headers'
 import { auth0 } from './auth0'
 import { prisma } from './prisma'
+import { verifyAuth0AccessToken } from './jwt-verify'
+
+interface BearerAuthDeps {
+  verifyToken: typeof verifyAuth0AccessToken
+  prisma: { user: { findUnique: typeof prisma.user.findUnique } }
+}
+
+const defaultBearerAuthDeps: BearerAuthDeps = { verifyToken: verifyAuth0AccessToken, prisma }
+
+// Additive bearer-token auth path for MCP (and any future API-token) clients,
+// sitting alongside -- never replacing -- the Auth0 session-cookie path
+// below. A request with no Authorization header (every existing web-app
+// request) falls straight through with zero behavior change.
+//
+// Deliberately findUnique, not upsert: a bearer token can only authenticate
+// as a user who already exists in LYRA (has a real WorkspaceAccess row from
+// having used the web app at least once). See the "does not create a user"
+// test case for why silently provisioning a blank user here would be unsafe.
+export async function getUserFromBearerToken(
+  authHeader: string | null,
+  deps: BearerAuthDeps = defaultBearerAuthDeps
+) {
+  if (!authHeader?.startsWith('Bearer ')) return null
+  const token = authHeader.slice('Bearer '.length)
+
+  const payload = await deps.verifyToken(token)
+  if (!payload) return null
+
+  try {
+    return await deps.prisma.user.findUnique({
+      where: { auth0Id: payload.sub },
+      include: {
+        agency: true,
+        workspaceAccess: { include: { workspace: true } },
+      },
+    })
+  } catch (err) {
+    console.error('[getUserFromBearerToken] prisma.user.findUnique failed:', err)
+    return null
+  }
+}
 
 export const getCurrentUser = cache(async () => {
+  const hdrs = await headers()
+  const bearerUser = await getUserFromBearerToken(hdrs.get('authorization'))
+  if (bearerUser) return bearerUser
+
   let session: Awaited<ReturnType<typeof auth0.getSession>>
   try {
     session = await auth0.getSession()
