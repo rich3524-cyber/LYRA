@@ -10,6 +10,16 @@ function getDefaultJwks(): JWTVerifyGetKey {
   return _defaultJwks
 }
 
+// Both must be set: AUTH0_DOMAIN feeds the issuer check, AUTH0_MCP_AUDIENCE
+// feeds the audience check. Passing `audience: undefined` to jwtVerify skips
+// the audience check entirely (jose treats it as "don't verify"), which
+// would let a validly-signed token issued for a *different* API authenticate
+// here -- so a missing env var must hard-fail, not silently degrade.
+function assertAuth0EnvConfigured(): void {
+  if (!process.env.AUTH0_DOMAIN) throw new Error('AUTH0_DOMAIN is not set')
+  if (!process.env.AUTH0_MCP_AUDIENCE) throw new Error('AUTH0_MCP_AUDIENCE is not set')
+}
+
 export interface Auth0AccessTokenPayload {
   sub: string
   [key: string]: unknown
@@ -19,14 +29,16 @@ export interface Auth0AccessTokenPayload {
 // Auth0's real, network-fetched JWKS endpoint -- see lib/jwt-verify.test.ts.
 export async function verifyAuth0AccessToken(
   token: string,
-  jwks: JWTVerifyGetKey = getDefaultJwks()
+  jwks?: JWTVerifyGetKey
 ): Promise<Auth0AccessTokenPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, jwks, {
-      issuer:   `https://${process.env.AUTH0_DOMAIN}/`,
-      audience: process.env.AUTH0_MCP_AUDIENCE,
+    assertAuth0EnvConfigured()
+    const { payload } = await jwtVerify(token, jwks ?? getDefaultJwks(), {
+      issuer:     `https://${process.env.AUTH0_DOMAIN}/`,
+      audience:   process.env.AUTH0_MCP_AUDIENCE,
+      algorithms: ['RS256'],
     })
-    if (typeof payload.sub !== 'string') return null
+    if (typeof payload.sub !== 'string' || payload.sub.length === 0) return null
     return payload as Auth0AccessTokenPayload
   } catch {
     return null

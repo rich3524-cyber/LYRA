@@ -102,4 +102,30 @@ describe('verifyAuth0AccessToken', () => {
   it('returns null for a malformed token string without throwing', async () => {
     await expect(verifyAuth0AccessToken('not-a-jwt', testJwks)).resolves.toBeNull()
   })
+
+  it('returns null (not throw) when AUTH0_MCP_AUDIENCE is not set, even for an otherwise-valid token', async () => {
+    const token = await signTestToken()
+    delete process.env.AUTH0_MCP_AUDIENCE
+
+    await expect(verifyAuth0AccessToken(token, testJwks)).resolves.toBeNull()
+  })
+
+  it('returns null (not throw) when AUTH0_DOMAIN is not set, even for an otherwise-valid token', async () => {
+    const token = await signTestToken()
+    delete process.env.AUTH0_DOMAIN
+
+    await expect(verifyAuth0AccessToken(token, testJwks)).resolves.toBeNull()
+  })
+
+  it('returns null when the token kid does not match any key in the JWKS', async () => {
+    const token = await new SignJWT({ sub: 'auth0|user123' })
+      .setProtectedHeader({ alg: 'RS256', kid: 'nonexistent-key' })
+      .setIssuedAt()
+      .setIssuer('https://test-tenant.auth0.com/')
+      .setAudience('https://mcp.lyraonline.ai')
+      .setExpirationTime('1h')
+      .sign(privateKey)
+
+    expect(await verifyAuth0AccessToken(token, testJwks)).toBeNull()
+  })
 })
