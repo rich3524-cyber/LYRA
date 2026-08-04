@@ -29,7 +29,7 @@ function wwwAuthenticateHeader(): string {
   return `Bearer resource_metadata="${appBaseUrl}/.well-known/oauth-protected-resource"`
 }
 
-async function requireBearerAuth(req: Request, res: Response, next: NextFunction) {
+export async function requireBearerAuth(req: Request, res: Response, next: NextFunction) {
   const authHeader = req.headers.authorization
   if (!authHeader?.startsWith('Bearer ')) {
     res.setHeader('WWW-Authenticate', wwwAuthenticateHeader())
@@ -55,29 +55,45 @@ async function requireBearerAuth(req: Request, res: Response, next: NextFunction
   next()
 }
 
+function protectedResourceMetadataHandler(_req: Request, res: Response) {
+  const appBaseUrl = process.env.APP_BASE_URL
+  res.status(200).json({
+    resource: `${appBaseUrl}/mcp`,
+    // Points at the RFC 8414 document LYRA's own app serves (Phase 0,
+    // docs/LYRA-mcp-server-design.md §2.2) -- this is where the
+    // registration_endpoint (the DCR shim) and Auth0's real
+    // authorize/token endpoints are discoverable, not Auth0's raw
+    // domain directly (Auth0 doesn't serve LYRA's DCR-aware metadata
+    // document itself).
+    authorization_servers: ['https://lyraonline.ai'],
+    bearer_methods_supported: ['header'],
+    scopes_supported: SCOPES_SUPPORTED,
+  })
+}
+
 export function createApp() {
   const app = express()
-  app.use(express.json())
 
   app.get('/health', (_req, res) => res.status(200).json({ ok: true }))
 
-  app.get('/.well-known/oauth-protected-resource', (_req, res) => {
-    const appBaseUrl = process.env.APP_BASE_URL
-    res.status(200).json({
-      resource: `${appBaseUrl}/mcp`,
-      // Points at the RFC 8414 document LYRA's own app serves (Phase 0,
-      // docs/LYRA-mcp-server-design.md §2.2) -- this is where the
-      // registration_endpoint (the DCR shim) and Auth0's real
-      // authorize/token endpoints are discoverable, not Auth0's raw
-      // domain directly (Auth0 doesn't serve LYRA's DCR-aware metadata
-      // document itself).
-      authorization_servers: ['https://lyraonline.ai'],
-      bearer_methods_supported: ['header'],
-      scopes_supported: SCOPES_SUPPORTED,
-    })
-  })
+  // RFC 9728 §3.1 technically requires this document to live at a
+  // resource-scoped well-known path (host + '/.well-known/oauth-protected-resource'
+  // + the resource's own path, i.e. '/mcp' here) so clients can compute the
+  // URL proactively without ever hitting a 401 first. The MCP spec's actual
+  // discovery flow doesn't need that -- clients read `resource_metadata`
+  // verbatim off the `WWW-Authenticate` header of a 401 -- but we serve both
+  // so spec-strict proactive-discovery clients aren't left 404ing, alongside
+  // the bare root path some clients/tooling default to.
+  app.get('/.well-known/oauth-protected-resource', protectedResourceMetadataHandler)
+  app.get('/.well-known/oauth-protected-resource/mcp', protectedResourceMetadataHandler)
 
-  app.post('/mcp', requireBearerAuth)
+  // express.json() is scoped to just /mcp (not applied globally) so that a
+  // malformed JSON body on an unauthenticated request can't reach
+  // body-parser's default (non-JSON) error handler before requireBearerAuth
+  // gets a chance to reject it with the same {error, error_description}
+  // shape every other failure path here uses. /health and the metadata
+  // routes above never need a parsed body.
+  app.post('/mcp', express.json(), requireBearerAuth)
   // A later task mounts the actual MCP protocol handler on this same route,
   // after this middleware, replacing this bare `requireBearerAuth`-only
   // registration.
