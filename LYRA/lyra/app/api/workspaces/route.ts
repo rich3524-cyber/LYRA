@@ -20,10 +20,19 @@ export async function GET() {
         clientAccessLevel: true,
         aiResponseMode: true,
         plan: true,
+        access: { where: { userId: user.id }, select: { role: true } },
+        socialAccounts: { where: { isActive: true }, select: { platform: true } },
       },
       orderBy: { name: 'asc' },
     })
-    return NextResponse.json(workspaces)
+
+    const shaped = workspaces.map(({ access, socialAccounts, ...w }) => ({
+      ...w,
+      role: access[0]?.role ?? null,
+      platforms: socialAccounts.map((sa) => sa.platform),
+    }))
+
+    return NextResponse.json(shaped)
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
