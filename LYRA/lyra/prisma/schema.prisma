@@ -24,6 +24,7 @@ model User {
   workspaceAccess WorkspaceAccess[]
   posts           Post[]
   approvals       PostApproval[]
+  mcpAuditLogs    McpAuditLog[]
 }
 
 enum UserRole {
@@ -88,6 +89,7 @@ model Workspace {
   posts              Post[]
   brandProfile       BrandProfile?
   guardrails         Guardrail[]
+  mcpAuditLogs       McpAuditLog[]
   onboardingToken    OnboardingToken?
   seoConnection      SeoConnection?
   seoPages           SeoPage[]
@@ -555,4 +557,26 @@ model EmailCampaign {
 
   @@unique([integrationId, externalId])
   @@index([integrationId, scheduledAt])
+}
+
+enum McpAuditOutcome {
+  SUCCESS
+  ERROR
+}
+
+model McpAuditLog {
+  id           String          @id @default(cuid())
+  workspaceId  String
+  workspace    Workspace       @relation(fields: [workspaceId], references: [id])
+  userId       String
+  user         User            @relation(fields: [userId], references: [id])
+  toolName     String
+  params       Json?
+  outcome      McpAuditOutcome
+  errorMessage String?
+  createdAt    DateTime        @default(now())
+
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([createdAt])
 }
