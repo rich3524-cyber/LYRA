@@ -22,6 +22,19 @@ Phase 0 (complete, verified end-to-end against the real Auth0 tenant) built the 
 
 ---
 
+## Refinements found while writing the implementation plan (2026-08-04)
+
+Four corrections to this spec, found via direct research/codebase audit while writing `docs/superpowers/plans/2026-08-04-mcp-gateway-phase1.md` — noted here so the spec stays accurate, matching how the parent spec was corrected during Phase 0:
+
+1. **RFC 9728 Protected Resource Metadata is required, not optional.** The current MCP authorization spec requires an MCP server (as an OAuth resource server) to publish `/.well-known/oauth-protected-resource` and return a `WWW-Authenticate` header pointing at it on 401 responses, so clients can auto-discover the auth flow. Not mentioned in this spec's original §1 — added to the plan's Task 6.
+2. **The gateway performs its own lightweight bearer-token check** (JWKS signature + audience + expiry, via its own copy of the same `jose`-based verification Phase 0 built), rather than being a pure blind pass-through as originally written. This is authentication only — a protocol-layer resource-server responsibility distinct from authorization, which stays exclusively in the LYRA API. No business logic (role/plan/workspace/guardrail decisions) is duplicated.
+3. **Express, not Hono.** The MCP TypeScript SDK ships official first-party Express integration; committing to the framework with confirmed SDK support reduces integration risk over hand-wiring Hono.
+4. **Two small additive endpoints added to the main `lyra` app**, found by actually auditing the API surface against the 7 tools' needs (the audit the parent spec's Open Questions section flagged as Phase 1's first task): `GET /api/workspaces` needed role + connected platforms added to its select (had neither); `GET /api/brand-intelligence/profile` didn't exist at all (brand profile data was previously only read internally by AI routes). Both are read-only, additive, and don't change any existing endpoint's behavior for existing callers.
+
+Also: `list_trends` has nothing real to call today — `GET /api/trends` deliberately hard-returns `503` ("LYRA Trend launches in Phase 3"), since LYRA Trend itself isn't live yet. The tool is still built as a thin, truthful passthrough (calls the real endpoint, surfaces its actual unavailability message) rather than skipped, so it works with zero changes once LYRA Trend ships.
+
+---
+
 ## 1. Service structure & deployment
 
 - **New directory**: `LYRA/lyra-mcp/` — a separate Node/TypeScript package in the same repo, own `package.json`, own `tsconfig.json`, not part of the Next.js app's build.
