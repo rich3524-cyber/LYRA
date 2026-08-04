@@ -1,6 +1,9 @@
 import express, { type Request, type Response, type NextFunction } from 'express'
 import type { AuthInfo } from '@modelcontextprotocol/server'
+import { createMcpHandler } from '@modelcontextprotocol/server'
+import { toNodeHandler } from '@modelcontextprotocol/node'
 import { verifyAuth0AccessToken } from './jwt-verify'
+import { createLyraMcpServer } from './mcp-server'
 
 // @modelcontextprotocol/server and @modelcontextprotocol/node type req.auth
 // structurally (e.g. `NodeIncomingMessageLike { auth?: AuthInfo }` in
@@ -93,10 +96,18 @@ export function createApp() {
   // gets a chance to reject it with the same {error, error_description}
   // shape every other failure path here uses. /health and the metadata
   // routes above never need a parsed body.
-  app.post('/mcp', express.json(), requireBearerAuth)
-  // A later task mounts the actual MCP protocol handler on this same route,
-  // after this middleware, replacing this bare `requireBearerAuth`-only
-  // registration.
+  const mcpHandler = createMcpHandler(() => createLyraMcpServer())
+  const nodeHandler = toNodeHandler(mcpHandler)
+
+  app.post('/mcp', express.json(), requireBearerAuth, (req, res) => {
+    // Must forward req.body explicitly -- toNodeHandler's third param is
+    // ignored by Express's own (req, res, next) call convention if you
+    // mount it bare, and the request stream is already drained by
+    // express.json() by this point. req.auth (set by requireBearerAuth) is
+    // read directly off req by toNodeHandler and forwarded into the MCP
+    // request context automatically -- no extra glue needed here.
+    void nodeHandler(req, res, req.body)
+  })
 
   return app
 }
