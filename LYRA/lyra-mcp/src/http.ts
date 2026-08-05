@@ -54,6 +54,11 @@ export async function requireBearerAuth(req: Request, res: Response, next: NextF
     clientId: typeof payload.azp === 'string' ? payload.azp : '',
     scopes: typeof payload.scope === 'string' ? payload.scope.split(' ') : [],
     expiresAt: typeof payload.exp === 'number' ? payload.exp : undefined,
+    // Carries the Auth0 user identifier (JWT `sub` claim) through to tool
+    // callbacks for per-user rate limiting and audit logging (later tasks).
+    // AuthInfo's fixed fields don't include it -- its `extra` bag is
+    // exactly for this kind of additional context.
+    extra: { sub: payload.sub },
   }
   next()
 }

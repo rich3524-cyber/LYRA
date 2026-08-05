@@ -110,6 +110,7 @@ describe('bearer auth middleware (applied to /mcp)', () => {
       clientId: 'client-abc',
       scopes: ['workspaces:read', 'content:read'],
       expiresAt: 1234567890,
+      extra: { sub: 'auth0|user123' },
     })
   })
 })
