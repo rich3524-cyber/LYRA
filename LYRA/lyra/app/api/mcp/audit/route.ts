@@ -4,14 +4,22 @@ import { z } from 'zod'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { parseBody, ValidationError } from '@/lib/validate'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 const auditSchema = z.object({
   workspaceId:  z.string().min(1),
   toolName:     z.string().min(1),
   params:       z.unknown().optional(),
   outcome:      z.enum(['SUCCESS', 'ERROR']),
-  errorMessage: z.string().nullish(),
+  errorMessage: z.string().max(2000).nullish(),
 })
+
+// Params size cap -- the gateway forwards raw tool-call params, which for
+// some tools include real user/customer content (post text, comment text)
+// into this JSONB column with no retention policy. This cap and the
+// errorMessage length cap above are cheap guards only; full redaction/
+// retention policy for this table is deferred, not this task's scope.
+const MAX_PARAMS_SIZE = 50_000
 
 // Called once per MCP tool invocation by the gateway (lyra-mcp), using the
 // same bearer token the tool call itself used -- so workspace access is
@@ -20,7 +28,15 @@ const auditSchema = z.object({
 export async function POST(req: Request) {
   try {
     const user = await requireAuth()
+
+    const { allowed } = await checkRateLimit(`mcp-audit:${user.id}`, 120, 60)
+    if (!allowed) return rateLimitResponse()
+
     const { workspaceId, toolName, params, outcome, errorMessage } = await parseBody(req, auditSchema)
+
+    if (params != null && JSON.stringify(params).length > MAX_PARAMS_SIZE) {
+      return NextResponse.json({ error: 'params exceeds maximum size' }, { status: 400 })
+    }
 
     const access = await prisma.workspaceAccess.findFirst({
       where: { workspaceId, userId: user.id },
@@ -34,7 +50,7 @@ export async function POST(req: Request) {
         workspaceId,
         userId: user.id,
         toolName,
-        params: params as Prisma.InputJsonValue | undefined,
+        params: params == null ? Prisma.DbNull : (params as Prisma.InputJsonValue),
         outcome,
         errorMessage: errorMessage ?? null,
       },
