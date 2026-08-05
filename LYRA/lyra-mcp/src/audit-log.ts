@@ -34,7 +34,16 @@ function capParams(params: unknown): unknown {
 // completion even when not awaited by the caller -- this gateway runs as a
 // persistent Railway service (not a serverless function that might
 // terminate the moment a response is sent), so the event loop keeps
-// running until this promise settles regardless.
+// running until this promise settles regardless of whether the caller
+// awaited it.
+//
+// One known gap: index.ts's SIGTERM handler drains in-flight *HTTP
+// requests* (via server.close()) before calling process.exit(0), but a
+// `void logAuditEvent(...)` fired just before a tool-call response is sent
+// is not itself tracked as an in-flight HTTP request by server.close() --
+// so it's possible for the process to exit mid-write on a deploy,
+// dropping a small number of audit rows. Acceptable for beta scope; not
+// worth the complexity of explicit in-flight-write tracking to close.
 export async function logAuditEvent(bearerToken: string, event: AuditEventParams): Promise<void> {
   const cappedEvent = {
     ...event,

@@ -12,9 +12,10 @@ import { schedulePost } from './tools/schedule-post'
 import { respondToItem } from './tools/respond-to-item'
 import { checkRateLimit } from './rate-limit'
 import { logAuditEvent } from './audit-log'
-import { getAuthSub } from './http'
+import { getAuthSub } from './auth-context'
+import { resolveWorkspaceId } from './resolve-workspace-id'
 
-interface ToolDefinition {
+export interface ToolDefinition {
   description: string
   inputSchema: z.ZodTypeAny
   handler: (params: any, bearerToken: string) => Promise<unknown>
@@ -73,6 +74,127 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
   },
 }
 
+// Every tool call funnels through checkRateLimit, which round-trips to
+// Redis with no timeout of its own (see rate-limit.ts). ioredis's defaults
+// (enableOfflineQueue: true, maxRetriesPerRequest: 20, exponential backoff)
+// mean an unreachable Redis doesn't fail fast -- it queues the command and
+// blocks for roughly 10-20s before finally rejecting, and the raw rejection
+// (e.g. "connect ECONNREFUSED 127.0.0.1:6379") would otherwise propagate
+// all the way to the MCP client and into the calling model's context via
+// the SDK's error-to-content conversion. This wrapper bounds that failure
+// mode to a fixed timeout and normalizes it to a generic, non-leaky error.
+//
+// Deliberately does NOT change behavior for a genuine rate-limit *denial*
+// (checkRateLimit resolving normally with allowed: false) -- that's a
+// security control and must still block the call with its specific
+// message. Only an actual infrastructure failure (reject, or a hang past
+// the timeout) gets normalized here.
+//
+// 3s is comfortably under both a typical MCP client request timeout and,
+// more concretely, the 25s shutdown-drain window in index.ts -- so even a
+// rate-limit check that starts right before a deploy's SIGTERM won't be the
+// reason an in-flight request outlives the drain window.
+const RATE_LIMIT_TIMEOUT_MS = 3000
+
+async function checkRateLimitSafely(
+  key: string,
+  limit: number,
+  windowSeconds: number
+): Promise<{ allowed: boolean; remaining: number }> {
+  try {
+    return await Promise.race([
+      checkRateLimit(key, limit, windowSeconds),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('rate limit check timed out')), RATE_LIMIT_TIMEOUT_MS)
+      ),
+    ])
+  } catch (err) {
+    console.error(`[rate-limit] infrastructure failure checking ${key}:`, err)
+    throw new Error('Rate limiting is temporarily unavailable -- please try again shortly')
+  }
+}
+
+type ToolCallbackCtx = { http?: { authInfo?: { token: string; extra?: Record<string, unknown> } } }
+
+// Extracted into a standalone, exported, independently-testable function --
+// this ~40-line body (rate limiting, workspace resolution, audit logging)
+// is the single code path every one of the 10 registered tools runs
+// through, making it the highest-blast-radius code in the whole gateway.
+// Previously it only existed as an inline callback passed straight to
+// server.registerTool(), which meant no test ever invoked it directly.
+export function createToolCallback(name: string, tool: ToolDefinition) {
+  return async (params: unknown, ctx: ToolCallbackCtx) => {
+    const token = ctx.http?.authInfo?.token
+    if (!token) throw new Error('No authenticated bearer token in request context')
+
+    // Fail loudly rather than silently degrade: a missing sub falling back
+    // to a shared 'unknown' placeholder would recreate exactly the
+    // shared-rate-limit-bucket problem getAuthSub exists to prevent. In
+    // practice this should be unreachable -- verifyAuth0AccessToken already
+    // rejects tokens with no sub claim before req.auth is ever set -- but
+    // the wrapper shouldn't rely on that upstream guarantee silently.
+    const sub = getAuthSub(ctx.http?.authInfo)
+    if (!sub) throw new Error('No authenticated user identity in request context')
+
+    const userLimit = await checkRateLimitSafely(`user:${sub}`, 60, 60)
+    if (!userLimit.allowed) throw new Error('Rate limit exceeded for this user -- please slow down and try again shortly')
+
+    const rawWorkspaceId = typeof (params as Record<string, unknown> | null)?.workspace_id === 'string'
+      ? ((params as Record<string, unknown>).workspace_id as string)
+      : undefined
+
+    // Resolve workspace_id here, once, for every workspace-scoped tool --
+    // list_workspaces is the only registered tool with no workspace_id
+    // concept at all (inputSchema: z.object({})), so it's excluded by name
+    // rather than by introspecting each Zod schema's shape. Every other
+    // tool already calls resolveWorkspaceId internally on its own, so
+    // resolving it here and threading the result back into the params
+    // handed to the tool makes that internal call a no-op fast path
+    // (resolveWorkspaceId returns immediately when given a non-empty
+    // string) -- not a second API round-trip.
+    //
+    // This closes the previously-known gap where a call that relied on
+    // implicit single-workspace resolution (workspace_id omitted) got
+    // neither workspace-level rate limiting nor an audit log entry, since
+    // both were gated on workspace_id being present in the *raw* params.
+    let workspaceId: string | null = rawWorkspaceId ?? null
+    let resolvedParams = params
+    if (name !== 'list_workspaces') {
+      try {
+        workspaceId = await resolveWorkspaceId(rawWorkspaceId, token)
+        resolvedParams = { ...(params as Record<string, unknown>), workspace_id: workspaceId }
+      } catch {
+        // Resolution failed (e.g. an ambiguous multi-workspace caller gave
+        // no id). Don't swallow this as a silent skip and don't throw it
+        // from here either -- just leave workspace_id unresolved and let
+        // the tool handler's own resolveWorkspaceId call fail naturally
+        // with its real, more specific error message.
+        workspaceId = rawWorkspaceId ?? null
+        resolvedParams = params
+      }
+    }
+
+    if (workspaceId) {
+      const wsLimit = await checkRateLimitSafely(`workspace:${workspaceId}`, 120, 60)
+      if (!wsLimit.allowed) throw new Error('Rate limit exceeded for this workspace -- please slow down and try again shortly')
+    }
+
+    try {
+      const result = await tool.handler(resolvedParams, token)
+      if (workspaceId) {
+        void logAuditEvent(token, { workspaceId, toolName: name, params: resolvedParams, outcome: 'SUCCESS' })
+      }
+      return { content: [{ type: 'text' as const, text: JSON.stringify(result) }] }
+    } catch (err) {
+      if (workspaceId) {
+        const errorMessage = err instanceof Error ? err.message : String(err)
+        void logAuditEvent(token, { workspaceId, toolName: name, params: resolvedParams, outcome: 'ERROR', errorMessage })
+      }
+      throw err
+    }
+  }
+}
+
 export function createLyraMcpServer() {
   const server = new McpServer({
     name: 'lyra',
@@ -87,36 +209,7 @@ export function createLyraMcpServer() {
     server.registerTool(
       name,
       { description: tool.description, inputSchema: tool.inputSchema },
-      async (params: unknown, ctx: { http?: { authInfo?: { token: string; extra?: Record<string, unknown> } } }) => {
-        const token = ctx.http?.authInfo?.token
-        if (!token) throw new Error('No authenticated bearer token in request context')
-
-        const sub = getAuthSub(ctx.http?.authInfo) ?? 'unknown'
-        const userLimit = await checkRateLimit(`user:${sub}`, 60, 60)
-        if (!userLimit.allowed) throw new Error('Rate limit exceeded for this user -- please slow down and try again shortly')
-
-        const workspaceId = typeof (params as Record<string, unknown> | null)?.workspace_id === 'string'
-          ? (params as Record<string, unknown>).workspace_id as string
-          : null
-        if (workspaceId) {
-          const wsLimit = await checkRateLimit(`workspace:${workspaceId}`, 120, 60)
-          if (!wsLimit.allowed) throw new Error('Rate limit exceeded for this workspace -- please slow down and try again shortly')
-        }
-
-        try {
-          const result = await tool.handler(params, token)
-          if (workspaceId) {
-            void logAuditEvent(token, { workspaceId, toolName: name, params, outcome: 'SUCCESS' })
-          }
-          return { content: [{ type: 'text', text: JSON.stringify(result) }] }
-        } catch (err) {
-          if (workspaceId) {
-            const errorMessage = err instanceof Error ? err.message : String(err)
-            void logAuditEvent(token, { workspaceId, toolName: name, params, outcome: 'ERROR', errorMessage })
-          }
-          throw err
-        }
-      }
+      createToolCallback(name, tool)
     )
   }
 
