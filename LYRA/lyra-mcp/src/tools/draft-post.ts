@@ -26,11 +26,18 @@ export async function draftPost(params: DraftPostParams, bearerToken: string) {
   const workspace_id = await resolveWorkspaceId(params.workspace_id, bearerToken)
 
   const [score, workspaceName, posts] = await Promise.all([
+    // Scoring is informational and must never block the write. /api/ai/score-content
+    // rejects short content (<10 chars), rate-limits at 20/min, and can 503 if the
+    // model call or its JSON parse fails -- none of which are reasons to withhold
+    // an otherwise-valid draft the caller already asked us to create.
     postLyraApi<ContentScore>('/api/ai/score-content', bearerToken, {
       content: params.content,
       platform: params.platforms[0],
       workspaceId: workspace_id,
-    }),
+    }).then(
+      (s) => s,
+      () => null
+    ),
     getWorkspaceName(workspace_id, bearerToken),
     postLyraApi<CreatedPost[]>('/api/posts', bearerToken, {
       workspaceId: workspace_id,
@@ -48,6 +55,10 @@ export async function draftPost(params: DraftPostParams, bearerToken: string) {
       platform: p.socialAccount.platform,
       accountName: p.socialAccount.name,
     })),
-    score,
+    // Scoring only ever reflects platforms[0] (see DraftPostParams handling
+    // above) -- scoredForPlatform makes that explicit so a caller requesting
+    // multiple platforms doesn't mistake a single-platform score for a
+    // verdict on all of them (length bands differ materially by platform).
+    score: score ? { ...score, scoredForPlatform: params.platforms[0] } : null,
   }
 }

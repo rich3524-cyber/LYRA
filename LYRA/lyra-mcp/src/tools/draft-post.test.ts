@@ -41,7 +41,11 @@ describe('draftPost', () => {
     expect(result).toEqual({
       workspaceName: 'Into The Wild Marketing',
       posts: [{ id: 'p1', status: 'DRAFT', platform: 'FACEBOOK', accountName: 'ITWM Page' }],
-      score: { overallScore: 78, dimensions: { hook: { score: 8, suggestion: null }, clarity: { score: 7, suggestion: 'Tighten the opener' } } },
+      score: {
+        overallScore: 78,
+        dimensions: { hook: { score: 8, suggestion: null }, clarity: { score: 7, suggestion: 'Tighten the opener' } },
+        scoredForPlatform: 'FACEBOOK',
+      },
     })
   })
 
@@ -64,5 +68,41 @@ describe('draftPost', () => {
     })
 
     await expect(draftPost({ content: 'hi', platforms: ['FACEBOOK'] } as any, 'token-abc')).rejects.toThrow(LyraApiError)
+  })
+
+  it('never lets a scoring failure block draft creation -- resolves with score: null and the real posts array', async () => {
+    const { LyraApiError } = await import('../lyra-api-client')
+    vi.mocked(postLyraApi).mockImplementation(async (path: string) => {
+      if (path === '/api/ai/score-content') throw new LyraApiError(422, { error: 'Content too short to score.' })
+      return [{ id: 'p1', status: 'DRAFT', socialAccount: { platform: 'FACEBOOK', name: 'ITWM Page' } }]
+    })
+
+    const result = await draftPost({ workspace_id: 'ws-1', content: 'hi', platforms: ['FACEBOOK'] }, 'token-abc')
+
+    expect(result).toEqual({
+      workspaceName: 'Into The Wild Marketing',
+      posts: [{ id: 'p1', status: 'DRAFT', platform: 'FACEBOOK', accountName: 'ITWM Page' }],
+      score: null,
+    })
+  })
+
+  it('scores only platforms[0] when multiple platforms are requested, and labels the score with that platform', async () => {
+    vi.mocked(postLyraApi).mockImplementation(async (path: string) => {
+      if (path === '/api/ai/score-content') return { overallScore: 60, dimensions: {} }
+      return [
+        { id: 'p1', status: 'DRAFT', socialAccount: { platform: 'LINKEDIN', name: 'ITWM LinkedIn' } },
+        { id: 'p2', status: 'DRAFT', socialAccount: { platform: 'TWITTER', name: 'ITWM Twitter' } },
+      ]
+    })
+
+    const result = await draftPost(
+      { workspace_id: 'ws-1', content: 'A long-form update for LinkedIn', platforms: ['LINKEDIN', 'TWITTER'] },
+      'token-abc'
+    )
+
+    expect(postLyraApi).toHaveBeenCalledWith('/api/ai/score-content', 'token-abc', {
+      content: 'A long-form update for LinkedIn', platform: 'LINKEDIN', workspaceId: 'ws-1',
+    })
+    expect(result.score).toEqual({ overallScore: 60, dimensions: {}, scoredForPlatform: 'LINKEDIN' })
   })
 })
