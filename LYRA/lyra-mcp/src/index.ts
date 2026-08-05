@@ -10,7 +10,7 @@ import { createApp } from './http'
 // still report 200 throughout, so Railway's own health check wouldn't catch
 // any of this either -- an immediate crash-loop with a clear log line is
 // far preferable.
-const REQUIRED_ENV_VARS = ['AUTH0_DOMAIN', 'AUTH0_MCP_AUDIENCE', 'LYRA_API_BASE_URL', 'APP_BASE_URL']
+const REQUIRED_ENV_VARS = ['AUTH0_DOMAIN', 'AUTH0_MCP_AUDIENCE', 'LYRA_API_BASE_URL', 'APP_BASE_URL', 'REDIS_URL']
 
 function assertRequiredEnvVars() {
   const missing = REQUIRED_ENV_VARS.filter((name) => !process.env[name])

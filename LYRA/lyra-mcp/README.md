@@ -19,6 +19,7 @@ npm run dev
 | `LYRA_API_BASE_URL` | Base URL of the LYRA API this gateway forwards calls to (e.g. `https://lyraonline.ai`) |
 | `APP_BASE_URL` | This gateway's own public base URL (e.g. `https://mcp.lyraonline.ai`) — used in the RFC 9728 metadata document |
 | `PORT` | HTTP port (Railway sets this automatically in production) |
+| `REDIS_URL` | Same Redis instance the main LYRA app's Railway worker fleet uses — backs gateway-side rate limiting |
 
 ## Deployment
 
