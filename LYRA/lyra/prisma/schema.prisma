@@ -567,9 +567,9 @@ enum McpAuditOutcome {
 model McpAuditLog {
   id           String          @id @default(cuid())
   workspaceId  String
-  workspace    Workspace       @relation(fields: [workspaceId], references: [id])
-  userId       String
-  user         User            @relation(fields: [userId], references: [id])
+  workspace    Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId       String?
+  user         User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
   toolName     String
   params       Json?
   outcome      McpAuditOutcome

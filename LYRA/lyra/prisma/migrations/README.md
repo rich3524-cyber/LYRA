@@ -47,3 +47,9 @@ environment that can reach `DIRECT_URL`) instead of hand-writing SQL into
 until then, keep using it for changes made from this machine, and fold them into a real
 migration file (via `prisma migrate dev` or `prisma db pull` + `migrate diff`) from wherever
 migrations end up actually running.
+
+## Known drift since the baseline
+
+`prisma/migrations-sql/2026-08-05-mcp-audit-log.sql` (the `McpAuditLog` table) was hand-applied
+after `20260802000000_baseline` and is not yet folded into a real migration file. It must be
+incorporated before this ledger can be trusted as a complete record of the live schema.
