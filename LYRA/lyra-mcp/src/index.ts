@@ -5,11 +5,13 @@ import { createApp } from './http'
 // literal string "undefined" into the RFC 9728 metadata document and the
 // WWW-Authenticate header (breaking OAuth discovery for every MCP client
 // with no server-side error signal), missing AUTH0_DOMAIN/AUTH0_MCP_AUDIENCE
-// degrades to generic 401s on every request, and missing LYRA_API_BASE_URL
-// produces an opaque "Invalid URL" error on every tool call. /health would
-// still report 200 throughout, so Railway's own health check wouldn't catch
-// any of this either -- an immediate crash-loop with a clear log line is
-// far preferable.
+// degrades to generic 401s on every request, missing LYRA_API_BASE_URL
+// produces an opaque "Invalid URL" error on every tool call, and missing
+// REDIS_URL doesn't error at all -- ioredis silently targets localhost:6379,
+// so every rate-limited tool call hangs for several seconds before failing.
+// /health would still report 200 throughout, so Railway's own health check
+// wouldn't catch any of this either -- an immediate crash-loop with a clear
+// log line is far preferable.
 const REQUIRED_ENV_VARS = ['AUTH0_DOMAIN', 'AUTH0_MCP_AUDIENCE', 'LYRA_API_BASE_URL', 'APP_BASE_URL', 'REDIS_URL']
 
 function assertRequiredEnvVars() {
