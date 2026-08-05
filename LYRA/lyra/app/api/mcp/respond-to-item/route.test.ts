@@ -227,6 +227,66 @@ describe('POST /api/mcp/respond-to-item', () => {
     expect(notFoundRes.status).toBe(404)
   })
 
+  // Defense-in-depth: the gateway resolves and sends workspace_id purely for
+  // its own audit/rate-limit attribution, not because this route needs it to
+  // find the comment (the scoped findFirst above already does that). When
+  // supplied and it matches the comment's real workspace, behavior is
+  // unchanged from every other test in this file.
+  it('proceeds normally when the supplied workspaceId matches the comment\'s real workspace', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.comment.findFirst).mockResolvedValue(baseComment() as any)
+    vi.mocked(prisma.brandProfile.findUnique).mockResolvedValue({} as any)
+    vi.mocked(prisma.guardrail.findMany).mockResolvedValue([])
+    vi.mocked(generateCommentResponse).mockResolvedValue({ response: 'Thanks!', shouldEscalate: false })
+
+    const res = await POST(req({ commentId: 'c1', workspaceId: 'ws-1' }))
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body).toEqual({ sent: false, draft: 'Thanks!', ...echo })
+  })
+
+  // The core bug this test guards: a multi-workspace caller (an agency
+  // managing multiple clients) could otherwise claim workspace_id A while
+  // acting on a comment that actually belongs to workspace B. The send
+  // itself was never misdirected (it's derived from the comment, not the
+  // claim), but the gateway's audit trail and rate-limit accounting would be
+  // silently charged against the wrong workspace. This must be rejected
+  // before any status-changing write -- no draft claim, no escalation write,
+  // no send.
+  it('returns 403 when the supplied workspaceId does not match the comment\'s real workspace', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.comment.findFirst).mockResolvedValue(baseComment() as any)
+
+    const res = await POST(req({ commentId: 'c1', workspaceId: 'ws-OTHER' }))
+
+    expect(res.status).toBe(403)
+    const body = await res.json()
+    expect(body).toEqual({ error: 'Forbidden' })
+    expect(prisma.guardrail.findMany).not.toHaveBeenCalled()
+    expect(generateCommentResponse).not.toHaveBeenCalled()
+    expect(prisma.comment.updateMany).not.toHaveBeenCalled()
+    expect(getProvider).not.toHaveBeenCalled()
+  })
+
+  // Backward compatibility: any caller (not just the MCP gateway) that omits
+  // workspaceId entirely must see identical behavior to before this check
+  // existed -- this route's core authorization still comes solely from the
+  // comment's own access-scoped query.
+  it('proceeds normally when workspaceId is omitted entirely', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.comment.findFirst).mockResolvedValue(baseComment() as any)
+    vi.mocked(prisma.brandProfile.findUnique).mockResolvedValue({} as any)
+    vi.mocked(prisma.guardrail.findMany).mockResolvedValue([])
+    vi.mocked(generateCommentResponse).mockResolvedValue({ response: 'Thanks!', shouldEscalate: false })
+
+    const res = await POST(req({ commentId: 'c1' }))
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body).toEqual({ sent: false, draft: 'Thanks!', ...echo })
+  })
+
   it('returns 401 when unauthenticated', async () => {
     vi.mocked(requireAuth).mockRejectedValue(new Error('Unauthorized'))
     const res = await POST(req({ commentId: 'c1' }))

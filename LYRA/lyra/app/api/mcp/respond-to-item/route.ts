@@ -15,6 +15,16 @@ const respondSchema = z.object({
   // -- generous for any real platform's comment-reply limit, but bounded so
   // unbounded caller text can't reach a platform API or the DB unchecked.
   responseText: z.string().min(1).max(2000).optional(),
+  // Optional defense-in-depth check, not a primary auth gate -- this route's
+  // real authorization already comes from the scoped comment.findFirst query
+  // below. When the caller (the MCP gateway) supplies this, it's cross-checked
+  // against the comment's own real workspace (comment.socialAccount.workspaceId)
+  // so a caller can't claim workspace_id A while acting on a comment that
+  // actually belongs to workspace B -- which would otherwise silently
+  // misattribute the gateway's audit log/rate-limit accounting to the wrong
+  // workspace even though the send itself still correctly targets B. Omitted
+  // entirely by any other caller of this endpoint, which skips the check.
+  workspaceId:  z.string().min(1).optional(),
 })
 
 // Composes the existing draft (POST /api/ai/respond) and send
@@ -39,7 +49,7 @@ export async function POST(req: Request) {
     const { allowed } = await checkRateLimit(`mcp-respond:${user.id}`, 20, 60)
     if (!allowed) return rateLimitResponse()
 
-    const { commentId, responseText } = await parseBody(req, respondSchema)
+    const { commentId, responseText, workspaceId: claimedWorkspaceId } = await parseBody(req, respondSchema)
 
     // Fetch and authorize in one scoped query so there's never an unscoped
     // comment object in scope that a future edit could act on before an
@@ -54,6 +64,17 @@ export async function POST(req: Request) {
     if (!comment) {
       const exists = await prisma.comment.findUnique({ where: { id: commentId }, select: { id: true } })
       return NextResponse.json({ error: exists ? 'Forbidden' : 'Not found' }, { status: exists ? 403 : 404 })
+    }
+    // Defense-in-depth, not this route's primary auth gate (that's the
+    // scoped findFirst above): if the caller told us which workspace it
+    // believes this comment belongs to, that claim must match the comment's
+    // REAL workspace before anything else happens. Same status/shape as the
+    // "no access" branch above so this can't be used to distinguish "wrong
+    // workspace" from "no access to this comment at all." Checked before the
+    // RESPONDED/ESCALATED status check and every write below it, since it's
+    // an authorization concern, not a state concern.
+    if (claimedWorkspaceId && claimedWorkspaceId !== comment.socialAccount.workspaceId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
     // ESCALATED means a human must handle this (set by an ALWAYS_ESCALATE
     // guardrail -- refunds, legal threats, etc.); it must be refused here
