@@ -35,7 +35,7 @@ export async function PATCH(
       },
       select: {
         id: true, status: true, workspaceId: true, authorId: true,
-        mediaUrls: true, requiresMedia: true,
+        content: true, mediaUrls: true, requiresMedia: true,
         socialAccount: { select: { platform: true } },
         workspace: { select: { clientAccessLevel: true } },
       },
@@ -89,19 +89,31 @@ export async function PATCH(
     // without it here a two-call POST-then-PATCH sequence could bypass the
     // approval gate the create-time fix alone put in place.
     //
-    // existing.status !== 'APPROVED' is required: APPROVED -> SCHEDULED is the
-    // one legitimate route out of the approval flow (an already-reviewed post
-    // being scheduled) and must NOT be bounced back to PENDING_APPROVAL, or no
-    // approved post could ever reach the publisher.
+    // An APPROVED post being scheduled is exempted from the redirect below --
+    // that's the one legitimate route out of the approval flow, and without
+    // the exemption no approved post could ever reach the publisher -- but
+    // ONLY when its content/media haven't changed since approval. "Edit in
+    // Composer" lets the post's own author change content on an APPROVED
+    // post and re-save with status: 'SCHEDULED'; without the contentChanged
+    // check that would publish unreviewed content under an approval a
+    // reviewer gave to different content, bypassing the APPROVER_ROLES /
+    // self-approval guard above (which only fires for status: 'APPROVED',
+    // not 'SCHEDULED'). A content change forces re-review same as any other
+    // non-approved post.
     //
     // A re-save of an already-SCHEDULED post (existing.status === 'SCHEDULED',
     // e.g. editing content/media via the Composer and saving again) is
-    // deliberately still routed back to PENDING_APPROVAL here: it changed
-    // after approval, so it should be reviewed again before it publishes.
+    // deliberately still routed back to PENDING_APPROVAL here regardless of
+    // contentChanged: it's already past the one-time APPROVED exemption, so
+    // it should be reviewed again before it publishes.
+    const contentChanged =
+      (content !== undefined && content !== existing.content) ||
+      (mediaUrls !== undefined && mediaUrls.join('\u0000') !== existing.mediaUrls.join('\u0000'))
+
     const finalStatus: PostStatus | undefined =
       status === 'SCHEDULED' &&
       existing.workspace.clientAccessLevel === 'APPROVE' &&
-      existing.status !== 'APPROVED'
+      !(existing.status === 'APPROVED' && !contentChanged)
         ? 'PENDING_APPROVAL'
         : status
 
