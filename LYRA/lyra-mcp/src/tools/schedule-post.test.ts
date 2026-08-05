@@ -46,6 +46,63 @@ describe('schedulePost', () => {
     expect(postLyraApi).not.toHaveBeenCalled()
   })
 
+  it('throws when scheduledAt is not a valid date', async () => {
+    await expect(
+      schedulePost(
+        { workspace_id: 'ws-1', content: 'x', platforms: ['FACEBOOK'], scheduledAt: 'not-a-date' },
+        'token-abc'
+      )
+    ).rejects.toThrow('scheduledAt must be a valid ISO 8601 date-time')
+    expect(postLyraApi).not.toHaveBeenCalled()
+  })
+
+  it('throws when scheduledAt is in the past', async () => {
+    await expect(
+      schedulePost(
+        { workspace_id: 'ws-1', content: 'x', platforms: ['FACEBOOK'], scheduledAt: '2020-01-01T00:00:00.000Z' },
+        'token-abc'
+      )
+    ).rejects.toThrow('scheduledAt must be in the future')
+    expect(postLyraApi).not.toHaveBeenCalled()
+  })
+
+  it('maps multiple created posts across platforms', async () => {
+    vi.mocked(postLyraApi).mockResolvedValue([
+      { id: 'p1', status: 'SCHEDULED', socialAccount: { platform: 'FACEBOOK', name: 'ITWM Page' } },
+      { id: 'p2', status: 'SCHEDULED', socialAccount: { platform: 'LINKEDIN', name: 'ITWM LinkedIn' } },
+    ])
+
+    const result = await schedulePost(
+      {
+        workspace_id: 'ws-1',
+        content: 'Announcing our new service',
+        platforms: ['FACEBOOK', 'LINKEDIN'],
+        scheduledAt: '2026-09-01T14:00:00.000Z',
+      },
+      'token-abc'
+    )
+
+    expect(result.posts).toEqual([
+      { id: 'p1', status: 'SCHEDULED', platform: 'FACEBOOK', accountName: 'ITWM Page' },
+      { id: 'p2', status: 'SCHEDULED', platform: 'LINKEDIN', accountName: 'ITWM LinkedIn' },
+    ])
+  })
+
+  it('still succeeds and returns workspaceName: null when getWorkspaceName resolves to null', async () => {
+    vi.mocked(getWorkspaceName).mockResolvedValue(null)
+    vi.mocked(postLyraApi).mockResolvedValue([
+      { id: 'p1', status: 'SCHEDULED', socialAccount: { platform: 'FACEBOOK', name: 'ITWM Page' } },
+    ])
+
+    const result = await schedulePost(
+      { workspace_id: 'ws-1', content: 'x', platforms: ['FACEBOOK'], scheduledAt: '2026-09-01T14:00:00.000Z' },
+      'token-abc'
+    )
+
+    expect(result.workspaceName).toBeNull()
+    expect(result.posts).toEqual([{ id: 'p1', status: 'SCHEDULED', platform: 'FACEBOOK', accountName: 'ITWM Page' }])
+  })
+
   it('propagates errors from postLyraApi unchanged', async () => {
     const { LyraApiError } = await import('../lyra-api-client')
     vi.mocked(postLyraApi).mockRejectedValue(new LyraApiError(422, { error: 'media required' }))

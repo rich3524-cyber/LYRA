@@ -23,6 +23,9 @@ interface CreatedPost {
 // requested status is what was actually granted.
 export async function schedulePost(params: SchedulePostParams, bearerToken: string) {
   if (!params.scheduledAt) throw new Error('scheduledAt is required')
+  const scheduledAtMs = Date.parse(params.scheduledAt)
+  if (Number.isNaN(scheduledAtMs)) throw new Error('scheduledAt must be a valid ISO 8601 date-time')
+  if (scheduledAtMs <= Date.now()) throw new Error('scheduledAt must be in the future')
 
   const workspace_id = await resolveWorkspaceId(params.workspace_id, bearerToken)
   const [workspaceName, posts] = await Promise.all([
