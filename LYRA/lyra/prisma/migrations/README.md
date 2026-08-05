@@ -50,6 +50,7 @@ migrations end up actually running.
 
 ## Known drift since the baseline
 
-`prisma/migrations-sql/2026-08-05-mcp-audit-log.sql` (the `McpAuditLog` table) was hand-applied
-after `20260802000000_baseline` and is not yet folded into a real migration file. It must be
-incorporated before this ledger can be trusted as a complete record of the live schema.
+`prisma/migrations-sql/2026-08-05-mcp-audit-log.sql` (the `McpAuditLog` table) is a **pending**
+hand-applied change, to be run via the Supabase SQL Editor (see the Phase 2 plan, Task 16 Step 1)
+after `20260802000000_baseline`, and is not yet folded into a real migration file. Once applied,
+it must be incorporated before this ledger can be trusted as a complete record of the live schema.
