@@ -31,4 +31,21 @@ describe('logAuditEvent', () => {
     expect(consoleSpy).toHaveBeenCalled()
     consoleSpy.mockRestore()
   })
+
+  it('truncates an oversized errorMessage and params before posting', async () => {
+    vi.mocked(postLyraApi).mockResolvedValue({ ok: true })
+
+    const hugeErrorMessage = 'x'.repeat(3000)
+    const hugeParams = { blob: 'y'.repeat(60_000) }
+
+    await logAuditEvent('token-abc', {
+      workspaceId: 'ws-1', toolName: 'schedule_post', params: hugeParams, outcome: 'ERROR', errorMessage: hugeErrorMessage,
+    })
+
+    expect(postLyraApi).toHaveBeenCalledTimes(1)
+    const [, , sentEvent] = vi.mocked(postLyraApi).mock.calls[0] as [string, string, Record<string, unknown>]
+
+    expect((sentEvent.errorMessage as string).length).toBe(2000)
+    expect(sentEvent.params).toEqual({ truncated: true, originalLength: JSON.stringify(hugeParams).length })
+  })
 })
