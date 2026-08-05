@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { checkGuardrailViolation } from './response-generator'
+import { checkGuardrailViolation, checkAlwaysEscalate } from './response-generator'
 import type { Guardrail } from '@prisma/client'
 
 function guardrail(type: Guardrail['type'], value: string): Guardrail {
@@ -29,5 +29,26 @@ describe('checkGuardrailViolation', () => {
 
   it('ignores guardrails with an empty value', () => {
     expect(checkGuardrailViolation('any text at all', [guardrail('NEVER_USE_WORD', '')])).toBeNull()
+  })
+})
+
+describe('checkAlwaysEscalate', () => {
+  it('returns null when the comment matches no ALWAYS_ESCALATE trigger', () => {
+    const result = checkAlwaysEscalate('Love this post!', [guardrail('ALWAYS_ESCALATE', 'refund')])
+    expect(result).toBeNull()
+  })
+
+  it('detects an ALWAYS_ESCALATE trigger, case-insensitively', () => {
+    const result = checkAlwaysEscalate('I want a REFUND immediately', [guardrail('ALWAYS_ESCALATE', 'refund')])
+    expect(result).toEqual({ trigger: 'refund' })
+  })
+
+  it('ignores guardrail types other than ALWAYS_ESCALATE', () => {
+    const result = checkAlwaysEscalate('a refund please', [guardrail('NEVER_DISCUSS', 'refund')])
+    expect(result).toBeNull()
+  })
+
+  it('ignores guardrails with an empty value', () => {
+    expect(checkAlwaysEscalate('any text at all', [guardrail('ALWAYS_ESCALATE', '')])).toBeNull()
   })
 })
