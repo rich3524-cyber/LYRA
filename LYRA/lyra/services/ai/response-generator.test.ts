@@ -26,4 +26,8 @@ describe('checkGuardrailViolation', () => {
     const result = checkGuardrailViolation('some text', [guardrail('ALWAYS_ESCALATE', 'some text')])
     expect(result).toBeNull()
   })
+
+  it('ignores guardrails with an empty value', () => {
+    expect(checkGuardrailViolation('any text at all', [guardrail('NEVER_USE_WORD', '')])).toBeNull()
+  })
 })
