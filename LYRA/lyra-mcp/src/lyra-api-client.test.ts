@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { callLyraApi, LyraApiError, LyraApiTimeoutError, LyraApiNetworkError } from './lyra-api-client'
+import { callLyraApi, postLyraApi, LyraApiError, LyraApiTimeoutError, LyraApiNetworkError } from './lyra-api-client'
 
 const originalEnv = { ...process.env }
 
@@ -137,5 +137,38 @@ describe('callLyraApi', () => {
 
     expect(timeoutSpy).toHaveBeenCalledWith(20_000)
     timeoutSpy.mockRestore()
+  })
+})
+
+describe('postLyraApi', () => {
+  it('POSTs the body with the bearer token and returns the parsed response', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true, status: 201, json: async () => ({ id: 'p1', status: 'SCHEDULED' }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await postLyraApi('/api/posts', 'token-abc', { content: 'hi' })
+
+    expect(result).toEqual({ id: 'p1', status: 'SCHEDULED' })
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://lyraonline.ai/api/posts')
+    expect(init.method).toBe('POST')
+    expect(init.headers).toEqual({ Authorization: 'Bearer token-abc', 'Content-Type': 'application/json' })
+    expect(JSON.parse(init.body)).toEqual({ content: 'hi' })
+    expect(init.signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it('throws LyraApiError on a non-ok response, same as callLyraApi', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 422, json: async () => ({ error: 'bad' }) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(postLyraApi('/api/posts', 'token-abc', {})).rejects.toMatchObject({ status: 422, body: { error: 'bad' } })
+  })
+
+  it('throws LyraApiTimeoutError on a real timeout', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new DOMException('aborted', 'TimeoutError'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(postLyraApi('/api/posts', 'token-abc', {})).rejects.toThrow(LyraApiTimeoutError)
   })
 })

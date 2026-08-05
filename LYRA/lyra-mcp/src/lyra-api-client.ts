@@ -70,3 +70,36 @@ export async function callLyraApi<T = unknown>(
   }
   return body as T
 }
+
+// POST-capable sibling to callLyraApi, for the write tools. Shares the same
+// error normalization (LyraApiError / LyraApiTimeoutError / LyraApiNetworkError).
+export async function postLyraApi<T = unknown>(
+  path: string,
+  bearerToken: string,
+  body: unknown
+): Promise<T> {
+  const baseUrl = process.env.LYRA_API_BASE_URL
+  const url = new URL(path, baseUrl)
+
+  let res: Response
+  let responseBody: unknown
+  try {
+    res = await fetch(url.toString(), {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${bearerToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+    responseBody = await res.json()
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'TimeoutError') {
+      throw new LyraApiTimeoutError(err)
+    }
+    throw new LyraApiNetworkError(err)
+  }
+
+  if (!res.ok) {
+    throw new LyraApiError(res.status, responseBody)
+  }
+  return responseBody as T
+}
