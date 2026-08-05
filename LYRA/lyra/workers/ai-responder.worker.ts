@@ -31,6 +31,62 @@ interface AiResponseJobDeps {
 
 const defaultDeps: AiResponseJobDeps = { prisma, generateCommentResponse, getProvider }
 
+// Rolls a comment this job's own claim above just set to RESPONDED back to
+// AI_DRAFTED, for the two cases where the claim won but the send itself
+// either definitely didn't happen (no socialAccount found) or can't be
+// confirmed to have happened (replyToComment threw -- see the accepted risk
+// noted at that call site below).
+//
+// Wrapped in the same inline-retry pattern post-publisher.worker.ts already
+// uses for its post-publish PUBLISHED write (post-publisher.worker.ts:113-124),
+// and for the identical reason: once the claim above has flipped the comment
+// to RESPONDED, this write is not allowed to just throw and propagate
+// uncaught out of processAiResponseJob. A transient DB blip on this exact
+// write would otherwise make BullMQ retry the whole job -- and the retry's
+// very first check (comment.status === 'RESPONDED', at the top of this
+// function) would see this comment as already answered and return
+// immediately. Net effect: the comment stays permanently marked RESPONDED
+// with finalResponse set, no reply was ever actually sent, and no human ever
+// follows up -- it wouldn't even appear in the Pending tab. Three attempts
+// with brief backoff cover ordinary transient blips without a BullMQ-level
+// retry ever being needed.
+//
+// Unlike post-publisher's PUBLISHING fallback, exhausting all retries here
+// is NOT a safe "stale" state to be left in -- post-publisher's worst case
+// is "we don't know if it published," which is at least an honest reflection
+// of reality; this worker's worst case is "wrongly marked as answered,"
+// which actively hides that the customer never heard back. If every attempt
+// below still fails there is genuinely nothing more this function can do
+// beyond logging loudly (see the final console.error). That residual risk is
+// accepted for now rather than resolved here -- it needs a deliberate design
+// decision (e.g. a periodic reconciliation job that flags RESPONDED comments
+// with no matching outbound send record) that's out of scope for this fix.
+async function rollbackToDraft(deps: AiResponseJobDeps, commentId: string, draftResponse: string): Promise<void> {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await deps.prisma.comment.updateMany({
+        // Own-claim-scoped (status: 'RESPONDED'), not the broader `notIn`
+        // predicate used elsewhere in this file: only roll back if the
+        // comment is still in the exact RESPONDED state this job's own claim
+        // just set. If a concurrent write changed it in between (e.g. a
+        // human resolved it some other way while this job was retrying),
+        // this correctly no-ops instead of clobbering whatever that other
+        // state now is.
+        where: { id: commentId, status: 'RESPONDED' },
+        data: { status: 'AI_DRAFTED', aiDraftResponse: draftResponse, finalResponse: null, respondedAt: null },
+      })
+      return
+    } catch (rollbackErr) {
+      console.error(`Rollback to AI_DRAFTED failed for comment ${commentId} (attempt ${attempt}/3):`, rollbackErr)
+      if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 1000 * attempt))
+    }
+  }
+  console.error(
+    `Comment ${commentId} may be permanently stuck marked RESPONDED with no reply actually sent -- ` +
+    `all 3 rollback attempts failed. Needs manual investigation/reconciliation.`
+  )
+}
+
 // Exported (rather than left as an anonymous closure passed to `new Worker(...)`)
 // so it's directly unit-testable with mocked deps -- see
 // ai-responder.worker.test.ts. Mirrors the DI shape of
@@ -42,9 +98,14 @@ export async function processAiResponseJob(jobData: AiResponseJobData, deps: AiR
   // correctness guard -- it just avoids wasting an AI generation call on a
   // comment that's already resolved. The real correctness guarantees come
   // from the atomic `updateMany` claims below, which close the race window
-  // between this read and any later write (two concurrent invocations of
-  // this same job -- BullMQ retries, overlapping enqueues -- or a concurrent
-  // call to POST /api/mcp/respond-to-item acting on the same comment).
+  // between this read and any later write. This queue's jobId is stable per
+  // comment (`respond-${comment.id}`, see comment-monitor.worker.ts and
+  // app/api/zernio/webhook/route.ts), so BullMQ itself already prevents two
+  // truly concurrent attempts of the identical queued job -- the race this
+  // guards against is a stalled or re-delivered attempt of this job
+  // overlapping a fresh one, or a concurrent call to
+  // POST /api/mcp/respond-to-item or the manual "Reply" button's
+  // POST /api/comments/[id]/reply acting on the same comment.
   const comment = await deps.prisma.comment.findUnique({ where: { id: commentId } })
   if (!comment || comment.status === 'ESCALATED' || comment.status === 'RESPONDED') return
 
@@ -57,12 +118,12 @@ export async function processAiResponseJob(jobData: AiResponseJobData, deps: AiR
 
   if (result.shouldEscalate) {
     // Guarded the same way as every other status write below: a concurrent
-    // process (this job's own retry, or respond_to_item) could have already
-    // claimed RESPONDED/ESCALATED between the findUnique above and this
-    // write. Without this predicate, this write would silently clobber that
-    // status back to ESCALATED. No rollback needed here -- losing the race
-    // just means "don't overwrite an already-resolved comment," nothing
-    // external has happened yet.
+    // process (a stalled/re-delivered attempt of this same job, or
+    // respond_to_item) could have already claimed RESPONDED/ESCALATED
+    // between the findUnique above and this write. Without this predicate,
+    // this write would silently clobber that status back to ESCALATED. No
+    // rollback needed here -- losing the race just means "don't overwrite an
+    // already-resolved comment," nothing external has happened yet.
     const escalated = await deps.prisma.comment.updateMany({
       where: { id: commentId, status: { notIn: ['RESPONDED', 'ESCALATED'] } },
       data: {
@@ -79,23 +140,32 @@ export async function processAiResponseJob(jobData: AiResponseJobData, deps: AiR
 
   if (autoPost && result.response) {
     // Atomic claim, taken BEFORE calling the provider -- this is the actual
-    // fix for the double-send bug. Two concurrent invocations of this same
-    // job (BullMQ retries, overlapping enqueues) or a concurrent call to
-    // POST /api/mcp/respond-to-item acting on the same comment could
-    // otherwise both pass the findUnique check above and both send a real
-    // reply. Claiming straight to RESPONDED here, keyed on the comment still
-    // NOT being RESPONDED/ESCALATED, means only one concurrent caller can
+    // fix for the double-send bug. As noted above, this queue's stable jobId
+    // means BullMQ itself already rules out two truly concurrent attempts of
+    // the identical job, so the race this claim closes is: (a) a stalled or
+    // re-delivered attempt of this job overlapping a fresh one for the same
+    // comment, and (b) a concurrent call to POST /api/mcp/respond-to-item, or
+    // the manual "Reply" button's POST /api/comments/[id]/reply, acting on
+    // the same comment while this job is mid-flight. Claiming straight to
+    // RESPONDED here, keyed on the comment still NOT being
+    // RESPONDED/ESCALATED, means only one of those concurrent writers can
     // win this write -- only the winner proceeds to the account lookup and
     // the actual send. This exactly matches the claim in
-    // app/api/mcp/respond-to-item/route.ts.
+    // app/api/mcp/respond-to-item/route.ts. POST /api/comments/[id]/reply
+    // has the equivalent fix but a deliberately different predicate (`status
+    // !== 'RESPONDED'`, not excluding ESCALATED) -- that route is the
+    // human-facing manual "Reply" button, and ESCALATED comments must remain
+    // repliable through it even though every autonomous path (this worker,
+    // respond-to-item) refuses them; see that route's own comments.
     const claimed = await deps.prisma.comment.updateMany({
       where: { id: commentId, status: { notIn: ['RESPONDED', 'ESCALATED'] } },
       data:  { status: 'RESPONDED', finalResponse: result.response, respondedAt: new Date() },
     })
     if (claimed.count === 0) {
-      // Someone else -- this job's own duplicate, or respond_to_item --
-      // already claimed this comment. The provider must never be called in
-      // this branch; that's the whole point of claiming first.
+      // Someone else -- a stalled/re-delivered attempt of this job, or a
+      // concurrent respond_to_item / manual-reply call -- already claimed
+      // this comment. The provider must never be called in this branch;
+      // that's the whole point of claiming first.
       console.log(`Comment ${commentId} lost the send race to a concurrent process -- skipping auto-reply`)
       return
     }
@@ -106,19 +176,11 @@ export async function processAiResponseJob(jobData: AiResponseJobData, deps: AiR
       })
       if (!account) {
         // The claim above already flipped this comment to RESPONDED before we
-        // knew an account even existed to send through. Roll it back to
+        // knew an account even existed to send through -- roll it back to
         // AI_DRAFTED (preserving the draft) so the comment doesn't get stuck
-        // falsely marked RESPONDED with nothing ever actually sent.
-        //
-        // Own-claim-scoped (status: 'RESPONDED'), not the broader `notIn`
-        // predicate: only roll back if the comment is still in the exact
-        // RESPONDED state this job's own claim just set. If a concurrent
-        // write changed it in between, this correctly no-ops instead of
-        // clobbering whatever that other state now is.
-        await deps.prisma.comment.updateMany({
-          where: { id: commentId, status: 'RESPONDED' },
-          data: { status: 'AI_DRAFTED', aiDraftResponse: result.response, finalResponse: null, respondedAt: null },
-        })
+        // falsely marked RESPONDED with nothing ever actually sent. See
+        // rollbackToDraft for why this must not simply throw on failure.
+        await rollbackToDraft(deps, commentId, result.response)
         return
       }
 
@@ -132,15 +194,23 @@ export async function processAiResponseJob(jobData: AiResponseJobData, deps: AiR
       // RESPONDED/finalResponse/respondedAt.
     } catch (err) {
       console.error(`Auto-reply failed for comment ${commentId}:`, err)
-      // Same rollback as the no-account case above, and for the same reason:
-      // the claim already set RESPONDED, but the send itself never actually
-      // succeeded (or we can't be sure it did), so this must not be left
-      // looking like a completed reply. Scoped to status: 'RESPONDED' so it
-      // can't clobber some other concurrent state change.
-      await deps.prisma.comment.updateMany({
-        where: { id: commentId, status: 'RESPONDED' },
-        data: { status: 'AI_DRAFTED', aiDraftResponse: result.response, finalResponse: null, respondedAt: null },
-      })
+      // Roll back so this comment lands back in the human-facing Pending/
+      // AI_DRAFTED queue instead of being silently lost as a falsely
+      // "answered" comment. This accepts the same narrow risk documented at
+      // the equivalent rollback in app/api/mcp/respond-to-item/route.ts
+      // (search "accepts a narrow risk" there): a thrown error occasionally
+      // means the platform actually received the reply and only the
+      // confirmation was lost (e.g. a timeout after successful delivery), in
+      // which case this rollback is wrong and a later resend -- whether a
+      // fresh auto-post attempt or a human clicking Reply in the dashboard --
+      // could double-post. That risk arguably matters MORE here than in the
+      // MCP route: this rollback's whole purpose is to land the comment in a
+      // queue a human is expected to act on, i.e. it's specifically inviting
+      // the manual resend that could double-post. It's accepted anyway for
+      // the same reason as that route: a comment permanently stuck as
+      // "RESPONDED" with no real reply ever sent and no way to retry is
+      // judged the worse failure mode of the two.
+      await rollbackToDraft(deps, commentId, result.response)
     }
   } else {
     // Draft-only path (autoPost false, or the model produced no response).

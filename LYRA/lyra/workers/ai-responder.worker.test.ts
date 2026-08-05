@@ -235,4 +235,101 @@ describe('processAiResponseJob', () => {
     expect(deps.prisma.comment.updateMany).toHaveBeenCalledTimes(1)
     expect(deps.getProvider).not.toHaveBeenCalled()
   })
+
+  // --- Fix 1: crash-safe rollback -----------------------------------------
+  // These cover the regression this fix closes: a transient DB failure on
+  // the rollback write itself must not be allowed to propagate uncaught out
+  // of processAiResponseJob (which would let BullMQ retry the whole job --
+  // and the retry's own top-of-function status check would see this comment
+  // as already RESPONDED and return immediately, permanently stranding it).
+
+  it('retries the rollback write and recovers after a transient failure on the first attempt', async () => {
+    vi.useFakeTimers()
+    try {
+      const { deps, replyToComment } = makeDeps()
+      replyToComment.mockRejectedValue(new Error('platform timeout'))
+      vi.spyOn(console, 'error').mockImplementation(() => {})
+
+      deps.prisma.comment.updateMany
+        .mockReset()
+        .mockResolvedValueOnce({ count: 1 })                       // the RESPONDED claim
+        .mockRejectedValueOnce(new Error('transient db blip'))     // rollback attempt 1 fails
+        .mockResolvedValueOnce({ count: 1 })                       // rollback attempt 2 succeeds
+
+      const jobPromise = processAiResponseJob({ commentId: 'comment-1', autoPost: true }, deps)
+      // Flush the 1s backoff between rollback attempt 1 and attempt 2.
+      await vi.advanceTimersByTimeAsync(1000)
+      await jobPromise
+
+      // Claim + 2 rollback attempts = 3 total writes, and the comment ends
+      // up back at AI_DRAFTED rather than stuck at RESPONDED.
+      expect(deps.prisma.comment.updateMany).toHaveBeenCalledTimes(3)
+      expect(deps.prisma.comment.updateMany).toHaveBeenNthCalledWith(3, {
+        where: { id: 'comment-1', status: 'RESPONDED' },
+        data: { status: 'AI_DRAFTED', aiDraftResponse: 'Thanks so much!', finalResponse: null, respondedAt: null },
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('logs a clear, loud error and does not throw when every rollback retry attempt fails', async () => {
+    vi.useFakeTimers()
+    try {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+      const { deps, replyToComment } = makeDeps()
+      replyToComment.mockRejectedValue(new Error('platform timeout'))
+
+      deps.prisma.comment.updateMany
+        .mockReset()
+        .mockResolvedValueOnce({ count: 1 })          // the RESPONDED claim
+        .mockRejectedValue(new Error('db is down'))   // every rollback attempt fails
+
+      const jobPromise = processAiResponseJob({ commentId: 'comment-1', autoPost: true }, deps)
+      // Flush both backoffs (1s then 2s) between the 3 rollback attempts.
+      await vi.advanceTimersByTimeAsync(5000)
+      await expect(jobPromise).resolves.toBeUndefined()
+
+      // Claim + 3 rollback attempts, all failed -- must not throw out of
+      // processAiResponseJob (that would trigger the exact BullMQ-retry
+      // stranding scenario this fix exists to prevent).
+      expect(deps.prisma.comment.updateMany).toHaveBeenCalledTimes(4)
+      expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('may be permanently stuck'))
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not retry the rollback when it resolves cleanly as a no-op (comment already moved on concurrently)', async () => {
+    const { deps, replyToComment } = makeDeps({ account: null })
+    // The rollback's own updateMany resolves with count: 0 -- some other
+    // concurrent process already changed the comment's status away from
+    // RESPONDED by the time this rollback ran. That's a successful
+    // (non-throwing) no-op, not a failure, so it must not be retried and
+    // must not be treated as an error.
+    deps.prisma.comment.updateMany
+      .mockReset()
+      .mockResolvedValueOnce({ count: 1 })   // the RESPONDED claim
+      .mockResolvedValueOnce({ count: 0 })   // rollback no-ops
+
+    await processAiResponseJob({ commentId: 'comment-1', autoPost: true }, deps)
+
+    expect(replyToComment).not.toHaveBeenCalled()
+    // Exactly one rollback attempt -- a clean (non-throwing) count: 0 result
+    // is not retried.
+    expect(deps.prisma.comment.updateMany).toHaveBeenCalledTimes(2)
+  })
+
+  it('makes no writes at all when generateCommentResponse itself throws, so BullMQ can safely retry the job from scratch', async () => {
+    const { deps } = makeDeps()
+    deps.generateCommentResponse.mockRejectedValue(new Error('AI provider unavailable'))
+
+    await expect(
+      processAiResponseJob({ commentId: 'comment-1', autoPost: true }, deps)
+    ).rejects.toThrow('AI provider unavailable')
+
+    expect(deps.prisma.comment.updateMany).not.toHaveBeenCalled()
+    expect(deps.prisma.socialAccount.findUnique).not.toHaveBeenCalled()
+    expect(deps.getProvider).not.toHaveBeenCalled()
+  })
 })
