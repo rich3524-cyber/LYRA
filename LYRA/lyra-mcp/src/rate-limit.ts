@@ -15,7 +15,9 @@ function getDefaultRedisClient(): Redis {
 // INCR and EXPIRE as a single atomic Lua script (one round-trip), not two
 // separate commands, for the same reason documented there: a crash between
 // two separate calls would leave the key with no TTL, permanently
-// exhausting that bucket.
+// exhausting that bucket. Good enough for abuse/cost protection on tool-call
+// rate limiting -- doesn't need the precision of a sliding-window or
+// token-bucket algorithm.
 const RATE_LIMIT_SCRIPT = `
 local count = redis.call('INCR', KEYS[1])
 if count == 1 then
@@ -30,12 +32,11 @@ export async function checkRateLimit(
   windowSeconds: number,
   redis?: Redis
 ): Promise<{ allowed: boolean; remaining: number }> {
-  // redis is `redis?: Redis` + resolved inside the function body, not a
-  // `redis: Redis = getDefaultRedisClient()` default-parameter expression --
-  // a default-parameter expression evaluates before this function's own
-  // try/catch runs, so a throw from getDefaultRedisClient() (e.g. a missing
-  // REDIS_URL) would escape uncaught instead of being handled here. Same
-  // fix as Phase 1's Task 4 (JWKS resolution) for the identical bug class.
+  // redis is `redis?: Redis` resolved in-body for consistency with the same
+  // pattern in jwt-verify.ts, not because a throw here needs special
+  // handling -- getDefaultRedisClient() doesn't actually throw (the ioredis
+  // constructor doesn't validate its URL eagerly), and this function has no
+  // try/catch to protect anyway.
   const resolvedRedis = redis ?? getDefaultRedisClient()
   const fullKey = `ratelimit:mcp:${key}`
   const count = await resolvedRedis.eval(RATE_LIMIT_SCRIPT, 1, fullKey, windowSeconds) as number
