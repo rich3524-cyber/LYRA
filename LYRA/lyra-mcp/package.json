@@ -14,17 +14,18 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@modelcontextprotocol/server": "^2.0.0",
     "@modelcontextprotocol/node": "^2.0.0",
+    "@modelcontextprotocol/server": "^2.0.0",
     "express": "^4.21.0",
+    "ioredis": "^6.0.0",
     "jose": "^6.2.8",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
     "@types/node": "^20.19.41",
-    "supertest": "^7.1.0",
     "@types/supertest": "^6.0.2",
+    "supertest": "^7.1.0",
     "tsx": "^4.19.0",
     "typescript": "^5",
     "vitest": "^4.1.10"
