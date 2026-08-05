@@ -43,16 +43,23 @@ export class GuardrailRefusalError extends Error {
 }
 
 export async function respondToItem(params: RespondToItemParams, bearerToken: string) {
-  // Resolved even though the backend endpoint doesn't need workspace_id to
-  // find the comment (it's already scoped via the comment's own access
-  // check) -- still required here for the parent spec's 6.2 disambiguation
-  // safety property (workspace_id required explicitly whenever the caller
-  // has more than one workspace, no implicit "last used").
-  await resolveWorkspaceId(params.workspace_id, bearerToken)
+  // Resolved for the parent spec's 6.2 disambiguation safety property
+  // (workspace_id required explicitly whenever the caller has more than one
+  // workspace, no implicit "last used"). Also now sent through to the
+  // backend below -- this gateway's audit log and rate limiting are keyed on
+  // this resolved workspace_id (see createToolCallback in mcp-server.ts), so
+  // it must match whatever workspace the backend actually acts on. The
+  // backend cross-checks it against the comment's real workspace
+  // (comment.socialAccount.workspaceId) and 403s on a mismatch, closing a gap
+  // where a caller could otherwise claim one workspace while acting on a
+  // comment belonging to another -- correctly sent, but silently
+  // misattributed in the audit trail.
+  const workspaceId = await resolveWorkspaceId(params.workspace_id, bearerToken)
 
   const result = await postLyraApi<RespondResult>('/api/mcp/respond-to-item', bearerToken, {
     commentId: params.comment_id,
     responseText: params.response_text,
+    workspaceId,
   })
 
   // Structured refusal per the parent spec's response-design convention --

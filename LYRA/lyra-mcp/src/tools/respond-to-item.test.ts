@@ -22,7 +22,7 @@ describe('respondToItem', () => {
     const result = await respondToItem({ workspace_id: 'ws-1', comment_id: 'c1' }, 'token-abc')
 
     expect(postLyraApi).toHaveBeenCalledWith('/api/mcp/respond-to-item', 'token-abc', {
-      commentId: 'c1', responseText: undefined,
+      commentId: 'c1', responseText: undefined, workspaceId: 'ws-1',
     })
     expect(result).toEqual({ sent: false, draft: 'Thanks for reaching out!' })
   })
@@ -95,13 +95,35 @@ describe('respondToItem', () => {
     vi.mocked(postLyraApi).mockResolvedValue({ sent: false, draft: 'x' })
     await respondToItem({ workspace_id: 'ws-1', comment_id: 'c1', response_text: 'hand-typed reply' }, 'token-abc')
     expect(postLyraApi).toHaveBeenCalledWith('/api/mcp/respond-to-item', 'token-abc', {
-      commentId: 'c1', responseText: 'hand-typed reply',
+      commentId: 'c1', responseText: 'hand-typed reply', workspaceId: 'ws-1',
     })
   })
 
-  it('resolves workspace_id implicitly (for disambiguation safety) even though the backend endpoint does not use it', async () => {
+  it('resolves workspace_id implicitly (for disambiguation safety) and sends the RESOLVED value through, even when the caller omitted it', async () => {
+    vi.mocked(resolveWorkspaceId).mockResolvedValue('ws-resolved')
     vi.mocked(postLyraApi).mockResolvedValue({ sent: false, draft: 'x' })
+
     await respondToItem({ comment_id: 'c1' } as any, 'token-abc')
+
     expect(resolveWorkspaceId).toHaveBeenCalledWith(undefined, 'token-abc')
+    expect(postLyraApi).toHaveBeenCalledWith('/api/mcp/respond-to-item', 'token-abc', {
+      commentId: 'c1', responseText: undefined, workspaceId: 'ws-resolved',
+    })
+  })
+
+  // The whole point of sending workspaceId through: the gateway's audit log
+  // and rate limiting are keyed on the caller-claimed workspace_id, while the
+  // backend authorizes off the comment's real workspace. If those disagree
+  // (a caller claiming workspace A for a comment that actually belongs to
+  // workspace B), the backend now rejects with a 403-shaped error rather than
+  // silently sending anyway and leaving the audit trail misattributed. This
+  // must propagate as a real tool-call failure, not be swallowed.
+  it('propagates a 403 from the backend (workspace/comment mismatch) as a real error, not a silent success', async () => {
+    const { LyraApiError } = await import('../lyra-api-client')
+    vi.mocked(postLyraApi).mockRejectedValue(new LyraApiError(403, { error: 'Forbidden' }))
+
+    await expect(
+      respondToItem({ workspace_id: 'ws-A', comment_id: 'c1' }, 'token-abc')
+    ).rejects.toThrow(LyraApiError)
   })
 })
