@@ -88,8 +88,20 @@ export async function PATCH(
     // SCHEDULED (e.g. post-detail-panel.tsx's "Mark as scheduled" action), so
     // without it here a two-call POST-then-PATCH sequence could bypass the
     // approval gate the create-time fix alone put in place.
+    //
+    // existing.status !== 'APPROVED' is required: APPROVED -> SCHEDULED is the
+    // one legitimate route out of the approval flow (an already-reviewed post
+    // being scheduled) and must NOT be bounced back to PENDING_APPROVAL, or no
+    // approved post could ever reach the publisher.
+    //
+    // A re-save of an already-SCHEDULED post (existing.status === 'SCHEDULED',
+    // e.g. editing content/media via the Composer and saving again) is
+    // deliberately still routed back to PENDING_APPROVAL here: it changed
+    // after approval, so it should be reviewed again before it publishes.
     const finalStatus: PostStatus | undefined =
-      status === 'SCHEDULED' && existing.workspace.clientAccessLevel === 'APPROVE'
+      status === 'SCHEDULED' &&
+      existing.workspace.clientAccessLevel === 'APPROVE' &&
+      existing.status !== 'APPROVED'
         ? 'PENDING_APPROVAL'
         : status
 

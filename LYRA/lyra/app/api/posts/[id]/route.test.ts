@@ -44,8 +44,15 @@ describe('PATCH /api/posts/[id] — approval-status resolution', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.status).toBe('PENDING_APPROVAL')
+    // Confirms the PENDING_APPROVAL branch actually fired (not just that
+    // upsert was called with *some* args) -- this is what a wrong branch
+    // (e.g. the APPROVED branch, which sets reviewerId/reviewedAt) would fail.
     expect(prisma.postApproval.upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { postId: 'post-1' } })
+      expect.objectContaining({
+        where:  { postId: 'post-1' },
+        create: { postId: 'post-1', status: 'PENDING' },
+        update: { status: 'PENDING', reviewedAt: null, reviewerId: null },
+      })
     )
   })
 
@@ -62,6 +69,26 @@ describe('PATCH /api/posts/[id] — approval-status resolution', () => {
 
     const res = await PATCH(req({ status: 'SCHEDULED', scheduledAt: '2026-09-01T00:00:00.000Z' }), ctx('post-1'))
 
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.status).toBe('SCHEDULED')
+    expect(prisma.postApproval.upsert).not.toHaveBeenCalled()
+  })
+
+  it('regression: an APPROVED post being scheduled reaches SCHEDULED, not bounced back to PENDING_APPROVAL', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.post.findFirst).mockResolvedValue({
+      id: 'post-1', status: 'APPROVED', workspaceId: 'ws-1', authorId: 'user-2',
+      mediaUrls: [], requiresMedia: false,
+      socialAccount: { platform: 'FACEBOOK' },
+      workspace: { clientAccessLevel: 'APPROVE' },
+    } as any)
+    ;(prisma.post.update as any).mockImplementation(async ({ data }: any) => ({ id: 'post-1', ...data }))
+    vi.mocked(prisma.postApproval.upsert).mockResolvedValue({} as any)
+
+    const res = await PATCH(req({ status: 'SCHEDULED', scheduledAt: '2026-09-01T00:00:00.000Z' }), ctx('post-1'))
+
+    expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.status).toBe('SCHEDULED')
     expect(prisma.postApproval.upsert).not.toHaveBeenCalled()
