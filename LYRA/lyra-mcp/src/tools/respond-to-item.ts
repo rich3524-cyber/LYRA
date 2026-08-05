@@ -16,6 +16,30 @@ interface RespondResult {
   refused?: boolean
   rule?: string
   value?: string
+  // Echoed back by the backend on every response shape (parent spec 6.2:
+  // every write echoes workspace name, platform, and account handle so a
+  // misresolution is visible immediately). Unlike draft_post/schedule_post,
+  // this tool doesn't call getWorkspaceName itself to produce these --
+  // the backend endpoint already has comment.socialAccount/.workspace loaded
+  // and supplies them directly, so they just pass through unchanged below.
+  workspaceName?: string
+  platform?: string
+  accountName?: string
+}
+
+// Mirrors the LyraApiError/LyraApiTimeoutError/LyraApiNetworkError
+// convention in lyra-api-client.ts -- gives future code (e.g. audit
+// logging) a typed way to detect and handle a guardrail refusal distinctly,
+// without changing what the calling model sees today (same message text).
+export class GuardrailRefusalError extends Error {
+  rule?: string
+  value?: string
+  constructor(rule: string | undefined, value: string | undefined) {
+    super(`Refused by guardrail: ${rule ?? 'unknown rule'} - ${value ?? 'unknown value'}`)
+    this.name = 'GuardrailRefusalError'
+    this.rule = rule
+    this.value = value
+  }
 }
 
 export async function respondToItem(params: RespondToItemParams, bearerToken: string) {
@@ -35,8 +59,14 @@ export async function respondToItem(params: RespondToItemParams, bearerToken: st
   // surfaces as a real MCP tool error naming the rule that fired, not a
   // silent partial success, so the calling model can explain the block.
   if (result.refused) {
-    throw new Error(`Refused by guardrail: ${result.rule} - ${result.value}`)
+    throw new GuardrailRefusalError(result.rule, result.value)
   }
 
+  // Judgment call: result.draft/result.response is NOT run through
+  // wrapUntrusted (unlike list-inbox-items.ts's comment.content). It's
+  // AI-generated text that already passed checkGuardrailViolation/
+  // checkAlwaysEscalate server-side, not raw third-party content -- so it's
+  // categorically different from what list_inbox_items wraps. Reconsider if
+  // this tool ever starts passing through unmoderated caller text unchanged.
   return result
 }
