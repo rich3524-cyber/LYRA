@@ -12,6 +12,10 @@ interface WorkspaceRef {
 // tool uses) to avoid adding an extra API call to the 6 read tools that
 // don't need it.
 export async function getWorkspaceName(workspaceId: string, bearerToken: string): Promise<string | null> {
-  const workspaces = await callLyraApi<WorkspaceRef[]>('/api/workspaces', bearerToken)
-  return workspaces.find((w) => w.id === workspaceId)?.name ?? null
+  try {
+    const workspaces = await callLyraApi<WorkspaceRef[]>('/api/workspaces', bearerToken)
+    return workspaces.find((w) => w.id === workspaceId)?.name ?? null
+  } catch {
+    return null // echo-back is best-effort; never fail a write over a missing display name
+  }
 }

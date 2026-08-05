@@ -27,4 +27,10 @@ describe('getWorkspaceName', () => {
     const name = await getWorkspaceName('ws-unknown', 'token-abc')
     expect(name).toBeNull()
   })
+
+  it('resolves to null (never rejects) when the workspace list fetch fails, so a transient failure never fails the write', async () => {
+    vi.mocked(callLyraApi).mockRejectedValue(new Error('network blip'))
+    const name = await getWorkspaceName('ws-2', 'token-abc')
+    expect(name).toBeNull()
+  })
 })
