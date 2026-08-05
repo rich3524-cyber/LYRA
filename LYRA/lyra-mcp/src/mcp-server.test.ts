@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest'
 import { TOOL_REGISTRY } from './mcp-server'
 
 describe('TOOL_REGISTRY', () => {
-  it('registers exactly the 7 Phase 1 core tools', () => {
+  it('registers exactly the 10 Phase 1 + Phase 2 core tools', () => {
     expect(Object.keys(TOOL_REGISTRY).sort()).toEqual([
+      'draft_post',
       'get_analytics',
       'get_brand_profile',
       'get_workspace_overview',
@@ -11,6 +12,8 @@ describe('TOOL_REGISTRY', () => {
       'list_scheduled_posts',
       'list_trends',
       'list_workspaces',
+      'respond_to_item',
+      'schedule_post',
     ])
   })
 

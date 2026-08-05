@@ -63,6 +63,20 @@ export async function requireBearerAuth(req: Request, res: Response, next: NextF
   next()
 }
 
+// Small typed accessor for the Auth0 `sub` claim carried through
+// AuthInfo.extra (see requireBearerAuth above). extra is typed as
+// Record<string, unknown>, so every consumer would otherwise have to narrow
+// it inline -- a plausible mistake there (e.g. blindly String()-coercing a
+// missing sub) would silently produce the literal string "undefined",
+// which combined with the rate limiter's `ratelimit:mcp:user:${key}` key
+// format would create ONE shared rate-limit bucket for every affected user.
+// Centralizing the narrowing here makes that mistake structurally
+// impossible for callers that use this helper.
+export function getAuthSub(authInfo?: { extra?: Record<string, unknown> }): string | null {
+  const sub = authInfo?.extra?.sub
+  return typeof sub === 'string' && sub ? sub : null
+}
+
 function protectedResourceMetadataHandler(_req: Request, res: Response) {
   const appBaseUrl = process.env.APP_BASE_URL
   res.status(200).json({
