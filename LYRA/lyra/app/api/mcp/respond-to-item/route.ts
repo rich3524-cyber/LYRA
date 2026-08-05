@@ -94,6 +94,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ sent: false, shouldEscalate: true, escalationReason })
     }
 
+    // A whitespace-only responseText (passes Zod's .min(1) but trims to '')
+    // falls through to AI generation below rather than erroring -- accepted
+    // as low severity: it never reaches a platform as whitespace, and a
+    // caller that meant to supply real text gets a real draft/send back
+    // instead of a hard failure. Revisit if callers report this as
+    // surprising rather than convenient.
     let finalText = responseText?.trim()
     if (!finalText) {
       const brandProfile = await prisma.brandProfile.findUnique({ where: { workspaceId } })
@@ -115,10 +121,26 @@ export async function POST(req: Request) {
       finalText = result.response
     }
 
-    await prisma.comment.update({
-      where: { id: commentId },
-      data: { status: 'AI_DRAFTED', aiDraftResponse: finalText },
+    // Guarded the same way as the send-path claim further down (same
+    // notIn:['RESPONDED','ESCALATED'] predicate) -- NOT a plain unconditional
+    // update. Without this predicate, a slower concurrent request could
+    // still be sitting here, between its own RESPONDED/ESCALATED guard check
+    // above and this write, when a faster concurrent request has already
+    // claimed and sent (see the send-path claim's comment). An unconditional
+    // write would silently clobber that faster request's RESPONDED status
+    // back to AI_DRAFTED, which then matches the slower request's own
+    // send-path claim predicate and lets it send a SECOND real reply -- the
+    // exact double-send Fix 2 exists to prevent. Guarding this write closes
+    // that: once a comment is RESPONDED/ESCALATED, every later write in this
+    // request chain (including this one) becomes a no-op (count 0), not a
+    // silent overwrite.
+    const draftClaimed = await prisma.comment.updateMany({
+      where: { id: commentId, status: { notIn: ['RESPONDED', 'ESCALATED'] } },
+      data:  { status: 'AI_DRAFTED', aiDraftResponse: finalText },
     })
+    if (draftClaimed.count === 0) {
+      return NextResponse.json({ error: 'Already responded.' }, { status: 400 })
+    }
 
     // The autonomy gate: only the workspace's own stored aiResponseMode can
     // authorize an actual send. The caller (an MCP tool call, eventually
@@ -180,7 +202,13 @@ export async function POST(req: Request) {
       // was lost (e.g. a timeout after successful delivery), in which case a
       // retry could double-post. That's judged the lesser risk versus every
       // send failure leaving the comment permanently stuck as "RESPONDED"
-      // with no real reply ever sent and no way to retry.
+      // with no real reply ever sent and no way to retry. For ZERNIO-routed
+      // accounts this risk is now also mitigated server-side: zernioProvider
+      // sends a stable idempotency key (see services/social/provider/zernio.ts)
+      // derived from the comment + exact text, so a retry with identical text
+      // gets deduped by Zernio itself instead of posting twice. Native-path
+      // accounts have no equivalent dedup, so the risk described above still
+      // fully applies there.
       await prisma.comment.update({
         where: { id: commentId },
         data: { status: 'AI_DRAFTED', finalResponse: null, respondedAt: null },

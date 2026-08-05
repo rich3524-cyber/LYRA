@@ -158,12 +158,25 @@ export const zernioClient = {
   // Pass commentId to target one specific existing comment; omitting it posts a fresh
   // top-level comment on the post instead. Confirmed camelCase wire field via Zernio docs
   // (POST /v1/inbox/comments/{postId} request body: accountId, message, commentId, ...).
-  replyToComment: (postId: string, accountId: string, text: string, commentId?: string) =>
-    req<{ [key: string]: unknown }>('POST', `/inbox/comments/${encodeURIComponent(postId)}`, {
-      accountId,
-      message: text,
-      ...(commentId ? { commentId } : {}),
-    }),
+  //
+  // idempotencyKey follows the exact same x-request-id convention as publishNow above --
+  // a caller (see services/social/provider/zernio.ts) derives it from the target comment
+  // plus the reply text itself, so a client-side timeout on this call (this codebase has
+  // already seen that exact failure mode for publishNow, live, 2026-07-21) can be retried
+  // safely: a retry with the identical text reuses the same key and gets deduped by
+  // Zernio server-side instead of posting a second real reply, while a genuinely different
+  // reply (different text) gets its own key rather than being wrongly deduped.
+  replyToComment: (postId: string, accountId: string, text: string, commentId?: string, idempotencyKey?: string) =>
+    req<{ [key: string]: unknown }>(
+      'POST',
+      `/inbox/comments/${encodeURIComponent(postId)}`,
+      {
+        accountId,
+        message: text,
+        ...(commentId ? { commentId } : {}),
+      },
+      idempotencyKey ? { 'x-request-id': stableRequestId(idempotencyKey) } : undefined
+    ),
 
   // GET /v1/accounts has no server-side profileId filter -- confirmed via Zernio docs,
   // it only supports optional page/limit pagination, and omitting both returns the full

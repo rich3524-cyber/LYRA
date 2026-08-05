@@ -108,7 +108,15 @@ export const zernioProvider: SocialProvider = {
 
   async replyToComment(account, postExternalId, externalId, text) {
     const zernioAccountId = requireZernioId(account)
-    await zernioClient.replyToComment(postExternalId, zernioAccountId, text, externalId)
+    // Idempotency key derived from the comment being replied to AND the reply
+    // text itself (not just the comment id) -- a client-side timeout retry of
+    // the exact same reply reuses this same key and gets deduped by Zernio's
+    // x-request-id layer (same mechanism publishNow already relies on -- see
+    // zernio-client.ts), while a genuinely different reply to the same
+    // comment (e.g. after app/api/mcp/respond-to-item's send-failure rollback
+    // regenerates a fresh draft) gets its own key instead of being wrongly
+    // deduped against a stale attempt.
+    await zernioClient.replyToComment(postExternalId, zernioAccountId, text, externalId, `${externalId}:${text}`)
   },
 
   async fetchReviews(account) {

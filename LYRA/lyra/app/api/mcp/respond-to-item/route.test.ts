@@ -57,6 +57,8 @@ const fullSocialAccount = {
   workspace: { aiResponseMode: 'FULL' },
 }
 
+const draftClaimWhere = (id: string) => ({ id, status: { notIn: ['RESPONDED', 'ESCALATED'] } })
+
 describe('POST /api/mcp/respond-to-item', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -78,11 +80,17 @@ describe('POST /api/mcp/respond-to-item', () => {
     const body = await res.json()
     expect(body).toEqual({ sent: false, draft: 'Thanks!' })
     expect(getProvider).not.toHaveBeenCalled()
-    expect(prisma.comment.updateMany).not.toHaveBeenCalled()
-    expect(prisma.comment.update).toHaveBeenCalledWith({
-      where: { id: 'c1' },
+    // The intermediate AI_DRAFTED write is now the guarded updateMany (Fix A),
+    // not a plain unconditional update.
+    expect(prisma.comment.update).not.toHaveBeenCalled()
+    expect(prisma.comment.updateMany).toHaveBeenCalledWith({
+      where: draftClaimWhere('c1'),
       data: { status: 'AI_DRAFTED', aiDraftResponse: 'Thanks!' },
     })
+    // Guards against a wrong-argument regression (e.g. passing finalText
+    // instead of the comment's own content) that unit tests mocking
+    // checkAlwaysEscalate's return value alone wouldn't catch.
+    expect(checkAlwaysEscalate).toHaveBeenCalledWith('nice post', [])
   })
 
   it('drafts and actually sends under FULL autonomy when no guardrail fires', async () => {
@@ -106,9 +114,15 @@ describe('POST /api/mcp/respond-to-item', () => {
     // 'pc1'), matching the (account, postExternalId, externalId, text)
     // signature used by the reference app/api/comments/[id]/reply/route.ts.
     expect(replyToComment).toHaveBeenCalledWith(expect.anything(), 'pp1', 'pc1', 'Thanks!')
-    // The RESPONDED write is now the atomic claim (updateMany), not a plain update.
+    // Two guarded writes happen on this path: the draft claim, then the
+    // final RESPONDED claim -- both via updateMany, never a plain update.
+    expect(prisma.comment.update).not.toHaveBeenCalled()
     expect(prisma.comment.updateMany).toHaveBeenCalledWith({
-      where: { id: 'c1', status: { notIn: ['RESPONDED', 'ESCALATED'] } },
+      where: draftClaimWhere('c1'),
+      data: { status: 'AI_DRAFTED', aiDraftResponse: 'Thanks!' },
+    })
+    expect(prisma.comment.updateMany).toHaveBeenCalledWith({
+      where: draftClaimWhere('c1'),
       data: { status: 'RESPONDED', finalResponse: 'Thanks!', respondedAt: expect.any(Date) },
     })
   })
@@ -130,7 +144,14 @@ describe('POST /api/mcp/respond-to-item', () => {
     // Draft-generation guardrail check is skipped entirely when responseText is supplied --
     // generateCommentResponse should never be called in this path.
     expect(generateCommentResponse).not.toHaveBeenCalled()
-    expect(prisma.comment.updateMany).not.toHaveBeenCalled()
+    // The draft claim still runs (finalText exists either way), but the
+    // refusal happens before the final send-claim, so updateMany fires
+    // exactly once here -- not twice.
+    expect(prisma.comment.updateMany).toHaveBeenCalledTimes(1)
+    expect(prisma.comment.updateMany).toHaveBeenCalledWith({
+      where: draftClaimWhere('c1'),
+      data: { status: 'AI_DRAFTED', aiDraftResponse: 'our pricing is $99' },
+    })
   })
 
   it('marks the comment ESCALATED and returns shouldEscalate when AI generation escalates', async () => {
@@ -150,6 +171,7 @@ describe('POST /api/mcp/respond-to-item', () => {
       where: { id: 'c1' },
       data: { status: 'ESCALATED', isEscalated: true, escalationReason: 'Contains escalation trigger: "refund"' },
     })
+    expect(prisma.comment.updateMany).not.toHaveBeenCalled()
   })
 
   it('returns 400 when the comment has already been responded to', async () => {
@@ -172,6 +194,7 @@ describe('POST /api/mcp/respond-to-item', () => {
     expect(res.status).toBe(400)
     expect(prisma.guardrail.findMany).not.toHaveBeenCalled()
     expect(generateCommentResponse).not.toHaveBeenCalled()
+    expect(prisma.comment.updateMany).not.toHaveBeenCalled()
     expect(getProvider).not.toHaveBeenCalled()
   })
 
@@ -225,6 +248,7 @@ describe('POST /api/mcp/respond-to-item', () => {
     const body = await res.json()
     expect(body).toEqual({ error: 'Generated response was empty.' })
     expect(prisma.comment.update).not.toHaveBeenCalled()
+    expect(prisma.comment.updateMany).not.toHaveBeenCalled()
   })
 
   // Fix 5: the caller-supplied responseText path bypasses generateCommentResponse
@@ -247,15 +271,18 @@ describe('POST /api/mcp/respond-to-item', () => {
       where: { id: 'c1' },
       data: { status: 'ESCALATED', isEscalated: true, escalationReason: 'Contains escalation trigger: "refund"' },
     })
+    expect(checkAlwaysEscalate).toHaveBeenCalledWith('I want a refund', [])
     expect(generateCommentResponse).not.toHaveBeenCalled()
     expect(getProvider).not.toHaveBeenCalled()
+    expect(prisma.comment.updateMany).not.toHaveBeenCalled()
   })
 
   // Fix 2: an LLM-driven caller can retry, and two concurrent calls for the
   // same commentId are a real risk of double-posting to a real customer.
-  // The atomic claim (updateMany keyed on status not already
-  // RESPONDED/ESCALATED) must be what gates the actual send.
-  it('refuses to send when the atomic claim loses the race (comment already claimed by a concurrent request)', async () => {
+  // This targets the FINAL send-claim specifically losing the race (the
+  // draft write succeeded, but a concurrent request beat this one to the
+  // send-claim) -- distinct from the draft-write race covered below.
+  it('refuses to send when the final send-claim loses the race after the draft write already succeeded', async () => {
     vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
     vi.mocked(prisma.comment.findFirst).mockResolvedValue(
       baseComment({ socialAccount: fullSocialAccount }) as any
@@ -264,12 +291,54 @@ describe('POST /api/mcp/respond-to-item', () => {
     vi.mocked(prisma.guardrail.findMany).mockResolvedValue([])
     vi.mocked(generateCommentResponse).mockResolvedValue({ response: 'Thanks!', shouldEscalate: false })
     vi.mocked(checkGuardrailViolation).mockReturnValue(null)
-    vi.mocked(prisma.comment.updateMany).mockResolvedValue({ count: 0 } as any)
+    vi.mocked(prisma.comment.updateMany)
+      .mockResolvedValueOnce({ count: 1 } as any) // this request's own draft write succeeds
+      .mockResolvedValueOnce({ count: 0 } as any) // a concurrent request already claimed RESPONDED
 
     const res = await POST(req({ commentId: 'c1' }))
 
     expect(res.status).toBe(400)
     expect(getProvider).not.toHaveBeenCalled()
+  })
+
+  // Fix A (round 2): the unconditional AI_DRAFTED write used to sit between
+  // the RESPONDED/ESCALATED guard and the send-claim with no status
+  // predicate at all, so a slower concurrent request's draft write could
+  // silently clobber a faster request's already-RESPONDED status back to
+  // AI_DRAFTED -- which then matched the slower request's own send-claim
+  // predicate and let it send a SECOND real reply. This interleaving test
+  // exercises exactly that: request A's draft write and send-claim both win
+  // (count 1), simulating that it finished first end-to-end; request B's own
+  // draft write (issued after A has already finished, from B's point of
+  // view) is mocked to lose (count 0), simulating that A's RESPONDED status
+  // no longer matches B's guarded predicate. B must be stopped there and
+  // must never reach the send provider.
+  it('stops a slower concurrent request at its own guarded draft write once a faster request has already claimed and sent', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.comment.findFirst).mockResolvedValue(
+      baseComment({ socialAccount: fullSocialAccount }) as any
+    )
+    vi.mocked(prisma.brandProfile.findUnique).mockResolvedValue({} as any)
+    vi.mocked(prisma.guardrail.findMany).mockResolvedValue([])
+    vi.mocked(generateCommentResponse).mockResolvedValue({ response: 'Thanks!', shouldEscalate: false })
+    vi.mocked(checkGuardrailViolation).mockReturnValue(null)
+    const replyToComment = vi.fn().mockResolvedValue(undefined)
+    vi.mocked(getProvider).mockReturnValue({ replyToComment } as any)
+
+    vi.mocked(prisma.comment.updateMany)
+      .mockResolvedValueOnce({ count: 1 } as any) // Request A: draft write succeeds
+      .mockResolvedValueOnce({ count: 1 } as any) // Request A: send-claim succeeds -- A sends
+      .mockResolvedValueOnce({ count: 0 } as any) // Request B: draft write finds status already RESPONDED
+
+    const resA = await POST(req({ commentId: 'c1' }))
+    expect(resA.status).toBe(200)
+    expect(await resA.json()).toEqual({ sent: true, response: 'Thanks!' })
+    expect(replyToComment).toHaveBeenCalledTimes(1)
+
+    const resB = await POST(req({ commentId: 'c1' }))
+    expect(resB.status).toBe(400)
+    // The whole point of Fix A: B never reaches a second real send.
+    expect(replyToComment).toHaveBeenCalledTimes(1)
   })
 
   // M7: a failed send must roll the optimistic claim back so a legitimate
