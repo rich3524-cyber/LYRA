@@ -173,6 +173,68 @@ describe('POST /api/comments/[id]/reply', () => {
     })
   })
 
+  // Fix 1 (round 2): the earlier ESCALATED deviation correctly lets a human
+  // claim and send from an ESCALATED comment, but a failed send must restore
+  // ESCALATED, not silently downgrade to AI_DRAFTED -- downgrading would
+  // re-arm the autonomous paths (workers/ai-responder.worker.ts,
+  // respond-to-item) on a comment that was deliberately withheld from them.
+  it('restores ESCALATED (not AI_DRAFTED) when a reply to an already-ESCALATED comment fails to send', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.comment.findFirst).mockResolvedValue(baseComment({ status: 'ESCALATED' }) as any)
+    const replyToComment = vi.fn().mockRejectedValue(new Error('platform timeout'))
+    vi.mocked(getProvider).mockReturnValue({ replyToComment } as any)
+
+    const res = await POST(req({ response: 'Thanks!' }), ctx())
+
+    expect(res.status).toBe(502)
+    // The rollback write's data object restores status to ESCALATED and,
+    // critically, does NOT include isEscalated/escalationReason -- those
+    // fields are never touched by this write, so whatever they already were
+    // on the row (set when the comment was first escalated) stays intact and
+    // back in sync with the restored ESCALATED status.
+    expect(prisma.comment.updateMany).toHaveBeenCalledWith({
+      where: { id: 'c1', status: 'RESPONDED' },
+      data: { status: 'ESCALATED', aiDraftResponse: 'Thanks!', finalResponse: null, respondedAt: null },
+    })
+  })
+
+  // Fix 2 (round 2): the rollback write itself must be crash-safe, the same
+  // class of bug Fix 1 in workers/ai-responder.worker.ts (commit a6f22fa)
+  // closed there -- a transient failure on this exact write must not escape
+  // uncaught (which would 502 out to the outer catch and leave the comment
+  // permanently RESPONDED with nothing sent, since this route's own guard
+  // then answers every further attempt with "Already responded.").
+  it('retries the rollback write and recovers after a transient failure on the first attempt', async () => {
+    vi.useFakeTimers()
+    try {
+      vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+      vi.mocked(prisma.comment.findFirst).mockResolvedValue(baseComment() as any)
+      const replyToComment = vi.fn().mockRejectedValue(new Error('platform timeout'))
+      vi.mocked(getProvider).mockReturnValue({ replyToComment } as any)
+      vi.mocked(prisma.comment.updateMany)
+        .mockResolvedValueOnce({ count: 1 } as any)                    // the RESPONDED claim
+        .mockRejectedValueOnce(new Error('transient db blip'))         // rollback attempt 1 fails
+        .mockResolvedValueOnce({ count: 1 } as any)                    // rollback attempt 2 succeeds
+
+      const resPromise = POST(req({ response: 'Thanks!' }), ctx())
+      // Flush the 1s backoff between rollback attempt 1 and attempt 2.
+      await vi.advanceTimersByTimeAsync(1000)
+      const res = await resPromise
+
+      expect(res.status).toBe(502)
+      // Claim + 2 rollback attempts = 3 total writes, and the comment ends
+      // up back at AI_DRAFTED (its prior status was PENDING) rather than
+      // stuck permanently at RESPONDED.
+      expect(prisma.comment.updateMany).toHaveBeenCalledTimes(3)
+      expect(prisma.comment.updateMany).toHaveBeenNthCalledWith(3, {
+        where: { id: 'c1', status: 'RESPONDED' },
+        data: { status: 'AI_DRAFTED', aiDraftResponse: 'Thanks!', finalResponse: null, respondedAt: null },
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('returns 400 and rolls back when the provider throws ProviderUnsupported', async () => {
     vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
     vi.mocked(prisma.comment.findFirst).mockResolvedValue(baseComment() as any)

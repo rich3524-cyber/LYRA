@@ -7,6 +7,63 @@ export const dynamic = 'force-dynamic'
 
 type RouteContext = { params: Promise<{ id: string }> }
 
+// Rolls a comment this request's own claim just set to RESPONDED back to a
+// state a human can act on again, for the two cases where the claim won but
+// the send itself didn't happen: the provider threw, or (not currently
+// possible on this route, but kept for parity with the same helper shape in
+// workers/ai-responder.worker.ts) some other pre-send failure.
+//
+// Restores ESCALATED rather than always downgrading to AI_DRAFTED when the
+// comment was ESCALATED before this request's claim. Escalation is a
+// deliberate signal -- set by an ALWAYS_ESCALATE guardrail, or a human
+// clicking Escalate -- that the autonomous paths
+// (workers/ai-responder.worker.ts, POST /api/mcp/respond-to-item) must not
+// touch this comment. Downgrading to AI_DRAFTED on a failed manual send would
+// silently re-arm both of those paths on a comment that was deliberately
+// withheld from them, and would leave isEscalated/escalationReason set on a
+// row whose status no longer says ESCALATED -- an inconsistent pair the UI's
+// escalation banner (components/lyra/inbox/comment-card.tsx) derives from.
+// Neither field is touched by this write either way, so they stay intact
+// and back in sync once status is restored to ESCALATED.
+//
+// Wrapped in the same inline-retry pattern as workers/ai-responder.worker.ts's
+// rollbackToDraft() (itself matching post-publisher.worker.ts's post-publish
+// write) and for the identical reason: once the claim above has flipped the
+// comment to RESPONDED, this write must not simply throw and propagate
+// uncaught. An uncaught throw here escapes to this route's outer catch,
+// which returns a generic 502 -- but leaves the comment permanently
+// RESPONDED with nothing sent and no way to retry, since this route's own
+// guard now answers every further attempt with "Already responded." Three
+// attempts with brief backoff cover ordinary transient DB blips. If every
+// attempt still fails there is genuinely nothing more this function can do
+// beyond logging loudly -- same accepted residual risk as the worker's
+// rollbackToDraft, not resolved here.
+async function rollbackClaim(commentId: string, priorStatus: string, draftResponse: string): Promise<void> {
+  const restoredStatus = priorStatus === 'ESCALATED' ? 'ESCALATED' : 'AI_DRAFTED'
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await prisma.comment.updateMany({
+        // Own-claim-scoped (status: 'RESPONDED'), not the broader `notIn`/`not`
+        // predicate used elsewhere in this file: only roll back if the
+        // comment is still in the exact RESPONDED state this request's own
+        // claim just set. If a concurrent write changed it in between, this
+        // correctly no-ops instead of clobbering whatever that other state
+        // now is.
+        where: { id: commentId, status: 'RESPONDED' },
+        data: { status: restoredStatus, aiDraftResponse: draftResponse, finalResponse: null, respondedAt: null },
+      })
+      return
+    } catch (rollbackErr) {
+      console.error(`Rollback failed for comment ${commentId} (attempt ${attempt}/3):`, rollbackErr)
+      if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 1000 * attempt))
+    }
+  }
+  console.error(
+    `Comment ${commentId} may be permanently stuck marked RESPONDED with no reply actually sent -- ` +
+    `all 3 rollback attempts failed. Needs manual investigation/reconciliation.`
+  )
+}
+
 export async function POST(req: Request, { params }: RouteContext) {
   try {
     const user = await requireAuth()
@@ -58,6 +115,12 @@ export async function POST(req: Request, { params }: RouteContext) {
 
     const finalResponse = response.trim()
 
+    // Captured before the claim overwrites it -- the only record of what
+    // status this comment needs to be restored to if the send fails and
+    // rollbackClaim runs. See rollbackClaim's own comment for why ESCALATED
+    // specifically must be restored rather than downgraded to AI_DRAFTED.
+    const priorStatus = comment.status
+
     // Atomic claim, taken BEFORE calling the provider. This route (the
     // human-facing manual "Reply" button) used to check status, then send,
     // then write an UNGUARDED prisma.comment.update to RESPONDED at the very
@@ -101,9 +164,10 @@ export async function POST(req: Request, { params }: RouteContext) {
     } catch (sendError) {
       // The claim above already flipped this comment to RESPONDED before we
       // knew whether the platform call would actually succeed. Roll it back
-      // to AI_DRAFTED -- preserving what the human typed as aiDraftResponse
-      // so they don't have to retype it -- so a legitimate retry isn't
-      // permanently blocked by our own claim. Same accepted risk as the
+      // (preserving what the human typed as aiDraftResponse so they don't
+      // have to retype it) so a legitimate retry isn't permanently blocked by
+      // our own claim -- see rollbackClaim for the crash-safety and
+      // ESCALATED-restoration reasoning. Same accepted risk as the
       // equivalent rollback in app/api/mcp/respond-to-item/route.ts and
       // workers/ai-responder.worker.ts: a thrown error occasionally means
       // the platform actually received the reply and only the confirmation
@@ -113,16 +177,7 @@ export async function POST(req: Request, { params }: RouteContext) {
       // That's judged the lesser risk versus every send failure leaving the
       // comment permanently stuck as "RESPONDED" with no real reply ever
       // sent and no way to retry.
-      //
-      // Own-claim-scoped (status: 'RESPONDED'), not the broader `notIn`
-      // predicate used above: only roll back if the comment is still in the
-      // exact RESPONDED state this request's own claim just set. If a
-      // concurrent write changed it in between, this correctly no-ops
-      // instead of clobbering whatever that other state now is.
-      await prisma.comment.updateMany({
-        where: { id: commentId, status: 'RESPONDED' },
-        data: { status: 'AI_DRAFTED', aiDraftResponse: finalResponse, finalResponse: null, respondedAt: null },
-      })
+      await rollbackClaim(commentId, priorStatus, finalResponse)
       if (sendError instanceof ProviderUnsupported) {
         return NextResponse.json({ error: sendError.message }, { status: 400 })
       }
