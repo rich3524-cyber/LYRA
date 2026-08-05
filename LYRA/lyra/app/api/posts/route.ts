@@ -133,10 +133,22 @@ export async function POST(req: Request) {
 
     const access = await prisma.workspaceAccess.findFirst({
       where: { workspaceId, userId: user.id },
+      include: { workspace: { select: { clientAccessLevel: true } } },
     })
     if (!access || !canWrite(access.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
+
+    // Post publishing/scheduling routes through the client approval workflow
+    // where it's enabled (parent MCP spec 3.4). A general fix, not
+    // MCP-specific -- the same gap existed for the web app, previously
+    // papered over by the UI (components/lyra/calendar/*) only ever
+    // offering the "correct" status transition to a thoughtful human;
+    // nothing server-side enforced it.
+    const finalStatus: PostStatus =
+      resolvedStatus === 'SCHEDULED' && access.workspace.clientAccessLevel === 'APPROVE'
+        ? 'PENDING_APPROVAL'
+        : resolvedStatus
 
     // Find connected social accounts for the requested platforms
     const socialAccounts = await prisma.socialAccount.findMany({
@@ -162,11 +174,12 @@ export async function POST(req: Request) {
             authorId: user.id,
             content: content.trim(),
             mediaUrls: platformMedia?.[account.platform]?.length ? platformMedia[account.platform] : mediaUrls ?? [],
-            status: resolvedStatus,
+            status: finalStatus,
             scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
             topic: topic ?? null,
             requiresMedia: requiresMedia ?? false,
           },
+          include: { socialAccount: { select: { platform: true, name: true } } },
         })
       )
     )
