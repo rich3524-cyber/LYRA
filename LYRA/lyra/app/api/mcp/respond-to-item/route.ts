@@ -87,10 +87,21 @@ export async function POST(req: Request) {
     const escalateTrigger = checkAlwaysEscalate(comment.content, guardrails)
     if (escalateTrigger) {
       const escalationReason = `Contains escalation trigger: "${escalateTrigger.trigger}"`
-      await prisma.comment.update({
-        where: { id: commentId },
+      // Guarded the same way as every other status write in this route: a
+      // concurrent request could have already claimed RESPONDED between the
+      // top-of-function guard and this write. Without this predicate, this
+      // write would silently clobber that RESPONDED status back to
+      // ESCALATED -- corrupting a comment that may have already been
+      // replied to for real. If that's what happened, this write correctly
+      // no-ops and the caller gets the same "already responded" outcome as
+      // every other claim loss in this route, not a false escalation report.
+      const escalated = await prisma.comment.updateMany({
+        where: { id: commentId, status: { notIn: ['RESPONDED'] } },
         data: { status: 'ESCALATED', isEscalated: true, escalationReason },
       })
+      if (escalated.count === 0) {
+        return NextResponse.json({ error: 'Already responded.' }, { status: 400 })
+      }
       return NextResponse.json({ sent: false, shouldEscalate: true, escalationReason })
     }
 
@@ -105,10 +116,16 @@ export async function POST(req: Request) {
       const brandProfile = await prisma.brandProfile.findUnique({ where: { workspaceId } })
       const result = await generateCommentResponse(comment, brandProfile, guardrails)
       if (result.shouldEscalate) {
-        await prisma.comment.update({
-          where: { id: commentId },
+        // Same guard as the ALWAYS_ESCALATE pre-check write above -- a
+        // concurrent request could have claimed RESPONDED while this
+        // request was mid-generation.
+        const escalated = await prisma.comment.updateMany({
+          where: { id: commentId, status: { notIn: ['RESPONDED'] } },
           data: { status: 'ESCALATED', isEscalated: true, escalationReason: result.escalationReason },
         })
+        if (escalated.count === 0) {
+          return NextResponse.json({ error: 'Already responded.' }, { status: 400 })
+        }
         return NextResponse.json({ sent: false, shouldEscalate: true, escalationReason: result.escalationReason })
       }
       // extractClaudeText can return '' (the model's reply wasn't a text
@@ -203,14 +220,23 @@ export async function POST(req: Request) {
       // retry could double-post. That's judged the lesser risk versus every
       // send failure leaving the comment permanently stuck as "RESPONDED"
       // with no real reply ever sent and no way to retry. For ZERNIO-routed
-      // accounts this risk is now also mitigated server-side: zernioProvider
-      // sends a stable idempotency key (see services/social/provider/zernio.ts)
-      // derived from the comment + exact text, so a retry with identical text
-      // gets deduped by Zernio itself instead of posting twice. Native-path
-      // accounts have no equivalent dedup, so the risk described above still
-      // fully applies there.
-      await prisma.comment.update({
-        where: { id: commentId },
+      // accounts, a retry that resends the EXACT SAME text (e.g. a client
+      // retrying with the same cached draft) is deduped server-side by
+      // Zernio's x-request-id layer (see services/social/provider/zernio.ts)
+      // -- but a retry with different text (e.g. a fresh AI regeneration
+      // after this very rollback) gets its own key and is NOT deduped, so
+      // the risk above still fully applies whenever the retried text
+      // differs from what was actually sent. Native-path accounts have no
+      // dedup at all, regardless of text.
+      //
+      // Own-claim-scoped (status: 'RESPONDED'), not unconditional: only roll
+      // back if the comment is still in the exact RESPONDED state this
+      // request's own claim above just set. If a concurrent write changed
+      // it in between, this correctly no-ops instead of silently
+      // overwriting whatever that other state now is (e.g. a legitimate
+      // concurrent ESCALATED write).
+      await prisma.comment.updateMany({
+        where: { id: commentId, status: 'RESPONDED' },
         data: { status: 'AI_DRAFTED', finalResponse: null, respondedAt: null },
       })
       if (sendError instanceof ProviderUnsupported) {

@@ -61,7 +61,13 @@ const draftClaimWhere = (id: string) => ({ id, status: { notIn: ['RESPONDED', 'E
 
 describe('POST /api/mcp/respond-to-item', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    // resetAllMocks (not clearAllMocks): clearAllMocks only wipes call
+    // history and leaves any mockResolvedValueOnce queue from a previous
+    // test's sequencing still primed, which the concurrency tests below
+    // rely on being empty at the start of every test. resetAllMocks drains
+    // that queue too, so ordering between tests can't leak. Every mock this
+    // suite depends on having a default is re-primed immediately below.
+    vi.resetAllMocks()
     vi.mocked(redisClient.eval).mockResolvedValue(1)
     vi.mocked(checkAlwaysEscalate).mockReturnValue(null)
     vi.mocked(prisma.comment.updateMany).mockResolvedValue({ count: 1 } as any)
@@ -167,11 +173,14 @@ describe('POST /api/mcp/respond-to-item', () => {
 
     const body = await res.json()
     expect(body).toEqual({ sent: false, shouldEscalate: true, escalationReason: 'Contains escalation trigger: "refund"' })
-    expect(prisma.comment.update).toHaveBeenCalledWith({
-      where: { id: 'c1' },
+    // Guarded (round 3): a concurrent request could have claimed RESPONDED
+    // between the top-of-function guard and this write, so it's a
+    // predicated updateMany, never a plain unconditional update.
+    expect(prisma.comment.update).not.toHaveBeenCalled()
+    expect(prisma.comment.updateMany).toHaveBeenCalledWith({
+      where: { id: 'c1', status: { notIn: ['RESPONDED'] } },
       data: { status: 'ESCALATED', isEscalated: true, escalationReason: 'Contains escalation trigger: "refund"' },
     })
-    expect(prisma.comment.updateMany).not.toHaveBeenCalled()
   })
 
   it('returns 400 when the comment has already been responded to', async () => {
@@ -267,14 +276,35 @@ describe('POST /api/mcp/respond-to-item', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body).toEqual({ sent: false, shouldEscalate: true, escalationReason: 'Contains escalation trigger: "refund"' })
-    expect(prisma.comment.update).toHaveBeenCalledWith({
-      where: { id: 'c1' },
+    expect(prisma.comment.update).not.toHaveBeenCalled()
+    expect(prisma.comment.updateMany).toHaveBeenCalledWith({
+      where: { id: 'c1', status: { notIn: ['RESPONDED'] } },
       data: { status: 'ESCALATED', isEscalated: true, escalationReason: 'Contains escalation trigger: "refund"' },
     })
     expect(checkAlwaysEscalate).toHaveBeenCalledWith('I want a refund', [])
     expect(generateCommentResponse).not.toHaveBeenCalled()
     expect(getProvider).not.toHaveBeenCalled()
-    expect(prisma.comment.updateMany).not.toHaveBeenCalled()
+  })
+
+  // Fix (round 3): the ESCALATED write must itself be guarded -- if a
+  // concurrent request already claimed RESPONDED by the time this write
+  // runs, it must no-op (not clobber RESPONDED back to ESCALATED) and the
+  // caller gets the same "already responded" outcome as any other claim loss.
+  it('refuses cleanly instead of overwriting when the ALWAYS_ESCALATE write loses to a concurrent RESPONDED claim', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.comment.findFirst).mockResolvedValue(
+      baseComment({ content: 'I want a refund' }) as any
+    )
+    vi.mocked(prisma.guardrail.findMany).mockResolvedValue([])
+    vi.mocked(checkAlwaysEscalate).mockReturnValue({ trigger: 'refund' })
+    vi.mocked(prisma.comment.updateMany).mockResolvedValue({ count: 0 } as any)
+
+    const res = await POST(req({ commentId: 'c1' }))
+
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body).toEqual({ error: 'Already responded.' })
+    expect(prisma.comment.update).not.toHaveBeenCalled()
   })
 
   // Fix 2: an LLM-driven caller can retry, and two concurrent calls for the
@@ -361,10 +391,53 @@ describe('POST /api/mcp/respond-to-item', () => {
     expect(res.status).toBe(502)
     const body = await res.json()
     expect(body).toEqual({ error: 'Failed to send reply' })
-    expect(prisma.comment.update).toHaveBeenCalledWith({
-      where: { id: 'c1' },
+    // Own-claim-scoped (round 3): the rollback is a predicated updateMany
+    // (status: 'RESPONDED' -- the exact state this request's own claim just
+    // set), never a plain unconditional update.
+    expect(prisma.comment.update).not.toHaveBeenCalled()
+    expect(prisma.comment.updateMany).toHaveBeenCalledWith({
+      where: { id: 'c1', status: 'RESPONDED' },
       data: { status: 'AI_DRAFTED', finalResponse: null, respondedAt: null },
     })
+  })
+
+  // Fix (round 3): the send-failure rollback must be scoped to the exact
+  // RESPONDED state this request's own claim set, not unconditional -- so it
+  // can never silently overwrite a legitimate concurrent write (e.g. a
+  // concurrent escalation, or any future writer) that changed the comment's
+  // status in between the claim and the rollback attempt.
+  it('scopes the send-failure rollback to its own RESPONDED claim instead of overwriting unconditionally', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.comment.findFirst).mockResolvedValue(
+      baseComment({ socialAccount: fullSocialAccount }) as any
+    )
+    vi.mocked(prisma.brandProfile.findUnique).mockResolvedValue({} as any)
+    vi.mocked(prisma.guardrail.findMany).mockResolvedValue([])
+    vi.mocked(generateCommentResponse).mockResolvedValue({ response: 'Thanks!', shouldEscalate: false })
+    vi.mocked(checkGuardrailViolation).mockReturnValue(null)
+    const replyToComment = vi.fn().mockRejectedValue(new Error('platform timeout'))
+    vi.mocked(getProvider).mockReturnValue({ replyToComment } as any)
+    // Draft write and send-claim both succeed (this request legitimately
+    // claimed RESPONDED); the rollback attempt then finds count 0,
+    // simulating that the comment's status no longer matches the exact
+    // RESPONDED state this request itself set.
+    vi.mocked(prisma.comment.updateMany)
+      .mockResolvedValueOnce({ count: 1 } as any) // draft write
+      .mockResolvedValueOnce({ count: 1 } as any) // send-claim
+      .mockResolvedValueOnce({ count: 0 } as any) // rollback: no longer matches its own scoped predicate
+
+    const res = await POST(req({ commentId: 'c1' }))
+
+    // The send genuinely failed either way -- that's still reported.
+    expect(res.status).toBe(502)
+    // The rollback call itself must be scoped to status: 'RESPONDED', not
+    // unconditional -- that's what makes count 0 a safe no-op instead of a
+    // silent overwrite of whatever the comment's real current state now is.
+    expect(prisma.comment.updateMany).toHaveBeenCalledWith({
+      where: { id: 'c1', status: 'RESPONDED' },
+      data: { status: 'AI_DRAFTED', finalResponse: null, respondedAt: null },
+    })
+    expect(prisma.comment.update).not.toHaveBeenCalled()
   })
 
   // M9: unbounded caller text must not reach a platform API or the DB.
