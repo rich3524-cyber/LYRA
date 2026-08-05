@@ -72,6 +72,16 @@ export async function POST(req: Request) {
     const workspaceId = comment.socialAccount.workspaceId
     const workspace   = comment.socialAccount.workspace
 
+    // Echoed back on every response shape below (parent spec 6.2: every
+    // write echoes workspace name, platform, and account handle so a
+    // misresolution is visible immediately). All three are already loaded
+    // via the `include` above -- no extra query needed.
+    const echo = {
+      workspaceName: workspace.name,
+      platform: comment.socialAccount.platform,
+      accountName: comment.socialAccount.name,
+    }
+
     // Single guardrail fetch, reused for: the pre-generation ALWAYS_ESCALATE
     // check below, generateCommentResponse's own internal checks, and the
     // send-path NEVER_USE_WORD/NEVER_DISCUSS re-check further down -- rather
@@ -102,7 +112,7 @@ export async function POST(req: Request) {
       if (escalated.count === 0) {
         return NextResponse.json({ error: 'Already responded.' }, { status: 400 })
       }
-      return NextResponse.json({ sent: false, shouldEscalate: true, escalationReason })
+      return NextResponse.json({ sent: false, shouldEscalate: true, escalationReason, ...echo })
     }
 
     // A whitespace-only responseText (passes Zod's .min(1) but trims to '')
@@ -126,7 +136,7 @@ export async function POST(req: Request) {
         if (escalated.count === 0) {
           return NextResponse.json({ error: 'Already responded.' }, { status: 400 })
         }
-        return NextResponse.json({ sent: false, shouldEscalate: true, escalationReason: result.escalationReason })
+        return NextResponse.json({ sent: false, shouldEscalate: true, escalationReason: result.escalationReason, ...echo })
       }
       // extractClaudeText can return '' (the model's reply wasn't a text
       // block), which generateCommentResponse doesn't itself treat as an
@@ -164,7 +174,7 @@ export async function POST(req: Request) {
     // LLM-driven) has no field in respondSchema that can influence this --
     // there is no "force send" parameter to smuggle past it.
     if (workspace.aiResponseMode !== 'FULL') {
-      return NextResponse.json({ sent: false, draft: finalText })
+      return NextResponse.json({ sent: false, draft: finalText, ...echo })
     }
 
     // Re-check NEVER_USE_WORD/NEVER_DISCUSS guardrails against whatever is
@@ -174,7 +184,7 @@ export async function POST(req: Request) {
     // (responseText) path too, right before anything reaches a real platform.
     const violation = checkGuardrailViolation(finalText, guardrails)
     if (violation) {
-      return NextResponse.json({ sent: false, refused: true, rule: violation.rule, value: violation.value })
+      return NextResponse.json({ sent: false, refused: true, rule: violation.rule, value: violation.value, ...echo })
     }
 
     const resolvesToZernio =
@@ -251,7 +261,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Failed to send reply' }, { status: 502 })
     }
 
-    return NextResponse.json({ sent: true, response: finalText })
+    return NextResponse.json({ sent: true, response: finalText, ...echo })
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

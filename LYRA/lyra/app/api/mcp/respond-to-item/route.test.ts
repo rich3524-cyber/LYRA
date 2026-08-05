@@ -44,7 +44,8 @@ function baseComment(overrides: Record<string, unknown> = {}) {
     socialAccount: {
       workspaceId: 'ws-1',
       provider: 'ZERNIO', zernioAccountId: 'z1', accessToken: null,
-      workspace: { aiResponseMode: 'DRAFT_APPROVE' },
+      platform: 'INSTAGRAM', name: 'My IG Account',
+      workspace: { name: 'Acme Co', aiResponseMode: 'DRAFT_APPROVE' },
     },
     platformCommentId: 'pc1', platformPostId: 'pp1',
     ...overrides,
@@ -54,8 +55,14 @@ function baseComment(overrides: Record<string, unknown> = {}) {
 const fullSocialAccount = {
   workspaceId: 'ws-1',
   provider: 'ZERNIO', zernioAccountId: 'z1', accessToken: null,
-  workspace: { aiResponseMode: 'FULL' },
+  platform: 'INSTAGRAM', name: 'My IG Account',
+  workspace: { name: 'Acme Co', aiResponseMode: 'FULL' },
 }
+
+// Echoed back on every response shape (parent spec 6.2) -- derived from the
+// socialAccount fixtures above so a fixture change can't silently desync
+// from what the assertions below expect.
+const echo = { workspaceName: 'Acme Co', platform: 'INSTAGRAM', accountName: 'My IG Account' }
 
 const draftClaimWhere = (id: string) => ({ id, status: { notIn: ['RESPONDED', 'ESCALATED'] } })
 
@@ -84,7 +91,7 @@ describe('POST /api/mcp/respond-to-item', () => {
 
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body).toEqual({ sent: false, draft: 'Thanks!' })
+    expect(body).toEqual({ sent: false, draft: 'Thanks!', ...echo })
     expect(getProvider).not.toHaveBeenCalled()
     // The intermediate AI_DRAFTED write is now the guarded updateMany (Fix A),
     // not a plain unconditional update.
@@ -115,7 +122,7 @@ describe('POST /api/mcp/respond-to-item', () => {
 
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body).toEqual({ sent: true, response: 'Thanks!' })
+    expect(body).toEqual({ sent: true, response: 'Thanks!', ...echo })
     // Third arg is the comment's own platformCommentId (the fixture's default
     // 'pc1'), matching the (account, postExternalId, externalId, text)
     // signature used by the reference app/api/comments/[id]/reply/route.ts.
@@ -145,7 +152,7 @@ describe('POST /api/mcp/respond-to-item', () => {
 
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body).toEqual({ sent: false, refused: true, rule: 'NEVER_DISCUSS', value: 'pricing' })
+    expect(body).toEqual({ sent: false, refused: true, rule: 'NEVER_DISCUSS', value: 'pricing', ...echo })
     expect(getProvider).not.toHaveBeenCalled()
     // Draft-generation guardrail check is skipped entirely when responseText is supplied --
     // generateCommentResponse should never be called in this path.
@@ -172,7 +179,7 @@ describe('POST /api/mcp/respond-to-item', () => {
     const res = await POST(req({ commentId: 'c1' }))
 
     const body = await res.json()
-    expect(body).toEqual({ sent: false, shouldEscalate: true, escalationReason: 'Contains escalation trigger: "refund"' })
+    expect(body).toEqual({ sent: false, shouldEscalate: true, escalationReason: 'Contains escalation trigger: "refund"', ...echo })
     // Guarded (round 3): a concurrent request could have claimed RESPONDED
     // between the top-of-function guard and this write, so it's a
     // predicated updateMany, never a plain unconditional update.
@@ -275,7 +282,7 @@ describe('POST /api/mcp/respond-to-item', () => {
 
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body).toEqual({ sent: false, shouldEscalate: true, escalationReason: 'Contains escalation trigger: "refund"' })
+    expect(body).toEqual({ sent: false, shouldEscalate: true, escalationReason: 'Contains escalation trigger: "refund"', ...echo })
     expect(prisma.comment.update).not.toHaveBeenCalled()
     expect(prisma.comment.updateMany).toHaveBeenCalledWith({
       where: { id: 'c1', status: { notIn: ['RESPONDED'] } },
@@ -362,7 +369,7 @@ describe('POST /api/mcp/respond-to-item', () => {
 
     const resA = await POST(req({ commentId: 'c1' }))
     expect(resA.status).toBe(200)
-    expect(await resA.json()).toEqual({ sent: true, response: 'Thanks!' })
+    expect(await resA.json()).toEqual({ sent: true, response: 'Thanks!', ...echo })
     expect(replyToComment).toHaveBeenCalledTimes(1)
 
     const resB = await POST(req({ commentId: 'c1' }))
