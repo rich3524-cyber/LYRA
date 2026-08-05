@@ -74,7 +74,19 @@ export const CommentCard = memo(function CommentCard({
       // never overwrite `draft`, or it wipes out whatever reply the operator
       // had already typed by hand.
       if (!res.ok) {
-        toast.error(data.error ?? 'Failed to generate response')
+        if (data.alreadyResolved) {
+          // The generate call took long enough that a concurrent path (the
+          // auto-responder worker, an MCP respond_to_item call, or another
+          // human's manual Reply) claimed and resolved this comment first --
+          // the draft this call generated was never persisted. Move the card
+          // to wherever it actually landed (data.status) instead of leaving
+          // a stale Pending row that would just lose this same race again on
+          // the next click.
+          toast.error('This comment was already handled elsewhere.')
+          onUpdate(comment.id, data.status ?? 'RESPONDED')
+        } else {
+          toast.error(data.error ?? 'Failed to generate response')
+        }
         return
       }
       if (data.shouldEscalate) {
