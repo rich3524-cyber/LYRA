@@ -8,16 +8,17 @@ vi.mock('@/lib/prisma', () => ({
     mcpAuditLog: { create: vi.fn() },
   },
 }))
-// Only checkRateLimit talks to Redis -- keep the real rateLimitResponse so
-// its status/body shape stays in sync with the other routes that use it.
-vi.mock('@/lib/rate-limit', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@/lib/rate-limit')>()
-  return { ...actual, checkRateLimit: vi.fn() }
-})
+// Mock the Redis boundary itself, not lib/rate-limit -- letting checkRateLimit
+// and rateLimitResponse run for real (against a fake redisClient.eval) keeps
+// their actual logic under test instead of a hand-rolled stand-in, without
+// ever constructing a real ioredis client (which lib/redis.ts does at module
+// scope and would otherwise make test collection depend on REDIS_URL being
+// set/valid in whatever environment runs the suite).
+vi.mock('@/lib/redis', () => ({ redis: {}, redisClient: { eval: vi.fn().mockResolvedValue(1) } }))
 
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { checkRateLimit } from '@/lib/rate-limit'
+import { redisClient } from '@/lib/redis'
 import { POST } from './route'
 
 function req(body: unknown) {
@@ -31,7 +32,7 @@ function req(body: unknown) {
 describe('POST /api/mcp/audit', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: true, remaining: 119 })
+    vi.mocked(redisClient.eval).mockResolvedValue(1)
   })
 
   it('writes an audit row for a request the caller has access to', async () => {
@@ -163,7 +164,9 @@ describe('POST /api/mcp/audit', () => {
 
   it('returns 429 and does not write when the per-user rate limit is exceeded', async () => {
     vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
-    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, remaining: 0 })
+    // Route calls checkRateLimit(key, 120, 60) -- a count above 120 in the
+    // window means "over limit."
+    vi.mocked(redisClient.eval).mockResolvedValueOnce(121)
 
     const res = await POST(req({ workspaceId: 'ws-1', toolName: 'x', outcome: 'SUCCESS' }))
 
