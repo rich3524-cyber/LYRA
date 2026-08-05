@@ -118,6 +118,11 @@ describe('POST /api/ai/respond', () => {
     // sitting there ready to send when it was never persisted.
     expect(body).toEqual({ error: 'Already responded.', alreadyResolved: true, status: 'RESPONDED' })
     expect(prisma.comment.update).not.toHaveBeenCalled()
+    // Guards against a dropped `return` in the escalation branch above this
+    // one silently falling through to also execute the draft-branch write --
+    // that bug would produce this exact same final response shape, so
+    // asserting the response alone wouldn't catch it.
+    expect(prisma.comment.updateMany).toHaveBeenCalledTimes(1)
   })
 
   // Same race, but the concurrent writer landed on ESCALATED rather than
@@ -162,6 +167,33 @@ describe('POST /api/ai/respond', () => {
     const body = await res.json()
     expect(body).toEqual({ error: 'Already responded.', alreadyResolved: true, status: 'RESPONDED' })
     expect(prisma.comment.update).not.toHaveBeenCalled()
+    // Same regression guard as the lost-race draft test above: a dropped
+    // `return` here would let this branch fall through to also execute the
+    // draft-branch write, invisibly to a response-shape-only assertion.
+    expect(prisma.comment.updateMany).toHaveBeenCalledTimes(1)
+  })
+
+  // Fix 2: this route used to be the only one of the four fixed today that
+  // went straight from fetching the comment into a multi-second
+  // generateCommentResponse call without ever checking status first --
+  // burning a full AI generation call on a comment that's already terminal.
+  // The real value of this test is the "never called" assertion below, not
+  // the response shape (already covered by the lost-race tests above).
+  it('returns the already-resolved response immediately for an already-RESPONDED comment, without calling generateCommentResponse', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.comment.findFirst).mockResolvedValue(baseComment({ status: 'RESPONDED' }) as any)
+
+    const res = await POST(req({ commentId: 'c1' }))
+
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body).toEqual({ error: 'Already responded.', alreadyResolved: true, status: 'RESPONDED' })
+    expect(generateCommentResponse).not.toHaveBeenCalled()
+    expect(prisma.comment.updateMany).not.toHaveBeenCalled()
+    // No re-read needed to build this response -- comment.status was already
+    // in hand from the findFirst above, so this early exit costs no extra
+    // query beyond what the route already had to do.
+    expect(prisma.comment.findUnique).not.toHaveBeenCalled()
   })
 
   it('returns 403 when the user lacks access, 404 when the comment truly does not exist', async () => {

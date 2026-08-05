@@ -114,7 +114,19 @@ export const CommentCard = memo(function CommentCard({
       })
       const data = await res.json()
       if (!res.ok) {
-        toast.error(data.error ?? 'Failed to send reply')
+        if (data.alreadyResolved) {
+          // Same race as handleGenerate's equivalent branch above: the send
+          // took long enough (or the card's local state was stale enough)
+          // that a concurrent path -- the auto-responder worker, an MCP
+          // respond_to_item call, or another human's manual Reply -- already
+          // claimed and resolved this comment first. Move the card to
+          // wherever it actually landed instead of leaving a stale Pending
+          // row that would just lose this same race again on the next click.
+          toast.error('This comment was already handled elsewhere.')
+          onUpdate(comment.id, data.status ?? 'RESPONDED')
+        } else {
+          toast.error(data.error ?? 'Failed to send reply')
+        }
         return
       }
       toast.success('Reply sent.')

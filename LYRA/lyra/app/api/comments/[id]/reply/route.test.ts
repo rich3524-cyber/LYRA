@@ -88,7 +88,10 @@ describe('POST /api/comments/[id]/reply', () => {
     const res = await POST(req({ response: 'Thanks!' }), ctx())
 
     expect(res.status).toBe(400)
-    expect(await res.json()).toEqual({ error: 'Already responded.' })
+    // alreadyResolved/status match the shape app/api/ai/respond/route.ts and
+    // app/api/comments/[id]/route.ts's guarded PATCH already return, so the
+    // frontend's handleSend can treat all three identically.
+    expect(await res.json()).toEqual({ error: 'Already responded.', alreadyResolved: true, status: 'RESPONDED' })
     expect(getProvider).not.toHaveBeenCalled()
     expect(prisma.comment.updateMany).not.toHaveBeenCalled()
   })
@@ -131,7 +134,7 @@ describe('POST /api/comments/[id]/reply', () => {
     const res = await POST(req({ response: 'Thanks!' }), ctx())
 
     expect(res.status).toBe(400)
-    expect(await res.json()).toEqual({ error: 'Already responded.' })
+    expect(await res.json()).toEqual({ error: 'Already responded.', alreadyResolved: true, status: 'RESPONDED' })
     expect(replyToComment).not.toHaveBeenCalled()
   })
 

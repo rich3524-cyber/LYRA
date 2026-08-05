@@ -50,6 +50,28 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: exists ? 'Forbidden' : 'Not found' }, { status: exists ? 403 : 404 })
     }
 
+    // Cheap early exit on an already-terminal comment, matching the sibling
+    // send paths in this fix (workers/ai-responder.worker.ts and
+    // app/api/mcp/respond-to-item/route.ts both check status === 'ESCALATED'
+    // || status === 'RESPONDED' before doing any expensive work;
+    // app/api/comments/[id]/reply/route.ts's guarded claim is the
+    // equivalent). This route was the only one of the four that went
+    // straight from fetching the comment into a multi-second
+    // generateCommentResponse call without ever checking status first --
+    // meaning a comment that's already terminal still burned a full AI
+    // generation call for nothing. Built directly here rather than via
+    // alreadyResolvedResponse: that helper's re-read exists to discover which
+    // status a concurrent writer landed on *after* a race window (see its own
+    // comment above), but there's no race yet at this point -- comment.status
+    // was read a moment ago by the very findFirst above, so there's nothing
+    // to re-fetch.
+    if (comment.status === 'RESPONDED' || comment.status === 'ESCALATED') {
+      return NextResponse.json(
+        { error: 'Already responded.', alreadyResolved: true, status: comment.status },
+        { status: 400 }
+      )
+    }
+
     const [brandProfile, guardrails] = await Promise.all([
       prisma.brandProfile.findUnique({ where: { workspaceId: comment.workspaceId } }),
       prisma.guardrail.findMany({ where: { workspaceId: comment.workspaceId } }),

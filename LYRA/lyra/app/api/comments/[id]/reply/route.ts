@@ -104,7 +104,14 @@ export async function POST(req: Request, { params }: RouteContext) {
     // an escalated comment could never be cleared from the Inbox again
     // short of direct DB access.
     if (comment.status === 'RESPONDED') {
-      return NextResponse.json({ error: 'Already responded.' }, { status: 400 })
+      // alreadyResolved/status match the shape app/api/ai/respond/route.ts's
+      // alreadyResolvedResponse and app/api/comments/[id]/route.ts's guarded
+      // PATCH already return, so the frontend (comment-card.tsx's handleSend)
+      // can treat this identically to those: move the stale card straight to
+      // the status it actually landed on instead of leaving it stuck showing
+      // Pending, which would just lose this same race again on the next
+      // click.
+      return NextResponse.json({ error: 'Already responded.', alreadyResolved: true, status: 'RESPONDED' }, { status: 400 })
     }
 
     const resolvesToZernio =
@@ -151,7 +158,10 @@ export async function POST(req: Request, { params }: RouteContext) {
       data:  { status: 'RESPONDED', finalResponse, respondedAt: new Date() },
     })
     if (claimed.count === 0) {
-      return NextResponse.json({ error: 'Already responded.' }, { status: 400 })
+      // Same alreadyResolved/status shape as the pre-send check above -- this
+      // claim's predicate is `status: { not: 'RESPONDED' }`, so a count of 0
+      // can only mean the comment is currently RESPONDED.
+      return NextResponse.json({ error: 'Already responded.', alreadyResolved: true, status: 'RESPONDED' }, { status: 400 })
     }
 
     try {
