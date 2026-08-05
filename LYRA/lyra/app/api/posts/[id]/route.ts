@@ -37,6 +37,7 @@ export async function PATCH(
         id: true, status: true, workspaceId: true, authorId: true,
         mediaUrls: true, requiresMedia: true,
         socialAccount: { select: { platform: true } },
+        workspace: { select: { clientAccessLevel: true } },
       },
     })
 
@@ -82,30 +83,43 @@ export async function PATCH(
       }
     }
 
+    // Same approval-routing rule as POST /api/posts (parent MCP spec 3.4). This
+    // is the path the web app's UI actually uses most often for DRAFT ->
+    // SCHEDULED (e.g. post-detail-panel.tsx's "Mark as scheduled" action), so
+    // without it here a two-call POST-then-PATCH sequence could bypass the
+    // approval gate the create-time fix alone put in place.
+    const finalStatus: PostStatus | undefined =
+      status === 'SCHEDULED' && existing.workspace.clientAccessLevel === 'APPROVE'
+        ? 'PENDING_APPROVAL'
+        : status
+
     const post = await prisma.post.update({
       where: { id },
       data: {
         ...(content !== undefined && { content }),
-        ...(status !== undefined && { status }),
+        ...(status !== undefined && { status: finalStatus }),
         ...(scheduledAt !== undefined && { scheduledAt: scheduledAt ? new Date(scheduledAt) : null }),
         ...(mediaUrls !== undefined && { mediaUrls }),
       },
     })
 
-    // Manage PostApproval record on approval-related status transitions
-    if (status === 'PENDING_APPROVAL') {
+    // Manage PostApproval record on approval-related status transitions.
+    // Branches key off finalStatus (what was actually written), not the raw
+    // requested status, so a SCHEDULED request redirected to PENDING_APPROVAL
+    // above still gets a reviewable PostApproval record created.
+    if (finalStatus === 'PENDING_APPROVAL') {
       await prisma.postApproval.upsert({
         where:  { postId: id },
         create: { postId: id, status: 'PENDING' },
         update: { status: 'PENDING', reviewedAt: null, reviewerId: null },
       })
-    } else if (status === 'APPROVED') {
+    } else if (finalStatus === 'APPROVED') {
       await prisma.postApproval.upsert({
         where:  { postId: id },
         create: { postId: id, status: 'APPROVED', reviewerId: user.id, reviewedAt: new Date() },
         update: { status: 'APPROVED', reviewerId: user.id, reviewedAt: new Date() },
       })
-    } else if (status === 'DRAFT' && existing.status === 'PENDING_APPROVAL') {
+    } else if (finalStatus === 'DRAFT' && existing.status === 'PENDING_APPROVAL') {
       await prisma.postApproval.upsert({
         where:  { postId: id },
         create: { postId: id, status: 'REJECTED', reviewedAt: new Date() },

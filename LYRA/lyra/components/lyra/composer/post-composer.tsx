@@ -239,7 +239,21 @@ export function PostComposer({ workspaceId, connectedPlatforms, editingPost, onC
         return
       }
 
-      toast.success(status === 'SCHEDULED' ? (dateOverride ? 'Post queued for publishing.' : 'Post scheduled.') : 'Draft saved.')
+      // Read the real returned status rather than trusting the requested one --
+      // a SCHEDULED request can come back PENDING_APPROVAL when the workspace
+      // requires client approval (server-side routing added alongside the
+      // MCP gateway work), and telling the user "Post scheduled." in that case
+      // would be a lie: it will not publish until a client approves it.
+      const created = await res.json() as Array<{ status?: string }>
+      const actualStatus = created[0]?.status
+
+      toast.success(
+        actualStatus === 'PENDING_APPROVAL'
+          ? 'Submitted for client approval.'
+          : status === 'SCHEDULED'
+            ? (dateOverride ? 'Post queued for publishing.' : 'Post scheduled.')
+            : 'Draft saved.'
+      )
       editor?.commands.clearContent()
       setSelectedPlatforms([])
       setScheduledAt(undefined)

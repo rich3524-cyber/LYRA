@@ -41,6 +41,14 @@ describe('POST /api/posts — approval-status resolution', () => {
     expect(res.status).toBe(201)
     const body = await res.json()
     expect(body[0].status).toBe('PENDING_APPROVAL')
+    // Echo-back added for the parent MCP spec's §6.2 wrong-workspace-write
+    // mitigation -- every created post must include platform/account so a
+    // workspace misresolution is visible immediately.
+    expect(prisma.post.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: { socialAccount: { select: { platform: true, name: true } } },
+      })
+    )
   })
 
   it('creates a SCHEDULED post as SCHEDULED when the workspace does not require client approval', async () => {
@@ -56,6 +64,7 @@ describe('POST /api/posts — approval-status resolution', () => {
       scheduledAt: '2026-09-01T00:00:00.000Z', status: 'SCHEDULED',
     }))
 
+    expect(res.status).toBe(201)
     const body = await res.json()
     expect(body[0].status).toBe('SCHEDULED')
   })
@@ -70,6 +79,7 @@ describe('POST /api/posts — approval-status resolution', () => {
 
     const res = await POST(req({ workspaceId: 'ws-1', content: 'hello', platforms: ['FACEBOOK'], status: 'DRAFT' }))
 
+    expect(res.status).toBe(201)
     const body = await res.json()
     expect(body[0].status).toBe('DRAFT')
   })
