@@ -105,9 +105,9 @@ export async function postLyraApi<T = unknown>(
 }
 
 // DELETE-capable sibling to callLyraApi/postLyraApi. This helper sends no
-// request body -- remove_competitor (the current caller) doesn't need one; a
-// future caller needing to send a body should extend this or add a variant.
-// Shares the same error normalization as the other two.
+// request body -- neither current caller (remove_competitor, remove_guardrail)
+// needs one; a future caller needing to send a body should extend this or
+// add a variant. Shares the same error normalization as the other two.
 export async function deleteLyraApi<T = unknown>(
   path: string,
   bearerToken: string

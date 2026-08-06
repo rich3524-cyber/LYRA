@@ -4,10 +4,10 @@ import { CAPABILITY_REGISTRY } from './registry'
 import { SCOPES_SUPPORTED } from '../http'
 
 describe('CAPABILITY_REGISTRY', () => {
-  it('has exactly 15 capabilities, each with a unique name', () => {
+  it('has exactly 16 capabilities, each with a unique name', () => {
     const names = Object.keys(CAPABILITY_REGISTRY)
-    expect(names).toHaveLength(15)
-    expect(new Set(names).size).toBe(15)
+    expect(names).toHaveLength(16)
+    expect(new Set(names).size).toBe(16)
   })
 
   it('every capability has a non-empty description, a valid endpoint/method, and a Zod paramSchema', () => {
@@ -31,12 +31,12 @@ describe('CAPABILITY_REGISTRY', () => {
     }
   })
 
-  it("declares 'derived-from-path' only for the three path-parameterized capabilities that don't send workspaceId, per the design decision in call_capability", () => {
+  it("declares 'derived-from-path' only for the four path-parameterized capabilities that don't send workspaceId, per the design decision in call_capability", () => {
     const derivedFromPath = Object.entries(CAPABILITY_REGISTRY)
       .filter(([, cap]) => cap.workspaceScoping === 'derived-from-path')
       .map(([name]) => name)
       .sort()
-    expect(derivedFromPath).toEqual(['analyze_seo_page', 'generate_seo_content', 'remove_competitor'])
+    expect(derivedFromPath).toEqual(['analyze_seo_page', 'generate_seo_content', 'remove_competitor', 'remove_guardrail'])
   })
 
   it('path-parameterized endpoints declare every :placeholder as a required string field in paramSchema', () => {
@@ -59,5 +59,24 @@ describe('CAPABILITY_REGISTRY', () => {
       .map(([name]) => name)
       .sort()
     expect(flagged).toEqual(['analyze_seo_page', 'get_seo_search_data', 'list_competitors'])
+  })
+
+  it("rejects a too-short or purely-symbolic approve_crisis_keyword keyword, since the backend matches it via case-insensitive substring against every future comment", () => {
+    const schema = CAPABILITY_REGISTRY.approve_crisis_keyword.paramSchema
+    expect(schema.safeParse({ keyword: 'e' }).success).toBe(false)
+    expect(schema.safeParse({ keyword: 'ab' }).success).toBe(false)
+    expect(schema.safeParse({ keyword: '!!!' }).success, 'purely-symbolic keyword').toBe(false)
+    expect(schema.safeParse({ keyword: '123' }).success, 'purely-numeric keyword').toBe(false)
+    expect(schema.safeParse({ keyword: 'lawsuit' }).success).toBe(true)
+  })
+
+  it('exposes remove_guardrail, the undo path for approve_crisis_keyword, backed by the real DELETE /api/guardrails/:id route', () => {
+    const cap = CAPABILITY_REGISTRY.remove_guardrail
+    expect(cap.endpoint).toBe('/api/guardrails/:id')
+    expect(cap.method).toBe('DELETE')
+    expect(cap.paramSchema.safeParse({}).success, 'id should be required').toBe(false)
+    expect(cap.paramSchema.safeParse({ id: 'guardrail-1' }).success).toBe(true)
+    expect(cap.workspaceScoping).toBe('derived-from-path')
+    expect(cap.mutates).toBe(true)
   })
 })

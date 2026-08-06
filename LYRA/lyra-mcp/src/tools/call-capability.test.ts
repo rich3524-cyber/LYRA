@@ -136,6 +136,32 @@ describe('callCapability', () => {
     expect(result).toEqual({ workspaceName: 'Into The Wild Marketing', result: { id: 'comp-2', name: 'Acme Co' } })
   })
 
+  it('does NOT echo the workspace name for a derived-from-path mutating capability, since the claimed workspace_id cannot be trusted for these (per the workspaceScoping doc comment)', async () => {
+    vi.mocked(deleteLyraApi).mockResolvedValue({ ok: true })
+
+    // remove_competitor is 'derived-from-path' + mutates: true -- the
+    // backend authorizes/scopes by whatever workspace actually owns the
+    // competitor id, not by the claimed workspace_id, so echoing back the
+    // claimed workspace's name would be a confident but potentially wrong
+    // confirmation.
+    const result = await callCapability({ name: 'remove_competitor', params: { id: 'comp-1' }, workspace_id: 'ws-1' }, 'token-abc')
+
+    expect(getWorkspaceName).not.toHaveBeenCalled()
+    expect(result).toEqual({ ok: true })
+  })
+
+  it('still echoes the workspace name for an explicit-scoping mutating capability', async () => {
+    vi.mocked(postLyraApi).mockResolvedValue({ id: 'comp-2', name: 'Acme Co' })
+
+    // add_competitor is 'explicit' + mutates: true -- contrast case for the
+    // derived-from-path test above, confirming the suppression is scoped to
+    // workspaceScoping and not accidentally applied to every mutation.
+    const result = await callCapability({ name: 'add_competitor', params: { name: 'Acme Co' }, workspace_id: 'ws-1' }, 'token-abc')
+
+    expect(getWorkspaceName).toHaveBeenCalledWith('ws-1', 'token-abc')
+    expect(result).toEqual({ workspaceName: 'Into The Wild Marketing', result: { id: 'comp-2', name: 'Acme Co' } })
+  })
+
   it('does NOT echo the workspace name for a read-only capability', async () => {
     vi.mocked(callLyraApi).mockResolvedValue([])
 

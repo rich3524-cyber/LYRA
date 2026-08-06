@@ -48,13 +48,17 @@ describe('searchCapabilities', () => {
   })
 
   it('matches a realistic multi-word phrasing and tolerates padded whitespace', async () => {
-    // remove_competitor's description ("Stop tracking a competitor...") is
-    // the only entry whose name+description contains both "competitor" and
-    // "tracking" -- this is the multi-word query from the plan's eval
+    // "competitor tracking" is the multi-word query from the plan's eval
     // dataset ("tools for tracking competitors") that returned zero results
-    // under the old whole-string substring match.
+    // under the old whole-string substring match. No competitor
+    // capability's description contains the literal word "tracking" (they
+    // say "tracked"/"track"), so this is an OR-fallback match on
+    // "competitor" alone -- all three competitor capabilities come back,
+    // not just remove_competitor (see matchCapabilityEntries tests for why
+    // that matters: a lone remove_competitor result gave no signal it was
+    // destructive).
     const phrasing = await searchCapabilities({ query: 'competitor tracking' }, 'token-abc')
-    expect(phrasing.map((r) => r.name)).toContain('remove_competitor')
+    expect(phrasing.map((r) => r.name)).toEqual(expect.arrayContaining(['list_competitors', 'add_competitor', 'remove_competitor']))
 
     const padded = await searchCapabilities({ query: '  competitor  ' }, 'token-abc')
     expect(padded.map((r) => r.name)).toEqual(expect.arrayContaining(['list_competitors', 'add_competitor', 'remove_competitor']))
@@ -78,26 +82,57 @@ describe('searchCapabilities', () => {
     expect(resolveWorkspaceId).toHaveBeenCalledWith(undefined, 'token-abc')
   })
 
-  it('returns exactly name, description, and available -- no other fields -- when available', async () => {
+  it('returns exactly name, description, mutates, and available -- no other fields -- when available', async () => {
     const results = await searchCapabilities({ query: 'competitor' }, 'token-abc')
     expect(results.length).toBeGreaterThan(0)
     for (const r of results) {
-      expect(Object.keys(r).sort()).toEqual(['available', 'description', 'name'])
+      expect(Object.keys(r).sort()).toEqual(['available', 'description', 'mutates', 'name'])
       expect(r).not.toHaveProperty('paramSchema')
       expect(r).not.toHaveProperty('endpoint')
     }
   })
 
-  it('returns exactly name, description, available, and requires -- no other fields -- when unavailable', async () => {
+  it('returns exactly name, description, mutates, available, and requires -- no other fields -- when unavailable', async () => {
     vi.mocked(meetsPlanTier).mockResolvedValue(false)
 
     const results = await searchCapabilities({ query: 'competitor' }, 'token-abc')
     expect(results.length).toBeGreaterThan(0)
     for (const r of results) {
-      expect(Object.keys(r).sort()).toEqual(['available', 'description', 'name', 'requires'])
+      expect(Object.keys(r).sort()).toEqual(['available', 'description', 'mutates', 'name', 'requires'])
       expect(r).not.toHaveProperty('paramSchema')
       expect(r).not.toHaveProperty('endpoint')
     }
+  })
+
+  it('includes an accurate mutates flag sourced from the registry, for both a mutating and a non-mutating result', async () => {
+    const results = await searchCapabilities({ query: 'competitor' }, 'token-abc')
+    const byName = Object.fromEntries(results.map((r) => [r.name, r]))
+
+    expect(byName.list_competitors).toBeDefined()
+    expect(byName.list_competitors.mutates).toBe(false)
+    expect(byName.add_competitor).toBeDefined()
+    expect(byName.add_competitor.mutates).toBe(true)
+    expect(byName.remove_competitor).toBeDefined()
+    expect(byName.remove_competitor.mutates).toBe(true)
+  })
+
+  it('still returns keyword matches, with available left undefined, when resolveWorkspaceId fails because the caller has multiple workspaces and omitted workspace_id', async () => {
+    vi.mocked(resolveWorkspaceId).mockRejectedValue(
+      new Error('workspace_id is required: caller has access to multiple workspaces (Acme, Beta) -- specify which one')
+    )
+
+    const results = await searchCapabilities({ query: 'competitor' } as any, 'token-abc')
+
+    // Search itself doesn't need a workspace -- only the plan-tier check
+    // does -- so the ambiguous-workspace failure shouldn't erase the
+    // otherwise-useful match list.
+    expect(results.map((r) => r.name)).toEqual(expect.arrayContaining(['list_competitors', 'add_competitor', 'remove_competitor']))
+    // meetsPlanTier was never reachable (no workspaceId to check it
+    // against), so availability is genuinely unknown, not fabricated.
+    for (const r of results) {
+      expect(r.available).toBeUndefined()
+    }
+    expect(meetsPlanTier).not.toHaveBeenCalled()
   })
 })
 
@@ -130,9 +165,27 @@ describe('matchCapabilityEntries (fallback matching)', () => {
     expect(names).toEqual(['get_seo_search_data', 'list_seo_pages', 'track_seo_page', 'analyze_seo_page', 'generate_seo_content'])
   })
 
-  it('still prefers strict AND matches when they exist -- "competitor tracking" still returns just remove_competitor since that is the true AND match', () => {
+  it('falls back to OR-ranked matching for "competitor tracking", surfacing all three competitor capabilities rather than just remove_competitor', () => {
+    // Previously remove_competitor's description named list_competitors in
+    // a parenthetical cross-reference and separately said "Stop tracking a
+    // competitor", so it was the ONLY entry whose own name+description
+    // contained both "competitor" and "tracking" -- the strict AND match
+    // returned just remove_competitor, with no indication alongside it that
+    // list_competitors/add_competitor cover the same feature, and no signal
+    // that the lone result was the destructive one. Now that no
+    // capability's description contains the literal word "tracking" (they
+    // say "tracked"/"track" instead), the AND match is empty for this query
+    // and it falls back to OR-ranking: every capability whose
+    // name/description contains "competitor" scores via a name match (2
+    // points each), so all three tie and come back first, in registry
+    // order. track_seo_page's description does separately contain the
+    // literal word "tracking" ("Start tracking a page...") -- it scores 1
+    // (description-only match, no "competitor") and so trails behind the
+    // three competitor capabilities, but is still surfaced rather than
+    // dropped, consistent with the OR-fallback's "partial match beats a
+    // dead end" design.
     const results = matchCapabilityEntries('competitor tracking')
-    expect(results.map(([name]) => name)).toEqual(['remove_competitor'])
+    expect(results.map(([name]) => name)).toEqual(['list_competitors', 'add_competitor', 'remove_competitor', 'track_seo_page'])
   })
 
   it('ranks OR-fallback results by match count, most-matched first', () => {

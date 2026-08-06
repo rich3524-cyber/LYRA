@@ -12,7 +12,17 @@ interface SearchCapabilitiesParams {
 interface CapabilityMatch {
   name: string
   description: string
-  available: boolean
+  // Sourced straight from the registry entry so a caller deciding whether
+  // to invoke a search result can tell, without a second lookup, whether
+  // doing so will change data -- previously this flag existed on every
+  // registry entry but was never threaded through to search results.
+  mutates: boolean
+  // Whether the caller's plan tier covers this capability. Left `undefined`
+  // (rather than a fabricated `true`/`false`) when availability couldn't
+  // actually be determined -- see the resolveWorkspaceId failure handling
+  // in searchCapabilities below, for a caller with access to multiple
+  // workspaces who didn't specify which one.
+  available?: boolean
   requires?: PlanTier
 }
 
@@ -86,15 +96,36 @@ export function matchCapabilityEntries(query: string): Array<[string, Capability
 // returned, marked unavailable with the tier that would unlock it, rather
 // than filtered out silently -- a cleaner upsell than a dead end.
 export async function searchCapabilities(params: SearchCapabilitiesParams, bearerToken: string): Promise<CapabilityMatch[]> {
-  const workspaceId = await resolveWorkspaceId(params.workspace_id, bearerToken)
   const matches = matchCapabilityEntries(params.query)
+
+  // The keyword match above needs no workspace at all -- only the
+  // plan-tier availability check below does. resolveWorkspaceId throws when
+  // workspace_id is omitted and the caller has access to more than one
+  // workspace (genuinely ambiguous which one is meant). Previously that
+  // throw took down the whole function, so an ambiguous-workspace caller
+  // got nothing back even though the search itself was still answerable.
+  // Now: catch it, still return the match list, and leave `available`
+  // undefined on every result rather than fabricating a true/false that
+  // wasn't actually determined -- the caller can retry with an explicit
+  // workspace_id to get real availability.
+  let workspaceId: string
+  try {
+    workspaceId = await resolveWorkspaceId(params.workspace_id, bearerToken)
+  } catch {
+    return matches.map(([name, cap]) => ({
+      name,
+      description: cap.description,
+      mutates: cap.mutates,
+      available: undefined,
+    }))
+  }
 
   return Promise.all(
     matches.map(async ([name, cap]) => {
       const available = await meetsPlanTier(workspaceId, cap.minPlanTier, bearerToken)
       return available
-        ? { name, description: cap.description, available: true }
-        : { name, description: cap.description, available: false, requires: cap.minPlanTier }
+        ? { name, description: cap.description, mutates: cap.mutates, available: true }
+        : { name, description: cap.description, mutates: cap.mutates, available: false, requires: cap.minPlanTier }
     })
   )
 }

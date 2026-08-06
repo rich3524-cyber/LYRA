@@ -40,11 +40,15 @@ export interface CapabilityDefinition {
   // workspace-scoping behavior change silently just because someone did or
   // didn't put a colon in a URL, with no reviewer signal either way.
   // NOTE: 'derived-from-path' is a known gap, not a verified guarantee --
-  // the backing routes for these three capabilities scope by "does this
-  // user have access to *any* workspace containing this resource," not by
-  // the specific workspace_id the caller claimed. Closing that gap requires
+  // the backing routes for these capabilities scope by "does this user
+  // have access to *any* workspace containing this resource," not by the
+  // specific workspace_id the caller claimed. Closing that gap requires
   // backend-side changes in the main LYRA app (out of scope for this
-  // MCP-gateway-only phase); tracked separately as a follow-up.
+  // MCP-gateway-only phase); tracked separately as a follow-up. Because of
+  // this gap, call_capability also suppresses the workspace-name
+  // echo-back (see §6.2 in call-capability.ts) for every capability
+  // declaring this value -- the claimed workspace can't be trusted as an
+  // accurate confirmation of what actually got mutated.
   workspaceScoping: 'explicit' | 'derived-from-path'
 }
 
@@ -87,7 +91,7 @@ export const CAPABILITY_REGISTRY: Record<string, CapabilityDefinition> = {
     workspaceScoping: 'explicit',
   },
   remove_competitor: {
-    description: 'Stop tracking a competitor. Requires the competitor id (from list_competitors).',
+    description: 'Remove a tracked competitor. Requires the competitor id, obtainable from a prior listing.',
     endpoint: '/api/competitors/:id',
     method: 'DELETE',
     paramSchema: z.object({ id: z.string().min(1) }),
@@ -178,7 +182,19 @@ export const CAPABILITY_REGISTRY: Record<string, CapabilityDefinition> = {
     description: 'Approve a suggested (or manually specified) crisis-escalation keyword into an active Always Escalate guardrail. Approving an already-active keyword is a harmless no-op.',
     endpoint: '/api/brand-intelligence/crisis-keywords/approve',
     method: 'POST',
-    paramSchema: z.object({ keyword: z.string().min(1), category: z.string().optional() }),
+    // The backend matches this keyword against comment text via a
+    // case-insensitive SUBSTRING check (see response-generator.ts's
+    // `contentLower.includes(trigger.toLowerCase())`), not a word-boundary
+    // match -- so a too-short or purely-symbolic "keyword" would escalate
+    // almost every future comment. min(3) + at-least-one-letter is a floor
+    // against that, not a claim that every 3+ char string is a good
+    // keyword choice. See remove_guardrail below for how to undo an
+    // approval once made -- there was previously no way to do that via this
+    // capability surface at all.
+    paramSchema: z.object({
+      keyword: z.string().min(3).regex(/[a-zA-Z]/, 'must contain at least one letter'),
+      category: z.string().optional(),
+    }),
     requiredScope: 'settings:write',
     minPlanTier: 'STARTER',
     mutates: true,
@@ -193,6 +209,28 @@ export const CAPABILITY_REGISTRY: Record<string, CapabilityDefinition> = {
     minPlanTier: 'STARTER',
     mutates: true,
     workspaceScoping: 'explicit',
+  },
+  remove_guardrail: {
+    // Backed by DELETE /api/guardrails/:id (LYRA/lyra/app/api/guardrails/[id]/route.ts),
+    // a hard delete on the raw Guardrail row -- the model has no
+    // active/enabled flag to toggle instead (checked against
+    // prisma/schema.prisma: id, workspaceId, type, value, createdAt only).
+    // That route authorizes by "does the caller have non-CLIENT_VIEW access
+    // to the workspace that owns this guardrail id," the same
+    // resource-owns-the-workspace pattern as remove_competitor, hence
+    // 'derived-from-path' below. This is the undo path for
+    // approve_crisis_keyword (which creates an ALWAYS_ESCALATE guardrail),
+    // but the route deletes any GuardrailType by id, not just crisis
+    // keywords, so the capability is named and scoped for what it actually
+    // does rather than narrowed to the crisis-keyword case.
+    description: 'Permanently delete an active guardrail (e.g. a crisis-escalation keyword approved via approve_crisis_keyword, or any other guardrail type) by its id. Requires the guardrail id -- not currently obtainable via any other capability in this gateway; find it in the LYRA app\'s settings UI.',
+    endpoint: '/api/guardrails/:id',
+    method: 'DELETE',
+    paramSchema: z.object({ id: z.string().min(1) }),
+    requiredScope: 'settings:write',
+    minPlanTier: 'STARTER',
+    mutates: true,
+    workspaceScoping: 'derived-from-path',
   },
   list_email_campaigns: {
     description: "List a workspace's scheduled/sent email campaigns for a given month (defaults to the current month) from connected ESP integrations (Klaviyo, Mailchimp, Customer.io).",

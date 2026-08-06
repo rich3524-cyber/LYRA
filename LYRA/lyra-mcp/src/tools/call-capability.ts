@@ -144,7 +144,21 @@ export async function callCapability(params: CallCapabilityParams, bearerToken: 
   // rather than requiring every future capability addition to remember it,
   // matching how draft_post/schedule_post already do this via
   // getWorkspaceName (best-effort: never fails the call over a missing name).
-  if (capability.mutates) {
+  //
+  // Deliberately suppressed for 'derived-from-path' capabilities, though.
+  // Per the workspaceScoping field's doc comment in registry.ts, those
+  // capabilities' backend routes don't scope by the caller's CLAIMED
+  // workspace_id at all -- they authorize by "does the caller have access
+  // to *any* workspace containing this resource id" and then act on
+  // whatever workspace actually owns it. `workspaceId` here is still just
+  // the claimed value (resolveWorkspaceId doesn't validate it against the
+  // resource either -- see the wrapsUntrustedContent comment above for that
+  // gap in detail), so echoing getWorkspaceName(workspaceId, ...) would
+  // "confirm" a workspace that may have nothing to do with the resource
+  // that actually got mutated. A confidently wrong confirmation is worse
+  // than none, so these capabilities get the plain result instead, with no
+  // workspaceName at all.
+  if (capability.mutates && capability.workspaceScoping === 'explicit') {
     const workspaceName = await getWorkspaceName(workspaceId, bearerToken)
     return { workspaceName, result }
   }

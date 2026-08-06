@@ -76,7 +76,7 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     handler: respondToItem,
   },
   search_capabilities: {
-    description: 'Search for capabilities beyond the core tool set (competitor tracking, SEO tools, brand intelligence, email campaign visibility, content scoring, AI schedule generation, and more). Returns matching capabilities with an availability flag -- a capability your plan doesn\'t include is still returned, marked unavailable with the plan tier that unlocks it, not silently hidden. Call call_capability with a result\'s name to actually invoke it.',
+    description: 'Search for capabilities beyond the core tool set (competitor tracking, SEO tools, brand intelligence, email campaign visibility, content scoring, AI schedule generation, and more). Each result reports whether invoking it mutates data (`mutates`), so you can tell a destructive/write action from a read before calling it. Also returns an availability flag -- a capability your plan doesn\'t include is still returned, marked unavailable with the plan tier that unlocks it, not silently hidden; if availability couldn\'t be determined (e.g. you omitted workspace_id and have access to more than one workspace), `available` is left unset rather than guessed -- retry with an explicit workspace_id for accurate availability. Call call_capability with a result\'s name to actually invoke it.',
     inputSchema: z.object({ query: z.string(), workspace_id: z.string().optional() }),
     handler: searchCapabilities,
   },
