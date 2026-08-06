@@ -63,6 +63,9 @@ export async function createMultipartUpload(key: string, contentType: string): P
 
 /** Uploads one part of a multipart upload. partNumber is 1-indexed, per S3's convention. Returns the part's ETag. */
 export async function uploadPart(key: string, s3UploadId: string, partNumber: number, body: Buffer): Promise<string> {
+  if (!Number.isInteger(partNumber) || partNumber < 1 || partNumber > 10000) {
+    throw new Error(`Invalid S3 part number: ${partNumber} (must be an integer 1-10000)`)
+  }
   const res = await s3.send(new UploadPartCommand({
     Bucket: BUCKET, Key: key, UploadId: s3UploadId, PartNumber: partNumber, Body: body,
   }))
@@ -85,6 +88,9 @@ export async function completeMultipartUpload(
 }
 
 /** Aborts a multipart upload, discarding any parts already uploaded. Used when a session fails validation at completion time. */
+// Not yet called -- wired into the /api/upload/multipart/complete route's
+// error-handling path in a later task, so a failed completion cleans up
+// immediately rather than waiting on the S3 bucket's lifecycle rule.
 export async function abortMultipartUpload(key: string, s3UploadId: string): Promise<void> {
   await s3.send(new AbortMultipartUploadCommand({ Bucket: BUCKET, Key: key, UploadId: s3UploadId }))
 }
