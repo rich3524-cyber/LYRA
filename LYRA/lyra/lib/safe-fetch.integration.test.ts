@@ -1,14 +1,8 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import * as http from 'http'
-import * as fs from 'fs'
-import * as os from 'os'
-import * as path from 'path'
-import { execFile } from 'child_process'
-import { promisify } from 'util'
-import * as ts from 'typescript'
 import type { AddressInfo } from 'net'
-
-const execFileAsync = promisify(execFile)
+import { fetch as undiciFetch } from 'undici'
+import { createPinnedDispatcher } from './safe-fetch'
 
 /**
  * Every other test in safe-fetch.test.ts mocks both `dns/promises` and
@@ -19,48 +13,52 @@ const execFileAsync = promisify(execFile)
  * if a future undici upgrade silently stopped calling connect.lookup, every
  * mocked test above would keep passing while the real protection vanished.
  *
- * This test proves it empirically: it starts a real HTTP server on
- * 127.0.0.1, then runs createPinnedDispatcher() + a real, unmocked global
- * fetch() against a hostname reserved by RFC 2606 to never resolve
+ * This test proves it empirically, entirely in-process, with no mocks: it
+ * starts a real HTTP server on 127.0.0.1, then calls the real
+ * createPinnedDispatcher() together with undici's own real, unmocked
+ * `fetch` against a hostname reserved by RFC 2606 to never resolve
  * (`.invalid`). If the pin is genuinely honored, the connection reaches the
  * local server despite the hostname being unresolvable; if undici silently
  * ignored connect.lookup and fell back to real DNS, this fails with
  * ENOTFOUND/EAI_AGAIN instead.
  *
- * Why a child process instead of calling createPinnedDispatcher() directly
- * in this test file: this repo's actual dependency versions (Node 24's
- * built-in fetch + the `undici` v8.10.0 package) only agree on the
- * dispatcher handler shape when safe-fetch's compiled-to-JS output runs
- * under plain Node, matching how it's actually shipped (Next.js compiles
- * TypeScript to JS via SWC before Node ever executes it -- Node's own
- * TypeScript type-stripping and Vite/vitest's SSR module transform are both
- * *test/dev-time-only* loading paths that neither production nor this
- * child process goes through). Running the real dispatcher inline inside
- * vitest's transformed module graph produces a false failure
- * (`InvalidArgumentError: invalid onRequestStart method`) that reproduces
- * only under vite-node's module handling, not under plain Node -- confirmed
- * by running the identical logic, compiled the same way Next.js ships it,
- * directly under `node` outside vitest, where it passes reliably. Spawning
- * a real, unmodified `node` process here is what makes this test measure
- * the shipped code's actual runtime behavior instead of a test-tool
- * artifact.
+ * Why undici's own `fetch` and not Node's global `fetch`: this is not just
+ * a style choice, it's what safeFetch() itself now does (see the comment on
+ * safeFetch in safe-fetch.ts). Node's global fetch is powered by a
+ * separately vendored, Node-version-pinned copy of undici bundled into Node
+ * core -- a *different* copy than the `undici` package installed in
+ * node_modules -- and the two are not guaranteed to agree on the
+ * Dispatcher/Handler protocol a custom `dispatcher: Agent` must implement.
+ * This was empirically confirmed while writing this test, the hard way:
+ * passing an Agent built from the npm `undici` package as `dispatcher` to
+ * Node's global fetch throws `InvalidArgumentError: invalid onRequestStart
+ * method` (UND_ERR_INVALID_ARG) on this project's actual pinned undici
+ * version -- reproducible from a plain, unmodified `node` process with no
+ * test framework involved at all, i.e. a real bug, not a test-tool
+ * artifact. (An earlier version of this test wrongly concluded the failure
+ * was specific to vitest's module transform, because it happened to compile
+ * into a scratch directory with no project `node_modules` ancestor and
+ * silently picked up an unrelated, stray `undici` elsewhere on the
+ * filesystem instead of this project's pinned copy -- once corrected to
+ * resolve the actual pinned `undici`, the failure reproduced identically
+ * under plain Node, which is what led to fixing safeFetch() to use undici's
+ * own fetch instead of Node's global one.) Using undici's own fetch here --
+ * matching the fix -- is what makes this test pass, and is also why a
+ * separate child-process/compile step turned out to be unnecessary: once
+ * dispatcher and fetch come from the same undici instance, the real
+ * mechanism works correctly called directly, in-process, under vitest.
  */
-describe('createPinnedDispatcher (real dispatcher, real server, real child Node process, no mocks)', () => {
+describe('createPinnedDispatcher + undici fetch (real dispatcher, real server, real undici, no mocks)', () => {
   let server: http.Server | undefined
-  let tmpDir: string | undefined
 
   afterEach(async () => {
     if (server) {
       await new Promise<void>((resolve) => server!.close(() => resolve()))
       server = undefined
     }
-    if (tmpDir) {
-      fs.rmSync(tmpDir, { recursive: true, force: true })
-      tmpDir = undefined
-    }
   })
 
-  it('makes a real fetch() in a real Node process reach a local server via a hostname that cannot resolve via real DNS', async () => {
+  it('makes a real fetch() reach a local server via a hostname that cannot resolve via real DNS', async () => {
     const marker = `pinned-dispatcher-${Math.random().toString(36).slice(2)}`
 
     server = http.createServer((_req, res) => {
@@ -70,54 +68,17 @@ describe('createPinnedDispatcher (real dispatcher, real server, real child Node 
     await new Promise<void>((resolve) => server!.listen(0, '127.0.0.1', resolve))
     const port = (server.address() as AddressInfo).port
 
-    // Compile the real safe-fetch.ts source to plain JS the same way it
-    // actually ships (types stripped, import/export left as real ESM for
-    // Node to load natively) -- not via vite-node's SSR transform, and not
-    // via Node's experimental native .ts loader, either of which produces
-    // the handler-shape mismatch described above.
-    const projectRoot = path.resolve(__dirname, '..')
-    const sourcePath = path.join(projectRoot, 'lib', 'safe-fetch.ts')
-    const source = fs.readFileSync(sourcePath, 'utf8')
-    const { outputText } = ts.transpileModule(source, {
-      compilerOptions: {
-        module: ts.ModuleKind.ESNext,
-        target: ts.ScriptTarget.ES2020,
-      },
-      fileName: 'safe-fetch.ts',
-    })
+    const dispatcher = createPinnedDispatcher({ address: '127.0.0.1', family: 4 })
 
-    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'safe-fetch-integration-'))
-    const compiledPath = path.join(tmpDir, 'safe-fetch.compiled.mjs')
-    fs.writeFileSync(compiledPath, outputText)
+    // does-not-resolve.invalid is reserved by RFC 2606 to never resolve via
+    // real DNS -- if connect.lookup weren't honored, this fetch would
+    // reject with ENOTFOUND/EAI_AGAIN before ever reaching a socket.
+    const res = await undiciFetch(`http://does-not-resolve.invalid:${port}/`, {
+      dispatcher,
+    } as never)
 
-    const runnerPath = path.join(tmpDir, 'runner.mjs')
-    fs.writeFileSync(
-      runnerPath,
-      [
-        "import { createPinnedDispatcher } from './safe-fetch.compiled.mjs'",
-        'const [, , port] = process.argv',
-        "const dispatcher = createPinnedDispatcher({ address: '127.0.0.1', family: 4 })",
-        // does-not-resolve.invalid is reserved by RFC 2606 to never resolve
-        // via real DNS -- if connect.lookup weren't honored, this fetch
-        // would reject with ENOTFOUND/EAI_AGAIN before ever reaching a
-        // socket.
-        "const res = await fetch(`http://does-not-resolve.invalid:${port}/`, { dispatcher })",
-        'const body = await res.text()',
-        'process.stdout.write(JSON.stringify({ status: res.status, body }))',
-      ].join('\n')
-    )
-
-    // A genuinely separate, unmodified `node` process -- not vitest's
-    // worker, not vite-node's module loader -- run from the project root so
-    // `undici` resolves from the real node_modules, exactly as it would in
-    // production.
-    const { stdout } = await execFileAsync(process.execPath, [runnerPath, String(port)], {
-      cwd: projectRoot,
-      timeout: 15_000,
-    })
-
-    const result = JSON.parse(stdout) as { status: number; body: string }
-    expect(result.status).toBe(200)
-    expect(result.body).toBe(marker)
-  }, 20_000)
+    expect(res.status).toBe(200)
+    const body = await res.text()
+    expect(body).toBe(marker)
+  })
 })

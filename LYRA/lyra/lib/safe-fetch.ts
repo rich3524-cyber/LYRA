@@ -1,6 +1,6 @@
 import * as dns from 'dns/promises'
 import * as net from 'net'
-import { Agent } from 'undici'
+import { Agent, fetch as undiciFetch } from 'undici'
 
 // RFC 1918 + loopback + link-local + CGNAT ranges blocked to prevent SSRF.
 // Extracted from services/brand-intelligence/scraper.ts (the one scraper that
@@ -228,6 +228,20 @@ export function createPinnedDispatcher({ address, family }: ValidatedAddress): A
  * being followed (redirect: 'manual' -- fetch does not re-validate a Location
  * header against our blocklist on its own, so a safe URL that 302s to an
  * internal address would otherwise bypass the check).
+ *
+ * Uses undici's own `fetch` (the same package instance that supplies
+ * `Agent`/`createPinnedDispatcher`) rather than Node's global `fetch`.
+ * Node's global fetch is powered by a separately vendored, Node-version-pinned
+ * copy of undici bundled into Node core -- a *different* copy than the
+ * `undici` package installed in node_modules, and the two are not guaranteed
+ * to agree on the Dispatcher/Handler protocol a custom `dispatcher: Agent`
+ * must implement. Confirmed empirically on this project's actual pinned
+ * `undici` version: passing an `Agent` built from the npm package as
+ * `dispatcher` to Node's global fetch throws `InvalidArgumentError: invalid
+ * onRequestStart method` (UND_ERR_INVALID_ARG) -- the two copies disagree on
+ * the handler shape. Using undici's own fetch keeps the dispatcher and the
+ * fetch call on the same internal protocol version always, regardless of
+ * which Node version (or which future undici bump) this runs under.
  */
 export async function safeFetch(rawUrl: string, init: RequestInit = {}, maxRedirects = 3): Promise<Response> {
   let currentUrl = rawUrl
@@ -235,7 +249,16 @@ export async function safeFetch(rawUrl: string, init: RequestInit = {}, maxRedir
     const { url: parsed, addresses } = await resolveAndValidate(currentUrl)
     const dispatcher = createPinnedDispatcher(addresses[0])
     const fetchInit: RequestInit & { dispatcher?: Agent } = { ...init, redirect: 'manual', dispatcher }
-    const res = await fetch(parsed, fetchInit)
+    // undici ships its own RequestInit/Response types, structurally close to
+    // but not identical to the DOM lib's (e.g. newer TS lib helpers add
+    // disposable-iterator members to global Headers that undici's own types
+    // don't declare). The runtime objects are fully duck-type compatible --
+    // status, headers.get/entries, json/text/arrayBuffer, and a real
+    // ReadableStream body -- callers of safeFetch never rely on `instanceof
+    // Response`. Cast at this one boundary rather than typing safeFetch's
+    // public signature around undici's types, which would leak an
+    // implementation detail into every one of safeFetch's 8 callers.
+    const res = (await undiciFetch(parsed, fetchInit as Parameters<typeof undiciFetch>[1])) as unknown as Response
     if (res.status >= 300 && res.status < 400) {
       const location = res.headers.get('location')
       if (!location) return res

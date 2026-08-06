@@ -7,10 +7,11 @@ vi.mock('dns/promises', () => ({
 
 vi.mock('undici', () => ({
   Agent: vi.fn(),
+  fetch: vi.fn(),
 }))
 
 import { resolve4, resolve6 } from 'dns/promises'
-import { Agent } from 'undici'
+import { Agent, fetch as undiciFetch } from 'undici'
 import { assertSafeUrl, safeFetch } from './safe-fetch'
 
 describe('assertSafeUrl', () => {
@@ -197,6 +198,10 @@ describe('safeFetch', () => {
     vi.mocked(Agent).mockImplementation(function (this: unknown, opts: unknown) {
       return { __opts: opts } as unknown as InstanceType<typeof Agent>
     } as unknown as typeof Agent)
+    // undici's fetch is mocked per-test below; reset here so a previous
+    // test's mockResolvedValue/mockResolvedValueOnce queue and call history
+    // never leaks into the next test.
+    vi.mocked(undiciFetch).mockReset()
   })
 
   afterEach(() => {
@@ -204,14 +209,13 @@ describe('safeFetch', () => {
   })
 
   it('returns the response for a normal public https URL', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response('ok', { status: 200 }))
-    vi.stubGlobal('fetch', fetchMock)
+    const fetchMock = vi.mocked(undiciFetch)
+    fetchMock.mockResolvedValue(new Response('ok', { status: 200 }) as never)
 
     const res = await safeFetch('https://example.com/data')
 
     expect(res.status).toBe(200)
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    vi.unstubAllGlobals()
   })
 
   it('rejects a redirect that points at a private address instead of blindly following it', async () => {
@@ -223,14 +227,11 @@ describe('safeFetch', () => {
       .mockResolvedValueOnce(['93.184.216.34']) // public.example.com -- safe
       .mockResolvedValueOnce(['169.254.169.254']) // redirect target -- private, must be blocked
 
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response(null, { status: 302, headers: { location: 'https://internal.example.com/secret' } })
+    vi.mocked(undiciFetch).mockResolvedValue(
+      new Response(null, { status: 302, headers: { location: 'https://internal.example.com/secret' } }) as never
     )
-    vi.stubGlobal('fetch', fetchMock)
 
     await expect(safeFetch('https://public.example.com/redirect')).rejects.toThrow(/private\/reserved address/)
-
-    vi.unstubAllGlobals()
   })
 
   it('pins the actual connection to the exact address that was DNS-validated instead of leaving fetch to re-resolve the hostname (closes the DNS-rebinding TOCTOU gap)', async () => {
@@ -241,8 +242,8 @@ describe('safeFetch', () => {
     vi.mocked(resolve4).mockResolvedValue(['203.0.113.9'])
     vi.mocked(resolve6).mockResolvedValue([])
 
-    const fetchMock = vi.fn().mockResolvedValue(new Response('ok', { status: 200 }))
-    vi.stubGlobal('fetch', fetchMock)
+    const fetchMock = vi.mocked(undiciFetch)
+    fetchMock.mockResolvedValue(new Response('ok', { status: 200 }) as never)
 
     await safeFetch('https://rebind.example.com/data')
 
@@ -278,8 +279,6 @@ describe('safeFetch', () => {
     expect(vi.mocked(resolve4).mock.calls.length).toBe(resolve4CallsBeforeLookup)
     expect(vi.mocked(resolve6).mock.calls.length).toBe(resolve6CallsBeforeLookup)
     expect(lookupResult).toEqual([{ address: '203.0.113.9', family: 4 }])
-
-    vi.unstubAllGlobals()
   })
 
   it('re-validates and re-pins the connection on each redirect hop, not just the first', async () => {
@@ -288,10 +287,10 @@ describe('safeFetch', () => {
       .mockResolvedValueOnce(['203.0.113.50']) // redirect target -- also safe, different address
     vi.mocked(resolve6).mockResolvedValue([])
 
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: 'https://hop2.example.com/final' } }))
-      .mockResolvedValueOnce(new Response('ok', { status: 200 }))
-    vi.stubGlobal('fetch', fetchMock)
+    const fetchMock = vi.mocked(undiciFetch)
+    fetchMock
+      .mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: 'https://hop2.example.com/final' } }) as never)
+      .mockResolvedValueOnce(new Response('ok', { status: 200 }) as never)
 
     const res = await safeFetch('https://hop1.example.com/start')
     expect(res.status).toBe(200)
@@ -313,7 +312,5 @@ describe('safeFetch', () => {
       })
     })
     expect(secondHopAddress).toEqual([{ address: '203.0.113.50', family: 4 }])
-
-    vi.unstubAllGlobals()
   })
 })
