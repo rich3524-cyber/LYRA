@@ -16,6 +16,10 @@ interface CapabilityMatch {
   requires?: PlanTier
 }
 
+// Common words plus 1-2 letter terms are stripped from a query before
+// scoring the OR fallback -- see matchCapabilityEntries for why.
+const STOPWORDS = new Set(['a', 'an', 'and', 'for', 'the', 'to', 'of', 'in', 'on', 'my', 'me', 'i', 'do', 'how', 'with', 'what', 'can', 'is', 'it'])
+
 // Tokenized match against name + description -- no embeddings or semantic
 // search needed at 15 entries. Requiring every token to appear somewhere in
 // the haystack (rather than one substring match on the whole query) is what
@@ -34,28 +38,42 @@ interface CapabilityMatch {
 // matched -- a partial match beats a dead end for an LLM caller deciding
 // whether to try call_capability at all.
 //
-// Exported so callers that only need the search results (not the plan-tier
-// availability check, which needs a real workspace/token) can use the same
-// matching logic -- e.g. the tool-selection eval harness, which simulates a
-// search_capabilities result without a live backend.
+// Two refinements on top of raw term-counting, both needed once real LLM
+// phrasing (not just keyword queries) is in play:
+//  - Stopwords and single/double-letter terms are stripped before scoring.
+//    Without this, a query like "how do I schedule a post" scores "i" and
+//    "a" as real terms -- both are substrings of nearly every description,
+//    so the OR fallback degenerates into "return almost the whole registry."
+//    Falls back to the raw terms if stripping would leave nothing, so a
+//    query that's *entirely* stopwords is never worse off than before.
+//  - A match in the capability's name counts double a match only in its
+//    description. A name match is a much stronger relevance signal (it's
+//    what the capability fundamentally *is*), so it should be able to
+//    outrank a capability that only happens to mention a term in passing.
 export function matchCapabilityEntries(query: string): Array<[string, CapabilityDefinition]> {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean)
   if (terms.length === 0) return []
 
-  const entries = Object.entries(CAPABILITY_REGISTRY)
-  const haystackFor = ([name, cap]: [string, CapabilityDefinition]) => `${name} ${cap.description}`.toLowerCase()
+  const meaningful = terms.filter((t) => t.length > 2 && !STOPWORDS.has(t))
+  const effective = meaningful.length > 0 ? meaningful : terms
 
-  const andMatches = entries.filter((entry) => terms.every((t) => haystackFor(entry).includes(t)))
-  if (andMatches.length > 0) return andMatches
+  const scored = Object.entries(CAPABILITY_REGISTRY).map(([name, cap]) => {
+    const nameHay = name.toLowerCase()
+    const haystack = `${nameHay} ${cap.description.toLowerCase()}`
+    const score = effective.reduce((n, t) => n + (haystack.includes(t) ? (nameHay.includes(t) ? 2 : 1) : 0), 0)
+    const matchesAll = effective.every((t) => haystack.includes(t))
+    return { entry: [name, cap] as [string, CapabilityDefinition], score, matchesAll }
+  })
 
-  // Fallback: no capability matched every term. Rank by how many terms
-  // matched instead of returning nothing.
-  const scored = entries
-    .map((entry) => ({ entry, score: terms.filter((t) => haystackFor(entry).includes(t)).length }))
+  const andMatches = scored.filter((s) => s.matchesAll)
+  if (andMatches.length > 0) return andMatches.map((s) => s.entry)
+
+  // Fallback: no capability matched every term. Rank by weighted score
+  // instead of returning nothing.
+  return scored
     .filter((s) => s.score > 0)
     .sort((a, b) => b.score - a.score)
-
-  return scored.map((s) => s.entry)
+    .map((s) => s.entry)
 }
 
 // Per the parent spec, a match the caller's plan doesn't cover is still

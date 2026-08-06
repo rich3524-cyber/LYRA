@@ -105,25 +105,29 @@ describe('matchCapabilityEntries (fallback matching)', () => {
   it('falls back to OR-ranked matching when strict AND returns nothing', () => {
     // "intelligence" appears in no capability's name/description (only in
     // the internal /api/brand-intelligence/... path), so the AND match is
-    // empty. The OR fallback ranks by term-match count; here every matching
-    // entry only matches on "brand" (score 1 each), so all four "brand"
-    // capabilities come back tied. Neither crisis-keyword capability
-    // mentions "brand" anywhere in its name/description, so they are NOT
-    // expected here despite being brand-intelligence-adjacent conceptually.
+    // empty. The OR fallback ranks by weighted term-match count (a name
+    // match counts double a description-only match). "brand" is the only
+    // effective term any entry matches (and "tools" matches nothing
+    // anywhere) -- rebuild_brand_profile has "brand" in its *name*, so it
+    // scores 2 and ranks first; the other three only mention "brand" in
+    // their description, score 1 each, and keep registry order among
+    // themselves. Neither crisis-keyword capability mentions "brand"
+    // anywhere in its name/description, so they are correctly absent
+    // despite being brand-intelligence-adjacent conceptually.
     const results = matchCapabilityEntries('brand intelligence tools')
     const names = results.map(([name]) => name)
-    expect(names.length).toBeGreaterThan(0)
-    expect(names).toEqual(expect.arrayContaining(['rebuild_brand_profile', 'analyze_engagement_patterns', 'generate_seo_content', 'generate_schedule']))
+    expect(names).toEqual(['rebuild_brand_profile', 'generate_seo_content', 'analyze_engagement_patterns', 'generate_schedule'])
   })
 
   it('falls back correctly for "SEO tools"', () => {
     // "tools" appears in no capability's name/description at all, so the
     // AND match is empty. The OR fallback then returns every capability
-    // whose name/description contains "seo" -- all five SEO capabilities.
+    // whose name/description contains "seo" -- all five SEO capabilities,
+    // each with "seo" in its *name* (so all score 2, tied, in registry
+    // order) since "tools" contributes nothing to any of them.
     const results = matchCapabilityEntries('SEO tools')
     const names = results.map(([name]) => name)
-    expect(names.length).toBeGreaterThan(0)
-    expect(names).toEqual(expect.arrayContaining(['get_seo_search_data', 'list_seo_pages', 'track_seo_page', 'analyze_seo_page', 'generate_seo_content']))
+    expect(names).toEqual(['get_seo_search_data', 'list_seo_pages', 'track_seo_page', 'analyze_seo_page', 'generate_seo_content'])
   })
 
   it('still prefers strict AND matches when they exist -- "competitor tracking" still returns just remove_competitor since that is the true AND match', () => {
@@ -132,13 +136,16 @@ describe('matchCapabilityEntries (fallback matching)', () => {
   })
 
   it('ranks OR-fallback results by match count, most-matched first', () => {
-    // construct a query where one entry matches more terms than another
-    const results = matchCapabilityEntries('seo competitor tools')
-    // both seo capabilities and competitor capabilities score 1 term each
-    // (assuming none contain all 3 words) -- just confirm no crash and
-    // results are returned in non-increasing score order
-    const names = results.map(([name]) => name)
-    expect(names.length).toBeGreaterThan(0)
+    // "how do I schedule a post" strips down to the effective terms
+    // "schedule" and "post" once stopwords ("how", "do", "i", "a") and
+    // 1-2 letter terms are removed. generate_schedule's name+description
+    // contains both, so it's actually a strict AND match on the effective
+    // terms (not an OR-fallback tie) -- either way, it's the correct,
+    // unambiguous top (and only) result, which is what a caller relying on
+    // ranking needs: the .sort() call is what keeps a stray partial match
+    // from crowding out the truly relevant capability.
+    const results = matchCapabilityEntries('how do I schedule a post')
+    expect(results.map(([name]) => name)[0]).toBe('generate_schedule')
   })
 
   it('returns empty array for a query matching nothing at all, even via fallback', () => {
