@@ -10,6 +10,8 @@ import { listTrends } from './tools/list-trends'
 import { draftPost } from './tools/draft-post'
 import { schedulePost } from './tools/schedule-post'
 import { respondToItem } from './tools/respond-to-item'
+import { searchCapabilities } from './tools/search-capabilities'
+import { callCapability } from './tools/call-capability'
 import { checkRateLimit } from './rate-limit'
 import { logAuditEvent } from './audit-log'
 import { getAuthSub } from './auth-context'
@@ -71,6 +73,16 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     description: 'Draft or send a response to an inbox comment/review. Whether it actually sends (vs. only drafting) is controlled entirely by the workspace’s own autonomy setting, never by a parameter you supply. Guardrail violations are returned as errors naming the rule that fired.',
     inputSchema: z.object({ workspace_id: z.string().optional(), comment_id: z.string(), response_text: z.string().optional() }),
     handler: respondToItem,
+  },
+  search_capabilities: {
+    description: 'Search for capabilities beyond the core tool set (competitor tracking, SEO tools, brand intelligence, email campaign visibility, content scoring, AI schedule generation, and more). Returns matching capabilities with an availability flag -- a capability your plan doesn\'t include is still returned, marked unavailable with the plan tier that unlocks it, not silently hidden. Call call_capability with a result\'s name to actually invoke it.',
+    inputSchema: z.object({ query: z.string(), workspace_id: z.string().optional() }),
+    handler: searchCapabilities,
+  },
+  call_capability: {
+    description: 'Invoke a capability found via search_capabilities, by name plus its own parameters. Unknown capability names, invalid parameters, and insufficient plan tier all return clear, structured errors rather than silently failing.',
+    inputSchema: z.object({ name: z.string(), params: z.unknown().optional(), workspace_id: z.string().optional() }),
+    handler: callCapability,
   },
 }
 

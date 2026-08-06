@@ -11,8 +11,9 @@ import { logAuditEvent } from './audit-log'
 import { resolveWorkspaceId } from './resolve-workspace-id'
 
 describe('TOOL_REGISTRY', () => {
-  it('registers exactly the 10 Phase 1 + Phase 2 core tools', () => {
+  it('registers exactly the 12 core tools', () => {
     expect(Object.keys(TOOL_REGISTRY).sort()).toEqual([
+      'call_capability',
       'draft_post',
       'get_analytics',
       'get_brand_profile',
@@ -23,6 +24,7 @@ describe('TOOL_REGISTRY', () => {
       'list_workspaces',
       'respond_to_item',
       'schedule_post',
+      'search_capabilities',
     ])
   })
 
