@@ -102,7 +102,12 @@ describe('PUT /api/upload/multipart/part', () => {
   })
 
   it('rejects a fractional chunkIndex', async () => {
-    const res = await PUT(req({ uploadId: 'upload-1', chunkIndex: 0.5, data: 'YQ==' }))
+    // Correctly-sized (10-byte) payload -- if data were undersized (e.g.
+    // 'YQ=='), the size-mismatch check would also return 400, and the test
+    // would pass even if the Number.isInteger(chunkIndex) guard regressed
+    // away. Using a properly-sized chunk means a 400 here is attributable
+    // only to the integer check.
+    const res = await PUT(req({ uploadId: 'upload-1', chunkIndex: 0.5, data: sizedBase64(NON_LAST_CHUNK_SIZE) }))
     expect(res.status).toBe(400)
     expect(uploadPart).not.toHaveBeenCalled()
   })
