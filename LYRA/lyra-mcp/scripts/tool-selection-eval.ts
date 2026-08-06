@@ -78,6 +78,13 @@ interface EvalResult {
   // exploratory list_workspaces call, then correctly proceeded" from
   // "genuinely picked the wrong tool" in the progress/failure output.
   usedWorkspaceHop: boolean
+  // Mirrors secondTurnError, same bug class: set (non-null) only when the
+  // hop was attempted but its own API call threw (rate limit, network
+  // blip). Without this, a failed hop call has no way to distinguish itself
+  // from "the model just picked the wrong tool," and the failure printer
+  // would misreport a two-turn case as "turn 2 not attempted -- turn 1
+  // already picked the wrong tool" when actually neither turn ever ran.
+  hopError?: string | null
 }
 
 // Deep-equal comparison for expectedParams checks. `===` can never match
@@ -105,14 +112,21 @@ const TOOL_CHOICE_ANY_NO_PARALLEL = { type: 'any', disable_parallel_tool_use: tr
 // Simulates the real list_workspaces tool's result shape -- see
 // src/tools/list-workspaces.ts (which shapes the raw /api/workspaces
 // response down to exactly these fields) and its test fixture, which this
-// mirrors. Deliberately a single workspace, not multiple: the eval exists to
-// fix a false-failure problem caused by workspace-name ambiguity, and giving
-// the model two-plus candidates to disambiguate between would just
-// reintroduce a new version of that same ambiguity inside the simulation
-// itself. One workspace means there's nothing left to disambiguate, so the
-// model should reliably proceed to the actual target tool on the next call.
+// mirrors. Two entries, not one: two prompts in eval-cases.ts explicitly
+// name "the LYRA workspace" (get_brand_profile's brand-voice prompt and
+// get_workspace_overview's "what needs my attention" prompt), so a fixture
+// containing only "Into The Wild Marketing" would hand the model back a
+// workspace list that contradicts what the user just said -- an
+// inconsistency that can produce flaky, non-deterministic scoring on those
+// two cases, unrelated to actual model quality. Two named entries doesn't
+// reintroduce the ambiguity problem this hop exists to fix: the two prompts
+// that need a second workspace name it explicitly (nothing to disambiguate),
+// and for every other prompt (which names no workspace at all) workspace_id
+// isn't graded, so it doesn't matter which of the two the model picks --
+// tool_choice: 'any' forces it to pick one regardless.
 const SIMULATED_WORKSPACES = [
   { id: 'ws-eval-demo', name: 'Into The Wild Marketing', industry: 'Professional Services', plan: 'AGENCY', role: 'AGENCY_ADMIN', platforms: ['FACEBOOK', 'INSTAGRAM'] },
+  { id: 'ws-eval-demo-2', name: 'LYRA', industry: 'Technology', plan: 'PRO', role: 'AGENCY_ADMIN', platforms: [] },
 ]
 
 // Shared by every API call this script makes (initial call, the optional
@@ -195,13 +209,16 @@ async function runCase(client: Anthropic, tools: Anthropic.Tool[], evalCase: Eva
     // This call's own try/catch, same reasoning as turn 2's below: a
     // transient failure on the hop call specifically must not be
     // mislabeled as a genuine tool-selection mistake, and must not discard
-    // the fact that a hop was attempted at all.
+    // the fact that a hop was attempted at all. hopError (mirroring
+    // secondTurnError) is what lets the failure printer tell "the hop's API
+    // call itself errored" apart from "the model picked the wrong tool" --
+    // without it this looked identical to turn 1 having failed outright.
     try {
       response = await callModel(client, tools, history)
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err)
       console.error(`  ERROR on list_workspaces hop for "${evalCase.prompt}": ${message}`)
-      return { case: evalCase, selectedTool: null, selectedParams: null, toolCorrect: false, paramsCorrect: null, usedWorkspaceHop: true }
+      return { case: evalCase, selectedTool: null, selectedParams: null, toolCorrect: false, paramsCorrect: null, usedWorkspaceHop: true, hopError: message }
     }
     toolUse = response.content.find((block): block is Anthropic.ToolUseBlock => block.type === 'tool_use')
 
@@ -386,6 +403,18 @@ async function main() {
       // simulated list_workspaces round-trip, not the model's first call.
       if (f.usedWorkspaceHop) {
         console.log('    (took the list_workspaces prefix hop first)')
+      }
+      // Checked FIRST, before either the single-turn or two-turn branches
+      // below: hopError means the hop's own API call threw (rate limit,
+      // network blip) before any turn-1 evaluation could even happen --
+      // selectedTool/toolCorrect are just the runCase's null/false
+      // placeholders in that case, not a real model answer. Printing the
+      // turn-1/turn-2 branches below for this case would misreport an
+      // infrastructure failure as "turn 1 already picked the wrong tool" --
+      // the exact bug this mirrors from secondTurnError.
+      if (f.hopError) {
+        console.log(`    list_workspaces hop API call failed (not a selection failure): ${f.hopError}`)
+        continue
       }
       if (f.case.thenExpectedTool) {
         // Two-turn case: make explicit which hop failed, since "turn 1
