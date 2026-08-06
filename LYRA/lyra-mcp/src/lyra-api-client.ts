@@ -104,6 +104,39 @@ export async function postLyraApi<T = unknown>(
   return responseBody as T
 }
 
+// PUT-capable sibling to postLyraApi, same structure, same error normalization.
+// Currently only used by upload_media_chunk (the /api/upload/multipart/part route).
+export async function putLyraApi<T = unknown>(
+  path: string,
+  bearerToken: string,
+  body: unknown
+): Promise<T> {
+  const baseUrl = process.env.LYRA_API_BASE_URL
+  const url = new URL(path, baseUrl)
+
+  let res: Response
+  let responseBody: unknown
+  try {
+    res = await fetch(url.toString(), {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${bearerToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+    responseBody = await res.json()
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'TimeoutError') {
+      throw new LyraApiTimeoutError(err)
+    }
+    throw new LyraApiNetworkError(err)
+  }
+
+  if (!res.ok) {
+    throw new LyraApiError(res.status, responseBody)
+  }
+  return responseBody as T
+}
+
 // DELETE-capable sibling to callLyraApi/postLyraApi. This helper sends no
 // request body -- neither current caller (remove_competitor, remove_guardrail)
 // needs one; a future caller needing to send a body should extend this or
