@@ -1,4 +1,7 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3'
+import {
+  S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadObjectCommand,
+  CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand,
+} from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 // Uses S3_* names, not the AWS_* equivalents -- Netlify Functions run on AWS Lambda,
@@ -49,4 +52,39 @@ export async function getObjectBuffer(key: string): Promise<Buffer> {
 /** Uploads a Buffer directly (server-side; not a presigned client upload). */
 export async function putObjectBuffer(key: string, body: Buffer, contentType: string): Promise<void> {
   await s3.send(new PutObjectCommand({ Bucket: BUCKET, Key: key, Body: body, ContentType: contentType }))
+}
+
+/** Opens a real S3 multipart upload session. Returns the real S3 UploadId. */
+export async function createMultipartUpload(key: string, contentType: string): Promise<string> {
+  const res = await s3.send(new CreateMultipartUploadCommand({ Bucket: BUCKET, Key: key, ContentType: contentType }))
+  if (!res.UploadId) throw new Error('S3 did not return an UploadId')
+  return res.UploadId
+}
+
+/** Uploads one part of a multipart upload. partNumber is 1-indexed, per S3's convention. Returns the part's ETag. */
+export async function uploadPart(key: string, s3UploadId: string, partNumber: number, body: Buffer): Promise<string> {
+  const res = await s3.send(new UploadPartCommand({
+    Bucket: BUCKET, Key: key, UploadId: s3UploadId, PartNumber: partNumber, Body: body,
+  }))
+  if (!res.ETag) throw new Error('S3 did not return an ETag for the uploaded part')
+  return res.ETag
+}
+
+/** Finalizes a multipart upload. parts must be sorted by partNumber ascending -- S3 rejects an out-of-order list. */
+export async function completeMultipartUpload(
+  key: string,
+  s3UploadId: string,
+  parts: Array<{ partNumber: number; etag: string }>
+): Promise<void> {
+  await s3.send(new CompleteMultipartUploadCommand({
+    Bucket: BUCKET,
+    Key: key,
+    UploadId: s3UploadId,
+    MultipartUpload: { Parts: parts.map((p) => ({ PartNumber: p.partNumber, ETag: p.etag })) },
+  }))
+}
+
+/** Aborts a multipart upload, discarding any parts already uploaded. Used when a session fails validation at completion time. */
+export async function abortMultipartUpload(key: string, s3UploadId: string): Promise<void> {
+  await s3.send(new AbortMultipartUploadCommand({ Bucket: BUCKET, Key: key, UploadId: s3UploadId }))
 }
