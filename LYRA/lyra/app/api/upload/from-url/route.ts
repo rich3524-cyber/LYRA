@@ -56,10 +56,13 @@ export async function POST(req: Request) {
       if (err instanceof DOMException && err.name === 'TimeoutError') {
         return NextResponse.json({ error: 'Timed out fetching sourceUrl' }, { status: 504 })
       }
-      return NextResponse.json(
-        { error: err instanceof Error ? err.message : 'Invalid or unsafe sourceUrl' },
-        { status: 400 }
-      )
+      // Never echo safeFetch's raw error message back to the caller -- it can
+      // include the resolved private/internal IP address (e.g. "URL resolves
+      // to a private/reserved address: 169.254.169.254"), which would turn
+      // this endpoint into a blind internal-network reconnaissance oracle for
+      // any authenticated user. Log the real reason server-side only.
+      console.error('POST /api/upload/from-url sourceUrl safety check failed:', err)
+      return NextResponse.json({ error: 'Invalid or unsafe sourceUrl' }, { status: 400 })
     }
 
     if (!res.ok) {

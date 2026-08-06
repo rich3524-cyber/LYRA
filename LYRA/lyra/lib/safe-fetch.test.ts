@@ -2,12 +2,23 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('dns/promises', () => ({
   resolve4: vi.fn(),
+  resolve6: vi.fn(),
 }))
 
-import { resolve4 } from 'dns/promises'
+vi.mock('undici', () => ({
+  Agent: vi.fn(),
+}))
+
+import { resolve4, resolve6 } from 'dns/promises'
+import { Agent } from 'undici'
 import { assertSafeUrl, safeFetch } from './safe-fetch'
 
 describe('assertSafeUrl', () => {
+  beforeEach(() => {
+    // Default: no AAAA record, matching the common case of an IPv4-only host.
+    vi.mocked(resolve6).mockResolvedValue([])
+  })
+
   it('rejects http:// URLs (https-only policy)', async () => {
     await expect(assertSafeUrl('http://example.com')).rejects.toThrow('Only https URLs are permitted')
   })
@@ -32,11 +43,62 @@ describe('assertSafeUrl', () => {
     const parsed = await assertSafeUrl('https://example.com/path')
     expect(parsed.hostname).toBe('example.com')
   })
+
+  it('rejects a URL that only has an IPv6 loopback address (::1)', async () => {
+    vi.mocked(resolve4).mockResolvedValue([])
+    vi.mocked(resolve6).mockResolvedValue(['::1'])
+    await expect(assertSafeUrl('https://v6-loopback.example.com')).rejects.toThrow(/private\/reserved address/)
+  })
+
+  it('rejects a URL that resolves (via AAAA) to an IPv6 link-local address (fe80::/10)', async () => {
+    vi.mocked(resolve4).mockResolvedValue([])
+    vi.mocked(resolve6).mockResolvedValue(['fe80::1'])
+    await expect(assertSafeUrl('https://v6-link-local.example.com')).rejects.toThrow(/private\/reserved address/)
+  })
+
+  it('rejects a URL that resolves (via AAAA) to an IPv6 unique-local address (fc00::/7)', async () => {
+    vi.mocked(resolve4).mockResolvedValue([])
+    vi.mocked(resolve6).mockResolvedValue(['fd12:3456:789a::1'])
+    await expect(assertSafeUrl('https://v6-unique-local.example.com')).rejects.toThrow(/private\/reserved address/)
+  })
+
+  it('rejects a URL whose AAAA record is an IPv4-mapped IPv6 address embedding a private IPv4 (::ffff:169.254.169.254)', async () => {
+    vi.mocked(resolve4).mockResolvedValue([])
+    vi.mocked(resolve6).mockResolvedValue(['::ffff:169.254.169.254'])
+    await expect(assertSafeUrl('https://v6-mapped-metadata.example.com')).rejects.toThrow(/private\/reserved address/)
+  })
+
+  it('rejects a URL with a safe public A record but a private AAAA record (dual-stack bypass)', async () => {
+    // A public IPv4 address alone must not be enough to pass -- if the AAAA
+    // record resolves to something private, the whole URL must be rejected,
+    // since the actual connection could go out over either family.
+    vi.mocked(resolve4).mockResolvedValue(['93.184.216.34'])
+    vi.mocked(resolve6).mockResolvedValue(['::1'])
+    await expect(assertSafeUrl('https://dual-stack.example.com')).rejects.toThrow(/private\/reserved address/)
+  })
+
+  it('accepts a URL whose only address is a public IPv6 address', async () => {
+    vi.mocked(resolve4).mockResolvedValue([])
+    vi.mocked(resolve6).mockResolvedValue(['2606:2800:220:1:248:1893:25c8:1946'])
+    const parsed = await assertSafeUrl('https://v6-public.example.com')
+    expect(parsed.hostname).toBe('v6-public.example.com')
+  })
 })
 
 describe('safeFetch', () => {
   beforeEach(() => {
     vi.mocked(resolve4).mockResolvedValue(['93.184.216.34'])
+    vi.mocked(resolve6).mockResolvedValue([])
+    // Agent is a real undici class in production; here it just needs to hand
+    // back an object that records the options it was constructed with, so
+    // tests can inspect the connect.lookup function that was configured.
+    // vi.restoreAllMocks() (below) only affects vi.spyOn() spies, not plain
+    // vi.fn() mocks like this one -- clear call history explicitly so each
+    // test starts from zero.
+    vi.mocked(Agent).mockClear()
+    vi.mocked(Agent).mockImplementation(function (this: unknown, opts: unknown) {
+      return { __opts: opts } as unknown as InstanceType<typeof Agent>
+    } as unknown as typeof Agent)
   })
 
   afterEach(() => {
@@ -69,6 +131,90 @@ describe('safeFetch', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(safeFetch('https://public.example.com/redirect')).rejects.toThrow(/private\/reserved address/)
+
+    vi.unstubAllGlobals()
+  })
+
+  it('pins the actual connection to the exact address that was DNS-validated instead of leaving fetch to re-resolve the hostname (closes the DNS-rebinding TOCTOU gap)', async () => {
+    // Simulates an attacker who controls DNS for their domain: the address
+    // used for the safety check must be the literal address the socket
+    // connects to, not a second, independent resolution performed by fetch()
+    // itself (which the attacker could answer differently).
+    vi.mocked(resolve4).mockResolvedValue(['203.0.113.9'])
+    vi.mocked(resolve6).mockResolvedValue([])
+
+    const fetchMock = vi.fn().mockResolvedValue(new Response('ok', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await safeFetch('https://rebind.example.com/data')
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const [, fetchInit] = fetchMock.mock.calls[0] as [unknown, { dispatcher?: unknown }]
+    expect(fetchInit.dispatcher).toBeDefined()
+
+    // The dispatcher must be an Agent configured with a connect.lookup that
+    // hands back the pre-validated address directly, rather than performing
+    // a fresh DNS lookup of its own.
+    const agentCall = vi.mocked(Agent).mock.calls.at(-1)
+    expect(agentCall).toBeDefined()
+    const agentOptions = agentCall![0] as { connect?: { lookup?: (...args: never[]) => void } }
+    expect(agentOptions.connect?.lookup).toBeInstanceOf(Function)
+
+    const resolve4CallsBeforeLookup = vi.mocked(resolve4).mock.calls.length
+    const resolve6CallsBeforeLookup = vi.mocked(resolve6).mock.calls.length
+
+    const lookupResult = await new Promise((resolve, reject) => {
+      ;(agentOptions.connect!.lookup as unknown as (
+        hostname: string,
+        options: { all?: boolean },
+        callback: (err: Error | null, addresses: unknown) => void
+      ) => void)('rebind.example.com', { all: true }, (err, addresses) => {
+        if (err) reject(err)
+        else resolve(addresses)
+      })
+    })
+
+    // No additional DNS resolution happened when the connector "connected" --
+    // the address handed to the callback came from the validation step, not
+    // a fresh lookup that an attacker's DNS server could answer differently.
+    expect(vi.mocked(resolve4).mock.calls.length).toBe(resolve4CallsBeforeLookup)
+    expect(vi.mocked(resolve6).mock.calls.length).toBe(resolve6CallsBeforeLookup)
+    expect(lookupResult).toEqual([{ address: '203.0.113.9', family: 4 }])
+
+    vi.unstubAllGlobals()
+  })
+
+  it('re-validates and re-pins the connection on each redirect hop, not just the first', async () => {
+    vi.mocked(resolve4)
+      .mockResolvedValueOnce(['203.0.113.9']) // first hop -- safe
+      .mockResolvedValueOnce(['203.0.113.50']) // redirect target -- also safe, different address
+    vi.mocked(resolve6).mockResolvedValue([])
+
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: 'https://hop2.example.com/final' } }))
+      .mockResolvedValueOnce(new Response('ok', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const res = await safeFetch('https://hop1.example.com/start')
+    expect(res.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+
+    // Each hop must construct its own pinned dispatcher for that hop's
+    // validated address -- the second hop must not still be pinned to the
+    // first hop's address.
+    expect(vi.mocked(Agent).mock.calls.length).toBe(2)
+    const secondHopOptions = vi.mocked(Agent).mock.calls[1][0] as { connect?: { lookup?: (...args: never[]) => void } }
+    const secondHopAddress = await new Promise((resolve, reject) => {
+      ;(secondHopOptions.connect!.lookup as unknown as (
+        hostname: string,
+        options: { all?: boolean },
+        callback: (err: Error | null, addresses: unknown) => void
+      ) => void)('hop2.example.com', { all: true }, (err, addresses) => {
+        if (err) reject(err)
+        else resolve(addresses)
+      })
+    })
+    expect(secondHopAddress).toEqual([{ address: '203.0.113.50', family: 4 }])
 
     vi.unstubAllGlobals()
   })
