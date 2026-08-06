@@ -130,7 +130,8 @@ describe('schedulePost', () => {
       'token-abc'
     )
 
-    expect(postLyraApi).toHaveBeenCalledWith('/api/posts', 'token-abc', expect.not.objectContaining({ mediaUrls: expect.anything() }))
+    const postsCall = vi.mocked(postLyraApi).mock.calls[0]
+    expect(postsCall[2]).not.toHaveProperty('mediaUrls')
   })
 
   it('propagates errors from postLyraApi unchanged', async () => {
