@@ -104,10 +104,10 @@ export async function postLyraApi<T = unknown>(
   return responseBody as T
 }
 
-// DELETE-capable sibling to callLyraApi/postLyraApi. No request body -- DELETE
-// routes in this codebase (e.g. /api/competitors/[id]) take everything they
-// need from the URL path, matching REST convention. Shares the same error
-// normalization as the other two.
+// DELETE-capable sibling to callLyraApi/postLyraApi. This helper sends no
+// request body -- remove_competitor (the current caller) doesn't need one; a
+// future caller needing to send a body should extend this or add a variant.
+// Shares the same error normalization as the other two.
 export async function deleteLyraApi<T = unknown>(
   path: string,
   bearerToken: string
@@ -123,7 +123,10 @@ export async function deleteLyraApi<T = unknown>(
       headers: { Authorization: `Bearer ${bearerToken}` },
       signal: AbortSignal.timeout(TIMEOUT_MS),
     })
-    responseBody = await res.json()
+    // 204 No Content: several DELETE routes (posts, workspaces, seo/pages,
+    // account) return an empty body. res.json() would reject with a
+    // SyntaxError and be misreported as LyraApiNetworkError.
+    responseBody = res.status === 204 ? undefined : await res.json()
   } catch (err) {
     if (err instanceof DOMException && err.name === 'TimeoutError') {
       throw new LyraApiTimeoutError(err)

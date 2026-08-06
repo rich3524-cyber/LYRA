@@ -203,4 +203,11 @@ describe('deleteLyraApi', () => {
 
     await expect(deleteLyraApi('/api/competitors/comp-1', 'token-abc')).rejects.toThrow(LyraApiTimeoutError)
   })
+
+  it('returns undefined on a 204 No Content response', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true, status: 204, json: async () => { throw new SyntaxError('Unexpected end of JSON input') },
+    }))
+    await expect(deleteLyraApi('/api/posts/p1', 'token-abc')).resolves.toBeUndefined()
+  })
 })
