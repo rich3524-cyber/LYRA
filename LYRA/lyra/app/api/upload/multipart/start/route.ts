@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { createMultipartUpload } from '@/lib/s3'
+import { createMultipartUpload, abortMultipartUpload } from '@/lib/s3'
 import { createUploadSession } from '@/lib/upload-session'
 import { randomUUID } from 'crypto'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
@@ -41,7 +41,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'workspaceId required' }, { status: 400 })
     }
 
-    const ext = ALLOWED_MIME_TYPES[contentType]
+    // Object.hasOwn, not a plain ALLOWED_MIME_TYPES[contentType] lookup -- a plain
+    // object literal also resolves inherited Object.prototype members, so
+    // contentType: "constructor" (or "__proto__", "toString", "valueOf",
+    // "hasOwnProperty") would return a truthy value and sail past this check.
+    const ext = Object.hasOwn(ALLOWED_MIME_TYPES, contentType) ? ALLOWED_MIME_TYPES[contentType] : undefined
     if (!ext) {
       return NextResponse.json({ error: 'File type not permitted' }, { status: 415 })
     }
@@ -64,16 +68,26 @@ export async function POST(req: Request) {
     const expectedParts = Math.ceil(totalSizeBytes / CHUNK_SIZE_BYTES)
     const uploadId = randomUUID()
 
-    await createUploadSession(uploadId, {
-      s3Key,
-      s3UploadId,
-      workspaceId,
-      userId: user.id,
-      contentType,
-      totalSizeBytes,
-      chunkSizeBytes: CHUNK_SIZE_BYTES,
-      expectedParts,
-    })
+    try {
+      await createUploadSession(uploadId, {
+        s3Key,
+        s3UploadId,
+        workspaceId,
+        userId: user.id,
+        contentType,
+        totalSizeBytes,
+        chunkSizeBytes: CHUNK_SIZE_BYTES,
+        expectedParts,
+      })
+    } catch (sessionError) {
+      // Same "never let a cleanup failure mask the real error" pattern already
+      // used in the completion route -- an orphaned zero-byte S3 multipart
+      // upload costs almost nothing, but there's no reason not to clean it up
+      // immediately when we can, rather than waiting on Task 13's not-yet-configured
+      // bucket lifecycle rule.
+      await abortMultipartUpload(s3Key, s3UploadId).catch(() => {})
+      throw sessionError
+    }
 
     return NextResponse.json({ uploadId, chunkSizeBytes: CHUNK_SIZE_BYTES })
   } catch (error) {

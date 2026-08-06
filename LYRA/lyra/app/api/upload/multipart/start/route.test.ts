@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/auth', () => ({ requireAuth: vi.fn() }))
 vi.mock('@/lib/prisma', () => ({ prisma: { workspaceAccess: { findFirst: vi.fn() } } }))
-vi.mock('@/lib/s3', () => ({ createMultipartUpload: vi.fn() }))
+vi.mock('@/lib/s3', () => ({ createMultipartUpload: vi.fn(), abortMultipartUpload: vi.fn() }))
 vi.mock('@/lib/upload-session', () => ({ createUploadSession: vi.fn() }))
 vi.mock('@/lib/rate-limit', () => ({
   checkRateLimit: vi.fn().mockResolvedValue({ allowed: true, remaining: 29 }),
@@ -12,7 +12,7 @@ vi.mock('@/lib/authz', () => ({ canWrite: (role: string) => role !== 'CLIENT_VIE
 
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { createMultipartUpload } from '@/lib/s3'
+import { createMultipartUpload, abortMultipartUpload } from '@/lib/s3'
 import { createUploadSession } from '@/lib/upload-session'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { POST } from './route'
@@ -31,6 +31,7 @@ describe('POST /api/upload/multipart/start', () => {
     vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as never)
     vi.mocked(prisma.workspaceAccess.findFirst).mockResolvedValue({ role: 'AGENCY_ADMIN' } as never)
     vi.mocked(createMultipartUpload).mockResolvedValue('real-upload-id-123')
+    vi.mocked(abortMultipartUpload).mockResolvedValue(undefined)
   })
 
   it('opens a real multipart session and returns an uploadId plus chunk size', async () => {
@@ -56,6 +57,18 @@ describe('POST /api/upload/multipart/start', () => {
     expect(createMultipartUpload).not.toHaveBeenCalled()
   })
 
+  it('rejects a prototype-pollution content type ("constructor") instead of resolving Object.prototype members', async () => {
+    const res = await POST(req({ workspaceId: 'ws-1', filename: 'evil', contentType: 'constructor', totalSizeBytes: 1000 }))
+    expect(res.status).toBe(415)
+    expect(createMultipartUpload).not.toHaveBeenCalled()
+  })
+
+  it('rejects "__proto__" as a content type', async () => {
+    const res = await POST(req({ workspaceId: 'ws-1', filename: 'evil', contentType: '__proto__', totalSizeBytes: 1000 }))
+    expect(res.status).toBe(415)
+    expect(createMultipartUpload).not.toHaveBeenCalled()
+  })
+
   it('rejects an image over 50MB', async () => {
     const res = await POST(req({ workspaceId: 'ws-1', filename: 'huge.png', contentType: 'image/png', totalSizeBytes: 51 * 1024 * 1024 }))
     expect(res.status).toBe(413)
@@ -74,10 +87,11 @@ describe('POST /api/upload/multipart/start', () => {
     expect(res.status).toBe(400)
   })
 
-  it('returns 403 when the caller has no write access to the workspace', async () => {
+  it('returns 403 when the caller has no write access to the workspace, without ever opening an S3 upload', async () => {
     vi.mocked(prisma.workspaceAccess.findFirst).mockResolvedValue({ role: 'CLIENT_VIEW' } as never)
     const res = await POST(req({ workspaceId: 'ws-1', filename: 'photo.jpg', contentType: 'image/jpeg', totalSizeBytes: 1000 }))
     expect(res.status).toBe(403)
+    expect(createMultipartUpload).not.toHaveBeenCalled()
   })
 
   it('returns 401 when unauthenticated', async () => {
@@ -97,5 +111,15 @@ describe('POST /api/upload/multipart/start', () => {
     const body = await res.json()
     // 13MB / 6MB chunks = 3 parts (6 + 6 + 1)
     expect(createUploadSession).toHaveBeenCalledWith(body.uploadId, expect.objectContaining({ expectedParts: 3 }))
+  })
+
+  it('aborts the orphaned S3 multipart upload when createUploadSession fails, and still returns 500', async () => {
+    vi.mocked(createUploadSession).mockRejectedValue(new Error('Redis unreachable'))
+    const res = await POST(req({ workspaceId: 'ws-1', filename: 'photo.jpg', contentType: 'image/jpeg', totalSizeBytes: 2_000_000 }))
+    expect(res.status).toBe(500)
+    expect(abortMultipartUpload).toHaveBeenCalledWith(
+      expect.stringMatching(/^media\/ws-1\/.+\.jpg$/),
+      'real-upload-id-123'
+    )
   })
 })
