@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { z } from 'zod'
 import { CAPABILITY_REGISTRY } from './registry'
+import { SCOPES_SUPPORTED } from '../http'
 
 describe('CAPABILITY_REGISTRY', () => {
   it('has exactly 15 capabilities, each with a unique name', () => {
@@ -17,6 +18,10 @@ describe('CAPABILITY_REGISTRY', () => {
       expect(typeof cap.paramSchema.safeParse, `${name} paramSchema`).toBe('function')
       expect(['STARTER', 'PRO', 'AGENCY'], `${name} minPlanTier`).toContain(cap.minPlanTier)
       expect(typeof cap.mutates, `${name} mutates`).toBe('boolean')
+      // requiredScope must be one of the scopes this gateway actually
+      // issues/accepts (src/http.ts) -- a typo here would compile (bare
+      // string) but fail closed at runtime for every call to that capability.
+      expect(SCOPES_SUPPORTED, `${name} requiredScope`).toContain(cap.requiredScope)
     }
   })
 
@@ -24,15 +29,21 @@ describe('CAPABILITY_REGISTRY', () => {
     for (const [name, cap] of Object.entries(CAPABILITY_REGISTRY)) {
       const placeholders = [...cap.endpoint.matchAll(/:(\w+)/g)].map((m) => m[1])
       if (placeholders.length === 0) continue
-      const shape = (cap.paramSchema as z.ZodObject<z.ZodRawShape>).shape
       for (const p of placeholders) {
-        expect(shape[p], `${name} paramSchema.${p}`).toBeDefined()
+        // requiredness: the whole object must reject when the path param is absent
+        expect(cap.paramSchema.safeParse({}).success, `${name} must require ${p}`).toBe(false)
+        // type: path params are interpolated into a URL, so they must be strings
+        const shape = (cap.paramSchema as z.ZodObject<Record<string, z.ZodTypeAny>>).shape
+        expect(shape[p].safeParse('x').success, `${name}.${p} must accept a string`).toBe(true)
       }
     }
   })
 
-  it('only list_competitors carries wrapsUntrustedContent, per the design spec (competitor data is the one v1 capability returning third-party content)', () => {
-    const flagged = Object.entries(CAPABILITY_REGISTRY).filter(([, cap]) => cap.wrapsUntrustedContent)
-    expect(flagged.map(([name]) => name)).toEqual(['list_competitors'])
+  it('only list_competitors, get_seo_search_data, and analyze_seo_page carry wrapsUntrustedContent, per the design spec (these are the v1 capabilities returning third-party content)', () => {
+    const flagged = Object.entries(CAPABILITY_REGISTRY)
+      .filter(([, cap]) => cap.wrapsUntrustedContent)
+      .map(([name]) => name)
+      .sort()
+    expect(flagged).toEqual(['analyze_seo_page', 'get_seo_search_data', 'list_competitors'])
   })
 })

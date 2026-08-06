@@ -1,11 +1,17 @@
 import { z } from 'zod'
+import type { SCOPES_SUPPORTED } from '../http'
+
+// Derived from http.ts's single source of truth for the scopes this gateway
+// actually issues/accepts, so a typo like 'content:writes' fails to compile
+// instead of silently producing a capability that fails closed at runtime.
+type SupportedScope = (typeof SCOPES_SUPPORTED)[number]
 
 export interface CapabilityDefinition {
   description: string
   endpoint: string
   method: 'GET' | 'POST' | 'DELETE'
   paramSchema: z.ZodTypeAny
-  requiredScope: string
+  requiredScope: SupportedScope
   minPlanTier: 'STARTER' | 'PRO' | 'AGENCY'
   mutates: boolean
   // Only set true for a capability whose response embeds third-party text
@@ -67,6 +73,10 @@ export const CAPABILITY_REGISTRY: Record<string, CapabilityDefinition> = {
     requiredScope: 'content:read',
     minPlanTier: 'STARTER',
     mutates: false,
+    // Search queries are free-form text typed by anonymous searchers on
+    // Google -- externally influenceable, same risk class as a hostile
+    // comment or scraped competitor content.
+    wrapsUntrustedContent: true,
   },
   list_seo_pages: {
     description: 'List pages tracked for on-page SEO scoring in a workspace.',
@@ -94,6 +104,10 @@ export const CAPABILITY_REGISTRY: Record<string, CapabilityDefinition> = {
     requiredScope: 'content:write',
     minPlanTier: 'STARTER',
     mutates: true,
+    // currentTitle/currentMeta/currentH1 are scraped live from the tracked
+    // page's real HTML, and track_seo_page accepts any URL with no domain
+    // restriction -- this is scraped third-party HTML returned verbatim.
+    wrapsUntrustedContent: true,
   },
   generate_seo_content: {
     description: 'AI-generate a new meta title, meta description, H1, and intro paragraph for a tracked page, based on its current on-page analysis and the workspace brand profile. Requires the page id from list_seo_pages/track_seo_page.',

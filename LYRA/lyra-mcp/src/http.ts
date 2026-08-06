@@ -21,11 +21,15 @@ declare global {
   }
 }
 
-const SCOPES_SUPPORTED = [
+// Exported (readonly, `as const`) so other modules -- notably the capability
+// registry (src/capabilities/registry.ts) -- can derive a literal union type
+// from this single source of truth instead of retyping the scope list and
+// risking drift/typos that would silently fail closed at runtime.
+export const SCOPES_SUPPORTED = [
   'openid', 'profile', 'email',
   'workspaces:read', 'content:read', 'content:write',
   'inbox:respond', 'settings:write', 'reports:read',
-]
+] as const
 
 function wwwAuthenticateHeader(): string {
   const appBaseUrl = process.env.APP_BASE_URL
