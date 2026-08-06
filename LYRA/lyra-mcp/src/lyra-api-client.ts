@@ -103,3 +103,36 @@ export async function postLyraApi<T = unknown>(
   }
   return responseBody as T
 }
+
+// DELETE-capable sibling to callLyraApi/postLyraApi. No request body -- DELETE
+// routes in this codebase (e.g. /api/competitors/[id]) take everything they
+// need from the URL path, matching REST convention. Shares the same error
+// normalization as the other two.
+export async function deleteLyraApi<T = unknown>(
+  path: string,
+  bearerToken: string
+): Promise<T> {
+  const baseUrl = process.env.LYRA_API_BASE_URL
+  const url = new URL(path, baseUrl)
+
+  let res: Response
+  let responseBody: unknown
+  try {
+    res = await fetch(url.toString(), {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${bearerToken}` },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    })
+    responseBody = await res.json()
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'TimeoutError') {
+      throw new LyraApiTimeoutError(err)
+    }
+    throw new LyraApiNetworkError(err)
+  }
+
+  if (!res.ok) {
+    throw new LyraApiError(res.status, responseBody)
+  }
+  return responseBody as T
+}

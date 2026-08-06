@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { callLyraApi, postLyraApi, LyraApiError, LyraApiTimeoutError, LyraApiNetworkError } from './lyra-api-client'
+import { callLyraApi, postLyraApi, deleteLyraApi, LyraApiError, LyraApiTimeoutError, LyraApiNetworkError } from './lyra-api-client'
 
 const originalEnv = { ...process.env }
 
@@ -170,5 +170,37 @@ describe('postLyraApi', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(postLyraApi('/api/posts', 'token-abc', {})).rejects.toThrow(LyraApiTimeoutError)
+  })
+})
+
+describe('deleteLyraApi', () => {
+  it('DELETEs with the bearer token and returns the parsed response', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true, status: 200, json: async () => ({ ok: true }),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const result = await deleteLyraApi('/api/competitors/comp-1', 'token-abc')
+
+    expect(result).toEqual({ ok: true })
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://lyraonline.ai/api/competitors/comp-1')
+    expect(init.method).toBe('DELETE')
+    expect(init.headers).toEqual({ Authorization: 'Bearer token-abc' })
+    expect(init.signal).toBeInstanceOf(AbortSignal)
+  })
+
+  it('throws LyraApiError on a non-ok response, same as callLyraApi/postLyraApi', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 404, json: async () => ({ error: 'not found' }) })
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(deleteLyraApi('/api/competitors/comp-1', 'token-abc')).rejects.toMatchObject({ status: 404, body: { error: 'not found' } })
+  })
+
+  it('throws LyraApiTimeoutError on a real timeout', async () => {
+    const fetchMock = vi.fn().mockRejectedValue(new DOMException('aborted', 'TimeoutError'))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await expect(deleteLyraApi('/api/competitors/comp-1', 'token-abc')).rejects.toThrow(LyraApiTimeoutError)
   })
 })
