@@ -64,13 +64,13 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     handler: listTrends,
   },
   draft_post: {
-    description: 'Create a draft post for a workspace and return its six-dimension content score. Always creates the draft regardless of score -- the score is informational.',
-    inputSchema: z.object({ workspace_id: z.string().optional(), content: z.string(), platforms: z.array(z.string()) }),
+    description: 'Create a draft post for a workspace and return its six-dimension content score. Always creates the draft regardless of score -- the score is informational. Optionally attach media via media_urls -- upload images/video first with start_media_upload / upload_media_chunk / complete_media_upload to get a URL.',
+    inputSchema: z.object({ workspace_id: z.string().optional(), content: z.string(), platforms: z.array(z.string()), media_urls: z.array(z.string()).optional() }),
     handler: draftPost,
   },
   schedule_post: {
-    description: 'Schedule a post for a workspace. Routes through the client approval workflow automatically where the workspace requires it -- the actual resulting status (SCHEDULED or PENDING_APPROVAL) is always reported truthfully, regardless of what was requested.',
-    inputSchema: z.object({ workspace_id: z.string().optional(), content: z.string(), platforms: z.array(z.string()), scheduledAt: z.string() }),
+    description: 'Schedule a post for a workspace. Routes through the client approval workflow automatically where the workspace requires it -- the actual resulting status (SCHEDULED or PENDING_APPROVAL) is always reported truthfully, regardless of what was requested. Optionally attach media via media_urls -- upload images/video first with start_media_upload / upload_media_chunk / complete_media_upload to get a URL.',
+    inputSchema: z.object({ workspace_id: z.string().optional(), content: z.string(), platforms: z.array(z.string()), scheduledAt: z.string(), media_urls: z.array(z.string()).optional() }),
     handler: schedulePost,
   },
   respond_to_item: {

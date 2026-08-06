@@ -7,6 +7,7 @@ interface SchedulePostParams {
   content: string
   platforms: string[]
   scheduledAt: string
+  media_urls?: string[]
 }
 
 interface CreatedPost {
@@ -36,6 +37,7 @@ export async function schedulePost(params: SchedulePostParams, bearerToken: stri
       platforms: params.platforms,
       scheduledAt: params.scheduledAt,
       status: 'SCHEDULED',
+      ...(params.media_urls ? { mediaUrls: params.media_urls } : {}),
     }),
   ])
 

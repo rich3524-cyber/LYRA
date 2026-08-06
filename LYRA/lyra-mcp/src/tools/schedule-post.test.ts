@@ -103,6 +103,36 @@ describe('schedulePost', () => {
     expect(result.posts).toEqual([{ id: 'p1', status: 'SCHEDULED', platform: 'FACEBOOK', accountName: 'ITWM Page' }])
   })
 
+  it('forwards media_urls to the backend when provided', async () => {
+    vi.mocked(postLyraApi).mockResolvedValue([{ id: 'post-1', status: 'SCHEDULED', socialAccount: { platform: 'INSTAGRAM', name: 'Acme' } }])
+
+    await schedulePost(
+      {
+        workspace_id: 'ws-1',
+        content: 'A caption',
+        platforms: ['INSTAGRAM'],
+        scheduledAt: new Date(Date.now() + 86_400_000).toISOString(),
+        media_urls: ['https://lyra-media.s3.ap-southeast-2.amazonaws.com/media/ws-1/photo.jpg'],
+      },
+      'token-abc'
+    )
+
+    expect(postLyraApi).toHaveBeenCalledWith('/api/posts', 'token-abc', expect.objectContaining({
+      mediaUrls: ['https://lyra-media.s3.ap-southeast-2.amazonaws.com/media/ws-1/photo.jpg'],
+    }))
+  })
+
+  it('omits mediaUrls from the backend call entirely when not provided', async () => {
+    vi.mocked(postLyraApi).mockResolvedValue([{ id: 'post-1', status: 'SCHEDULED', socialAccount: { platform: 'INSTAGRAM', name: 'Acme' } }])
+
+    await schedulePost(
+      { workspace_id: 'ws-1', content: 'A caption', platforms: ['INSTAGRAM'], scheduledAt: new Date(Date.now() + 86_400_000).toISOString() },
+      'token-abc'
+    )
+
+    expect(postLyraApi).toHaveBeenCalledWith('/api/posts', 'token-abc', expect.not.objectContaining({ mediaUrls: expect.anything() }))
+  })
+
   it('propagates errors from postLyraApi unchanged', async () => {
     const { LyraApiError } = await import('../lyra-api-client')
     vi.mocked(postLyraApi).mockRejectedValue(new LyraApiError(422, { error: 'media required' }))

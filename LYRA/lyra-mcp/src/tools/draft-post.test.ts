@@ -105,4 +105,34 @@ describe('draftPost', () => {
     })
     expect(result.score).toEqual({ overallScore: 60, dimensions: {}, scoredForPlatform: 'LINKEDIN' })
   })
+
+  it('forwards media_urls to the backend when provided', async () => {
+    vi.mocked(postLyraApi).mockImplementation((path) =>
+      path === '/api/posts'
+        ? Promise.resolve([{ id: 'post-1', status: 'DRAFT', socialAccount: { platform: 'INSTAGRAM', name: 'Acme' } }])
+        : Promise.resolve({ overallScore: 80, dimensions: {} })
+    )
+
+    await draftPost(
+      { workspace_id: 'ws-1', content: 'A caption', platforms: ['INSTAGRAM'], media_urls: ['https://lyra-media.s3.ap-southeast-2.amazonaws.com/media/ws-1/photo.jpg'] },
+      'token-abc'
+    )
+
+    expect(postLyraApi).toHaveBeenCalledWith('/api/posts', 'token-abc', expect.objectContaining({
+      mediaUrls: ['https://lyra-media.s3.ap-southeast-2.amazonaws.com/media/ws-1/photo.jpg'],
+    }))
+  })
+
+  it('omits mediaUrls from the backend call entirely when not provided', async () => {
+    vi.mocked(postLyraApi).mockImplementation((path) =>
+      path === '/api/posts'
+        ? Promise.resolve([{ id: 'post-1', status: 'DRAFT', socialAccount: { platform: 'INSTAGRAM', name: 'Acme' } }])
+        : Promise.resolve({ overallScore: 80, dimensions: {} })
+    )
+
+    await draftPost({ workspace_id: 'ws-1', content: 'A caption', platforms: ['INSTAGRAM'] }, 'token-abc')
+
+    const postsCall = vi.mocked(postLyraApi).mock.calls.find(([path]) => path === '/api/posts')
+    expect(postsCall?.[2]).not.toHaveProperty('mediaUrls')
+  })
 })

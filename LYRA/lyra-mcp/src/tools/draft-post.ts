@@ -6,6 +6,7 @@ interface DraftPostParams {
   workspace_id?: string
   content: string
   platforms: string[]
+  media_urls?: string[]
 }
 
 interface ContentScore {
@@ -44,6 +45,7 @@ export async function draftPost(params: DraftPostParams, bearerToken: string) {
       content: params.content,
       platforms: params.platforms,
       status: 'DRAFT',
+      ...(params.media_urls ? { mediaUrls: params.media_urls } : {}),
     }),
   ])
 
