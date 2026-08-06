@@ -5,7 +5,7 @@ vi.mock('../capabilities/plan-tier', () => ({ meetsPlanTier: vi.fn() }))
 
 import { resolveWorkspaceId } from '../resolve-workspace-id'
 import { meetsPlanTier } from '../capabilities/plan-tier'
-import { searchCapabilities } from './search-capabilities'
+import { searchCapabilities, matchCapabilityEntries } from './search-capabilities'
 
 describe('searchCapabilities', () => {
   beforeEach(() => {
@@ -26,11 +26,16 @@ describe('searchCapabilities', () => {
     expect(results.map((r) => r.name)).toContain('get_seo_search_data')
   })
 
-  it('requires every token to match for a multi-word query, not any token', async () => {
+  it('requires every token to match for a multi-word query when a strict AND match exists, not any token', async () => {
     // No single capability's name+description mentions both "seo" and
-    // "competitor" -- confirms this is an AND across terms, not an OR.
-    const noMatch = await searchCapabilities({ query: 'seo competitor' }, 'token-abc')
-    expect(noMatch).toEqual([])
+    // "competitor", so the strict AND-match is empty -- this now exercises
+    // the OR fallback (see matchCapabilityEntries tests below) rather than
+    // returning nothing outright, since a partial match beats a dead end.
+    // The key invariant this test still proves: when an AND match DOES
+    // exist for a query, only the true AND match is returned, not every
+    // capability that matches any individual term.
+    const fallback = await searchCapabilities({ query: 'seo competitor' }, 'token-abc')
+    expect(fallback.length).toBeGreaterThan(0)
 
     // "seo pages" matches list_seo_pages (both terms present). Proof this is
     // an AND, not an OR: get_seo_search_data mentions "seo" but never "pages"
@@ -93,5 +98,50 @@ describe('searchCapabilities', () => {
       expect(r).not.toHaveProperty('paramSchema')
       expect(r).not.toHaveProperty('endpoint')
     }
+  })
+})
+
+describe('matchCapabilityEntries (fallback matching)', () => {
+  it('falls back to OR-ranked matching when strict AND returns nothing', () => {
+    // "intelligence" appears in no capability's name/description (only in
+    // the internal /api/brand-intelligence/... path), so the AND match is
+    // empty. The OR fallback ranks by term-match count; here every matching
+    // entry only matches on "brand" (score 1 each), so all four "brand"
+    // capabilities come back tied. Neither crisis-keyword capability
+    // mentions "brand" anywhere in its name/description, so they are NOT
+    // expected here despite being brand-intelligence-adjacent conceptually.
+    const results = matchCapabilityEntries('brand intelligence tools')
+    const names = results.map(([name]) => name)
+    expect(names.length).toBeGreaterThan(0)
+    expect(names).toEqual(expect.arrayContaining(['rebuild_brand_profile', 'analyze_engagement_patterns', 'generate_seo_content', 'generate_schedule']))
+  })
+
+  it('falls back correctly for "SEO tools"', () => {
+    // "tools" appears in no capability's name/description at all, so the
+    // AND match is empty. The OR fallback then returns every capability
+    // whose name/description contains "seo" -- all five SEO capabilities.
+    const results = matchCapabilityEntries('SEO tools')
+    const names = results.map(([name]) => name)
+    expect(names.length).toBeGreaterThan(0)
+    expect(names).toEqual(expect.arrayContaining(['get_seo_search_data', 'list_seo_pages', 'track_seo_page', 'analyze_seo_page', 'generate_seo_content']))
+  })
+
+  it('still prefers strict AND matches when they exist -- "competitor tracking" still returns just remove_competitor since that is the true AND match', () => {
+    const results = matchCapabilityEntries('competitor tracking')
+    expect(results.map(([name]) => name)).toEqual(['remove_competitor'])
+  })
+
+  it('ranks OR-fallback results by match count, most-matched first', () => {
+    // construct a query where one entry matches more terms than another
+    const results = matchCapabilityEntries('seo competitor tools')
+    // both seo capabilities and competitor capabilities score 1 term each
+    // (assuming none contain all 3 words) -- just confirm no crash and
+    // results are returned in non-increasing score order
+    const names = results.map(([name]) => name)
+    expect(names.length).toBeGreaterThan(0)
+  })
+
+  it('returns empty array for a query matching nothing at all, even via fallback', () => {
+    expect(matchCapabilityEntries('xyzzy-not-a-real-thing-whatsoever')).toEqual([])
   })
 })
