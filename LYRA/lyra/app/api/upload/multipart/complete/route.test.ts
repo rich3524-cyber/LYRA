@@ -109,6 +109,7 @@ describe('POST /api/upload/multipart/complete', () => {
   })
 
   it('still returns 500 for the original completion error if the abort attempt itself also fails', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.mocked(completeMultipartUpload).mockRejectedValue(new Error('S3: InvalidPart'))
     vi.mocked(abortMultipartUpload).mockRejectedValue(new Error('S3: NoSuchUpload'))
 
@@ -117,5 +118,12 @@ describe('POST /api/upload/multipart/complete', () => {
     expect(res.status).toBe(500)
     const body = await res.json()
     expect(body.error).toBe('Internal server error') // generic message -- the original completion error, not the abort failure, drives the response
+    // the outer catch-all logs the error that drove the 500 response -- confirm it's the
+    // original completion error, not the abort failure, even though both produce the same generic HTTP response
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      'POST /api/upload/multipart/complete error:',
+      expect.objectContaining({ message: 'S3: InvalidPart' })
+    )
+    consoleErrorSpy.mockRestore()
   })
 })
