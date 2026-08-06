@@ -87,7 +87,7 @@ export async function completeMultipartUpload(
   }))
 }
 
-/** Aborts a multipart upload, discarding any parts already uploaded. Used when a session fails validation at completion time. */
+/** Aborts a multipart upload, discarding any parts already uploaded. Used when finalizing the upload (CompleteMultipartUpload) itself fails. */
 // Not yet called -- wired into the /api/upload/multipart/complete route's
 // error-handling path in a later task, so a failed completion cleans up
 // immediately rather than waiting on the S3 bucket's lifecycle rule.
