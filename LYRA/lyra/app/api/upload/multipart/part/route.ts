@@ -22,7 +22,13 @@ export async function PUT(req: Request) {
       data?: string
     }
 
-    if (!uploadId || typeof chunkIndex !== 'number' || chunkIndex < 0 || !data) {
+    if (
+      !uploadId ||
+      typeof chunkIndex !== 'number' ||
+      !Number.isInteger(chunkIndex) ||
+      chunkIndex < 0 ||
+      !data
+    ) {
       return NextResponse.json({ error: 'uploadId, chunkIndex, and data are required' }, { status: 400 })
     }
 
@@ -41,7 +47,35 @@ export async function PUT(req: Request) {
     }
 
     const buffer = Buffer.from(data, 'base64')
+
+    // Buffer.from(..., 'base64') is lenient in Node -- invalid/truncated
+    // base64 silently decodes to a shorter-than-intended buffer rather than
+    // throwing. A too-small non-final part gets caught later by S3's
+    // 5MB-minimum-per-part rule at CompleteMultipartUpload time, but S3 does
+    // NOT enforce a minimum size on the last part -- so a corrupted/truncated
+    // final chunk would otherwise upload, record, and complete successfully
+    // with the final object silently shorter than intended. Checking the
+    // decoded length against the session's known chunk geometry here also
+    // catches any oversized chunk before it reaches S3.
+    const isLastChunk = chunkIndex === session.expectedParts - 1
+    const expectedSize = isLastChunk
+      ? session.totalSizeBytes - session.chunkSizeBytes * (session.expectedParts - 1)
+      : session.chunkSizeBytes
+    if (buffer.length !== expectedSize) {
+      return NextResponse.json(
+        { error: `chunk size mismatch: expected ${expectedSize} bytes, got ${buffer.length}` },
+        { status: 400 }
+      )
+    }
+
     // S3 part numbers are 1-indexed; chunkIndex from the client is 0-indexed.
+    //
+    // No S3-succeeds-Redis-fails cleanup here, unlike /start's abort-on-failure
+    // pattern -- if uploadPart (S3) succeeds but recordPart (Redis) then
+    // throws, the client still holds a valid uploadId and simply retries the
+    // same chunkIndex. UploadPart is idempotent per part number, so the retry
+    // re-uploads that S3 part (overwriting the orphaned one) and succeeds
+    // cleanly -- no orphaned state to clean up.
     const etag = await uploadPart(session.s3Key, session.s3UploadId, chunkIndex + 1, buffer)
     await recordPart(uploadId, chunkIndex, etag)
 

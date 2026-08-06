@@ -17,15 +17,28 @@ import { getUploadSessionMeta, recordPart } from '@/lib/upload-session'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { PUT } from './route'
 
+// Deliberately not evenly divisible (14 / 10 -> 2 parts, with the second
+// part 4 bytes) so the last-chunk remainder math in the route is actually
+// exercised, rather than every chunk happening to be the same size. Kept
+// small (bytes, not real 6MB chunk sizes) purely so the base64-encoded test
+// payloads stay cheap to build -- the byte-count math is what's under test,
+// not the production CHUNK_SIZE_BYTES constant (that lives in and is
+// exercised by the /start route's own tests).
 const SESSION = {
   s3Key: 'media/ws-1/file.mp4',
   s3UploadId: 'real-upload-id-123',
   workspaceId: 'ws-1',
   userId: 'user-1',
   contentType: 'video/mp4',
-  totalSizeBytes: 12_000_000,
-  chunkSizeBytes: 6_000_000,
+  totalSizeBytes: 14,
+  chunkSizeBytes: 10,
   expectedParts: 2,
+}
+const NON_LAST_CHUNK_SIZE = 10
+const LAST_CHUNK_SIZE = 4 // 14 - 10 * (2 - 1)
+
+function sizedBase64(size: number): string {
+  return Buffer.alloc(size, 'a').toString('base64')
 }
 
 function req(body: unknown) {
@@ -45,12 +58,21 @@ describe('PUT /api/upload/multipart/part', () => {
   })
 
   it('uploads the chunk to S3 with a 1-indexed part number and records the etag', async () => {
-    const res = await PUT(req({ uploadId: 'upload-1', chunkIndex: 0, data: Buffer.from('chunk bytes').toString('base64') }))
+    const chunk = Buffer.alloc(NON_LAST_CHUNK_SIZE, 'a')
+    const res = await PUT(req({ uploadId: 'upload-1', chunkIndex: 0, data: chunk.toString('base64') }))
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body).toEqual({ received: true, chunkIndex: 0 })
-    expect(uploadPart).toHaveBeenCalledWith('media/ws-1/file.mp4', 'real-upload-id-123', 1, Buffer.from('chunk bytes'))
+    expect(uploadPart).toHaveBeenCalledWith('media/ws-1/file.mp4', 'real-upload-id-123', 1, chunk)
     expect(recordPart).toHaveBeenCalledWith('upload-1', 0, '"real-etag"')
+  })
+
+  it('uploads the final (smaller, remainder-sized) chunk successfully', async () => {
+    const chunk = Buffer.alloc(LAST_CHUNK_SIZE, 'a')
+    const res = await PUT(req({ uploadId: 'upload-1', chunkIndex: 1, data: chunk.toString('base64') }))
+    expect(res.status).toBe(200)
+    expect(uploadPart).toHaveBeenCalledWith('media/ws-1/file.mp4', 'real-upload-id-123', 2, chunk)
+    expect(recordPart).toHaveBeenCalledWith('upload-1', 1, '"real-etag"')
   })
 
   it('returns 404 when the upload session does not exist or has expired', async () => {
@@ -73,8 +95,42 @@ describe('PUT /api/upload/multipart/part', () => {
     expect(uploadPart).not.toHaveBeenCalled()
   })
 
-  it('requires uploadId, chunkIndex, and data', async () => {
+  it('rejects a chunkIndex equal to expectedParts (boundary, off-by-one check)', async () => {
+    const res = await PUT(req({ uploadId: 'upload-1', chunkIndex: 2, data: 'YQ==' }))
+    expect(res.status).toBe(400)
+    expect(uploadPart).not.toHaveBeenCalled()
+  })
+
+  it('rejects a fractional chunkIndex', async () => {
+    const res = await PUT(req({ uploadId: 'upload-1', chunkIndex: 0.5, data: 'YQ==' }))
+    expect(res.status).toBe(400)
+    expect(uploadPart).not.toHaveBeenCalled()
+  })
+
+  it('rejects a non-last chunk whose decoded size does not match chunkSizeBytes', async () => {
+    const res = await PUT(req({ uploadId: 'upload-1', chunkIndex: 0, data: sizedBase64(1000) }))
+    expect(res.status).toBe(400)
+    expect(uploadPart).not.toHaveBeenCalled()
+  })
+
+  it('rejects the last chunk whose decoded size does not match the expected remainder', async () => {
+    const res = await PUT(req({ uploadId: 'upload-1', chunkIndex: 1, data: sizedBase64(1000) }))
+    expect(res.status).toBe(400)
+    expect(uploadPart).not.toHaveBeenCalled()
+  })
+
+  it('requires uploadId', async () => {
     const res = await PUT(req({ chunkIndex: 0, data: 'YQ==' }))
+    expect(res.status).toBe(400)
+  })
+
+  it('requires chunkIndex', async () => {
+    const res = await PUT(req({ uploadId: 'upload-1', data: 'YQ==' }))
+    expect(res.status).toBe(400)
+  })
+
+  it('requires data', async () => {
+    const res = await PUT(req({ uploadId: 'upload-1', chunkIndex: 0 }))
     expect(res.status).toBe(400)
   })
 
