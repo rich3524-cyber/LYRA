@@ -50,6 +50,12 @@ const STOPWORDS = new Set(['a', 'an', 'and', 'for', 'the', 'to', 'of', 'in', 'on
 //    description. A name match is a much stronger relevance signal (it's
 //    what the capability fundamentally *is*), so it should be able to
 //    outrank a capability that only happens to mention a term in passing.
+//
+// Exported (rather than kept private to searchCapabilities) so callers that
+// only need the search results -- not the plan-tier availability check,
+// which needs a real workspace/bearer token -- can reuse this same matching
+// logic. The tool-selection eval harness is the motivating case: it
+// simulates a search_capabilities result without a live backend.
 export function matchCapabilityEntries(query: string): Array<[string, CapabilityDefinition]> {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean)
   if (terms.length === 0) return []

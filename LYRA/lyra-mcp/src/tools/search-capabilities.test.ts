@@ -145,7 +145,7 @@ describe('matchCapabilityEntries (fallback matching)', () => {
     // ranking needs: the .sort() call is what keeps a stray partial match
     // from crowding out the truly relevant capability.
     const results = matchCapabilityEntries('how do I schedule a post')
-    expect(results.map(([name]) => name)[0]).toBe('generate_schedule')
+    expect(results.map(([name]) => name)).toEqual(['generate_schedule'])
   })
 
   it('returns empty array for a query matching nothing at all, even via fallback', () => {
