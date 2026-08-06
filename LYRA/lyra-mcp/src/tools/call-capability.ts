@@ -2,6 +2,8 @@ import { callLyraApi, postLyraApi, deleteLyraApi } from '../lyra-api-client'
 import { resolveWorkspaceId } from '../resolve-workspace-id'
 import { meetsPlanTier } from '../capabilities/plan-tier'
 import { CAPABILITY_REGISTRY } from '../capabilities/registry'
+import { wrapUntrusted } from '../untrusted-content'
+import { getWorkspaceName } from '../get-workspace-name'
 
 interface CallCapabilityParams {
   name: string
@@ -79,13 +81,13 @@ export async function callCapability(params: CallCapabilityParams, bearerToken: 
   // claimed workspace_id) and why closing it is out of scope here.
   const scopedRest = capability.workspaceScoping === 'derived-from-path' ? rest : { workspaceId, ...rest }
 
+  let result: unknown
   if (capability.method === 'GET') {
     // callLyraApi's queryParams type is Record<string, string> -- every field
     // left over after path substitution must already be string-typed for a
     // GET capability (true for every v1 registry entry: `month` etc.).
-    return callLyraApi(path, bearerToken, scopedRest as Record<string, string>)
-  }
-  if (capability.method === 'DELETE') {
+    result = await callLyraApi(path, bearerToken, scopedRest as Record<string, string>)
+  } else if (capability.method === 'DELETE') {
     // deleteLyraApi sends no request body, so any leftover field here would
     // be silently dropped rather than sent -- fail loudly instead. Harmless
     // today (remove_competitor's only param, id, is fully consumed by path
@@ -96,7 +98,34 @@ export async function callCapability(params: CallCapabilityParams, bearerToken: 
         `Capability "${params.name}" is DELETE but has unconsumed params: ${Object.keys(rest).join(', ')}. deleteLyraApi does not support a body.`
       )
     }
-    return deleteLyraApi(path, bearerToken)
+    result = await deleteLyraApi(path, bearerToken)
+  } else {
+    result = await postLyraApi(path, bearerToken, scopedRest)
   }
-  return postLyraApi(path, bearerToken, scopedRest)
+
+  // §6.1: wrap third-party content generically, based on the manifest flag.
+  // Checked before the §6.2 echo-back below and returns early -- for a
+  // capability flagged both `mutates` and `wrapsUntrustedContent` (e.g.
+  // analyze_seo_page, whose response embeds scraped third-party HTML), this
+  // means the wrap wins and the workspace-name echo-back is skipped for that
+  // response. That's an intentional priority call, not an oversight: §6.1
+  // (untrusted content reaching the model unmarked) is a prompt-injection
+  // vector, while §6.2 (echo-back) is a lower-severity guardrail already
+  // covered by resolveWorkspaceId's own validation. A future capability
+  // needing both properties simultaneously should be revisited then.
+  if (capability.wrapsUntrustedContent) {
+    return { wrapped: wrapUntrusted(JSON.stringify(result), `${params.name}_data`) }
+  }
+
+  // §6.2: echo back the workspace name for every mutating capability, so a
+  // misresolved workspace is visible immediately -- applied generically here
+  // rather than requiring every future capability addition to remember it,
+  // matching how draft_post/schedule_post already do this via
+  // getWorkspaceName (best-effort: never fails the call over a missing name).
+  if (capability.mutates) {
+    const workspaceName = await getWorkspaceName(workspaceId, bearerToken)
+    return { workspaceName, result }
+  }
+
+  return result
 }
