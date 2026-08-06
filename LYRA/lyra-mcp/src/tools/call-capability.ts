@@ -107,14 +107,36 @@ export async function callCapability(params: CallCapabilityParams, bearerToken: 
   // Checked before the §6.2 echo-back below and returns early -- for a
   // capability flagged both `mutates` and `wrapsUntrustedContent` (e.g.
   // analyze_seo_page, whose response embeds scraped third-party HTML), this
-  // means the wrap wins and the workspace-name echo-back is skipped for that
-  // response. That's an intentional priority call, not an oversight: §6.1
-  // (untrusted content reaching the model unmarked) is a prompt-injection
-  // vector, while §6.2 (echo-back) is a lower-severity guardrail already
-  // covered by resolveWorkspaceId's own validation. A future capability
-  // needing both properties simultaneously should be revisited then.
+  // means the wrap wins and the workspace-name echo-back is genuinely lost
+  // for that response, not just deferred or covered elsewhere. In particular,
+  // resolveWorkspaceId does NOT validate an explicitly-supplied workspace_id
+  // -- `if (workspaceId) return workspaceId` returns it verbatim, with no
+  // check that the caller actually has access to it -- so for a
+  // 'derived-from-path' capability like analyze_seo_page (whose backend route
+  // authorizes by "does this user have access to *any* workspace containing
+  // this resource," not by the claimed workspace_id -- see registry.ts's
+  // workspaceScoping doc comment), the echo-back is currently the ONLY
+  // wrong-workspace signal anywhere in this call, and it's the one being
+  // dropped here. This is a deliberate priority call (untrusted content
+  // reaching the model unmarked is a prompt-injection vector, judged worse
+  // than a missing echo-back), not a claim that the loss is harmless. A
+  // capability needing both properties without losing the echo-back should
+  // be revisited to nest the two shapes instead of short-circuiting.
   if (capability.wrapsUntrustedContent) {
-    return { wrapped: wrapUntrusted(JSON.stringify(result), `${params.name}_data`) }
+    // `params.name` is fully LLM-controlled and gets interpolated unescaped
+    // into the wrapper's attribute (see wrapUntrusted's doc comment) -- safe
+    // here only because the Object.hasOwn(CAPABILITY_REGISTRY, params.name)
+    // guard near the top of this function already constrains it to one of
+    // the registry's own literal keys. If that guard is ever relaxed or
+    // moved, this interpolation reopens attribute injection into the
+    // trust-boundary tag.
+    // JSON.stringify can return the JS value `undefined` (not a string) --
+    // TypeScript's lib types lie about this -- which would otherwise reach
+    // wrapUntrusted's `.replace()` and throw. Not reachable today (only a
+    // DELETE capability's client can return undefined, and none of those are
+    // flagged wrapsUntrustedContent), but guarded anyway for the same reason
+    // the DELETE unconsumed-params check above guards its own future-entry hazard.
+    return { wrapped: wrapUntrusted(JSON.stringify(result) ?? 'null', `${params.name}_data`) }
   }
 
   // §6.2: echo back the workspace name for every mutating capability, so a
