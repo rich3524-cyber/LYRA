@@ -12,6 +12,9 @@ import { schedulePost } from './tools/schedule-post'
 import { respondToItem } from './tools/respond-to-item'
 import { searchCapabilities } from './tools/search-capabilities'
 import { callCapability } from './tools/call-capability'
+import { startMediaUpload } from './tools/start-media-upload'
+import { uploadMediaChunk } from './tools/upload-media-chunk'
+import { completeMediaUpload } from './tools/complete-media-upload'
 import { PROMPT_REGISTRY } from './prompts'
 import { checkRateLimit } from './rate-limit'
 import { logAuditEvent } from './audit-log'
@@ -84,6 +87,30 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     description: 'Invoke a capability found via search_capabilities, by name plus its own parameters. Unknown capability names, invalid parameters, and insufficient plan tier all return clear, structured errors rather than silently failing.',
     inputSchema: z.object({ name: z.string(), params: z.unknown().optional(), workspace_id: z.string().optional() }),
     handler: callCapability,
+  },
+  start_media_upload: {
+    description: 'Start uploading an image or video to attach to a post. Returns an uploadId and chunkSizeBytes -- call upload_media_chunk repeatedly with base64-encoded chunks of that size, then complete_media_upload to get the final URL. Use the same protocol for images and video; a small image just completes in a single chunk.',
+    inputSchema: z.object({
+      workspace_id: z.string().optional(),
+      filename: z.string(),
+      contentType: z.string(),
+      totalSizeBytes: z.number().int().positive(),
+    }),
+    handler: startMediaUpload,
+  },
+  upload_media_chunk: {
+    description: 'Upload one chunk of a file previously started with start_media_upload. Call once per chunk of chunkSizeBytes (the last chunk may be smaller). Chunks may be sent in any order.',
+    inputSchema: z.object({
+      uploadId: z.string(),
+      chunkIndex: z.number().int().nonnegative(),
+      data: z.string(),
+    }),
+    handler: uploadMediaChunk,
+  },
+  complete_media_upload: {
+    description: "Finish an upload once all chunks from upload_media_chunk have been sent. Returns the real URL -- pass it into draft_post or schedule_post's media_urls to attach it to a post.",
+    inputSchema: z.object({ uploadId: z.string() }),
+    handler: completeMediaUpload,
   },
 }
 

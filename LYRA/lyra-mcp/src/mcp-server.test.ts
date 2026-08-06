@@ -13,9 +13,10 @@ import { resolveWorkspaceId } from './resolve-workspace-id'
 import { PROMPT_REGISTRY } from './prompts'
 
 describe('TOOL_REGISTRY', () => {
-  it('registers exactly the 12 core tools', () => {
+  it('registers exactly the 15 core tools', () => {
     expect(Object.keys(TOOL_REGISTRY).sort()).toEqual([
       'call_capability',
+      'complete_media_upload',
       'draft_post',
       'get_analytics',
       'get_brand_profile',
@@ -27,6 +28,8 @@ describe('TOOL_REGISTRY', () => {
       'respond_to_item',
       'schedule_post',
       'search_capabilities',
+      'start_media_upload',
+      'upload_media_chunk',
     ])
   })
 
