@@ -33,6 +33,7 @@ describe('meetsPlanTier', () => {
     vi.mocked(callLyraApi).mockResolvedValue([{ id: 'ws-1', plan: 'STARTER' }])
     const result = await meetsPlanTier('ws-1', 'STARTER', 'token-abc')
     expect(result).toBe(true)
+    expect(callLyraApi).not.toHaveBeenCalled()
   })
 
   it('returns false (fail-closed) if the workspace cannot be found in the caller\'s list', async () => {

@@ -9,11 +9,14 @@ interface WorkspaceRef {
   plan: PlanTier
 }
 
-// Fail-closed by design: a workspace lookup failure or an unrecognized
-// workspace both resolve to "does not meet the tier" rather than silently
+// Fail-closed by design: a workspace that isn't found in the caller's
+// workspace list resolves to "does not meet the tier" rather than silently
 // allowing the call through. This gates a real product boundary (paid-tier
 // features), so the safe default matters here in a way it doesn't for the
-// purely-cosmetic getWorkspaceName lookup.
+// purely-cosmetic getWorkspaceName lookup. (A callLyraApi rejection --
+// timeout, network error, 401 -- is not caught here and propagates to the
+// caller uncaught; this function only fails closed on the "workspace not
+// in the list" case.)
 export async function meetsPlanTier(workspaceId: string, minTier: PlanTier, bearerToken: string): Promise<boolean> {
   if (minTier === 'STARTER') return true
   const workspaces = await callLyraApi<WorkspaceRef[]>('/api/workspaces', bearerToken)
