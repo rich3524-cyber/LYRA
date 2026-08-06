@@ -45,7 +45,7 @@ Manifest entries live in a static array in the gateway repo (`lyra-mcp/src/capab
 
 **`method` gained a third value, `DELETE`**, also found while grounding the design: `remove_competitor` is backed by a real `DELETE /api/competitors/[id]` route, and the gateway's API client only had GET/POST helpers before this phase. A `deleteLyraApi` sibling function (matching `callLyraApi`/`postLyraApi`'s existing shape and error normalization) is added as part of this phase's Task 1 to cover it, rather than working around it with a POST-that-means-DELETE convention.
 
-**V1 scope: 14 capabilities**, all read-only or low/medium-risk mutations, all pointing at existing, already-tested backend routes — no new backend work required:
+**V1 scope: 15 capabilities**, all read-only or low/medium-risk mutations, all pointing at existing, already-tested backend routes — no new backend work required:
 
 | Capability | Endpoint | Method | Mutates | Min plan |
 |---|---|---|---|---|
