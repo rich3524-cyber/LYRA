@@ -156,12 +156,21 @@ async function checkRateLimitSafely(
 
 type ToolCallbackCtx = { http?: { authInfo?: { token: string; extra?: Record<string, unknown> } } }
 
+// Tools with no workspace_id concept in their inputSchema at all: either no
+// workspace scoping (list_workspaces), or workspace context is already
+// carried server-side by an in-flight upload session (upload_media_chunk,
+// complete_media_upload). Resolving workspace_id for these would be a
+// wasted resolveWorkspaceId() round-trip (a real HTTP call) with no effect
+// on params the handler actually reads -- notably a wasted call on every
+// single chunk of upload_media_chunk's hot per-chunk path.
+const NO_WORKSPACE_RESOLUTION_TOOLS = ['list_workspaces', 'upload_media_chunk', 'complete_media_upload']
+
 // Extracted into a standalone, exported, independently-testable function --
 // this ~40-line body (rate limiting, workspace resolution, audit logging)
-// is the single code path every one of the 10 registered tools runs
-// through, making it the highest-blast-radius code in the whole gateway.
-// Previously it only existed as an inline callback passed straight to
-// server.registerTool(), which meant no test ever invoked it directly.
+// is the single code path every tool in TOOL_REGISTRY runs through, making
+// it the highest-blast-radius code in the whole gateway. Previously it only
+// existed as an inline callback passed straight to server.registerTool(),
+// which meant no test ever invoked it directly.
 export function createToolCallback(name: string, tool: ToolDefinition) {
   return async (params: unknown, ctx: ToolCallbackCtx) => {
     const token = ctx.http?.authInfo?.token
@@ -184,14 +193,13 @@ export function createToolCallback(name: string, tool: ToolDefinition) {
       : undefined
 
     // Resolve workspace_id here, once, for every workspace-scoped tool --
-    // list_workspaces is the only registered tool with no workspace_id
-    // concept at all (inputSchema: z.object({})), so it's excluded by name
-    // rather than by introspecting each Zod schema's shape. Every other
-    // tool already calls resolveWorkspaceId internally on its own, so
-    // resolving it here and threading the result back into the params
-    // handed to the tool makes that internal call a no-op fast path
-    // (resolveWorkspaceId returns immediately when given a non-empty
-    // string) -- not a second API round-trip.
+    // NO_WORKSPACE_RESOLUTION_TOOLS is excluded by name rather than by
+    // introspecting each Zod schema's shape. Every other tool already calls
+    // resolveWorkspaceId internally on its own, so resolving it here and
+    // threading the result back into the params handed to the tool makes
+    // that internal call a no-op fast path (resolveWorkspaceId returns
+    // immediately when given a non-empty string) -- not a second API
+    // round-trip.
     //
     // This closes the previously-known gap where a call that relied on
     // implicit single-workspace resolution (workspace_id omitted) got
@@ -199,7 +207,7 @@ export function createToolCallback(name: string, tool: ToolDefinition) {
     // both were gated on workspace_id being present in the *raw* params.
     let workspaceId: string | null = rawWorkspaceId ?? null
     let resolvedParams = params
-    if (name !== 'list_workspaces') {
+    if (!NO_WORKSPACE_RESOLUTION_TOOLS.includes(name)) {
       try {
         workspaceId = await resolveWorkspaceId(rawWorkspaceId, token)
         resolvedParams = { ...(params as Record<string, unknown>), workspace_id: workspaceId }
