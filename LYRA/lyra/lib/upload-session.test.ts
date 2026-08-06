@@ -1,5 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
+const multiMock = {
+  hset: vi.fn(),
+  expire: vi.fn(),
+  exec: vi.fn(),
+}
+// Each chain method returns `this` so `.multi().hset().expire().expire().exec()` composes.
+multiMock.hset.mockReturnValue(multiMock)
+multiMock.expire.mockReturnValue(multiMock)
+multiMock.exec.mockResolvedValue([])
+
 vi.mock('@/lib/redis', () => ({
   redisClient: {
     set: vi.fn(),
@@ -8,6 +18,7 @@ vi.mock('@/lib/redis', () => ({
     hgetall: vi.fn(),
     expire: vi.fn(),
     del: vi.fn(),
+    multi: vi.fn(() => multiMock),
   },
 }))
 
@@ -33,7 +44,12 @@ const SAMPLE_META: UploadSessionMeta = {
 }
 
 describe('upload-session', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    multiMock.hset.mockReturnValue(multiMock)
+    multiMock.expire.mockReturnValue(multiMock)
+    multiMock.exec.mockResolvedValue([])
+  })
 
   it('createUploadSession stores the meta as JSON with a 24-hour expiry', async () => {
     await createUploadSession('upload-1', SAMPLE_META)
@@ -57,13 +73,29 @@ describe('upload-session', () => {
     expect(result).toEqual(SAMPLE_META)
   })
 
-  it('recordPart writes the etag to the parts hash and refreshes its expiry', async () => {
-    await recordPart('upload-1', 0, '"etag-for-part-0"')
-    expect(redisClient.hset).toHaveBeenCalledWith('media-upload:upload-1:parts', '0', '"etag-for-part-0"')
-    expect(redisClient.expire).toHaveBeenCalledWith('media-upload:upload-1:parts', 24 * 60 * 60)
+  it('getUploadSessionMeta returns null instead of throwing when the stored value is malformed JSON', async () => {
+    vi.mocked(redisClient.get).mockResolvedValue('{not valid json')
+    const result = await getUploadSessionMeta('upload-1')
+    expect(result).toBeNull()
   })
 
-  it('getReceivedParts converts hash field keys back to numbers', async () => {
+  it('getUploadSessionMeta returns null when the parsed object is missing a required field', async () => {
+    const { expectedParts: _expectedParts, ...incomplete } = SAMPLE_META
+    vi.mocked(redisClient.get).mockResolvedValue(JSON.stringify(incomplete))
+    const result = await getUploadSessionMeta('upload-1')
+    expect(result).toBeNull()
+  })
+
+  it('recordPart writes the etag and refreshes both the parts and meta TTLs atomically via MULTI/EXEC', async () => {
+    await recordPart('upload-1', 0, '"etag-for-part-0"')
+    expect(redisClient.multi).toHaveBeenCalledTimes(1)
+    expect(multiMock.hset).toHaveBeenCalledWith('media-upload:upload-1:parts', '0', '"etag-for-part-0"')
+    expect(multiMock.expire).toHaveBeenCalledWith('media-upload:upload-1:parts', 24 * 60 * 60)
+    expect(multiMock.expire).toHaveBeenCalledWith('media-upload:upload-1:meta', 24 * 60 * 60)
+    expect(multiMock.exec).toHaveBeenCalledTimes(1)
+  })
+
+  it('getReceivedParts returns all hash fields as a flat key-value object', async () => {
     vi.mocked(redisClient.hgetall).mockResolvedValue({ '0': '"etag-0"', '1': '"etag-1"' })
     const result = await getReceivedParts('upload-1')
     expect(result).toEqual({ 0: '"etag-0"', 1: '"etag-1"' })
