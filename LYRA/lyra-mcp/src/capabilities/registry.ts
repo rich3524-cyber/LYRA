@@ -186,13 +186,22 @@ export const CAPABILITY_REGISTRY: Record<string, CapabilityDefinition> = {
     // case-insensitive SUBSTRING check (see response-generator.ts's
     // `contentLower.includes(trigger.toLowerCase())`), not a word-boundary
     // match -- so a too-short or purely-symbolic "keyword" would escalate
-    // almost every future comment. min(3) + at-least-one-letter is a floor
-    // against that, not a claim that every 3+ char string is a good
-    // keyword choice. See remove_guardrail below for how to undo an
-    // approval once made -- there was previously no way to do that via this
-    // capability surface at all.
+    // almost every future comment. min(3) + a 3-letter run is a floor
+    // against that, not a claim that every string clearing it is a good
+    // keyword choice ("the" clears it and is still a dangerously broad
+    // substring guardrail -- that's a content-judgment problem no schema
+    // can fully solve). `.trim()` is chained BEFORE `.min(3)` deliberately:
+    // the backend's own route trims before storing
+    // (crisis-keywords/approve/route.ts: `keyword.trim().toLowerCase()`),
+    // so a schema that measured length before trimming would let
+    // whitespace-padded input like " a " (3 raw chars) through, only for
+    // the backend to store the single-character "a" it was meant to
+    // reject -- the exact bypass this floor exists to close. See
+    // remove_guardrail below for how to undo an approval once made --
+    // there was previously no way to do that via this capability surface
+    // at all.
     paramSchema: z.object({
-      keyword: z.string().min(3).regex(/[a-zA-Z]/, 'must contain at least one letter'),
+      keyword: z.string().trim().min(3).regex(/[a-zA-Z]{3}/, 'must contain at least 3 letters'),
       category: z.string().optional(),
     }),
     requiredScope: 'settings:write',
@@ -218,12 +227,29 @@ export const CAPABILITY_REGISTRY: Record<string, CapabilityDefinition> = {
     // That route authorizes by "does the caller have non-CLIENT_VIEW access
     // to the workspace that owns this guardrail id," the same
     // resource-owns-the-workspace pattern as remove_competitor, hence
-    // 'derived-from-path' below. This is the undo path for
-    // approve_crisis_keyword (which creates an ALWAYS_ESCALATE guardrail),
-    // but the route deletes any GuardrailType by id, not just crisis
-    // keywords, so the capability is named and scoped for what it actually
-    // does rather than narrowed to the crisis-keyword case.
-    description: 'Permanently delete an active guardrail (e.g. a crisis-escalation keyword approved via approve_crisis_keyword, or any other guardrail type) by its id. Requires the guardrail id -- not currently obtainable via any other capability in this gateway; find it in the LYRA app\'s settings UI.',
+    // 'derived-from-path' below. The route deletes any GuardrailType by id,
+    // not just crisis keywords, so the capability is named and scoped for
+    // what it actually does rather than narrowed to the crisis-keyword
+    // case.
+    //
+    // This is the undo path for approve_crisis_keyword (which creates an
+    // ALWAYS_ESCALATE guardrail) -- approve_crisis_keyword's backing route
+    // (crisis-keywords/approve/route.ts) returns the full created Guardrail
+    // row, id included, in its response, so the id needed here is already
+    // in hand right after approving: approve, capture `id` from that
+    // response, remove_guardrail later if the keyword turns out too broad.
+    // Deliberately kept out of the description field below, though: an
+    // earlier draft of this description named approve_crisis_keyword
+    // directly and said "find it in the settings UI" (which was also just
+    // wrong -- there was no other capability that surfaced the id, and the
+    // real source is the approve call's own response, not a UI). Both of
+    // those made this entry's own name+description the sole
+    // matchCapabilityEntries hit for unrelated single-word queries like
+    // "settings" -- the identical cross-reference/keyword-pollution pattern
+    // already fixed for remove_competitor elsewhere in this file. Hence the
+    // generic, capability-name-free phrasing below; this comment is where
+    // the specific "which call, and how" guidance belongs instead.
+    description: 'Permanently delete an active guardrail (e.g. a crisis-escalation trigger, or any other guardrail type) by its id. Requires the guardrail id, obtainable from the response of whichever call created the guardrail.',
     endpoint: '/api/guardrails/:id',
     method: 'DELETE',
     paramSchema: z.object({ id: z.string().min(1) }),

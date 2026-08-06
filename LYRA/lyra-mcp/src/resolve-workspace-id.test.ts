@@ -6,7 +6,7 @@ vi.mock('./lyra-api-client', async (importOriginal) => {
 })
 
 import { callLyraApi } from './lyra-api-client'
-import { resolveWorkspaceId } from './resolve-workspace-id'
+import { resolveWorkspaceId, AmbiguousWorkspaceError } from './resolve-workspace-id'
 
 describe('resolveWorkspaceId', () => {
   beforeEach(() => vi.clearAllMocks())
@@ -24,7 +24,7 @@ describe('resolveWorkspaceId', () => {
     expect(callLyraApi).toHaveBeenCalledWith('/api/workspaces', 'token-abc')
   })
 
-  it('throws a structured, name-bearing error when omitted and the caller has more than one workspace', async () => {
+  it('throws a structured, name-bearing AmbiguousWorkspaceError when omitted and the caller has more than one workspace', async () => {
     vi.mocked(callLyraApi).mockResolvedValue([
       { id: 'ws-1', name: 'Into The Wild Marketing' },
       { id: 'ws-2', name: 'LYRA' },
@@ -32,10 +32,16 @@ describe('resolveWorkspaceId', () => {
     await expect(resolveWorkspaceId(undefined, 'token-abc')).rejects.toThrow(
       'workspace_id is required: caller has access to multiple workspaces (Into The Wild Marketing, LYRA) -- specify which one'
     )
+    // Distinct error class (not a bare Error) so callers like
+    // searchCapabilities can catch specifically this ambiguous-workspace
+    // case and let every other failure mode propagate -- see
+    // AmbiguousWorkspaceError's doc comment.
+    await expect(resolveWorkspaceId(undefined, 'token-abc')).rejects.toBeInstanceOf(AmbiguousWorkspaceError)
   })
 
-  it('throws when omitted and the caller has no workspaces at all', async () => {
+  it('throws a plain Error (NOT AmbiguousWorkspaceError) when omitted and the caller has no workspaces at all -- a different failure mode that specifying workspace_id can\'t fix', async () => {
     vi.mocked(callLyraApi).mockResolvedValue([])
     await expect(resolveWorkspaceId(undefined, 'token-abc')).rejects.toThrow('no workspaces')
+    await expect(resolveWorkspaceId(undefined, 'token-abc')).rejects.not.toBeInstanceOf(AmbiguousWorkspaceError)
   })
 })

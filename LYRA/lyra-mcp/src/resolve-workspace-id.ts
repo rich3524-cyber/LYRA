@@ -5,6 +5,24 @@ interface WorkspaceRef {
   name: string
 }
 
+// Distinct error type for specifically the "caller has access to more than
+// one workspace and didn't say which" case -- deliberately NOT thrown for
+// the "caller has zero workspaces" case below, which is a different failure
+// mode (no access at all, not an ambiguity that specifying workspace_id
+// could resolve). Callers that want to degrade gracefully for the ambiguous
+// case specifically (e.g. searchCapabilities, whose keyword-matching step
+// doesn't actually need a workspace) can catch this class alone and let
+// every other failure -- including the zero-workspaces case, an expired
+// token, or a network/backend error from the underlying callLyraApi call --
+// propagate normally instead of being silently swallowed into a degraded
+// response.
+export class AmbiguousWorkspaceError extends Error {
+  constructor(names: string[]) {
+    super(`workspace_id is required: caller has access to multiple workspaces (${names.join(', ')}) -- specify which one`)
+    this.name = 'AmbiguousWorkspaceError'
+  }
+}
+
 // Per the design spec (docs/superpowers/specs/2026-08-04-mcp-gateway-phase1-design.md
 // and the parent spec LYRA/docs/LYRA-mcp-server-design.md §3.1): where a caller
 // has exactly one workspace, workspace_id may be omitted and is resolved
@@ -25,8 +43,5 @@ export async function resolveWorkspaceId(
   if (workspaces.length === 1) {
     return workspaces[0].id
   }
-  const names = workspaces.map((w) => w.name).join(', ')
-  throw new Error(
-    `workspace_id is required: caller has access to multiple workspaces (${names}) -- specify which one`
-  )
+  throw new AmbiguousWorkspaceError(workspaces.map((w) => w.name))
 }

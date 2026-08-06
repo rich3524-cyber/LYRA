@@ -1,4 +1,4 @@
-import { resolveWorkspaceId } from '../resolve-workspace-id'
+import { resolveWorkspaceId, AmbiguousWorkspaceError } from '../resolve-workspace-id'
 import { meetsPlanTier } from '../capabilities/plan-tier'
 import { CAPABILITY_REGISTRY, type CapabilityDefinition } from '../capabilities/registry'
 
@@ -31,7 +31,7 @@ interface CapabilityMatch {
 const STOPWORDS = new Set(['a', 'an', 'and', 'for', 'the', 'to', 'of', 'in', 'on', 'my', 'me', 'i', 'do', 'how', 'with', 'what', 'can', 'is', 'it'])
 
 // Tokenized match against name + description -- no embeddings or semantic
-// search needed at 15 entries. Requiring every token to appear somewhere in
+// search needed at 16 entries. Requiring every token to appear somewhere in
 // the haystack (rather than one substring match on the whole query) is what
 // makes realistic multi-word LLM queries like "competitor tracking" or
 // "tools for tracking competitors" actually match -- a single substring test
@@ -99,19 +99,29 @@ export async function searchCapabilities(params: SearchCapabilitiesParams, beare
   const matches = matchCapabilityEntries(params.query)
 
   // The keyword match above needs no workspace at all -- only the
-  // plan-tier availability check below does. resolveWorkspaceId throws when
-  // workspace_id is omitted and the caller has access to more than one
-  // workspace (genuinely ambiguous which one is meant). Previously that
-  // throw took down the whole function, so an ambiguous-workspace caller
-  // got nothing back even though the search itself was still answerable.
-  // Now: catch it, still return the match list, and leave `available`
-  // undefined on every result rather than fabricating a true/false that
-  // wasn't actually determined -- the caller can retry with an explicit
-  // workspace_id to get real availability.
+  // plan-tier availability check below does. resolveWorkspaceId throws
+  // AmbiguousWorkspaceError specifically when workspace_id is omitted and
+  // the caller has access to more than one workspace (genuinely ambiguous
+  // which one is meant). Previously that throw took down the whole
+  // function, so an ambiguous-workspace caller got nothing back even though
+  // the search itself was still answerable. Now: catch that ONE case, still
+  // return the match list, and leave `available` undefined on every result
+  // rather than fabricating a true/false that wasn't actually determined --
+  // the caller can retry with an explicit workspace_id to get real
+  // availability.
+  //
+  // Deliberately narrow: only AmbiguousWorkspaceError is caught here. Every
+  // other failure -- the caller has zero workspaces, an expired/revoked
+  // bearer token, a network timeout or backend outage hitting
+  // callLyraApi('/api/workspaces', ...) inside resolveWorkspaceId -- is left
+  // to propagate normally. A bare `catch {}` here would silently convert a
+  // real auth or infrastructure failure into what looks like a normal
+  // degraded response, hiding it from the caller entirely.
   let workspaceId: string
   try {
     workspaceId = await resolveWorkspaceId(params.workspace_id, bearerToken)
-  } catch {
+  } catch (err) {
+    if (!(err instanceof AmbiguousWorkspaceError)) throw err
     return matches.map(([name, cap]) => ({
       name,
       description: cap.description,

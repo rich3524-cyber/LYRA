@@ -70,6 +70,18 @@ describe('CAPABILITY_REGISTRY', () => {
     expect(schema.safeParse({ keyword: 'lawsuit' }).success).toBe(true)
   })
 
+  it('rejects whitespace-padded single characters for approve_crisis_keyword, closing the min(3)-counts-whitespace bypass (the backend trims before storing, so " a " would otherwise store the single-char "a" this floor exists to reject)', () => {
+    const schema = CAPABILITY_REGISTRY.approve_crisis_keyword.paramSchema
+    expect(schema.safeParse({ keyword: ' a ' }).success, '"a" padded with spaces').toBe(false)
+    expect(schema.safeParse({ keyword: '  a' }).success, '"a" padded with leading spaces').toBe(false)
+    expect(schema.safeParse({ keyword: '\ta\t' }).success, '"a" padded with tabs').toBe(false)
+    // A real 3-letter English word still clears the schema floor -- the
+    // floor guards against too-short/symbolic input, not against every
+    // broad-but-valid keyword choice (that's a content-judgment call no
+    // schema can fully make for the caller).
+    expect(schema.safeParse({ keyword: 'the' }).success, '"the" is a real word, still schema-valid').toBe(true)
+  })
+
   it('exposes remove_guardrail, the undo path for approve_crisis_keyword, backed by the real DELETE /api/guardrails/:id route', () => {
     const cap = CAPABILITY_REGISTRY.remove_guardrail
     expect(cap.endpoint).toBe('/api/guardrails/:id')

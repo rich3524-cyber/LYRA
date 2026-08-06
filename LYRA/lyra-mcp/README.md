@@ -4,7 +4,7 @@ MCP gateway for LYRA. Exposes 12 core tools (7 read, 3 write, 2 capability-disco
 
 **Tools:** `list_workspaces`, `get_workspace_overview`, `get_brand_profile`, `list_scheduled_posts`, `get_analytics`, `list_inbox_items`, `list_trends` (read); `draft_post`, `schedule_post`, `respond_to_item` (write); `search_capabilities`, `call_capability` (capability discovery/invocation — see `src/mcp-server.ts`'s `TOOL_REGISTRY` for exact descriptions/schemas). Every tool call is rate-limited (per-user and per-workspace) and audit-logged via `POST /api/mcp/audit` in the main app.
 
-`call_capability` gives generic access to 15 additional capabilities beyond the 12 core tools — things like competitor tracking, SEO tools, brand intelligence, and email campaign visibility. Use `search_capabilities` to find the right one by name or keyword; see `src/capabilities/registry.ts`'s `CAPABILITY_REGISTRY` for the full list.
+`call_capability` gives generic access to 16 additional capabilities beyond the 12 core tools — things like competitor tracking, SEO tools, brand intelligence, and email campaign visibility. Use `search_capabilities` to find the right one by name or keyword; see `src/capabilities/registry.ts`'s `CAPABILITY_REGISTRY` for the full list.
 
 **Prompts:** 4 guided entry points are registered for MCP clients that support prompts — `plan_next_week`, `triage_inbox`, `summarise_client_performance`, `turn_trend_into_post` (see `src/prompts.ts`'s `PROMPT_REGISTRY` for the exact starting messages).
 

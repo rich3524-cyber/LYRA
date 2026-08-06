@@ -1,9 +1,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-vi.mock('../resolve-workspace-id', () => ({ resolveWorkspaceId: vi.fn() }))
+// Preserves the real AmbiguousWorkspaceError class alongside the mocked
+// function -- search-capabilities.ts does `err instanceof
+// AmbiguousWorkspaceError`, so a mock that dropped the real export (e.g.
+// `() => ({ resolveWorkspaceId: vi.fn() })`) would make that class
+// `undefined` and throw a TypeError on the very `instanceof` check the new
+// error-narrowing logic depends on.
+vi.mock('../resolve-workspace-id', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../resolve-workspace-id')>()
+  return { ...actual, resolveWorkspaceId: vi.fn() }
+})
 vi.mock('../capabilities/plan-tier', () => ({ meetsPlanTier: vi.fn() }))
 
-import { resolveWorkspaceId } from '../resolve-workspace-id'
+import { resolveWorkspaceId, AmbiguousWorkspaceError } from '../resolve-workspace-id'
 import { meetsPlanTier } from '../capabilities/plan-tier'
 import { searchCapabilities, matchCapabilityEntries } from './search-capabilities'
 
@@ -117,9 +126,7 @@ describe('searchCapabilities', () => {
   })
 
   it('still returns keyword matches, with available left undefined, when resolveWorkspaceId fails because the caller has multiple workspaces and omitted workspace_id', async () => {
-    vi.mocked(resolveWorkspaceId).mockRejectedValue(
-      new Error('workspace_id is required: caller has access to multiple workspaces (Acme, Beta) -- specify which one')
-    )
+    vi.mocked(resolveWorkspaceId).mockRejectedValue(new AmbiguousWorkspaceError(['Acme', 'Beta']))
 
     const results = await searchCapabilities({ query: 'competitor' } as any, 'token-abc')
 
@@ -132,6 +139,21 @@ describe('searchCapabilities', () => {
     for (const r of results) {
       expect(r.available).toBeUndefined()
     }
+    expect(meetsPlanTier).not.toHaveBeenCalled()
+  })
+
+  it('propagates a non-ambiguous-workspace failure (e.g. an expired token or a network/backend error) unchanged, rather than swallowing it into a degraded response', async () => {
+    // Any error resolveWorkspaceId throws that ISN'T AmbiguousWorkspaceError
+    // -- the "caller has zero workspaces" case, an auth failure, a network
+    // timeout hitting the underlying callLyraApi call -- must reach the
+    // caller as a real failure, not get converted into "here are your
+    // results, availability unknown."
+    const authError = new Error('Unauthorized: bearer token expired')
+    vi.mocked(resolveWorkspaceId).mockRejectedValue(authError)
+
+    await expect(searchCapabilities({ query: 'competitor' } as any, 'token-abc')).rejects.toThrow(
+      'Unauthorized: bearer token expired'
+    )
     expect(meetsPlanTier).not.toHaveBeenCalled()
   })
 })
