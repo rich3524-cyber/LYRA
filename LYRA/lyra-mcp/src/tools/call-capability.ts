@@ -23,6 +23,13 @@ export class CapabilityAccessDeniedError extends Error {
   }
 }
 
+export class CapabilityInvalidParamsError extends Error {
+  constructor(name: string, details: string) {
+    super(`Invalid params for "${name}": ${details}`)
+    this.name = 'CapabilityInvalidParamsError'
+  }
+}
+
 // Substitutes every `:placeholder` in `endpoint` with the matching field from
 // `params`, returning the resolved path plus a copy of `params` with those
 // fields removed -- the remainder is what's left over for the query string
@@ -39,12 +46,20 @@ function substitutePathParams(endpoint: string, params: Record<string, unknown>)
 }
 
 export async function callCapability(params: CallCapabilityParams, bearerToken: string): Promise<unknown> {
+  // Object.hasOwn (not a truthy check on CAPABILITY_REGISTRY[params.name]) --
+  // params.name is fully LLM-controlled, and a plain object literal returns a
+  // truthy function for reserved property names like '__proto__', 'constructor',
+  // 'toString', 'hasOwnProperty', which would skip the not-found guard below
+  // and crash later with an unhelpful TypeError instead of CapabilityNotFoundError.
+  if (!Object.hasOwn(CAPABILITY_REGISTRY, params.name)) throw new CapabilityNotFoundError(params.name)
   const capability = CAPABILITY_REGISTRY[params.name]
-  if (!capability) throw new CapabilityNotFoundError(params.name)
 
   const parsed = capability.paramSchema.safeParse(params.params ?? {})
   if (!parsed.success) {
-    throw new Error(`Invalid params for "${params.name}": ${parsed.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ')}`)
+    throw new CapabilityInvalidParamsError(
+      params.name,
+      parsed.error.issues.map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`).join('; ')
+    )
   }
 
   const workspaceId = await resolveWorkspaceId(params.workspace_id, bearerToken)
@@ -54,13 +69,15 @@ export async function callCapability(params: CallCapabilityParams, bearerToken: 
 
   const { path, rest } = substitutePathParams(capability.endpoint, parsed.data as Record<string, unknown>)
 
-  // When the endpoint has a `:placeholder` (e.g. /api/seo/pages/:pageId/analyze),
-  // the resource is already workspace-scoped by the id in the path -- the backend
-  // route resolves the workspace from that resource, so workspaceId is not merged
-  // into the outgoing call. Only endpoints with no path params (e.g. /api/competitors)
-  // need workspaceId added explicitly to scope the request.
-  const hasPathParam = /:\w+/.test(capability.endpoint)
-  const scopedRest = hasPathParam ? rest : { workspaceId, ...rest }
+  // 'derived-from-path' capabilities operate on a resource id already in the
+  // path -- the backend route derives the workspace from that resource, so
+  // workspaceId is not merged into the outgoing call. 'explicit' capabilities
+  // have no such resource id in the path and need workspaceId added
+  // explicitly to scope the request. See the workspaceScoping field's doc
+  // comment in registry.ts for the known gap this doesn't close (no
+  // backend-side check that the resource's real workspace matches the
+  // claimed workspace_id) and why closing it is out of scope here.
+  const scopedRest = capability.workspaceScoping === 'derived-from-path' ? rest : { workspaceId, ...rest }
 
   if (capability.method === 'GET') {
     // callLyraApi's queryParams type is Record<string, string> -- every field
@@ -69,6 +86,16 @@ export async function callCapability(params: CallCapabilityParams, bearerToken: 
     return callLyraApi(path, bearerToken, scopedRest as Record<string, string>)
   }
   if (capability.method === 'DELETE') {
+    // deleteLyraApi sends no request body, so any leftover field here would
+    // be silently dropped rather than sent -- fail loudly instead. Harmless
+    // today (remove_competitor's only param, id, is fully consumed by path
+    // substitution) but guards against a future DELETE capability whose
+    // params aren't fully consumed by its :placeholder(s).
+    if (Object.keys(rest).length > 0) {
+      throw new Error(
+        `Capability "${params.name}" is DELETE but has unconsumed params: ${Object.keys(rest).join(', ')}. deleteLyraApi does not support a body.`
+      )
+    }
     return deleteLyraApi(path, bearerToken)
   }
   return postLyraApi(path, bearerToken, scopedRest)

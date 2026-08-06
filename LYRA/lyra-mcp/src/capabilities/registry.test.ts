@@ -25,6 +25,20 @@ describe('CAPABILITY_REGISTRY', () => {
     }
   })
 
+  it('every capability declares a valid workspaceScoping, so call_capability never has to infer scoping behavior from the endpoint string', () => {
+    for (const [name, cap] of Object.entries(CAPABILITY_REGISTRY)) {
+      expect(['explicit', 'derived-from-path'], `${name} workspaceScoping`).toContain(cap.workspaceScoping)
+    }
+  })
+
+  it("declares 'derived-from-path' only for the three path-parameterized capabilities that don't send workspaceId, per the design decision in call_capability", () => {
+    const derivedFromPath = Object.entries(CAPABILITY_REGISTRY)
+      .filter(([, cap]) => cap.workspaceScoping === 'derived-from-path')
+      .map(([name]) => name)
+      .sort()
+    expect(derivedFromPath).toEqual(['analyze_seo_page', 'generate_seo_content', 'remove_competitor'])
+  })
+
   it('path-parameterized endpoints declare every :placeholder as a required string field in paramSchema', () => {
     for (const [name, cap] of Object.entries(CAPABILITY_REGISTRY)) {
       const placeholders = [...cap.endpoint.matchAll(/:(\w+)/g)].map((m) => m[1])

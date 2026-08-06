@@ -10,7 +10,12 @@ vi.mock('../capabilities/plan-tier', () => ({ meetsPlanTier: vi.fn() }))
 import { callLyraApi, postLyraApi, deleteLyraApi } from '../lyra-api-client'
 import { resolveWorkspaceId } from '../resolve-workspace-id'
 import { meetsPlanTier } from '../capabilities/plan-tier'
-import { callCapability, CapabilityNotFoundError, CapabilityAccessDeniedError } from './call-capability'
+import {
+  callCapability,
+  CapabilityNotFoundError,
+  CapabilityAccessDeniedError,
+  CapabilityInvalidParamsError,
+} from './call-capability'
 
 describe('callCapability', () => {
   beforeEach(() => {
@@ -26,8 +31,18 @@ describe('callCapability', () => {
     expect(callLyraApi).not.toHaveBeenCalled()
   })
 
+  it('throws CapabilityNotFoundError (not a TypeError) for reserved JS property names like __proto__', async () => {
+    await expect(
+      callCapability({ name: '__proto__', params: {}, workspace_id: 'ws-1' }, 'token-abc')
+    ).rejects.toThrow(CapabilityNotFoundError)
+    expect(callLyraApi).not.toHaveBeenCalled()
+  })
+
   it('rejects invalid params against the capability\'s own schema before making any API call', async () => {
     // add_competitor requires a non-empty `name`
+    await expect(
+      callCapability({ name: 'add_competitor', params: {}, workspace_id: 'ws-1' }, 'token-abc')
+    ).rejects.toThrow(CapabilityInvalidParamsError)
     await expect(
       callCapability({ name: 'add_competitor', params: {}, workspace_id: 'ws-1' }, 'token-abc')
     ).rejects.toThrow(/name/i)
@@ -50,6 +65,14 @@ describe('callCapability', () => {
 
     expect(callLyraApi).toHaveBeenCalledWith('/api/competitors', 'token-abc', { workspaceId: 'ws-1' })
     expect(result).toEqual([{ id: 'comp-1', name: 'Acme Co' }])
+  })
+
+  it('merges leftover params into the query string alongside workspaceId for a GET capability', async () => {
+    vi.mocked(callLyraApi).mockResolvedValue([])
+
+    await callCapability({ name: 'list_email_campaigns', params: { month: '2026-08' }, workspace_id: 'ws-1' }, 'token-abc')
+
+    expect(callLyraApi).toHaveBeenCalledWith('/api/email-campaigns', 'token-abc', { workspaceId: 'ws-1', month: '2026-08' })
   })
 
   it('dispatches a POST capability with workspaceId merged into the body', async () => {
@@ -76,10 +99,14 @@ describe('callCapability', () => {
     expect(postLyraApi).toHaveBeenCalledWith('/api/seo/pages/page-1/analyze', 'token-abc', {})
   })
 
-  it('resolves workspace_id implicitly when omitted', async () => {
+  it('resolves workspace_id implicitly when omitted, and the resolved value flows through to the API call', async () => {
+    vi.mocked(resolveWorkspaceId).mockResolvedValue('ws-9')
     vi.mocked(callLyraApi).mockResolvedValue([])
+
     await callCapability({ name: 'list_competitors', params: {} } as any, 'token-abc')
+
     expect(resolveWorkspaceId).toHaveBeenCalledWith(undefined, 'token-abc')
+    expect(callLyraApi).toHaveBeenCalledWith('/api/competitors', 'token-abc', { workspaceId: 'ws-9' })
   })
 
   it('propagates errors from the underlying API client unchanged', async () => {
