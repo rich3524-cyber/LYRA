@@ -83,6 +83,104 @@ describe('assertSafeUrl', () => {
     const parsed = await assertSafeUrl('https://v6-public.example.com')
     expect(parsed.hostname).toBe('v6-public.example.com')
   })
+
+  describe('additional defense-in-depth ranges', () => {
+    it('rejects a URL resolving to the Oracle Cloud metadata endpoint (192.0.0.192, within 192.0.0.0/24)', async () => {
+      vi.mocked(resolve4).mockResolvedValue(['192.0.0.192'])
+      await expect(assertSafeUrl('https://oracle-metadata.example.com')).rejects.toThrow(/private\/reserved address/)
+    })
+
+    it('rejects a URL resolving into the 198.18.0.0/15 benchmarking range', async () => {
+      vi.mocked(resolve4).mockResolvedValue(['198.18.0.1'])
+      await expect(assertSafeUrl('https://benchmark.example.com')).rejects.toThrow(/private\/reserved address/)
+    })
+
+    it('rejects a URL resolving to a multicast address (224.0.0.0/4)', async () => {
+      vi.mocked(resolve4).mockResolvedValue(['224.0.0.1'])
+      await expect(assertSafeUrl('https://multicast.example.com')).rejects.toThrow(/private\/reserved address/)
+    })
+
+    it('rejects a URL resolving into the reserved 240.0.0.0/4 range', async () => {
+      vi.mocked(resolve4).mockResolvedValue(['240.0.0.1'])
+      await expect(assertSafeUrl('https://reserved.example.com')).rejects.toThrow(/private\/reserved address/)
+    })
+
+    it('rejects a URL resolving to the broadcast address (255.255.255.255)', async () => {
+      vi.mocked(resolve4).mockResolvedValue(['255.255.255.255'])
+      await expect(assertSafeUrl('https://broadcast.example.com')).rejects.toThrow(/private\/reserved address/)
+    })
+
+    it('rejects a URL whose AAAA record is a NAT64 address embedding the cloud metadata IP (64:ff9b::a9fe:a9fe)', async () => {
+      vi.mocked(resolve4).mockResolvedValue([])
+      vi.mocked(resolve6).mockResolvedValue(['64:ff9b::a9fe:a9fe'])
+      await expect(assertSafeUrl('https://nat64-metadata.example.com')).rejects.toThrow(/private\/reserved address/)
+    })
+
+    it('rejects a URL whose AAAA record is a deprecated IPv4-compatible IPv6 address (::1.2.3.4, within ::/96)', async () => {
+      vi.mocked(resolve4).mockResolvedValue([])
+      vi.mocked(resolve6).mockResolvedValue(['::1.2.3.4'])
+      await expect(assertSafeUrl('https://v4-compat.example.com')).rejects.toThrow(/private\/reserved address/)
+    })
+
+    it('rejects a URL whose AAAA record is a 6to4 address (2002::/16)', async () => {
+      vi.mocked(resolve4).mockResolvedValue([])
+      vi.mocked(resolve6).mockResolvedValue(['2002:c000:0204::1'])
+      await expect(assertSafeUrl('https://sixtofour.example.com')).rejects.toThrow(/private\/reserved address/)
+    })
+
+    it('rejects a URL whose AAAA record is a deprecated site-local address (fec0::/10)', async () => {
+      vi.mocked(resolve4).mockResolvedValue([])
+      vi.mocked(resolve6).mockResolvedValue(['fec0::1'])
+      await expect(assertSafeUrl('https://site-local.example.com')).rejects.toThrow(/private\/reserved address/)
+    })
+
+    it('rejects a URL whose AAAA record is an IPv6 multicast address (ff00::/8)', async () => {
+      vi.mocked(resolve4).mockResolvedValue([])
+      vi.mocked(resolve6).mockResolvedValue(['ff02::1'])
+      await expect(assertSafeUrl('https://v6-multicast.example.com')).rejects.toThrow(/private\/reserved address/)
+    })
+  })
+
+  describe('IP-literal hostnames', () => {
+    it('rejects a private IP-literal URL (https://169.254.169.254/) explicitly, with a message that names the reason', async () => {
+      // This must NOT depend on dns.resolve4/resolve6 throwing ENOTFOUND for
+      // an already-numeric hostname -- mock them to return something that
+      // would otherwise look "safe" and confirm the literal-address check
+      // still catches it independently, on its own, before any DNS call.
+      vi.mocked(resolve4).mockResolvedValue(['93.184.216.34'])
+      vi.mocked(resolve6).mockResolvedValue([])
+      const resolve4CallsBefore = vi.mocked(resolve4).mock.calls.length
+      const resolve6CallsBefore = vi.mocked(resolve6).mock.calls.length
+
+      await expect(assertSafeUrl('https://169.254.169.254/')).rejects.toThrow(/IP-literal/)
+
+      expect(vi.mocked(resolve4).mock.calls.length).toBe(resolve4CallsBefore)
+      expect(vi.mocked(resolve6).mock.calls.length).toBe(resolve6CallsBefore)
+    })
+
+    it('rejects a private IPv6 IP-literal URL (https://[::1]/) explicitly, without invoking DNS', async () => {
+      vi.mocked(resolve4).mockResolvedValue(['93.184.216.34'])
+      vi.mocked(resolve6).mockResolvedValue([])
+      const resolve4CallsBefore = vi.mocked(resolve4).mock.calls.length
+      const resolve6CallsBefore = vi.mocked(resolve6).mock.calls.length
+
+      await expect(assertSafeUrl('https://[::1]/')).rejects.toThrow(/IP-literal/)
+
+      expect(vi.mocked(resolve4).mock.calls.length).toBe(resolve4CallsBefore)
+      expect(vi.mocked(resolve6).mock.calls.length).toBe(resolve6CallsBefore)
+    })
+
+    it('accepts a public IPv4 IP-literal URL without invoking DNS', async () => {
+      const resolve4CallsBefore = vi.mocked(resolve4).mock.calls.length
+      const resolve6CallsBefore = vi.mocked(resolve6).mock.calls.length
+
+      const parsed = await assertSafeUrl('https://93.184.216.34/path')
+
+      expect(parsed.hostname).toBe('93.184.216.34')
+      expect(vi.mocked(resolve4).mock.calls.length).toBe(resolve4CallsBefore)
+      expect(vi.mocked(resolve6).mock.calls.length).toBe(resolve6CallsBefore)
+    })
+  })
 })
 
 describe('safeFetch', () => {

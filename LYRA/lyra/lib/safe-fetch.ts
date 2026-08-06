@@ -14,6 +14,10 @@ const BLOCKED_CIDRS: [number, number][] = [
   [ipToInt('169.254.0.0'), ipToInt('169.254.255.255')], // cloud metadata (AWS/GCP/Azure) lives here
   [ipToInt('100.64.0.0'),  ipToInt('100.127.255.255')],
   [ipToInt('0.0.0.0'),     ipToInt('0.255.255.255')],
+  [ipToInt('192.0.0.0'),   ipToInt('192.0.0.255')],     // IETF protocol assignments; 192.0.0.192 is Oracle Cloud's metadata endpoint
+  [ipToInt('198.18.0.0'),  ipToInt('198.19.255.255')],  // RFC 2544 benchmarking
+  [ipToInt('224.0.0.0'),   ipToInt('239.255.255.255')], // multicast
+  [ipToInt('240.0.0.0'),   ipToInt('255.255.255.255')], // reserved + broadcast (255.255.255.255)
 ]
 
 function ipToInt(ip: string): number {
@@ -73,6 +77,24 @@ function isPrivateIpv6(ip: string): boolean {
   if (groups[0] >= 0xfe80 && groups[0] <= 0xfebf) return true
   // fc00::/7 -- unique-local. First 7 bits fixed => first group in [0xfc00, 0xfdff].
   if (groups[0] >= 0xfc00 && groups[0] <= 0xfdff) return true
+  // fec0::/10 -- deprecated site-local (RFC 3879). First 10 bits fixed => first group in [0xfec0, 0xfeff].
+  if (groups[0] >= 0xfec0 && groups[0] <= 0xfeff) return true
+  // ff00::/8 -- multicast. First 8 bits fixed => first group in [0xff00, 0xffff].
+  if (groups[0] >= 0xff00 && groups[0] <= 0xffff) return true
+  // 2002::/16 -- 6to4. Tunnels arbitrary embedded IPv4 traffic (including
+  // private/metadata addresses) through a well-known prefix.
+  if (groups[0] === 0x2002) return true
+  // 64:ff9b::/96 -- NAT64 well-known prefix (RFC 6052). The last 32 bits are
+  // an embedded IPv4 address reachable through a NAT64 gateway, e.g.
+  // 64:ff9b::a9fe:a9fe embeds 169.254.169.254.
+  if (groups[0] === 0x0064 && groups[1] === 0xff9b && groups[2] === 0 && groups[3] === 0 && groups[4] === 0 && groups[5] === 0) {
+    return true
+  }
+  // ::/96 -- deprecated IPv4-compatible IPv6 (RFC 4291). Still parseable by
+  // some resolvers/stacks; the last 32 bits are an embedded IPv4 address.
+  if (groups[0] === 0 && groups[1] === 0 && groups[2] === 0 && groups[3] === 0 && groups[4] === 0 && groups[5] === 0) {
+    return true
+  }
   // ::ffff:0:0/96 -- IPv4-mapped. Extract the embedded IPv4 and check it
   // against the same blocklist as a native IPv4 address, since
   // ::ffff:169.254.169.254 is exactly as dangerous as 169.254.169.254.
@@ -95,7 +117,7 @@ function isPrivateIp(ip: string): boolean {
   return true // unrecognized format -- fail closed
 }
 
-interface ValidatedAddress {
+export interface ValidatedAddress {
   address: string
   family: 4 | 6
 }
@@ -125,6 +147,24 @@ async function resolveAndValidate(rawUrl: string): Promise<ValidatedTarget> {
     throw new Error('Invalid URL')
   }
   if (parsed.protocol !== 'https:') throw new Error('Only https URLs are permitted')
+
+  // If the hostname is itself an IP literal (e.g. "169.254.169.254" or the
+  // bracketed IPv6 form "[::1]"), validate that literal address directly
+  // against the same blocklists used for resolved addresses. This must not
+  // rely on dns.resolve4/resolve6 throwing ENOTFOUND for an already-numeric
+  // hostname -- that's an incidental side effect of Node's resolver, not a
+  // guarantee, and a future "handle IP-literal URLs" shortcut built on
+  // net.isIP() without this explicit check would silently reopen the SSRF
+  // hole this file exists to close.
+  const bracketed = parsed.hostname.startsWith('[') && parsed.hostname.endsWith(']')
+  const literalCandidate = bracketed ? parsed.hostname.slice(1, -1) : parsed.hostname
+  const literalFamily = net.isIP(literalCandidate)
+  if (literalFamily !== 0) {
+    if (isPrivateIp(literalCandidate)) {
+      throw new Error(`URL hostname is a private/reserved IP-literal address: ${literalCandidate}`)
+    }
+    return { url: parsed, addresses: [{ address: literalCandidate, family: literalFamily as 4 | 6 }] }
+  }
 
   const [v4, v6] = await Promise.all([
     dns.resolve4(parsed.hostname).catch(() => [] as string[]),
@@ -161,7 +201,7 @@ export async function assertSafeUrl(rawUrl: string): Promise<URL> {
  * address for validation and a different (private/metadata) address for the
  * connection undici would otherwise re-resolve internally.
  */
-function createPinnedDispatcher({ address, family }: ValidatedAddress): Agent {
+export function createPinnedDispatcher({ address, family }: ValidatedAddress): Agent {
   return new Agent({
     connect: {
       lookup: (_hostname, options, callback) => {
