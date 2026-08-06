@@ -12,7 +12,7 @@ export const PROMPT_REGISTRY: Record<string, PromptDefinition> = {
   plan_next_week: {
     description: "Plan next week's content for a workspace",
     message:
-      'Help me plan next week\'s content. Start by calling list_workspaces if you don\'t already know which workspace I mean, then get_brand_profile for that workspace -- always check brand voice before generating any content, it\'s the difference between generic output and something that actually sounds like this business. Then check get_workspace_overview for anything already pending, and propose a week of posts using draft_post (or schedule_post if I confirm specific dates/times).',
+      'Help me plan next week\'s content. Start by calling list_workspaces if you don\'t already know which workspace I mean, then get_brand_profile for that workspace -- always check brand voice before generating any content, it\'s the difference between generic output and something that actually sounds like this business. Then check get_workspace_overview for anything already pending, and list_scheduled_posts to see what\'s already on the calendar for that week, so you don\'t propose duplicates, and propose a week of posts using draft_post (or schedule_post if I confirm specific dates/times).',
   },
   triage_inbox: {
     description: 'Triage the inbox across all workspaces',
@@ -22,11 +22,11 @@ export const PROMPT_REGISTRY: Record<string, PromptDefinition> = {
   summarise_client_performance: {
     description: "Summarise last month's performance for a client",
     message:
-      'Summarise last month\'s performance for a client. Start with list_workspaces to confirm which one, then get_analytics for the last 30 days. If it\'s relevant, search_capabilities for SEO or reporting tools (get_seo_search_data, generate_report-equivalent capabilities) to round out the picture. Give me a narrative summary I could actually send to a client, not just raw numbers.',
+      'Summarise last month\'s performance for a client. Start with list_workspaces to confirm which one, then get_analytics for the last 30 days. If it\'s relevant, search_capabilities for \'seo\' or \'competitors\' to round out the picture (e.g. get_seo_search_data, list_competitors, list_email_campaigns). Give me a narrative summary I could actually send to a client, not just raw numbers.',
   },
   turn_trend_into_post: {
     description: 'Turn a trend into a scheduled post',
     message:
-      'Help me turn a trend into a post. Call list_trends for the workspace -- if it says unavailable, LYRA Trend isn\'t enabled for this workspace and we can\'t use this flow, so say so plainly rather than making something up. Otherwise pick a trend, check get_brand_profile first so the post carries the workspace\'s actual voice rather than a generic take on the trend, then draft_post or schedule_post with the trend\'s brand-relevance context folded in.',
+      'Help me turn a trend into a post. Call list_trends for the workspace -- if it\'s unavailable, relay the message it returns verbatim rather than guessing why. Otherwise pick a trend, check get_brand_profile first so the post carries the workspace\'s actual voice rather than a generic take on the trend, then draft_post or schedule_post with the trend\'s brand-relevance context folded in.',
   },
 }

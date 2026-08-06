@@ -67,6 +67,9 @@ describe('createLyraMcpServer prompt registration', () => {
     const spy = vi.spyOn(McpServer.prototype, 'registerPrompt')
     try {
       createLyraMcpServer()
+      // Guards against this test passing vacuously (zero assertions run) if
+      // registerPrompt ever stops being a spied-on prototype method.
+      expect(spy.mock.calls).toHaveLength(Object.keys(PROMPT_REGISTRY).length)
       for (const call of spy.mock.calls) {
         const [name, , cb] = call
         const result = await (cb as (ctx: unknown) => Promise<unknown>)(undefined)

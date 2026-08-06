@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { PROMPT_REGISTRY } from './prompts'
+import { TOOL_REGISTRY } from './mcp-server'
+import { CAPABILITY_REGISTRY } from './capabilities/registry'
 
 describe('PROMPT_REGISTRY', () => {
   it('has exactly the 4 prompts named in the parent spec', () => {
@@ -24,5 +26,19 @@ describe('PROMPT_REGISTRY', () => {
 
   it('triage_inbox mentions respecting autonomy mode', () => {
     expect(PROMPT_REGISTRY.triage_inbox.message.toLowerCase()).toContain('autonomy')
+  })
+
+  // Registry-drift guard: every snake_case identifier a prompt message names
+  // (e.g. "get_seo_search_data") must actually exist as a registered tool or
+  // capability -- catches the exact bug class where a message referenced a
+  // capability (generate_report-equivalent) that was never in the registry.
+  it('every snake_case tool/capability name mentioned in a prompt message actually exists', () => {
+    const knownNames = new Set([...Object.keys(TOOL_REGISTRY), ...Object.keys(CAPABILITY_REGISTRY)])
+    for (const [promptName, prompt] of Object.entries(PROMPT_REGISTRY)) {
+      const mentioned = prompt.message.match(/\b[a-z]+(?:_[a-z]+)+\b/g) ?? []
+      for (const name of mentioned) {
+        expect(knownNames.has(name), `${promptName} message mentions unknown name "${name}"`).toBe(true)
+      }
+    }
   })
 })
