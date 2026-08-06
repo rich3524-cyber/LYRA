@@ -13,10 +13,9 @@ import { resolveWorkspaceId } from './resolve-workspace-id'
 import { PROMPT_REGISTRY } from './prompts'
 
 describe('TOOL_REGISTRY', () => {
-  it('registers exactly the 15 core tools', () => {
+  it('registers exactly the 12 core tools', () => {
     expect(Object.keys(TOOL_REGISTRY).sort()).toEqual([
       'call_capability',
-      'complete_media_upload',
       'draft_post',
       'get_analytics',
       'get_brand_profile',
@@ -28,8 +27,6 @@ describe('TOOL_REGISTRY', () => {
       'respond_to_item',
       'schedule_post',
       'search_capabilities',
-      'start_media_upload',
-      'upload_media_chunk',
     ])
   })
 
@@ -208,24 +205,6 @@ describe('createToolCallback', () => {
     expect(checkRateLimit).toHaveBeenCalledTimes(1)
     expect(checkRateLimit).toHaveBeenCalledWith('user:user-1', 60, 60)
   })
-
-  it.each(['upload_media_chunk', 'complete_media_upload'])(
-    'does not resolve, rate-limit, or audit at the workspace level for %s (workspace context is carried by the upload session, not a workspace_id param -- resolveWorkspaceId would otherwise fire a wasted HTTP call on every chunk)',
-    async (toolName) => {
-      // Mirrors what really reaches createToolCallback: neither tool's
-      // inputSchema declares workspace_id, so the MCP SDK's zod validation
-      // strips it from params before the callback ever sees it -- even if a
-      // caller sent one.
-      const tool: ToolDefinition = { description: 'x', inputSchema: z.object({ uploadId: z.string() }), handler: vi.fn().mockResolvedValue({}) }
-      const cb = createToolCallback(toolName, tool)
-      await cb({ uploadId: 'up-1' }, ctxFor('user-1'))
-
-      expect(resolveWorkspaceId).not.toHaveBeenCalled()
-      expect(logAuditEvent).not.toHaveBeenCalled()
-      expect(checkRateLimit).toHaveBeenCalledTimes(1)
-      expect(checkRateLimit).toHaveBeenCalledWith('user:user-1', 60, 60)
-    }
-  )
 
   it('does not block the call when workspace resolution fails (e.g. ambiguous multi-workspace caller) -- lets the handler fail with its own real error', async () => {
     vi.mocked(resolveWorkspaceId).mockRejectedValue(new Error('workspace_id is required: multiple workspaces'))

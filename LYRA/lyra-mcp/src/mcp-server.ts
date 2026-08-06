@@ -12,9 +12,6 @@ import { schedulePost } from './tools/schedule-post'
 import { respondToItem } from './tools/respond-to-item'
 import { searchCapabilities } from './tools/search-capabilities'
 import { callCapability } from './tools/call-capability'
-import { startMediaUpload } from './tools/start-media-upload'
-import { uploadMediaChunk } from './tools/upload-media-chunk'
-import { completeMediaUpload } from './tools/complete-media-upload'
 import { PROMPT_REGISTRY } from './prompts'
 import { checkRateLimit } from './rate-limit'
 import { logAuditEvent } from './audit-log'
@@ -88,30 +85,6 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     inputSchema: z.object({ name: z.string(), params: z.unknown().optional(), workspace_id: z.string().optional() }),
     handler: callCapability,
   },
-  start_media_upload: {
-    description: 'Start uploading an image or video to attach to a post. Returns an uploadId and chunkSizeBytes -- call upload_media_chunk repeatedly with base64-encoded chunks of that size, then complete_media_upload to get the final URL. Use the same protocol for images and video; a small image just completes in a single chunk.',
-    inputSchema: z.object({
-      workspace_id: z.string().optional(),
-      filename: z.string(),
-      contentType: z.string(),
-      totalSizeBytes: z.number().int().positive(),
-    }),
-    handler: startMediaUpload,
-  },
-  upload_media_chunk: {
-    description: 'Upload one chunk of a file previously started with start_media_upload. Call once per chunk of chunkSizeBytes (the last chunk may be smaller). Chunks may be sent in any order.',
-    inputSchema: z.object({
-      uploadId: z.string(),
-      chunkIndex: z.number().int().nonnegative(),
-      data: z.string(),
-    }),
-    handler: uploadMediaChunk,
-  },
-  complete_media_upload: {
-    description: "Finish an upload once all chunks from upload_media_chunk have been sent. Returns the real URL -- pass it into draft_post or schedule_post's media_urls to attach it to a post.",
-    inputSchema: z.object({ uploadId: z.string() }),
-    handler: completeMediaUpload,
-  },
 }
 
 // Every tool call funnels through checkRateLimit, which round-trips to
@@ -156,14 +129,12 @@ async function checkRateLimitSafely(
 
 type ToolCallbackCtx = { http?: { authInfo?: { token: string; extra?: Record<string, unknown> } } }
 
-// Tools with no workspace_id concept in their inputSchema at all: either no
-// workspace scoping (list_workspaces), or workspace context is already
-// carried server-side by an in-flight upload session (upload_media_chunk,
-// complete_media_upload). Resolving workspace_id for these would be a
-// wasted resolveWorkspaceId() round-trip (a real HTTP call) with no effect
-// on params the handler actually reads -- notably a wasted call on every
-// single chunk of upload_media_chunk's hot per-chunk path.
-const NO_WORKSPACE_RESOLUTION_TOOLS = ['list_workspaces', 'upload_media_chunk', 'complete_media_upload']
+// Tools with no workspace_id concept in their inputSchema at all -- currently
+// just list_workspaces, which has no workspace scoping. Resolving
+// workspace_id for a tool like this would be a wasted resolveWorkspaceId()
+// round-trip (a real HTTP call) with no effect on params the handler
+// actually reads.
+const NO_WORKSPACE_RESOLUTION_TOOLS = ['list_workspaces']
 
 // Extracted into a standalone, exported, independently-testable function --
 // this ~40-line body (rate limiting, workspace resolution, audit logging)

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { callLyraApi, postLyraApi, putLyraApi, deleteLyraApi, LyraApiError, LyraApiTimeoutError, LyraApiNetworkError } from './lyra-api-client'
+import { callLyraApi, postLyraApi, deleteLyraApi, LyraApiError, LyraApiTimeoutError, LyraApiNetworkError } from './lyra-api-client'
 
 const originalEnv = { ...process.env }
 
@@ -170,42 +170,6 @@ describe('postLyraApi', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     await expect(postLyraApi('/api/posts', 'token-abc', {})).rejects.toThrow(LyraApiTimeoutError)
-  })
-})
-
-describe('putLyraApi', () => {
-  it('PUTs the body with the bearer token and returns the parsed response', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true, status: 200, json: async () => ({ received: true, chunkIndex: 0 }),
-    })
-    vi.stubGlobal('fetch', fetchMock)
-
-    const result = await putLyraApi('/api/upload/multipart/part', 'token-abc', { uploadId: 'u-1', chunkIndex: 0, data: 'YQ==' })
-
-    expect(result).toEqual({ received: true, chunkIndex: 0 })
-    const [url, init] = fetchMock.mock.calls[0]
-    expect(url).toBe('https://lyraonline.ai/api/upload/multipart/part')
-    expect(init.method).toBe('PUT')
-    expect(init.headers).toEqual({ Authorization: 'Bearer token-abc', 'Content-Type': 'application/json' })
-    expect(JSON.parse(init.body)).toEqual({ uploadId: 'u-1', chunkIndex: 0, data: 'YQ==' })
-    expect(init.signal).toBeInstanceOf(AbortSignal)
-  })
-
-  it('throws LyraApiError on a non-ok response, same as callLyraApi/postLyraApi', async () => {
-    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 422, json: async () => ({ error: 'Missing chunks: 1' }) })
-    vi.stubGlobal('fetch', fetchMock)
-
-    await expect(putLyraApi('/api/upload/multipart/part', 'token-abc', {})).rejects.toMatchObject({
-      status: 422,
-      body: { error: 'Missing chunks: 1' },
-    })
-  })
-
-  it('throws LyraApiTimeoutError on a real timeout', async () => {
-    const fetchMock = vi.fn().mockRejectedValue(new DOMException('aborted', 'TimeoutError'))
-    vi.stubGlobal('fetch', fetchMock)
-
-    await expect(putLyraApi('/api/upload/multipart/part', 'token-abc', {})).rejects.toThrow(LyraApiTimeoutError)
   })
 })
 
