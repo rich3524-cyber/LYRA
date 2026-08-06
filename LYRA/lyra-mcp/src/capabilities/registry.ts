@@ -11,6 +11,17 @@ export interface CapabilityDefinition {
   endpoint: string
   method: 'GET' | 'POST' | 'DELETE'
   paramSchema: z.ZodTypeAny
+  // Declarative only, as of this phase -- populated on every entry below and
+  // carried through the JWT into the wrapper's auth context (see http.ts's
+  // req.auth.scopes), but no code path in this gateway actually checks a
+  // capability's requiredScope against the caller's granted scopes before
+  // call_capability invokes it. Do not assume this field is a live
+  // authorization control: an OAuth client that only consented to
+  // content:read/content:write can currently invoke a settings:write
+  // capability (e.g. approve_crisis_keyword, dismiss_crisis_keyword) anyway.
+  // Real enforcement is tracked as a separate follow-up, deliberately kept
+  // out of this phase to avoid a cross-cutting change to createToolCallback,
+  // the shared wrapper every registered tool runs through.
   requiredScope: SupportedScope
   minPlanTier: 'STARTER' | 'PRO' | 'AGENCY'
   mutates: boolean
