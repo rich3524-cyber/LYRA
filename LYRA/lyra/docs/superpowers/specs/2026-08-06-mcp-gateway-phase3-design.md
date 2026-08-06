@@ -23,14 +23,14 @@ Phase 1 (complete, deployed, dogfooded) built the gateway and its 7 core read to
 
 ## 1. Capability registry — format and v1 scope
 
-Every long-tail capability is one manifest entry, matching the parent spec's shape exactly:
+Every long-tail capability is one manifest entry, matching the parent spec's shape (with one addition found while grounding this design in the real backend routes — see below):
 
 ```ts
 interface CapabilityDefinition {
   name: string
   description: string
   endpoint: string
-  method: 'GET' | 'POST'
+  method: 'GET' | 'POST' | 'DELETE'
   paramSchema: z.ZodTypeAny
   requiredScope: string
   minPlanTier: 'STARTER' | 'PRO' | 'AGENCY'
@@ -41,15 +41,20 @@ interface CapabilityDefinition {
 
 Manifest entries live in a static array in the gateway repo (`lyra-mcp/src/capabilities/registry.ts`), not a database — matching the parent spec's "ships with the code" framing for the gateway's persistent state. Adding a capability later is a pull request against this file, not a schema migration.
 
-**V1 scope (13 capabilities, all read-only or low/medium-risk mutations, all pointing at existing, already-tested backend routes — no new backend work required):**
+**Two candidates were dropped after reading their real backend routes, found to be structurally incompatible with generic JSON dispatch:** `generate_report` (`POST /api/reports/generate`) returns a raw PDF binary, not JSON; `repurpose_content` (`POST /api/ai/repurpose`) is a Server-Sent Events stream, not a single JSON response. Both remain real product features — just not exposed through `call_capability` this phase. Either could return as a purpose-built hand-written tool later if there's real demand, but that's a different shape of work than the generic dispatcher this phase builds.
+
+**`method` gained a third value, `DELETE`**, also found while grounding the design: `remove_competitor` is backed by a real `DELETE /api/competitors/[id]` route, and the gateway's API client only had GET/POST helpers before this phase. A `deleteLyraApi` sibling function (matching `callLyraApi`/`postLyraApi`'s existing shape and error normalization) is added as part of this phase's Task 1 to cover it, rather than working around it with a POST-that-means-DELETE convention.
+
+**V1 scope: 14 capabilities**, all read-only or low/medium-risk mutations, all pointing at existing, already-tested backend routes — no new backend work required:
 
 | Capability | Endpoint | Method | Mutates | Min plan |
 |---|---|---|---|---|
 | `list_competitors` | `GET /api/competitors` | GET | No | PRO |
 | `add_competitor` | `POST /api/competitors` | POST | Yes | PRO |
-| `remove_competitor` | `DELETE /api/competitors/[id]` | POST* | Yes | PRO |
+| `remove_competitor` | `DELETE /api/competitors/[id]` | DELETE | Yes | PRO |
 | `get_seo_search_data` | `GET /api/seo/gsc-data` | GET | No | — |
 | `list_seo_pages` | `GET /api/seo/pages` | GET | No | — |
+| `track_seo_page` | `POST /api/seo/pages` | POST | Yes | — |
 | `analyze_seo_page` | `POST /api/seo/pages/[pageId]/analyze` | POST | Yes | — |
 | `generate_seo_content` | `POST /api/seo/pages/[pageId]/generate` | POST | Yes | — |
 | `analyze_engagement_patterns` | `POST /api/brand-intelligence/analyze-engagement` | POST | Yes | — |
@@ -57,16 +62,12 @@ Manifest entries live in a static array in the gateway repo (`lyra-mcp/src/capab
 | `approve_crisis_keyword` | `POST /api/brand-intelligence/crisis-keywords/approve` | POST | Yes | — |
 | `dismiss_crisis_keyword` | `POST /api/brand-intelligence/crisis-keywords/dismiss` | POST | Yes | — |
 | `list_email_campaigns` | `GET /api/email-campaigns` | GET | No | — |
-| `repurpose_content` | `POST /api/ai/repurpose` | POST | No† | — |
 | `score_content` | `POST /api/ai/score-content` | POST | No | — |
 | `generate_schedule` | `POST /api/schedule/generate` | POST | Yes | — |
-| `generate_report` | `POST /api/reports/generate` | POST | Yes | PRO |
 
-\* `call_capability`'s dispatcher only ever issues GET or POST per the manifest's `method` field (matching `callLyraApi`/`postLyraApi`'s existing signatures) — a capability backed by a `DELETE` route is registered with `method: 'POST'` in the manifest and the underlying route call still issues the real HTTP `DELETE`; the dispatcher's `method` field describes how the *gateway* forwards the call (query params vs. body), not literally which HTTP verb reaches the LYRA API. (Implementation detail to get right in the plan — flagging here so it isn't invented differently later.)
+(`track_seo_page` — `POST /api/seo/pages`, adding a URL to track — was found alongside `list_seo_pages`/`GET /api/seo/pages` while reading the real route file and included since it's the natural companion to page-listing and analysis; not in the original 16-candidate survey by name, but the same route file the survey already flagged.)
 
-† `repurpose_content` returns drafts without persisting them, so it's `mutates: false` despite calling an AI generation endpoint — no state changes until a follow-up `draft_post` call.
-
-Table is intentionally not exhaustive on every field (min plan tier blank = no explicit gate found in current code, meaning available on all tiers) — the implementation plan will need to verify each `minPlanTier` against the real route at build time, the same "ground in real code" discipline every prior phase used.
+Blank min-plan-tier cells mean no explicit gate was found in the current route — available on all tiers today. Every `minPlanTier`/`paramSchema` in this table was verified against the real route source during this design's grounding, not assumed — the implementation plan carries the exact request/response shapes forward rather than re-deriving them.
 
 ---
 
@@ -122,7 +123,7 @@ Each prompt is a name, description, and a templated starting message — no new 
 
 ## 5. Tool-selection eval
 
-A checked-in script (`lyra-mcp/scripts/tool-selection-eval.ts`), ~30 realistic prompts spanning the 10 core tools and the 13 new capabilities (plus `search_capabilities`/`call_capability` themselves). For each prompt: call the real Claude API with the full tool list attached via the Anthropic SDK's `tools` parameter (the same shape the gateway itself exposes over MCP), capture the `tool_use` block Claude selects, score it — **tools are never actually executed**, this measures selection only.
+A checked-in script (`lyra-mcp/scripts/tool-selection-eval.ts`), ~30 realistic prompts spanning the 10 core tools and the 14 new capabilities (plus `search_capabilities`/`call_capability` themselves). For each prompt: call the real Claude API with the full tool list attached via the Anthropic SDK's `tools` parameter (the same shape the gateway itself exposes over MCP), capture the `tool_use` block Claude selects, score it — **tools are never actually executed**, this measures selection only.
 
 **Scoring:** correct tool name is the baseline requirement. For prompts where a wrong parameter would produce a materially different real-world action (e.g. an ambiguous multi-workspace prompt where the wrong `workspace_id` matters), correct key parameters are also checked. A right-tool-wrong-param result is reported as a distinct, flagged category rather than silently counted as a pass — the 90% threshold should reflect genuinely correct behavior, not just "picked something plausible."
 
@@ -150,4 +151,4 @@ Same TDD discipline as every prior phase: unit tests for capability lookup, para
 
 **Internal consistency:** the generic-dispatch model (section 2) and the security-convention design (section 3) are consistent — both explicitly reason about what a hand-written-per-tool convention loses under generic dispatch and compensate for it structurally (a manifest flag + dispatcher-level logic) rather than leaving a gap. The "no new infrastructure" claim in section 6 is consistent with every capability in section 1's table pointing at an already-existing route.
 
-**Ambiguity check:** the `method` field's meaning (gateway-forwarding shape vs. literal underlying HTTP verb) was flagged explicitly in section 1's footnote specifically because it's the one place a future implementer could reasonably guess two different things — resolved there rather than left for the plan to discover ambiguously.
+**Ambiguity check:** `method` now maps 1:1 onto the real underlying HTTP verb (`GET`/`POST`/`DELETE`, requiring a new `deleteLyraApi` client function) rather than the earlier draft's split between "how the gateway forwards" and "what the LYRA API actually receives" — the earlier version was flagged as ambiguous during self-review and simplified away entirely once grounding in the real `remove_competitor` route showed a genuine `DELETE` call was needed, rather than resolving the ambiguity in a footnote.
