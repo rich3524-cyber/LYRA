@@ -61,7 +61,16 @@ interface EvalResult {
   // attempted because turn 1 already failed" -- see runCase.
   secondTurnTool?: string | null
   secondTurnParams?: Record<string, unknown> | null
+  // Unlike top-level paramsCorrect, this DOES gate secondTurnCorrect (and
+  // therefore isCaseCorrect) when evalCase.thenExpectedParams is set -- see
+  // the computation in runCase for why that's safe to do here but not for
+  // turn 1's arbitrary params.
   secondTurnCorrect?: boolean | null
+  // Set (non-null) only when turn 2 was attempted but its own API call
+  // threw (e.g. rate limit, network blip) -- distinct from secondTurnTool
+  // being null because turn 1 already failed. Lets the failure printer say
+  // "the second call errored" instead of misattributing it to turn 1.
+  secondTurnError?: string | null
 }
 
 // Deep-equal comparison for expectedParams checks. `===` can never match
@@ -128,7 +137,7 @@ async function runCase(client: Anthropic, tools: Anthropic.Tool[], evalCase: Eva
   // call to follow up on, so turn 2 is recorded as not-attempted rather than
   // run against a nonsensical premise.
   if (!toolCorrect || !toolUse) {
-    return { ...turn1Result, secondTurnTool: null, secondTurnParams: null, secondTurnCorrect: null }
+    return { ...turn1Result, secondTurnTool: null, secondTurnParams: null, secondTurnCorrect: null, secondTurnError: null }
   }
 
   // Simulate search_capabilities's real result using the already-fixed,
@@ -144,33 +153,64 @@ async function runCase(client: Anthropic, tools: Anthropic.Tool[], evalCase: Eva
     available: true,
   }))
 
-  const secondResponse = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 1024,
-    tools,
-    tool_choice: TOOL_CHOICE_ANY_NO_PARALLEL,
-    messages: [
-      { role: 'user', content: evalCase.prompt },
-      { role: 'assistant', content: response.content },
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'tool_result',
-            tool_use_id: toolUse.id,
-            content: JSON.stringify(simulatedResults),
-          },
-        ],
-      },
-    ],
-  })
+  // Turn 2's own API call gets its own try/catch, deliberately narrower
+  // than the outer per-case one in main(). If only this call fails (rate
+  // limit, network blip), letting it propagate to main()'s catch would
+  // discard turn 1's already-successful, already-paid-for result and
+  // rebuild the whole case as toolCorrect: false -- which the failure
+  // printer would then mislabel as "turn 1 already picked the wrong tool,"
+  // even though turn 1 genuinely succeeded. Catching it here preserves
+  // turn1Result and reports the second-call failure honestly instead.
+  let secondResponse: Anthropic.Message
+  try {
+    secondResponse = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1024,
+      tools,
+      tool_choice: TOOL_CHOICE_ANY_NO_PARALLEL,
+      messages: [
+        { role: 'user', content: evalCase.prompt },
+        { role: 'assistant', content: response.content },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: toolUse.id,
+              content: JSON.stringify(simulatedResults),
+            },
+          ],
+        },
+      ],
+    })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    console.error(`  ERROR on turn 2 of "${evalCase.prompt}": ${message}`)
+    return { ...turn1Result, secondTurnTool: null, secondTurnParams: null, secondTurnCorrect: null, secondTurnError: message }
+  }
 
   const secondToolUse = secondResponse.content.find((block): block is Anthropic.ToolUseBlock => block.type === 'tool_use')
   const secondTurnTool = secondToolUse?.name ?? null
   const secondTurnParams = (secondToolUse?.input as Record<string, unknown>) ?? null
-  const secondTurnCorrect = secondTurnTool === evalCase.thenExpectedTool
+  const secondToolCorrect = secondTurnTool === evalCase.thenExpectedTool
+  // Unlike turn 1's paramsCorrect, this DOES gate secondTurnCorrect (and so
+  // isCaseCorrect / the 90% bar) when thenExpectedParams is set. That's the
+  // actual point of restructuring the eval this way -- eval-cases.ts's own
+  // comment says these cases "assert the name key... since that's the thing
+  // actually worth catching a regression on," and the capability name is a
+  // plain string, not distorted by zodObjectToJsonSchema's coarse
+  // "everything is type: string" conversion the way turn 1's numeric/array
+  // fields can be. Checked per-key (matching paramsCorrect's own pattern
+  // above) rather than whole-object equality against secondTurnParams:
+  // thenExpectedParams only ever specifies `name`, and call_capability's own
+  // nested `params` for capabilities that need extra input (add_competitor,
+  // track_seo_page, etc.) is deliberately not compared -- same reasoning as
+  // why turn 1 never gates on nested param shape.
+  const secondTurnCorrect =
+    secondToolCorrect &&
+    (!evalCase.thenExpectedParams || Object.entries(evalCase.thenExpectedParams).every(([key, value]) => paramsDeepEqual(secondTurnParams?.[key], value)))
 
-  return { ...turn1Result, secondTurnTool, secondTurnParams, secondTurnCorrect }
+  return { ...turn1Result, secondTurnTool, secondTurnParams, secondTurnCorrect, secondTurnError: null }
 }
 
 // A case's overall pass/fail: a two-turn case needs both hops right, a
@@ -189,7 +229,16 @@ async function main() {
   }
 
   console.log(`Registry: ${Object.keys(TOOL_REGISTRY).length} core tools, ${Object.keys(CAPABILITY_REGISTRY).length} capabilities.`)
-  console.log(`Running ${EVAL_CASES.length} eval cases against the real Claude API...\n`)
+  // Two-turn cases (search_capabilities -> call_capability) cost up to 2 API
+  // calls each, not 1 -- surfaced up front since this hits Richard's real
+  // Anthropic bill, and turn 2 resends the full tool set plus the turn-1
+  // exchange with no caching, so token cost is meaningfully higher than a
+  // flat per-case count would suggest.
+  const twoTurnCount = EVAL_CASES.filter((c) => c.thenExpectedTool).length
+  const maxApiCalls = EVAL_CASES.length + twoTurnCount
+  console.log(
+    `Running ${EVAL_CASES.length} eval cases (${EVAL_CASES.length - twoTurnCount} single-turn, ${twoTurnCount} two-turn) against the real Claude API -- up to ${maxApiCalls} API calls...\n`
+  )
 
   const client = new Anthropic({ apiKey })
   const tools = buildToolDefinitions()
@@ -243,6 +292,11 @@ async function main() {
         console.log(`    turn 1 got:      ${f.selectedTool}${f.selectedParams ? ` ${JSON.stringify(f.selectedParams)}` : ''}`)
         if (!f.toolCorrect) {
           console.log('    turn 2 not attempted -- turn 1 already picked the wrong tool')
+        } else if (f.secondTurnError) {
+          // Distinct from "turn 1 failed": turn 1 was correct, but turn 2's
+          // own API call errored (rate limit, network blip) -- not a model
+          // selection mistake at all.
+          console.log(`    turn 2 API call failed (not a selection failure): ${f.secondTurnError}`)
         } else {
           console.log(`    turn 2 expected: ${f.case.thenExpectedTool}${f.case.thenExpectedParams ? ` ${JSON.stringify(f.case.thenExpectedParams)}` : ''}`)
           console.log(`    turn 2 got:      ${f.secondTurnTool ?? '(no tool_use returned)'}${f.secondTurnParams ? ` ${JSON.stringify(f.secondTurnParams)}` : ''}`)
