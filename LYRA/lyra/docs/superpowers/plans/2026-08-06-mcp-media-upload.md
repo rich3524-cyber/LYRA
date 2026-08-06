@@ -819,7 +819,7 @@ git commit -m "feat: add PUT /api/upload/multipart/part route"
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/auth', () => ({ requireAuth: vi.fn() }))
-vi.mock('@/lib/s3', () => ({ completeMultipartUpload: vi.fn() }))
+vi.mock('@/lib/s3', () => ({ completeMultipartUpload: vi.fn(), abortMultipartUpload: vi.fn() }))
 vi.mock('@/lib/upload-session', () => ({
   getUploadSessionMeta: vi.fn(),
   getReceivedParts: vi.fn(),
@@ -831,7 +831,7 @@ vi.mock('@/lib/rate-limit', () => ({
 }))
 
 import { requireAuth } from '@/lib/auth'
-import { completeMultipartUpload } from '@/lib/s3'
+import { completeMultipartUpload, abortMultipartUpload } from '@/lib/s3'
 import { getUploadSessionMeta, getReceivedParts, deleteUploadSession } from '@/lib/upload-session'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { POST } from './route'
@@ -914,6 +914,28 @@ describe('POST /api/upload/multipart/complete', () => {
     const res = await POST(req({ uploadId: 'upload-1' }))
     expect(res.status).toBe(429)
   })
+
+  it('aborts the multipart upload and returns 500 if S3 completion fails', async () => {
+    vi.mocked(completeMultipartUpload).mockRejectedValue(new Error('S3: InvalidPart'))
+    vi.mocked(abortMultipartUpload).mockResolvedValue(undefined)
+
+    const res = await POST(req({ uploadId: 'upload-1' }))
+
+    expect(res.status).toBe(500)
+    expect(abortMultipartUpload).toHaveBeenCalledWith('media/ws-1/file.mp4', 'real-upload-id-123')
+    expect(deleteUploadSession).not.toHaveBeenCalled() // session left in place -- nothing to retry against once aborted, but not this route's job to clean that up
+  })
+
+  it('still returns 500 for the original completion error if the abort attempt itself also fails', async () => {
+    vi.mocked(completeMultipartUpload).mockRejectedValue(new Error('S3: InvalidPart'))
+    vi.mocked(abortMultipartUpload).mockRejectedValue(new Error('S3: NoSuchUpload'))
+
+    const res = await POST(req({ uploadId: 'upload-1' }))
+
+    expect(res.status).toBe(500)
+    const body = await res.json()
+    expect(body.error).toBe('Internal server error') // generic message -- the original completion error, not the abort failure, drives the response
+  })
 })
 ```
 
@@ -932,7 +954,7 @@ Expected: FAIL — the route doesn't exist yet.
 // LYRA/lyra/app/api/upload/multipart/complete/route.ts
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
-import { completeMultipartUpload } from '@/lib/s3'
+import { completeMultipartUpload, abortMultipartUpload } from '@/lib/s3'
 import { getUploadSessionMeta, getReceivedParts, deleteUploadSession } from '@/lib/upload-session'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
@@ -971,7 +993,20 @@ export async function POST(req: Request) {
       .map(([chunkIndex, etag]) => ({ partNumber: Number(chunkIndex) + 1, etag }))
       .sort((a, b) => a.partNumber - b.partNumber)
 
-    await completeMultipartUpload(session.s3Key, session.s3UploadId, parts)
+    try {
+      await completeMultipartUpload(session.s3Key, session.s3UploadId, parts)
+    } catch (completeError) {
+      // Clean up eagerly rather than leaving this multipart upload for the
+      // bucket's 3-day AbortIncompleteMultipartUpload lifecycle rule (Task 13)
+      // to reclaim -- but never let an abort failure mask the real error.
+      try {
+        await abortMultipartUpload(session.s3Key, session.s3UploadId)
+      } catch (abortError) {
+        console.error('POST /api/upload/multipart/complete: abort-after-failure also failed:', abortError)
+      }
+      throw completeError
+    }
+
     await deleteUploadSession(uploadId)
 
     const bucket = process.env.AWS_S3_BUCKET!
@@ -995,7 +1030,7 @@ export async function POST(req: Request) {
 npx vitest run app/api/upload/multipart/complete/route.test.ts
 ```
 
-Expected: PASS — 7 tests.
+Expected: PASS — 9 tests.
 
 - [ ] **Step 5: Typecheck**
 
