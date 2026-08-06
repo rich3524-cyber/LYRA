@@ -1,14 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { z } from 'zod'
+import { McpServer } from '@modelcontextprotocol/server'
 
 vi.mock('./rate-limit', () => ({ checkRateLimit: vi.fn() }))
 vi.mock('./audit-log', () => ({ logAuditEvent: vi.fn() }))
 vi.mock('./resolve-workspace-id', () => ({ resolveWorkspaceId: vi.fn() }))
 
-import { TOOL_REGISTRY, createToolCallback, type ToolDefinition } from './mcp-server'
+import { TOOL_REGISTRY, createToolCallback, createLyraMcpServer, type ToolDefinition } from './mcp-server'
 import { checkRateLimit } from './rate-limit'
 import { logAuditEvent } from './audit-log'
 import { resolveWorkspaceId } from './resolve-workspace-id'
+import { PROMPT_REGISTRY } from './prompts'
 
 describe('TOOL_REGISTRY', () => {
   it('registers exactly the 12 core tools', () => {
@@ -37,6 +39,44 @@ describe('TOOL_REGISTRY', () => {
 
   it('get_brand_profile’s description instructs calling it before generating content', () => {
     expect(TOOL_REGISTRY.get_brand_profile.description.toLowerCase()).toContain('before generating')
+  })
+})
+
+describe('createLyraMcpServer prompt registration', () => {
+  // McpServer doesn't expose a public way to introspect registered prompts
+  // after the fact (no live server instance is constructed anywhere else in
+  // this test file either -- the tool tests exercise TOOL_REGISTRY and
+  // createToolCallback directly, never a real McpServer). Spying on
+  // registerPrompt is the equivalent data-level check for prompts.
+  it('registers exactly the 4 prompts from PROMPT_REGISTRY, each with its description', () => {
+    const spy = vi.spyOn(McpServer.prototype, 'registerPrompt')
+    try {
+      createLyraMcpServer()
+      const registeredNames = spy.mock.calls.map((call) => call[0]).sort()
+      expect(registeredNames).toEqual(Object.keys(PROMPT_REGISTRY).sort())
+      for (const call of spy.mock.calls) {
+        const [name, config] = call
+        expect(config).toMatchObject({ description: PROMPT_REGISTRY[name as string].description })
+      }
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('each registered prompt callback returns its message as a single user text message', async () => {
+    const spy = vi.spyOn(McpServer.prototype, 'registerPrompt')
+    try {
+      createLyraMcpServer()
+      for (const call of spy.mock.calls) {
+        const [name, , cb] = call
+        const result = await (cb as (ctx: unknown) => Promise<unknown>)(undefined)
+        expect(result).toEqual({
+          messages: [{ role: 'user', content: { type: 'text', text: PROMPT_REGISTRY[name as string].message } }],
+        })
+      }
+    } finally {
+      spy.mockRestore()
+    }
   })
 })
 

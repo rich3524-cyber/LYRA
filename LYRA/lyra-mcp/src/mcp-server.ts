@@ -12,6 +12,7 @@ import { schedulePost } from './tools/schedule-post'
 import { respondToItem } from './tools/respond-to-item'
 import { searchCapabilities } from './tools/search-capabilities'
 import { callCapability } from './tools/call-capability'
+import { PROMPT_REGISTRY } from './prompts'
 import { checkRateLimit } from './rate-limit'
 import { logAuditEvent } from './audit-log'
 import { getAuthSub } from './auth-context'
@@ -222,6 +223,19 @@ export function createLyraMcpServer() {
       name,
       { description: tool.description, inputSchema: tool.inputSchema },
       createToolCallback(name, tool)
+    )
+  }
+
+  // Guided entry points (MCP "prompts" primitive, distinct from tools) --
+  // none of the 4 take arguments, so no argsSchema is passed and the
+  // callback's single `ctx` parameter (ServerContext) goes unused.
+  for (const [name, prompt] of Object.entries(PROMPT_REGISTRY)) {
+    server.registerPrompt(
+      name,
+      { description: prompt.description },
+      async () => ({
+        messages: [{ role: 'user' as const, content: { type: 'text' as const, text: prompt.message } }],
+      })
     )
   }
 
