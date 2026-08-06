@@ -36,6 +36,18 @@ export interface EvalCase {
 // instead of calling a tool. That's a deliberate boundary of what this
 // harness measures (tool *selection* given that a call will happen), not an
 // oversight.
+//
+// Note on list_workspaces: most prompts below either name no workspace at
+// all, or name one only by display name (e.g. "Into The Wild Marketing" /
+// "LYRA"), which can't be resolved to a workspace_id without listing
+// workspaces first -- so it's expected and correct for many of these cases
+// to have Claude call list_workspaces before the tool named in expectedTool.
+// tool-selection-eval.ts's runCase() treats that as an ungraded prefix hop
+// (see SIMULATED_WORKSPACES there), not a failure, as long as the case's
+// real expectedTool follows once the hop resolves the workspace. Only the
+// first case below (list_workspaces itself as expectedTool) is exempt from
+// the hop logic, since that's the one case where list_workspaces genuinely
+// IS the correct first answer.
 export const EVAL_CASES: EvalCase[] = [
   { prompt: 'What workspaces do I have access to?', expectedTool: 'list_workspaces' },
   { prompt: "What's pending approval in my Into The Wild Marketing workspace?", expectedTool: 'get_workspace_overview' },

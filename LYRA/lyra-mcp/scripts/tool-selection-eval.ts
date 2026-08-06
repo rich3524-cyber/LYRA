@@ -71,6 +71,13 @@ interface EvalResult {
   // being null because turn 1 already failed. Lets the failure printer say
   // "the second call errored" instead of misattributing it to turn 1.
   secondTurnError?: string | null
+  // True when the case needed the list_workspaces prefix hop (see
+  // runCase) before the real turn-1 evaluation could happen. Purely
+  // diagnostic -- it never gates isCaseCorrect -- but worth surfacing since
+  // it's the whole reason this hop exists: distinguishing "reasonable
+  // exploratory list_workspaces call, then correctly proceeded" from
+  // "genuinely picked the wrong tool" in the progress/failure output.
+  usedWorkspaceHop: boolean
 }
 
 // Deep-equal comparison for expectedParams checks. `===` can never match
@@ -95,8 +102,25 @@ function paramsDeepEqual(actual: unknown, expected: unknown): boolean {
 // the inline comments at the first call site for why each setting is there.
 const TOOL_CHOICE_ANY_NO_PARALLEL = { type: 'any', disable_parallel_tool_use: true } as const
 
-async function runCase(client: Anthropic, tools: Anthropic.Tool[], evalCase: EvalCase): Promise<EvalResult> {
-  const response = await client.messages.create({
+// Simulates the real list_workspaces tool's result shape -- see
+// src/tools/list-workspaces.ts (which shapes the raw /api/workspaces
+// response down to exactly these fields) and its test fixture, which this
+// mirrors. Deliberately a single workspace, not multiple: the eval exists to
+// fix a false-failure problem caused by workspace-name ambiguity, and giving
+// the model two-plus candidates to disambiguate between would just
+// reintroduce a new version of that same ambiguity inside the simulation
+// itself. One workspace means there's nothing left to disambiguate, so the
+// model should reliably proceed to the actual target tool on the next call.
+const SIMULATED_WORKSPACES = [
+  { id: 'ws-eval-demo', name: 'Into The Wild Marketing', industry: 'Professional Services', plan: 'AGENCY', role: 'AGENCY_ADMIN', platforms: ['FACEBOOK', 'INSTAGRAM'] },
+]
+
+// Shared by every API call this script makes (initial call, the optional
+// list_workspaces hop, and turn 2) -- pulls the model/max_tokens/tools/
+// tool_choice boilerplate that used to be duplicated at each call site into
+// one place now that there are three call sites instead of two.
+function callModel(client: Anthropic, tools: Anthropic.Tool[], messages: Anthropic.MessageParam[]): Promise<Anthropic.Message> {
+  return client.messages.create({
     // Matches the model string used throughout the main LYRA app (see
     // lyra/lib/anthropic.ts and lyra/services/ai/*) -- kept in sync
     // deliberately rather than picking a different model for eval-only
@@ -110,10 +134,86 @@ async function runCase(client: Anthropic, tools: Anthropic.Tool[], evalCase: Eva
     // by default, so without this Claude could return multiple tool_use
     // blocks and the script would silently score whichever came first.
     tool_choice: TOOL_CHOICE_ANY_NO_PARALLEL,
-    messages: [{ role: 'user', content: evalCase.prompt }],
+    messages,
   })
+}
 
-  const toolUse = response.content.find((block): block is Anthropic.ToolUseBlock => block.type === 'tool_use')
+async function runCase(client: Anthropic, tools: Anthropic.Tool[], evalCase: EvalCase): Promise<EvalResult> {
+  // `history` accumulates the real conversation as it happens (prompt, then
+  // whichever tool_use/tool_result exchanges actually occurred) so the
+  // eventual turn-2 call (if any) builds on top of whatever really
+  // happened -- including an optional list_workspaces hop -- rather than
+  // re-deriving a parallel, possibly-inconsistent message list.
+  const history: Anthropic.MessageParam[] = [{ role: 'user', content: evalCase.prompt }]
+
+  const firstResponse = await callModel(client, tools, history)
+  const firstToolUse = firstResponse.content.find((block): block is Anthropic.ToolUseBlock => block.type === 'tool_use')
+
+  // `response`/`toolUse` are what the rest of this function treats as "the
+  // turn-1 answer" -- ordinarily that's just firstResponse/firstToolUse
+  // unchanged, but the list_workspaces hop below can advance them to a
+  // second call's result before any of the existing turn-1 evaluation logic
+  // runs, so that logic stays untouched and doesn't need to know a hop
+  // happened at all.
+  let response = firstResponse
+  let toolUse = firstToolUse
+  let usedWorkspaceHop = false
+
+  // Generic, ungraded "workspace resolution prefix hop." Claude very
+  // reasonably calls list_workspaces first for almost any prompt that
+  // doesn't already establish enough workspace context (most prompts here
+  // either name no workspace, or name one by display name like "Into The
+  // Wild Marketing," which can't be resolved to a workspace_id without
+  // listing workspaces first) -- src/prompts.ts's own example conversations
+  // explicitly instruct exactly this ("Start by calling list_workspaces if
+  // you don't already know which workspace I mean"). Treating that as a
+  // hard failure conflated "reasonable exploratory call, then correctly
+  // proceeded" with "genuinely picked the wrong tool." The
+  // `evalCase.expectedTool !== 'list_workspaces'` guard avoids
+  // double-counting the one case (the very first in EVAL_CASES) where
+  // list_workspaces genuinely IS the correct first answer -- that case
+  // never enters this branch, so it's scored by the unchanged toolCorrect
+  // check below exactly as before.
+  if (firstToolUse?.name === 'list_workspaces' && evalCase.expectedTool !== 'list_workspaces') {
+    usedWorkspaceHop = true
+    history.push({ role: 'assistant', content: firstResponse.content })
+    history.push({
+      role: 'user',
+      content: [
+        {
+          type: 'tool_result',
+          tool_use_id: firstToolUse.id,
+          // Matches the real gateway's actual wire shape for this tool's
+          // result -- see src/mcp-server.ts's `JSON.stringify(result)`
+          // where result is listWorkspaces()'s `{ workspaces: [...] }`,
+          // not the bare array.
+          content: JSON.stringify({ workspaces: SIMULATED_WORKSPACES }),
+        },
+      ],
+    })
+
+    // This call's own try/catch, same reasoning as turn 2's below: a
+    // transient failure on the hop call specifically must not be
+    // mislabeled as a genuine tool-selection mistake, and must not discard
+    // the fact that a hop was attempted at all.
+    try {
+      response = await callModel(client, tools, history)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      console.error(`  ERROR on list_workspaces hop for "${evalCase.prompt}": ${message}`)
+      return { case: evalCase, selectedTool: null, selectedParams: null, toolCorrect: false, paramsCorrect: null, usedWorkspaceHop: true }
+    }
+    toolUse = response.content.find((block): block is Anthropic.ToolUseBlock => block.type === 'tool_use')
+
+    // Exactly one hop, always at the very start -- deliberately no loop, no
+    // recursion, and no check for list_workspaces appearing again here. If
+    // this post-hop response is list_workspaces again (or anything else
+    // unexpected), selectedTool below simply won't match evalCase.
+    // expectedTool and the case fails via the same toolCorrect path as any
+    // other wrong-tool case -- exactly the "straightforward failure"
+    // behavior the design calls for.
+  }
+
   const selectedTool = toolUse?.name ?? null
   const selectedParams = (toolUse?.input as Record<string, unknown>) ?? null
 
@@ -123,7 +223,7 @@ async function runCase(client: Anthropic, tools: Anthropic.Tool[], evalCase: Eva
     paramsCorrect = Object.entries(evalCase.expectedParams).every(([key, value]) => paramsDeepEqual(selectedParams?.[key], value))
   }
 
-  const turn1Result: EvalResult = { case: evalCase, selectedTool, selectedParams, toolCorrect, paramsCorrect }
+  const turn1Result: EvalResult = { case: evalCase, selectedTool, selectedParams, toolCorrect, paramsCorrect, usedWorkspaceHop }
 
   if (!evalCase.thenExpectedTool) {
     return turn1Result
@@ -140,6 +240,8 @@ async function runCase(client: Anthropic, tools: Anthropic.Tool[], evalCase: Eva
     return { ...turn1Result, secondTurnTool: null, secondTurnParams: null, secondTurnCorrect: null, secondTurnError: null }
   }
 
+  history.push({ role: 'assistant', content: response.content })
+
   // Simulate search_capabilities's real result using the already-fixed,
   // pure matchCapabilityEntries -- no live backend/workspace/plan-tier check
   // needed for a selection eval. available: true for every match is an
@@ -153,6 +255,17 @@ async function runCase(client: Anthropic, tools: Anthropic.Tool[], evalCase: Eva
     available: true,
   }))
 
+  history.push({
+    role: 'user',
+    content: [
+      {
+        type: 'tool_result',
+        tool_use_id: toolUse.id,
+        content: JSON.stringify(simulatedResults),
+      },
+    ],
+  })
+
   // Turn 2's own API call gets its own try/catch, deliberately narrower
   // than the outer per-case one in main(). If only this call fails (rate
   // limit, network blip), letting it propagate to main()'s catch would
@@ -163,26 +276,7 @@ async function runCase(client: Anthropic, tools: Anthropic.Tool[], evalCase: Eva
   // turn1Result and reports the second-call failure honestly instead.
   let secondResponse: Anthropic.Message
   try {
-    secondResponse = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
-      tools,
-      tool_choice: TOOL_CHOICE_ANY_NO_PARALLEL,
-      messages: [
-        { role: 'user', content: evalCase.prompt },
-        { role: 'assistant', content: response.content },
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'tool_result',
-              tool_use_id: toolUse.id,
-              content: JSON.stringify(simulatedResults),
-            },
-          ],
-        },
-      ],
-    })
+    secondResponse = await callModel(client, tools, history)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error(`  ERROR on turn 2 of "${evalCase.prompt}": ${message}`)
@@ -229,15 +323,17 @@ async function main() {
   }
 
   console.log(`Registry: ${Object.keys(TOOL_REGISTRY).length} core tools, ${Object.keys(CAPABILITY_REGISTRY).length} capabilities.`)
-  // Two-turn cases (search_capabilities -> call_capability) cost up to 2 API
-  // calls each, not 1 -- surfaced up front since this hits Richard's real
-  // Anthropic bill, and turn 2 resends the full tool set plus the turn-1
-  // exchange with no caching, so token cost is meaningfully higher than a
-  // flat per-case count would suggest.
+  // Every case now costs up to 2 API calls, not 1 -- the list_workspaces
+  // prefix hop (see runCase) can add one call even to single-turn cases --
+  // and two-turn cases (search_capabilities -> call_capability) can cost up
+  // to 3: hop + turn 1 + turn 2. Surfaced up front since this hits
+  // Richard's real Anthropic bill, and neither the hop nor turn 2 reuse any
+  // caching, so token cost is meaningfully higher than a flat per-case
+  // count would suggest.
   const twoTurnCount = EVAL_CASES.filter((c) => c.thenExpectedTool).length
-  const maxApiCalls = EVAL_CASES.length + twoTurnCount
+  const maxApiCalls = EVAL_CASES.length * 2 + twoTurnCount
   console.log(
-    `Running ${EVAL_CASES.length} eval cases (${EVAL_CASES.length - twoTurnCount} single-turn, ${twoTurnCount} two-turn) against the real Claude API -- up to ${maxApiCalls} API calls...\n`
+    `Running ${EVAL_CASES.length} eval cases (${EVAL_CASES.length - twoTurnCount} single-turn, ${twoTurnCount} two-turn) against the real Claude API -- up to ${maxApiCalls} API calls (each case: 1 base call, +1 if it takes the list_workspaces hop, +1 more for two-turn cases)...\n`
   )
 
   const client = new Anthropic({ apiKey })
@@ -254,10 +350,11 @@ async function main() {
       // minutes of real paid API calls -- record it as a wrong-tool
       // failure and keep going so the summary still prints at the end.
       console.error(`  ERROR on "${evalCase.prompt}": ${err instanceof Error ? err.message : String(err)}`)
-      result = { case: evalCase, selectedTool: null, selectedParams: null, toolCorrect: false, paramsCorrect: null }
+      result = { case: evalCase, selectedTool: null, selectedParams: null, toolCorrect: false, paramsCorrect: null, usedWorkspaceHop: false }
     }
     results.push(result)
-    process.stdout.write(`[${i + 1}/${EVAL_CASES.length}] ${isCaseCorrect(result) ? 'ok' : 'FAIL'}  ${evalCase.prompt.slice(0, 60)}\n`)
+    const hopNote = result.usedWorkspaceHop ? '  (via list_workspaces)' : ''
+    process.stdout.write(`[${i + 1}/${EVAL_CASES.length}] ${isCaseCorrect(result) ? 'ok' : 'FAIL'}  ${evalCase.prompt.slice(0, 60)}${hopNote}\n`)
   }
 
   // Pass/fail is gated on tool selection only. zodObjectToJsonSchema types
@@ -284,6 +381,12 @@ async function main() {
     console.log('\nFailures:')
     for (const f of failures) {
       console.log(`  "${f.case.prompt}"`)
+      // Surfaced here (not just in the progress tick) since a hop changes
+      // what "turn 1" below actually means -- it's the response *after* the
+      // simulated list_workspaces round-trip, not the model's first call.
+      if (f.usedWorkspaceHop) {
+        console.log('    (took the list_workspaces prefix hop first)')
+      }
       if (f.case.thenExpectedTool) {
         // Two-turn case: make explicit which hop failed, since "turn 1
         // never got there" and "turn 1 was fine but turn 2 picked the wrong
