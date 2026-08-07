@@ -91,4 +91,49 @@ describe('getNextStatuses', () => {
       ])
     })
   })
+
+  describe('PENDING_APPROVAL — author / hasOtherApprover matrix', () => {
+    // Not the author: unchanged from the existing PENDING_APPROVAL coverage
+    // above (isAuthor defaults to false when omitted), regardless of
+    // hasOtherApprover.
+    it('offers the normal Approve/Request changes pair when the viewer did not author the post', () => {
+      const options = getNextStatuses('PENDING_APPROVAL', 'AGENCY_ADMIN', 'APPROVE', false, false, true)
+      expect(options).toEqual([
+        { value: 'APPROVED', label: 'Approve', variant: 'approve' },
+        { value: 'DRAFT', label: 'Request changes', variant: 'reject' },
+      ])
+    })
+
+    // Author, but another approver-capable member exists on the workspace:
+    // matches the backend's rejection, so only the non-approval action shows
+    // -- no button is offered that's known to fail with 403.
+    it('offers only "Recall for editing" when the viewer authored the post and another approver exists', () => {
+      const options = getNextStatuses('PENDING_APPROVAL', 'AGENCY_ADMIN', 'APPROVE', false, true, true)
+      expect(options).toEqual([
+        { value: 'DRAFT', label: 'Recall for editing' },
+      ])
+    })
+
+    // Author, and no other approver exists anywhere on the workspace: the
+    // deadlock case -- self-approval is allowed, but labeled explicitly so
+    // it's clear no real second-party review took place.
+    it('offers a labeled self-approval option when the viewer authored the post and no other approver exists', () => {
+      const options = getNextStatuses('PENDING_APPROVAL', 'AGENCY_ADMIN', 'APPROVE', false, true, false)
+      expect(options).toEqual([
+        { value: 'APPROVED', label: 'Approve (no other reviewer available)', variant: 'approve' },
+        { value: 'DRAFT', label: 'Request changes', variant: 'reject' },
+      ])
+    })
+
+    // isAuthor/hasOtherApprover are opt-in parameters -- every pre-existing
+    // call site in this file (and any other caller) that only ever passed 4
+    // arguments must keep behaving exactly as before.
+    it('defaults to non-author behavior when isAuthor and hasOtherApprover are omitted', () => {
+      const options = getNextStatuses('PENDING_APPROVAL', 'AGENCY_ADMIN', 'APPROVE', false)
+      expect(options).toEqual([
+        { value: 'APPROVED', label: 'Approve', variant: 'approve' },
+        { value: 'DRAFT', label: 'Request changes', variant: 'reject' },
+      ])
+    })
+  })
 })

@@ -35,19 +35,36 @@ export function getNextStatuses(
   userRole: string,
   clientAccessLevel: string,
   isAwaitingMedia: boolean,
+  isAuthor = false,
+  hasOtherApprover = false,
 ): { value: string; label: string; variant?: 'approve' | 'reject' }[] {
   // Matches the backend's own APPROVER_ROLES (app/api/posts/[id]/route.ts) --
   // previously this only checked for the CLIENT_APPROVE role specifically, so
   // PLATFORM_OWNER/AGENCY_ADMIN/AGENCY_MEMBER/SMB_OWNER accounts (everyone the
   // backend actually authorizes to approve) had no Approve option in the UI at
-  // all for a PENDING_APPROVAL post, only "Recall for editing". The backend
-  // still separately rejects a self-approval attempt (a post's own author
-  // clicking Approve gets a 403 there), so this doesn't grant anything the
-  // API wouldn't already allow.
+  // all for a PENDING_APPROVAL post, only "Recall for editing".
   const canApprove      = (APPROVER_ROLES as readonly string[]).includes(userRole)
   const hasApprovalFlow = clientAccessLevel === 'APPROVE'
 
   const options = (() => {
+    // Mirrors the backend's conditional self-approval rule
+    // (app/api/posts/[id]/route.ts): the author can't approve their own post
+    // when someone else on the workspace genuinely could, so that case only
+    // offers the non-approval action -- no button is shown that's known to
+    // fail with 403. When no other approver exists anywhere on the
+    // workspace, self-approval is allowed but the label makes explicit that
+    // no real second-party review is happening.
+    if (status === 'PENDING_APPROVAL' && canApprove && isAuthor && hasOtherApprover) {
+      return [
+        { value: 'DRAFT', label: 'Recall for editing' },
+      ]
+    }
+    if (status === 'PENDING_APPROVAL' && canApprove && isAuthor && !hasOtherApprover) {
+      return [
+        { value: 'APPROVED', label: 'Approve (no other reviewer available)', variant: 'approve' as const },
+        { value: 'DRAFT',    label: 'Request changes',                      variant: 'reject'  as const },
+      ]
+    }
     if (status === 'PENDING_APPROVAL' && canApprove) {
       return [
         { value: 'APPROVED', label: 'Approve',         variant: 'approve' as const },
@@ -119,12 +136,14 @@ interface Props {
   plan: 'STARTER' | 'PRO' | 'AGENCY'
   userRole: string
   clientAccessLevel: string
+  hasOtherApprover: boolean
+  currentUserId: string
   onClose: () => void
   onDeleted: (id: string) => void
   onUpdated: (updated: CalendarPost) => void
 }
 
-export function PostDetailPanel({ post, workspaceId, plan, userRole, clientAccessLevel, onClose, onDeleted, onUpdated }: Props) {
+export function PostDetailPanel({ post, workspaceId, plan, userRole, clientAccessLevel, hasOtherApprover, currentUserId, onClose, onDeleted, onUpdated }: Props) {
   const [deleting, setDeleting]             = useState(false)
   const [updatingStatus, setUpdatingStatus] = useState(false)
   const [boosting, setBoosting]             = useState(false)
@@ -250,7 +269,8 @@ export function PostDetailPanel({ post, workspaceId, plan, userRole, clientAcces
   const date           = post?.scheduledAt
   const platformColor  = post ? (PLATFORM_COLORS[post.socialAccount.platform] ?? PLATFORM_COLORS['TWITTER']) : PLATFORM_COLORS['TWITTER']
   const isAwaitingMedia = post ? post.requiresMedia && post.mediaUrls.length === 0 : false
-  const nextStatuses   = post ? getNextStatuses(post.status, userRole, clientAccessLevel, isAwaitingMedia) : []
+  const isAuthor       = post ? post.authorId === currentUserId : false
+  const nextStatuses   = post ? getNextStatuses(post.status, userRole, clientAccessLevel, isAwaitingMedia, isAuthor, hasOtherApprover) : []
 
   const canBoost = post &&
     post.status === 'PUBLISHED' &&
