@@ -12,6 +12,7 @@ import { schedulePost } from './tools/schedule-post'
 import { respondToItem } from './tools/respond-to-item'
 import { searchCapabilities } from './tools/search-capabilities'
 import { callCapability } from './tools/call-capability'
+import { attachMedia } from './tools/attach-media'
 import { PROMPT_REGISTRY } from './prompts'
 import { checkRateLimit } from './rate-limit'
 import { logAuditEvent } from './audit-log'
@@ -61,12 +62,12 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     handler: listTrends,
   },
   draft_post: {
-    description: 'Create a draft post for a workspace and return its six-dimension content score. Always creates the draft regardless of score -- the score is informational. Optionally attach media via media_urls -- upload images/video first with start_media_upload / upload_media_chunk / complete_media_upload to get a URL.',
+    description: 'Create a draft post for a workspace and return its six-dimension content score. Always creates the draft regardless of score -- the score is informational. Optionally attach media via media_urls -- use attach_media first to get a URL from an already-hosted image/video.',
     inputSchema: z.object({ workspace_id: z.string().optional(), content: z.string(), platforms: z.array(z.string()), media_urls: z.array(z.string()).optional() }),
     handler: draftPost,
   },
   schedule_post: {
-    description: 'Schedule a post for a workspace. Routes through the client approval workflow automatically where the workspace requires it -- the actual resulting status (SCHEDULED or PENDING_APPROVAL) is always reported truthfully, regardless of what was requested. Optionally attach media via media_urls -- upload images/video first with start_media_upload / upload_media_chunk / complete_media_upload to get a URL.',
+    description: 'Schedule a post for a workspace. Routes through the client approval workflow automatically where the workspace requires it -- the actual resulting status (SCHEDULED or PENDING_APPROVAL) is always reported truthfully, regardless of what was requested. Optionally attach media via media_urls -- use attach_media first to get a URL from an already-hosted image/video.',
     inputSchema: z.object({ workspace_id: z.string().optional(), content: z.string(), platforms: z.array(z.string()), scheduledAt: z.string(), media_urls: z.array(z.string()).optional() }),
     handler: schedulePost,
   },
@@ -84,6 +85,14 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     description: 'Invoke a capability found via search_capabilities, by name plus its own parameters. Unknown capability names, invalid parameters, and insufficient plan tier all return clear, structured errors rather than silently failing.',
     inputSchema: z.object({ name: z.string(), params: z.unknown().optional(), workspace_id: z.string().optional() }),
     handler: callCapability,
+  },
+  attach_media: {
+    description: 'Attach an already-hosted image or video to a post by URL -- e.g. an asset produced by an image/video generation tool, which returns a URL rather than raw file bytes. Fetches the URL server-side and returns a new LYRA-hosted URL; pass that into draft_post or schedule_post\'s media_urls to attach it. Images up to 50MB; video up to 25MB (a short clip -- for anything larger, host it externally and note that in the post rather than expecting this tool to handle it).',
+    inputSchema: z.object({
+      workspace_id: z.string().optional(),
+      source_url: z.string(),
+    }),
+    handler: attachMedia,
   },
 }
 
