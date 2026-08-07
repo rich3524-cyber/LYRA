@@ -3,6 +3,7 @@ import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { ContentCalendar } from '@/components/lyra/calendar/content-calendar'
 import { ScheduleGenerator } from '@/components/lyra/schedule/schedule-generator'
+import { APPROVER_ROLES } from '@/lib/authz'
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
 
@@ -25,7 +26,10 @@ export default async function CalendarPage({ params }: Props) {
       clientAccessLevel: true,
       brandProfile: { select: { id: true } },
       socialAccounts: { where: { isActive: true }, select: { platform: true } },
-      access: { where: { userId: user.id }, select: { role: true } },
+      // Every member's role is needed (not just the current user's) to compute
+      // hasOtherApprover below -- whether a second, approver-capable person
+      // besides the current viewer exists on this workspace.
+      access: { select: { userId: true, role: true } },
     },
   })
 
@@ -33,7 +37,10 @@ export default async function CalendarPage({ params }: Props) {
 
   const hasBrandProfile    = workspace.brandProfile !== null
   const connectedPlatforms = [...new Set(workspace.socialAccounts.map(a => a.platform))]
-  const userRole           = workspace.access[0]?.role ?? 'SMB_OWNER'
+  const userRole           = workspace.access.find(a => a.userId === user.id)?.role ?? 'SMB_OWNER'
+  const hasOtherApprover   = workspace.access.some(
+    a => a.userId !== user.id && (APPROVER_ROLES as readonly string[]).includes(a.role)
+  )
 
   return (
     <div className="space-y-6">
@@ -63,6 +70,8 @@ export default async function CalendarPage({ params }: Props) {
         plan={workspace.plan}
         userRole={userRole}
         clientAccessLevel={workspace.clientAccessLevel}
+        hasOtherApprover={hasOtherApprover}
+        currentUserId={user.id}
       />
     </div>
   )
