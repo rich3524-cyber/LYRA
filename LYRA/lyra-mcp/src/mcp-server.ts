@@ -62,12 +62,12 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     handler: listTrends,
   },
   draft_post: {
-    description: 'Create a draft post for a workspace and return its six-dimension content score. Always creates the draft regardless of score -- the score is informational. Optionally attach media via media_urls -- use attach_media first to get a URL from an already-hosted image/video.',
+    description: 'Create a draft post for a workspace and return its six-dimension content score. Always creates the draft regardless of score -- the score is informational. Optionally attach media via media_urls -- use attach_media first to re-host an existing image/video URL and get back the URL to use here.',
     inputSchema: z.object({ workspace_id: z.string().optional(), content: z.string(), platforms: z.array(z.string()), media_urls: z.array(z.string()).optional() }),
     handler: draftPost,
   },
   schedule_post: {
-    description: 'Schedule a post for a workspace. Routes through the client approval workflow automatically where the workspace requires it -- the actual resulting status (SCHEDULED or PENDING_APPROVAL) is always reported truthfully, regardless of what was requested. Optionally attach media via media_urls -- use attach_media first to get a URL from an already-hosted image/video.',
+    description: 'Schedule a post for a workspace. Routes through the client approval workflow automatically where the workspace requires it -- the actual resulting status (SCHEDULED or PENDING_APPROVAL) is always reported truthfully, regardless of what was requested. Optionally attach media via media_urls -- use attach_media first to re-host an existing image/video URL and get back the URL to use here.',
     inputSchema: z.object({ workspace_id: z.string().optional(), content: z.string(), platforms: z.array(z.string()), scheduledAt: z.string(), media_urls: z.array(z.string()).optional() }),
     handler: schedulePost,
   },
@@ -87,11 +87,8 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     handler: callCapability,
   },
   attach_media: {
-    description: 'Attach an already-hosted image or video to a post by URL -- e.g. an asset produced by an image/video generation tool, which returns a URL rather than raw file bytes. Fetches the URL server-side and returns a new LYRA-hosted URL; pass that into draft_post or schedule_post\'s media_urls to attach it. Images up to 50MB; video up to 25MB (a short clip -- for anything larger, host it externally and note that in the post rather than expecting this tool to handle it).',
-    inputSchema: z.object({
-      workspace_id: z.string().optional(),
-      source_url: z.string(),
-    }),
+    description: 'Fetch an already-hosted image or video by URL and re-host it on LYRA, returning a new URL to pass into draft_post or schedule_post\'s media_urls -- e.g. for an asset produced by an image/video generation tool, which returns a URL rather than raw file bytes. Images up to 50MB; video up to 25MB (a short clip -- for anything larger, host it externally and note that in the post rather than expecting this tool to handle it).',
+    inputSchema: z.object({ workspace_id: z.string().optional(), source_url: z.string() }),
     handler: attachMedia,
   },
 }
@@ -143,7 +140,7 @@ type ToolCallbackCtx = { http?: { authInfo?: { token: string; extra?: Record<str
 // workspace_id for a tool like this would be a wasted resolveWorkspaceId()
 // round-trip (a real HTTP call) with no effect on params the handler
 // actually reads.
-const NO_WORKSPACE_RESOLUTION_TOOLS = ['list_workspaces']
+export const NO_WORKSPACE_RESOLUTION_TOOLS = ['list_workspaces']
 
 // Extracted into a standalone, exported, independently-testable function --
 // this ~40-line body (rate limiting, workspace resolution, audit logging)

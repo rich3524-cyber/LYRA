@@ -6,7 +6,13 @@ vi.mock('./rate-limit', () => ({ checkRateLimit: vi.fn() }))
 vi.mock('./audit-log', () => ({ logAuditEvent: vi.fn() }))
 vi.mock('./resolve-workspace-id', () => ({ resolveWorkspaceId: vi.fn() }))
 
-import { TOOL_REGISTRY, createToolCallback, createLyraMcpServer, type ToolDefinition } from './mcp-server'
+import {
+  TOOL_REGISTRY,
+  createToolCallback,
+  createLyraMcpServer,
+  NO_WORKSPACE_RESOLUTION_TOOLS,
+  type ToolDefinition,
+} from './mcp-server'
 import { checkRateLimit } from './rate-limit'
 import { logAuditEvent } from './audit-log'
 import { resolveWorkspaceId } from './resolve-workspace-id'
@@ -40,6 +46,18 @@ describe('TOOL_REGISTRY', () => {
 
   it('get_brand_profile’s description instructs calling it before generating content', () => {
     expect(TOOL_REGISTRY.get_brand_profile.description.toLowerCase()).toContain('before generating')
+  })
+
+  // Guards against a tool being added to this exclusion array without a
+  // deliberate decision -- e.g. attach_media DOES need workspace resolution
+  // (unlike the removed upload_media_chunk/complete_media_upload, which had
+  // workspace context carried server-side by an in-flight upload session),
+  // so it must never silently end up here. No other test in this file reads
+  // the real array's contents -- they either exercise synthetic tool names
+  // on a fake ToolDefinition or hardcode 'list_workspaces' for the exclusion
+  // path -- so without this, a regression here would pass silently.
+  it('excludes only list_workspaces from workspace resolution', () => {
+    expect(NO_WORKSPACE_RESOLUTION_TOOLS).toEqual(['list_workspaces'])
   })
 })
 
