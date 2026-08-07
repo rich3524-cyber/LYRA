@@ -6,6 +6,7 @@ import { X, Trash2, ExternalLink, CalendarIcon, Loader2, Zap } from 'lucide-reac
 import { format, differenceInDays } from 'date-fns'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { APPROVER_ROLES } from '@/lib/authz'
 import {
   CalendarPost,
   PostBoost,
@@ -25,25 +26,41 @@ const STATUS_LABEL: Record<string, string> = {
   CANCELLED:        'Cancelled',
 }
 
-function getNextStatuses(
+// Exported for testability -- same reasoning as mcp-server.ts's
+// createToolCallback extraction: this decides which actions a user can even
+// see, so it needs a test that invokes it directly rather than only ever
+// running inline as a render-time closure.
+export function getNextStatuses(
   status: string,
   userRole: string,
   clientAccessLevel: string,
   isAwaitingMedia: boolean,
 ): { value: string; label: string; variant?: 'approve' | 'reject' }[] {
-  const isClientApprover = userRole === 'CLIENT_APPROVE'
-  const hasApprovalFlow  = clientAccessLevel === 'APPROVE'
+  // Matches the backend's own APPROVER_ROLES (app/api/posts/[id]/route.ts) --
+  // previously this only checked for the CLIENT_APPROVE role specifically, so
+  // PLATFORM_OWNER/AGENCY_ADMIN/AGENCY_MEMBER/SMB_OWNER accounts (everyone the
+  // backend actually authorizes to approve) had no Approve option in the UI at
+  // all for a PENDING_APPROVAL post, only "Recall for editing". The backend
+  // still separately rejects a self-approval attempt (a post's own author
+  // clicking Approve gets a 403 there), so this doesn't grant anything the
+  // API wouldn't already allow.
+  const canApprove      = (APPROVER_ROLES as readonly string[]).includes(userRole)
+  const hasApprovalFlow = clientAccessLevel === 'APPROVE'
 
   const options = (() => {
-    if (isClientApprover) {
-      if (status === 'PENDING_APPROVAL') {
-        return [
-          { value: 'APPROVED', label: 'Approve',         variant: 'approve' as const },
-          { value: 'DRAFT',    label: 'Request changes', variant: 'reject'  as const },
-        ]
-      }
-      return []
+    if (status === 'PENDING_APPROVAL' && canApprove) {
+      return [
+        { value: 'APPROVED', label: 'Approve',         variant: 'approve' as const },
+        { value: 'DRAFT',    label: 'Request changes', variant: 'reject'  as const },
+      ]
     }
+
+    // CLIENT_APPROVE acts only on the approval decision, never on scheduling
+    // -- without this, flattening the status/role check above (see the
+    // comment on canApprove) would let a client reviewer fall through to the
+    // staff-facing switch below and see "Mark as scheduled", "Cancel post",
+    // etc. on the agency's own posts, which isn't what that role is for.
+    if (userRole === 'CLIENT_APPROVE') return []
 
     switch (status) {
       case 'DRAFT':
@@ -52,7 +69,9 @@ function getNextStatuses(
           { value: 'SCHEDULED', label: 'Mark as scheduled' },
         ]
       case 'PENDING_APPROVAL':
-        return [{ value: 'DRAFT', label: 'Recall for editing' }]
+        // Reached only when canApprove is false -- i.e. CLIENT_VIEW, the
+        // read-only role, which shouldn't be able to act on posts at all.
+        return []
       case 'APPROVED':
         return [
           { value: 'SCHEDULED', label: 'Schedule post' },
@@ -163,12 +182,19 @@ export function PostDetailPanel({ post, workspaceId, plan, userRole, clientAcces
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ status: newStatus }),
       })
-      if (!res.ok) throw new Error('Update failed')
+      if (!res.ok) {
+        // Surface the backend's real reason (e.g. "Cannot approve your own
+        // post", now reachable in the UI for more roles than before) rather
+        // than a generic message that leaves the user guessing why Approve
+        // didn't work.
+        const body = await res.json().catch(() => null) as { error?: string } | null
+        throw new Error(body?.error ?? 'Update failed')
+      }
       const updated = await res.json() as CalendarPost
       toast.success('Status updated')
       onUpdated(updated)
-    } catch {
-      toast.error('Failed to update status')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update status')
     } finally {
       setUpdatingStatus(false)
     }

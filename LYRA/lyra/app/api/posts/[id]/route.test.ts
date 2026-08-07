@@ -148,6 +148,68 @@ describe('PATCH /api/posts/[id] — approval-status resolution', () => {
   })
 })
 
+describe('PATCH /api/posts/[id] — approval authorization (status: APPROVED)', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('rejects with 403 when the reviewer\'s role is not in APPROVER_ROLES', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.post.findFirst).mockResolvedValue({
+      id: 'post-1', status: 'PENDING_APPROVAL', workspaceId: 'ws-1', authorId: 'user-2',
+      content: 'x', mediaUrls: [], requiresMedia: false,
+      socialAccount: { platform: 'FACEBOOK' },
+      workspace: { clientAccessLevel: 'APPROVE' },
+    } as any)
+    // CLIENT_VIEW would never actually reach this far in practice (the
+    // earlier post.findFirst filters out CLIENT_VIEW workspace access
+    // entirely), but this exercises the APPROVER_ROLES.includes() check
+    // itself in isolation, as defense-in-depth against that upstream
+    // invariant ever changing.
+    vi.mocked(prisma.workspaceAccess.findFirst).mockResolvedValue({ role: 'CLIENT_VIEW' } as any)
+
+    const res = await PATCH(req({ status: 'APPROVED' }), ctx('post-1'))
+
+    expect(res.status).toBe(403)
+    expect(prisma.post.update).not.toHaveBeenCalled()
+  })
+
+  it('rejects with 403 and "Cannot approve your own post" when the reviewer is the post\'s own author', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.post.findFirst).mockResolvedValue({
+      id: 'post-1', status: 'PENDING_APPROVAL', workspaceId: 'ws-1', authorId: 'user-1',
+      content: 'x', mediaUrls: [], requiresMedia: false,
+      socialAccount: { platform: 'FACEBOOK' },
+      workspace: { clientAccessLevel: 'APPROVE' },
+    } as any)
+    vi.mocked(prisma.workspaceAccess.findFirst).mockResolvedValue({ role: 'AGENCY_ADMIN' } as any)
+
+    const res = await PATCH(req({ status: 'APPROVED' }), ctx('post-1'))
+
+    expect(res.status).toBe(403)
+    const body = await res.json()
+    expect(body.error).toBe('Cannot approve your own post')
+    expect(prisma.post.update).not.toHaveBeenCalled()
+  })
+
+  it('allows approval when the reviewer has an approver role and did not author the post', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.post.findFirst).mockResolvedValue({
+      id: 'post-1', status: 'PENDING_APPROVAL', workspaceId: 'ws-1', authorId: 'user-2',
+      content: 'x', mediaUrls: [], requiresMedia: false,
+      socialAccount: { platform: 'FACEBOOK' },
+      workspace: { clientAccessLevel: 'APPROVE' },
+    } as any)
+    vi.mocked(prisma.workspaceAccess.findFirst).mockResolvedValue({ role: 'AGENCY_ADMIN' } as any)
+    ;(prisma.post.update as any).mockImplementation(async ({ data }: any) => ({ id: 'post-1', ...data }))
+    vi.mocked(prisma.postApproval.upsert).mockResolvedValue({} as any)
+
+    const res = await PATCH(req({ status: 'APPROVED' }), ctx('post-1'))
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.status).toBe('APPROVED')
+  })
+})
+
 function deleteReq() {
   return new Request('http://localhost/api/posts/post-1', { method: 'DELETE' })
 }

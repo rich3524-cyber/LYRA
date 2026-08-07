@@ -2,14 +2,12 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { PostStatus, type UserRole } from '@prisma/client'
+import { PostStatus } from '@prisma/client'
 import { parseBody, ValidationError } from '@/lib/validate'
 import { checkMediaCompatibility, formatCompatibilityIssue } from '@/services/social/media-compatibility'
+import { APPROVER_ROLES } from '@/lib/authz'
 
 export const dynamic = 'force-dynamic'
-
-// Everyone except the read-only CLIENT_VIEW role can approve a post.
-const APPROVER_ROLES: UserRole[] = ['PLATFORM_OWNER', 'AGENCY_ADMIN', 'AGENCY_MEMBER', 'SMB_OWNER', 'CLIENT_APPROVE']
 
 const patchPostSchema = z.object({
   content:     z.string().min(1).optional(),
