@@ -116,9 +116,11 @@ interface ContentCalendarProps {
   plan: 'STARTER' | 'PRO' | 'AGENCY'
   userRole: string
   clientAccessLevel: string
+  hasOtherApprover: boolean
+  currentUserId: string
 }
 
-export function ContentCalendar({ workspaceId, plan, userRole, clientAccessLevel }: ContentCalendarProps) {
+export function ContentCalendar({ workspaceId, plan, userRole, clientAccessLevel, hasOtherApprover, currentUserId }: ContentCalendarProps) {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [posts, setPosts]               = useState<CalendarPost[]>([])
   const [campaigns, setCampaigns]       = useState<CalendarEmailCampaign[]>([])
@@ -463,6 +465,8 @@ export function ContentCalendar({ workspaceId, plan, userRole, clientAccessLevel
         plan={plan}
         userRole={userRole}
         clientAccessLevel={clientAccessLevel}
+        hasOtherApprover={hasOtherApprover}
+        currentUserId={currentUserId}
         onClose={() => setSelectedPost(null)}
         onDeleted={handlePostDeleted}
         onUpdated={handlePostUpdated}
