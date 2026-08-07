@@ -19,6 +19,7 @@ export interface PostBoost {
 
 export interface CalendarPost {
   id: string
+  authorId: string
   content: string
   status: string
   scheduledAt: string | null

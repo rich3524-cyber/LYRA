@@ -61,6 +61,7 @@ export async function GET(req: Request) {
       },
       select: {
         id: true,
+        authorId: true,
         content: true,
         status: true,
         scheduledAt: true,
