@@ -38,12 +38,12 @@ export async function POST(req: Request) {
     const { allowed } = await checkRateLimit(`upload-media-presign:${user.id}`, 20, 60)
     if (!allowed) return rateLimitResponse()
 
-    const { workspaceId, contentType } = await req.json() as { workspaceId?: string; contentType?: string }
+    const { workspaceId, contentType } = await req.json() as { workspaceId?: unknown; contentType?: unknown }
 
-    if (!workspaceId) {
+    if (!workspaceId || typeof workspaceId !== 'string') {
       return NextResponse.json({ error: 'workspaceId required' }, { status: 400 })
     }
-    if (!contentType) {
+    if (!contentType || typeof contentType !== 'string') {
       return NextResponse.json({ error: 'contentType required' }, { status: 400 })
     }
 
@@ -55,6 +55,15 @@ export async function POST(req: Request) {
     if (!ext) {
       return NextResponse.json({ error: 'File type not permitted' }, { status: 415 })
     }
+
+    // contentType is entirely client-declared here -- unlike from-url, there's no
+    // server-side fetch to independently observe a Content-Type header from. The S3
+    // policy's `eq $Content-Type` condition only constrains the declared form field
+    // at upload time; S3 never inspects the actual file bytes, so a client could
+    // still declare image/jpeg and upload different bytes. This matches the same
+    // trust model attach_media/from-url already accept (they also only ever
+    // validate a declared Content-Type, never magic bytes) -- deliberate, not an
+    // oversight.
 
     const access = await prisma.workspaceAccess.findFirst({ where: { workspaceId, userId: user.id } })
     if (!access || !canWrite(access.role)) {

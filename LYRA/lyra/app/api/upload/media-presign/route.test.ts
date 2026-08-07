@@ -63,7 +63,9 @@ describe('POST /api/upload/media-presign', () => {
     expect(res.status).toBe(200)
 
     const callArgs = vi.mocked(createPresignedPost).mock.calls[0][1]
+    expect(callArgs.Fields).toEqual({ 'Content-Type': 'video/mp4' })
     expect(callArgs.Conditions).toContainEqual(['content-length-range', 1, 200 * 1024 * 1024])
+    expect(callArgs.Conditions).toContainEqual(['eq', '$Content-Type', 'video/mp4'])
   })
 
   it('rejects an unsupported content type without generating a presigned post', async () => {
