@@ -19,13 +19,14 @@ import { resolveWorkspaceId } from './resolve-workspace-id'
 import { PROMPT_REGISTRY } from './prompts'
 
 describe('TOOL_REGISTRY', () => {
-  it('registers exactly the 13 core tools', () => {
+  it('registers exactly the 14 core tools', () => {
     expect(Object.keys(TOOL_REGISTRY).sort()).toEqual([
       'attach_media',
       'call_capability',
       'draft_post',
       'get_analytics',
       'get_brand_profile',
+      'get_media_upload_url',
       'get_workspace_overview',
       'list_inbox_items',
       'list_scheduled_posts',

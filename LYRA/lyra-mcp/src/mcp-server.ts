@@ -13,6 +13,7 @@ import { respondToItem } from './tools/respond-to-item'
 import { searchCapabilities } from './tools/search-capabilities'
 import { callCapability } from './tools/call-capability'
 import { attachMedia } from './tools/attach-media'
+import { getMediaUploadUrl } from './tools/get-media-upload-url'
 import { PROMPT_REGISTRY } from './prompts'
 import { checkRateLimit } from './rate-limit'
 import { logAuditEvent } from './audit-log'
@@ -90,6 +91,11 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     description: 'Fetch an already-hosted image or video by URL and re-host it on LYRA, returning a new URL to pass into draft_post or schedule_post\'s media_urls -- e.g. for an asset produced by an image/video generation tool, which returns a URL rather than raw file bytes. Images up to 50MB; video up to 25MB (a short clip -- for anything larger, host it externally and note that in the post rather than expecting this tool to handle it).',
     inputSchema: z.object({ workspace_id: z.string().optional(), source_url: z.string() }),
     handler: attachMedia,
+  },
+  get_media_upload_url: {
+    description: 'Get a URL to upload media you\'ve created yourself (e.g. rendered locally in your own code-execution environment) directly to LYRA\'s storage -- for media that is NOT already hosted anywhere. Returns uploadUrl, fields, and publicUrl. You must then perform the actual upload yourself: an HTTP POST directly to uploadUrl, as a multipart/form-data request containing every key in fields plus the file itself under the field name "file". Only once that POST succeeds does publicUrl become a real, usable link -- pass it into draft_post\'s or schedule_post\'s media_urls. If your media is already hosted somewhere (e.g. output from a generation tool that returns a URL), use attach_media instead -- it\'s a single call with no separate upload step. Images up to 50MB, video up to 200MB.',
+    inputSchema: z.object({ workspace_id: z.string().optional(), contentType: z.string() }),
+    handler: getMediaUploadUrl,
   },
 }
 
