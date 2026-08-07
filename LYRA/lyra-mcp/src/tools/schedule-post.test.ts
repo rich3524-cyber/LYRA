@@ -21,7 +21,7 @@ describe('schedulePost', () => {
 
   it('creates the post as SCHEDULED and truthfully reports the resulting status (may land as PENDING_APPROVAL)', async () => {
     vi.mocked(postLyraApi).mockResolvedValue([
-      { id: 'p1', status: 'PENDING_APPROVAL', socialAccount: { platform: 'FACEBOOK', name: 'ITWM Page' } },
+      { id: 'p1', status: 'PENDING_APPROVAL', mediaUrls: [], socialAccount: { platform: 'FACEBOOK', name: 'ITWM Page' } },
     ])
 
     const result = await schedulePost(
@@ -35,8 +35,29 @@ describe('schedulePost', () => {
     })
     expect(result).toEqual({
       workspaceName: 'Into The Wild Marketing',
-      posts: [{ id: 'p1', status: 'PENDING_APPROVAL', platform: 'FACEBOOK', accountName: 'ITWM Page' }],
+      posts: [{ id: 'p1', status: 'PENDING_APPROVAL', mediaUrls: [], platform: 'FACEBOOK', accountName: 'ITWM Page' }],
     })
+  })
+
+  it('reports back the real mediaUrls the backend actually bound to the post, so a caller can confirm attachment without a separate list_scheduled_posts call', async () => {
+    vi.mocked(postLyraApi).mockResolvedValue([
+      {
+        id: 'p1', status: 'PENDING_APPROVAL',
+        mediaUrls: ['https://lyra-media.s3.ap-southeast-2.amazonaws.com/media/ws-1/clip.mp4'],
+        socialAccount: { platform: 'TIKTOK', name: 'ITWM TikTok' },
+      },
+    ])
+
+    const result = await schedulePost(
+      {
+        workspace_id: 'ws-1', content: 'A caption', platforms: ['TIKTOK'],
+        scheduledAt: '2026-09-01T14:00:00.000Z',
+        media_urls: ['https://lyra-media.s3.ap-southeast-2.amazonaws.com/media/ws-1/clip.mp4'],
+      },
+      'token-abc'
+    )
+
+    expect(result.posts[0].mediaUrls).toEqual(['https://lyra-media.s3.ap-southeast-2.amazonaws.com/media/ws-1/clip.mp4'])
   })
 
   it('throws when scheduledAt is missing', async () => {
@@ -68,8 +89,8 @@ describe('schedulePost', () => {
 
   it('maps multiple created posts across platforms', async () => {
     vi.mocked(postLyraApi).mockResolvedValue([
-      { id: 'p1', status: 'SCHEDULED', socialAccount: { platform: 'FACEBOOK', name: 'ITWM Page' } },
-      { id: 'p2', status: 'SCHEDULED', socialAccount: { platform: 'LINKEDIN', name: 'ITWM LinkedIn' } },
+      { id: 'p1', status: 'SCHEDULED', mediaUrls: [], socialAccount: { platform: 'FACEBOOK', name: 'ITWM Page' } },
+      { id: 'p2', status: 'SCHEDULED', mediaUrls: [], socialAccount: { platform: 'LINKEDIN', name: 'ITWM LinkedIn' } },
     ])
 
     const result = await schedulePost(
@@ -83,15 +104,15 @@ describe('schedulePost', () => {
     )
 
     expect(result.posts).toEqual([
-      { id: 'p1', status: 'SCHEDULED', platform: 'FACEBOOK', accountName: 'ITWM Page' },
-      { id: 'p2', status: 'SCHEDULED', platform: 'LINKEDIN', accountName: 'ITWM LinkedIn' },
+      { id: 'p1', status: 'SCHEDULED', mediaUrls: [], platform: 'FACEBOOK', accountName: 'ITWM Page' },
+      { id: 'p2', status: 'SCHEDULED', mediaUrls: [], platform: 'LINKEDIN', accountName: 'ITWM LinkedIn' },
     ])
   })
 
   it('still succeeds and returns workspaceName: null when getWorkspaceName resolves to null', async () => {
     vi.mocked(getWorkspaceName).mockResolvedValue(null)
     vi.mocked(postLyraApi).mockResolvedValue([
-      { id: 'p1', status: 'SCHEDULED', socialAccount: { platform: 'FACEBOOK', name: 'ITWM Page' } },
+      { id: 'p1', status: 'SCHEDULED', mediaUrls: [], socialAccount: { platform: 'FACEBOOK', name: 'ITWM Page' } },
     ])
 
     const result = await schedulePost(
@@ -100,11 +121,11 @@ describe('schedulePost', () => {
     )
 
     expect(result.workspaceName).toBeNull()
-    expect(result.posts).toEqual([{ id: 'p1', status: 'SCHEDULED', platform: 'FACEBOOK', accountName: 'ITWM Page' }])
+    expect(result.posts).toEqual([{ id: 'p1', status: 'SCHEDULED', mediaUrls: [], platform: 'FACEBOOK', accountName: 'ITWM Page' }])
   })
 
   it('forwards media_urls to the backend when provided', async () => {
-    vi.mocked(postLyraApi).mockResolvedValue([{ id: 'post-1', status: 'SCHEDULED', socialAccount: { platform: 'INSTAGRAM', name: 'Acme' } }])
+    vi.mocked(postLyraApi).mockResolvedValue([{ id: 'post-1', status: 'SCHEDULED', mediaUrls: ['https://lyra-media.s3.ap-southeast-2.amazonaws.com/media/ws-1/photo.jpg'], socialAccount: { platform: 'INSTAGRAM', name: 'Acme' } }])
 
     await schedulePost(
       {

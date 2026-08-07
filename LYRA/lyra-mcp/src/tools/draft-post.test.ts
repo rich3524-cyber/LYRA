@@ -24,7 +24,7 @@ describe('draftPost', () => {
       if (path === '/api/ai/score-content') {
         return { overallScore: 78, dimensions: { hook: { score: 8, suggestion: null }, clarity: { score: 7, suggestion: 'Tighten the opener' } } }
       }
-      return [{ id: 'p1', status: 'DRAFT', socialAccount: { platform: 'FACEBOOK', name: 'ITWM Page' } }]
+      return [{ id: 'p1', status: 'DRAFT', mediaUrls: [], socialAccount: { platform: 'FACEBOOK', name: 'ITWM Page' } }]
     })
 
     const result = await draftPost(
@@ -40,13 +40,34 @@ describe('draftPost', () => {
     })
     expect(result).toEqual({
       workspaceName: 'Into The Wild Marketing',
-      posts: [{ id: 'p1', status: 'DRAFT', platform: 'FACEBOOK', accountName: 'ITWM Page' }],
+      posts: [{ id: 'p1', status: 'DRAFT', mediaUrls: [], platform: 'FACEBOOK', accountName: 'ITWM Page' }],
       score: {
         overallScore: 78,
         dimensions: { hook: { score: 8, suggestion: null }, clarity: { score: 7, suggestion: 'Tighten the opener' } },
         scoredForPlatform: 'FACEBOOK',
       },
     })
+  })
+
+  it('reports back the real mediaUrls the backend actually bound to the post, so a caller can confirm attachment without a separate list_scheduled_posts call', async () => {
+    vi.mocked(postLyraApi).mockImplementation(async (path: string) => {
+      if (path === '/api/ai/score-content') return { overallScore: 80, dimensions: {} }
+      return [{
+        id: 'p1', status: 'DRAFT',
+        mediaUrls: ['https://lyra-media.s3.ap-southeast-2.amazonaws.com/media/ws-1/photo.jpg'],
+        socialAccount: { platform: 'INSTAGRAM', name: 'Acme' },
+      }]
+    })
+
+    const result = await draftPost(
+      {
+        workspace_id: 'ws-1', content: 'A caption', platforms: ['INSTAGRAM'],
+        media_urls: ['https://lyra-media.s3.ap-southeast-2.amazonaws.com/media/ws-1/photo.jpg'],
+      },
+      'token-abc'
+    )
+
+    expect(result.posts[0].mediaUrls).toEqual(['https://lyra-media.s3.ap-southeast-2.amazonaws.com/media/ws-1/photo.jpg'])
   })
 
   it('resolves workspace_id implicitly when omitted', async () => {
@@ -74,14 +95,14 @@ describe('draftPost', () => {
     const { LyraApiError } = await import('../lyra-api-client')
     vi.mocked(postLyraApi).mockImplementation(async (path: string) => {
       if (path === '/api/ai/score-content') throw new LyraApiError(422, { error: 'Content too short to score.' })
-      return [{ id: 'p1', status: 'DRAFT', socialAccount: { platform: 'FACEBOOK', name: 'ITWM Page' } }]
+      return [{ id: 'p1', status: 'DRAFT', mediaUrls: [], socialAccount: { platform: 'FACEBOOK', name: 'ITWM Page' } }]
     })
 
     const result = await draftPost({ workspace_id: 'ws-1', content: 'hi', platforms: ['FACEBOOK'] }, 'token-abc')
 
     expect(result).toEqual({
       workspaceName: 'Into The Wild Marketing',
-      posts: [{ id: 'p1', status: 'DRAFT', platform: 'FACEBOOK', accountName: 'ITWM Page' }],
+      posts: [{ id: 'p1', status: 'DRAFT', mediaUrls: [], platform: 'FACEBOOK', accountName: 'ITWM Page' }],
       score: null,
     })
   })
@@ -90,8 +111,8 @@ describe('draftPost', () => {
     vi.mocked(postLyraApi).mockImplementation(async (path: string) => {
       if (path === '/api/ai/score-content') return { overallScore: 60, dimensions: {} }
       return [
-        { id: 'p1', status: 'DRAFT', socialAccount: { platform: 'LINKEDIN', name: 'ITWM LinkedIn' } },
-        { id: 'p2', status: 'DRAFT', socialAccount: { platform: 'TWITTER', name: 'ITWM Twitter' } },
+        { id: 'p1', status: 'DRAFT', mediaUrls: [], socialAccount: { platform: 'LINKEDIN', name: 'ITWM LinkedIn' } },
+        { id: 'p2', status: 'DRAFT', mediaUrls: [], socialAccount: { platform: 'TWITTER', name: 'ITWM Twitter' } },
       ]
     })
 

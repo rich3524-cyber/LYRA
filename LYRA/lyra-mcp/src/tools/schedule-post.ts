@@ -13,6 +13,7 @@ interface SchedulePostParams {
 interface CreatedPost {
   id: string
   status: string
+  mediaUrls: string[]
   socialAccount: { platform: string; name: string }
 }
 
@@ -46,6 +47,11 @@ export async function schedulePost(params: SchedulePostParams, bearerToken: stri
     posts: posts.map((p) => ({
       id: p.id,
       status: p.status,
+      // Included so the caller can confirm media actually attached without a
+      // separate list_scheduled_posts round-trip -- get_media_upload_url's
+      // upload step happens entirely outside this tool call, so this is the
+      // only place a caller can verify the two actually connected.
+      mediaUrls: p.mediaUrls,
       platform: p.socialAccount.platform,
       accountName: p.socialAccount.name,
     })),

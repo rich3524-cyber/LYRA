@@ -63,12 +63,12 @@ export const TOOL_REGISTRY: Record<string, ToolDefinition> = {
     handler: listTrends,
   },
   draft_post: {
-    description: 'Create a draft post for a workspace and return its six-dimension content score. Always creates the draft regardless of score -- the score is informational. Optionally attach media via media_urls -- use attach_media first to re-host an existing image/video URL and get back the URL to use here.',
+    description: 'Create a draft post for a workspace and return its six-dimension content score. Always creates the draft regardless of score -- the score is informational. Optionally attach media via media_urls -- use attach_media first if your media already has a URL, or get_media_upload_url if you rendered it yourself and need to upload it. The response\'s posts[].mediaUrls reports what actually got attached, so check it rather than assuming media_urls was applied.',
     inputSchema: z.object({ workspace_id: z.string().optional(), content: z.string(), platforms: z.array(z.string()), media_urls: z.array(z.string()).optional() }),
     handler: draftPost,
   },
   schedule_post: {
-    description: 'Schedule a post for a workspace. Routes through the client approval workflow automatically where the workspace requires it -- the actual resulting status (SCHEDULED or PENDING_APPROVAL) is always reported truthfully, regardless of what was requested. Optionally attach media via media_urls -- use attach_media first to re-host an existing image/video URL and get back the URL to use here.',
+    description: 'Schedule a post for a workspace. Routes through the client approval workflow automatically where the workspace requires it -- the actual resulting status (SCHEDULED or PENDING_APPROVAL) is always reported truthfully, regardless of what was requested. Optionally attach media via media_urls -- use attach_media first if your media already has a URL, or get_media_upload_url if you rendered it yourself and need to upload it. The response\'s posts[].mediaUrls reports what actually got attached, so check it rather than assuming media_urls was applied.',
     inputSchema: z.object({ workspace_id: z.string().optional(), content: z.string(), platforms: z.array(z.string()), scheduledAt: z.string(), media_urls: z.array(z.string()).optional() }),
     handler: schedulePost,
   },
