@@ -14,6 +14,7 @@ vi.mock('@/lib/prisma', () => ({
 
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { APPROVER_ROLES } from '@/lib/authz'
 import { PATCH, DELETE } from './route'
 
 function req(body: unknown) {
@@ -199,6 +200,54 @@ describe('PATCH /api/posts/[id] — approval authorization (status: APPROVED)', 
       workspace: { clientAccessLevel: 'APPROVE' },
     } as any)
     vi.mocked(prisma.workspaceAccess.findFirst).mockResolvedValue({ role: 'AGENCY_ADMIN' } as any)
+    ;(prisma.post.update as any).mockImplementation(async ({ data }: any) => ({ id: 'post-1', ...data }))
+    vi.mocked(prisma.postApproval.upsert).mockResolvedValue({} as any)
+
+    const res = await PATCH(req({ status: 'APPROVED' }), ctx('post-1'))
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.status).toBe('APPROVED')
+  })
+
+  it('rejects self-approval with 403 when another approver-capable member exists on the workspace', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.post.findFirst).mockResolvedValue({
+      id: 'post-1', status: 'PENDING_APPROVAL', workspaceId: 'ws-1', authorId: 'user-1',
+      content: 'x', mediaUrls: [], requiresMedia: false,
+      socialAccount: { platform: 'FACEBOOK' },
+      workspace: { clientAccessLevel: 'APPROVE' },
+    } as any)
+    vi.mocked(prisma.workspaceAccess.findFirst)
+      .mockResolvedValueOnce({ role: 'SMB_OWNER' } as any)    // the reviewer's own access row
+      .mockResolvedValueOnce({ role: 'AGENCY_ADMIN' } as any) // a different, approver-capable member
+
+    const res = await PATCH(req({ status: 'APPROVED' }), ctx('post-1'))
+
+    expect(res.status).toBe(403)
+    const body = await res.json()
+    expect(body.error).toBe('Cannot approve your own post')
+    expect(prisma.workspaceAccess.findFirst).toHaveBeenNthCalledWith(2, {
+      where: {
+        workspaceId: 'ws-1',
+        userId: { not: 'user-1' },
+        role: { in: [...APPROVER_ROLES] },
+      },
+    })
+    expect(prisma.post.update).not.toHaveBeenCalled()
+  })
+
+  it('allows self-approval when no other approver-capable member exists on the workspace', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.post.findFirst).mockResolvedValue({
+      id: 'post-1', status: 'PENDING_APPROVAL', workspaceId: 'ws-1', authorId: 'user-1',
+      content: 'x', mediaUrls: [], requiresMedia: false,
+      socialAccount: { platform: 'FACEBOOK' },
+      workspace: { clientAccessLevel: 'APPROVE' },
+    } as any)
+    vi.mocked(prisma.workspaceAccess.findFirst)
+      .mockResolvedValueOnce({ role: 'SMB_OWNER' } as any) // the reviewer's own access row
+      .mockResolvedValueOnce(null)                          // nobody else on the workspace can approve
     ;(prisma.post.update as any).mockImplementation(async ({ data }: any) => ({ id: 'post-1', ...data }))
     vi.mocked(prisma.postApproval.upsert).mockResolvedValue({} as any)
 

@@ -67,7 +67,11 @@ export async function PATCH(
       }
     }
 
-    // Approval requires a real reviewer, not just any member and not the post's own author
+    // Approval requires a real reviewer, not just any member. Self-approval is
+    // blocked UNLESS no other approver-capable member exists on the workspace --
+    // otherwise a solo operator (e.g. SMB_OWNER) who turns on clientAccessLevel:
+    // APPROVE before a genuine second reviewer is active would hit a permanent
+    // deadlock, since whoever tries to approve is always the post's own author.
     if (status === 'APPROVED') {
       const access = await prisma.workspaceAccess.findFirst({
         where:  { workspaceId: existing.workspaceId, userId: user.id },
@@ -77,7 +81,19 @@ export async function PATCH(
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
       }
       if (user.id === existing.authorId) {
-        return NextResponse.json({ error: 'Cannot approve your own post' }, { status: 403 })
+        const otherApprover = await prisma.workspaceAccess.findFirst({
+          where: {
+            workspaceId: existing.workspaceId,
+            userId: { not: user.id },
+            // Spread into a plain mutable array -- Prisma's generated
+            // EnumUserRoleFilter.in expects UserRole[], and APPROVER_ROLES is
+            // typed readonly UserRole[] (deliberately, see lib/authz.ts).
+            role: { in: [...APPROVER_ROLES] },
+          },
+        })
+        if (otherApprover) {
+          return NextResponse.json({ error: 'Cannot approve your own post' }, { status: 403 })
+        }
       }
     }
 
