@@ -184,7 +184,22 @@ export async function DELETE(
       return NextResponse.json({ error: 'Post not found' }, { status: 404 })
     }
 
-    await prisma.post.delete({ where: { id } })
+    // PostApproval and PostMetrics don't cascade at the DB level (same gap
+    // documented in app/api/account/route.ts's bulk-delete transaction), so
+    // deleting the post directly throws a foreign-key-violation error for any
+    // post that's ever been through approval (has a PostApproval row) or had
+    // metrics synced -- which surfaces to the user as a generic "Failed to
+    // delete post". Comments are detached (postId set to null) rather than
+    // deleted -- they represent real platform engagement history that should
+    // outlive the internal post record, unlike PostApproval/PostMetrics,
+    // which are pure metadata about the post itself. PostBoost already
+    // cascades at the DB level, so it needs no explicit handling here.
+    await prisma.$transaction([
+      prisma.comment.updateMany({ where: { postId: id }, data: { postId: null } }),
+      prisma.postApproval.deleteMany({ where: { postId: id } }),
+      prisma.postMetrics.deleteMany({ where: { postId: id } }),
+      prisma.post.delete({ where: { id } }),
+    ])
 
     return new NextResponse(null, { status: 204 })
   } catch (error) {

@@ -3,15 +3,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('@/lib/auth', () => ({ requireAuth: vi.fn() }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    post: { findFirst: vi.fn(), update: vi.fn() },
+    post: { findFirst: vi.fn(), update: vi.fn(), delete: vi.fn() },
     workspaceAccess: { findFirst: vi.fn() },
-    postApproval: { upsert: vi.fn() },
+    postApproval: { upsert: vi.fn(), deleteMany: vi.fn() },
+    comment: { updateMany: vi.fn() },
+    postMetrics: { deleteMany: vi.fn() },
+    $transaction: vi.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
   },
 }))
 
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { PATCH } from './route'
+import { PATCH, DELETE } from './route'
 
 function req(body: unknown) {
   return new Request('http://localhost/api/posts/post-1', {
@@ -142,5 +145,78 @@ describe('PATCH /api/posts/[id] — approval-status resolution', () => {
         update: { status: 'PENDING', reviewedAt: null, reviewerId: null },
       })
     )
+  })
+})
+
+function deleteReq() {
+  return new Request('http://localhost/api/posts/post-1', { method: 'DELETE' })
+}
+
+describe('DELETE /api/posts/[id]', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('deletes a post that has a related PostApproval row, without a foreign-key violation', async () => {
+    // Regression test: PostApproval/PostMetrics don't cascade at the DB
+    // level, so a bare prisma.post.delete() throws a foreign-key-violation
+    // for any post that's ever entered PENDING_APPROVAL (which creates a
+    // PostApproval row) -- surfacing to the user as a generic "Failed to
+    // delete post". This test would fail if the route regressed back to a
+    // bare prisma.post.delete() call, since postApproval.deleteMany would
+    // never be invoked.
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.post.findFirst).mockResolvedValue({
+      id: 'post-1', status: 'PENDING_APPROVAL', workspaceId: 'ws-1',
+    } as any)
+    vi.mocked(prisma.comment.updateMany).mockResolvedValue({ count: 0 } as any)
+    vi.mocked(prisma.postApproval.deleteMany).mockResolvedValue({ count: 1 } as any)
+    vi.mocked(prisma.postMetrics.deleteMany).mockResolvedValue({ count: 0 } as any)
+    vi.mocked(prisma.post.delete).mockResolvedValue({ id: 'post-1' } as any)
+
+    const res = await DELETE(deleteReq(), ctx('post-1'))
+
+    expect(res.status).toBe(204)
+    expect(prisma.comment.updateMany).toHaveBeenCalledWith({ where: { postId: 'post-1' }, data: { postId: null } })
+    expect(prisma.postApproval.deleteMany).toHaveBeenCalledWith({ where: { postId: 'post-1' } })
+    expect(prisma.postMetrics.deleteMany).toHaveBeenCalledWith({ where: { postId: 'post-1' } })
+    expect(prisma.post.delete).toHaveBeenCalledWith({ where: { id: 'post-1' } })
+    // All four operations must run inside the same transaction -- a partial
+    // failure (e.g. the post.delete rejecting) must not leave orphaned
+    // detached comments or a deleted PostApproval with no post to describe.
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1)
+  })
+
+  it('detaches comments from the post rather than deleting them', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.post.findFirst).mockResolvedValue({ id: 'post-1', status: 'PUBLISHED', workspaceId: 'ws-1' } as any)
+    vi.mocked(prisma.comment.updateMany).mockResolvedValue({ count: 3 } as any)
+    vi.mocked(prisma.postApproval.deleteMany).mockResolvedValue({ count: 0 } as any)
+    vi.mocked(prisma.postMetrics.deleteMany).mockResolvedValue({ count: 1 } as any)
+    vi.mocked(prisma.post.delete).mockResolvedValue({ id: 'post-1' } as any)
+
+    const res = await DELETE(deleteReq(), ctx('post-1'))
+
+    expect(res.status).toBe(204)
+    // Comments are updated (detached), never deleted -- no prisma.comment.delete*
+    // call exists in the mock at all, so calling one would throw.
+    expect(prisma.comment.updateMany).toHaveBeenCalledWith({ where: { postId: 'post-1' }, data: { postId: null } })
+  })
+
+  it('returns 404 without touching the transaction when the post is not found or not accessible', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.post.findFirst).mockResolvedValue(null)
+
+    const res = await DELETE(deleteReq(), ctx('missing-post'))
+
+    expect(res.status).toBe(404)
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('returns 401 when unauthenticated', async () => {
+    vi.mocked(requireAuth).mockRejectedValue(new Error('Unauthorized'))
+
+    const res = await DELETE(deleteReq(), ctx('post-1'))
+
+    expect(res.status).toBe(401)
+    expect(prisma.$transaction).not.toHaveBeenCalled()
   })
 })
