@@ -85,7 +85,7 @@ export const PostPreviewCard = memo(function PostPreviewCard({ post, onSelect }:
     : undefined
 
   const platformColor  = PLATFORM_COLORS[post.socialAccount.platform] ?? PLATFORM_COLORS['TWITTER']
-  const isAwaitingMedia = post.status === 'DRAFT' && post.requiresMedia && post.mediaUrls.length === 0
+  const isAwaitingMedia = (post.status === 'DRAFT' || post.status === 'APPROVED') && post.requiresMedia && post.mediaUrls.length === 0
 
   return (
     <div

@@ -344,12 +344,12 @@ export function PostDetailPanel({ post, workspaceId, plan, userRole, clientAcces
                 <span
                   className={cn(
                     'font-sans text-xs px-2 py-0.5 rounded-md font-medium',
-                    isAwaitingMedia && post.status === 'DRAFT'
+                    isAwaitingMedia && (post.status === 'DRAFT' || post.status === 'APPROVED')
                       ? 'bg-status-warning/20 text-status-warning'
                       : STATUS_COLORS[post.status] ?? 'bg-background-hover text-text-tertiary'
                   )}
                 >
-                  {isAwaitingMedia && post.status === 'DRAFT' ? 'Awaiting media' : (STATUS_LABEL[post.status] ?? post.status)}
+                  {isAwaitingMedia && (post.status === 'DRAFT' || post.status === 'APPROVED') ? 'Awaiting media' : (STATUS_LABEL[post.status] ?? post.status)}
                 </span>
                 {post.aiGenerated && (
                   <span className="font-sans text-[10px] text-text-tertiary px-2 py-0.5 rounded-md bg-background-hover border border-background-border uppercase tracking-wide">
