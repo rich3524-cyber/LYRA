@@ -33,7 +33,7 @@ export async function PATCH(
       },
       select: {
         id: true, status: true, workspaceId: true, authorId: true,
-        content: true, mediaUrls: true, requiresMedia: true,
+        content: true, mediaUrls: true, requiresMedia: true, scheduledAt: true,
         socialAccount: { select: { platform: true } },
         workspace: { select: { clientAccessLevel: true } },
       },
@@ -126,13 +126,17 @@ export async function PATCH(
 
     // Approving no longer leaves the post sitting in APPROVED waiting for a
     // separate "Schedule post" click. If media requirements are already
-    // satisfied, the approval itself is the last gate, so it goes straight to
-    // SCHEDULED. APPROVED stays reachable only when the post still needs
-    // media -- the existing manual "Schedule post" action remains available,
-    // unchanged, once that media is attached.
+    // satisfied AND the post already has a scheduled time, the approval
+    // itself is the last gate, so it goes straight to SCHEDULED. APPROVED
+    // stays reachable only when the post still needs media or a scheduled
+    // time -- attaching media or a time re-routes it back through
+    // PENDING_APPROVAL for re-review (via the Composer, since editing
+    // content/media sets contentChanged), and approving again is what
+    // actually reaches SCHEDULED.
     const effectiveMediaUrls = mediaUrls ?? existing.mediaUrls
+    const hasMediaIfRequired = !(existing.requiresMedia && effectiveMediaUrls.length === 0)
     const isApprovingReadyPost =
-      status === 'APPROVED' && !(existing.requiresMedia && effectiveMediaUrls.length === 0)
+      status === 'APPROVED' && hasMediaIfRequired && existing.scheduledAt !== null
 
     const finalStatus: PostStatus | undefined = isApprovingReadyPost
       ? 'SCHEDULED'

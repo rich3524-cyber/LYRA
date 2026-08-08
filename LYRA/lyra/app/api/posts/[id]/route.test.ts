@@ -196,6 +196,7 @@ describe('PATCH /api/posts/[id] — approval authorization (status: APPROVED)', 
     vi.mocked(prisma.post.findFirst).mockResolvedValue({
       id: 'post-1', status: 'PENDING_APPROVAL', workspaceId: 'ws-1', authorId: 'user-2',
       content: 'x', mediaUrls: [], requiresMedia: false,
+      scheduledAt: new Date('2026-09-01T00:00:00.000Z'),
       socialAccount: { platform: 'FACEBOOK' },
       workspace: { clientAccessLevel: 'APPROVE' },
     } as any)
@@ -249,6 +250,7 @@ describe('PATCH /api/posts/[id] — approval authorization (status: APPROVED)', 
     vi.mocked(prisma.post.findFirst).mockResolvedValue({
       id: 'post-1', status: 'PENDING_APPROVAL', workspaceId: 'ws-1', authorId: 'user-1',
       content: 'x', mediaUrls: [], requiresMedia: false,
+      scheduledAt: new Date('2026-09-01T00:00:00.000Z'),
       socialAccount: { platform: 'FACEBOOK' },
       workspace: { clientAccessLevel: 'APPROVE' },
     } as any)
@@ -289,6 +291,45 @@ describe('PATCH /api/posts/[id] — approval authorization (status: APPROVED)', 
         update: { status: 'APPROVED', reviewerId: 'user-1', reviewedAt: expect.any(Date) },
       })
     )
+  })
+
+  it('auto-schedules when requiresMedia is true but the post already has media attached', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.post.findFirst).mockResolvedValue({
+      id: 'post-1', status: 'PENDING_APPROVAL', workspaceId: 'ws-1', authorId: 'user-2',
+      content: 'x', mediaUrls: ['https://example.com/a.png'], requiresMedia: true,
+      scheduledAt: new Date('2026-09-01T00:00:00.000Z'),
+      socialAccount: { platform: 'FACEBOOK' },
+      workspace: { clientAccessLevel: 'APPROVE' },
+    } as any)
+    vi.mocked(prisma.workspaceAccess.findFirst).mockResolvedValue({ role: 'AGENCY_ADMIN' } as any)
+    ;(prisma.post.update as any).mockImplementation(async ({ data }: any) => ({ id: 'post-1', ...data }))
+    vi.mocked(prisma.postApproval.upsert).mockResolvedValue({} as any)
+
+    const res = await PATCH(req({ status: 'APPROVED' }), ctx('post-1'))
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.status).toBe('SCHEDULED')
+  })
+
+  it('stays at APPROVED when the post has no scheduledAt set, even if media is ready', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.post.findFirst).mockResolvedValue({
+      id: 'post-1', status: 'PENDING_APPROVAL', workspaceId: 'ws-1', authorId: 'user-2',
+      content: 'x', mediaUrls: [], requiresMedia: false, scheduledAt: null,
+      socialAccount: { platform: 'FACEBOOK' },
+      workspace: { clientAccessLevel: 'APPROVE' },
+    } as any)
+    vi.mocked(prisma.workspaceAccess.findFirst).mockResolvedValue({ role: 'AGENCY_ADMIN' } as any)
+    ;(prisma.post.update as any).mockImplementation(async ({ data }: any) => ({ id: 'post-1', ...data }))
+    vi.mocked(prisma.postApproval.upsert).mockResolvedValue({} as any)
+
+    const res = await PATCH(req({ status: 'APPROVED' }), ctx('post-1'))
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body.status).toBe('APPROVED')
   })
 })
 
