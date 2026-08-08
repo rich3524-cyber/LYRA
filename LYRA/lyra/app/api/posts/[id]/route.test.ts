@@ -191,7 +191,7 @@ describe('PATCH /api/posts/[id] — approval authorization (status: APPROVED)', 
     expect(prisma.post.update).not.toHaveBeenCalled()
   })
 
-  it('allows approval when the reviewer has an approver role and did not author the post', async () => {
+  it('allows approval when the reviewer has an approver role and did not author the post, auto-scheduling since media is ready', async () => {
     vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
     vi.mocked(prisma.post.findFirst).mockResolvedValue({
       id: 'post-1', status: 'PENDING_APPROVAL', workspaceId: 'ws-1', authorId: 'user-2',
@@ -207,7 +207,14 @@ describe('PATCH /api/posts/[id] — approval authorization (status: APPROVED)', 
 
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.status).toBe('APPROVED')
+    expect(body.status).toBe('SCHEDULED')
+    expect(prisma.postApproval.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where:  { postId: 'post-1' },
+        create: { postId: 'post-1', status: 'APPROVED', reviewerId: 'user-1', reviewedAt: expect.any(Date) },
+        update: { status: 'APPROVED', reviewerId: 'user-1', reviewedAt: expect.any(Date) },
+      })
+    )
   })
 
   it('rejects self-approval with 403 when another approver-capable member exists on the workspace', async () => {
@@ -237,7 +244,7 @@ describe('PATCH /api/posts/[id] — approval authorization (status: APPROVED)', 
     expect(prisma.post.update).not.toHaveBeenCalled()
   })
 
-  it('allows self-approval when no other approver-capable member exists on the workspace', async () => {
+  it('allows self-approval when no other approver-capable member exists on the workspace, auto-scheduling since media is ready', async () => {
     vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
     vi.mocked(prisma.post.findFirst).mockResolvedValue({
       id: 'post-1', status: 'PENDING_APPROVAL', workspaceId: 'ws-1', authorId: 'user-1',
@@ -255,7 +262,33 @@ describe('PATCH /api/posts/[id] — approval authorization (status: APPROVED)', 
 
     expect(res.status).toBe(200)
     const body = await res.json()
+    expect(body.status).toBe('SCHEDULED')
+  })
+
+  it('stays at APPROVED (does not auto-schedule) when the post still requires media', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.post.findFirst).mockResolvedValue({
+      id: 'post-1', status: 'PENDING_APPROVAL', workspaceId: 'ws-1', authorId: 'user-2',
+      content: 'x', mediaUrls: [], requiresMedia: true,
+      socialAccount: { platform: 'FACEBOOK' },
+      workspace: { clientAccessLevel: 'APPROVE' },
+    } as any)
+    vi.mocked(prisma.workspaceAccess.findFirst).mockResolvedValue({ role: 'AGENCY_ADMIN' } as any)
+    ;(prisma.post.update as any).mockImplementation(async ({ data }: any) => ({ id: 'post-1', ...data }))
+    vi.mocked(prisma.postApproval.upsert).mockResolvedValue({} as any)
+
+    const res = await PATCH(req({ status: 'APPROVED' }), ctx('post-1'))
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
     expect(body.status).toBe('APPROVED')
+    expect(prisma.postApproval.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where:  { postId: 'post-1' },
+        create: { postId: 'post-1', status: 'APPROVED', reviewerId: 'user-1', reviewedAt: expect.any(Date) },
+        update: { status: 'APPROVED', reviewerId: 'user-1', reviewedAt: expect.any(Date) },
+      })
+    )
   })
 })
 

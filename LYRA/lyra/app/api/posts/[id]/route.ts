@@ -124,10 +124,21 @@ export async function PATCH(
       (content !== undefined && content !== existing.content) ||
       (mediaUrls !== undefined && mediaUrls.join('\u0000') !== existing.mediaUrls.join('\u0000'))
 
-    const finalStatus: PostStatus | undefined =
-      status === 'SCHEDULED' &&
-      existing.workspace.clientAccessLevel === 'APPROVE' &&
-      !(existing.status === 'APPROVED' && !contentChanged)
+    // Approving no longer leaves the post sitting in APPROVED waiting for a
+    // separate "Schedule post" click. If media requirements are already
+    // satisfied, the approval itself is the last gate, so it goes straight to
+    // SCHEDULED. APPROVED stays reachable only when the post still needs
+    // media -- the existing manual "Schedule post" action remains available,
+    // unchanged, once that media is attached.
+    const effectiveMediaUrls = mediaUrls ?? existing.mediaUrls
+    const isApprovingReadyPost =
+      status === 'APPROVED' && !(existing.requiresMedia && effectiveMediaUrls.length === 0)
+
+    const finalStatus: PostStatus | undefined = isApprovingReadyPost
+      ? 'SCHEDULED'
+      : status === 'SCHEDULED' &&
+        existing.workspace.clientAccessLevel === 'APPROVE' &&
+        !(existing.status === 'APPROVED' && !contentChanged)
         ? 'PENDING_APPROVAL'
         : status
 
@@ -151,7 +162,9 @@ export async function PATCH(
         create: { postId: id, status: 'PENDING' },
         update: { status: 'PENDING', reviewedAt: null, reviewerId: null },
       })
-    } else if (finalStatus === 'APPROVED') {
+    } else if (status === 'APPROVED') {
+      // An approval decision happened, regardless of whether the post landed
+      // on APPROVED (still awaiting media) or jumped straight to SCHEDULED.
       await prisma.postApproval.upsert({
         where:  { postId: id },
         create: { postId: id, status: 'APPROVED', reviewerId: user.id, reviewedAt: new Date() },
