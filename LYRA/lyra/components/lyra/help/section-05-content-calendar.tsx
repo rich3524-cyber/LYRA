@@ -39,9 +39,18 @@ export function ContentCalendarSection() {
             if you set one.
           </StatusRow>
           <StatusRow status="Pending Approval" color="text-status-warning border-status-warning/30">
-            The post has been submitted for client approval and is waiting for a decision.
-            It cannot be scheduled until approved. On Pro and Agency plans, clients can approve
-            or reject posts through their dedicated approval link.
+            The post has been submitted for review and is waiting on a decision from anyone
+            with approval permissions on the workspace — agency staff, or on workspaces with
+            client review turned on, the client too. Click the post chip to open its detail
+            panel, where an <Strong>Approve</Strong> and <Strong>Request changes</Strong> button
+            appear for anyone authorized to decide.
+          </StatusRow>
+          <StatusRow status="Approved" color="text-status-warning border-status-warning/30">
+            The post was approved but isn&apos;t queued to publish yet — it&apos;s still either
+            missing media (shown as an amber <Strong>Awaiting media</Strong> badge instead of
+            this one) or missing a scheduled time. It moves to <Strong>Scheduled</Strong>{' '}
+            automatically the moment both are in place — approving a post that&apos;s already
+            fully ready skips this status entirely and goes straight to Scheduled.
           </StatusRow>
           <StatusRow status="Scheduled" color="text-status-info border-status-info/30">
             The post is approved and queued for automatic publishing at the scheduled time.
@@ -74,9 +83,10 @@ export function ContentCalendarSection() {
 
       <Subsection title="Rescheduling posts by dragging">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Any post in <Strong>Draft</Strong>, <Strong>Pending Approval</Strong>, or
-          <Strong> Scheduled</Strong> status can be rescheduled by dragging it from one day cell
-          to another. The post time (hour and minute) is preserved — only the date changes.
+          Any post in <Strong>Draft</Strong>, <Strong>Pending Approval</Strong>,
+          <Strong> Approved</Strong>, or <Strong> Scheduled</Strong> status can be rescheduled by
+          dragging it from one day cell to another. The post time (hour and minute) is
+          preserved — only the date changes.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
           To change the time as well, click the post chip to open it in the composer, update

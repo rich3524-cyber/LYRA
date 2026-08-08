@@ -397,7 +397,7 @@
       <span class="wordmark">LYRA</span>
       <div class="doc-meta">
         Demo Reference Guide<br>
-        29 Jul 2026<br>
+        8 Aug 2026<br>
         lyraonline.ai
       </div>
     </div>
@@ -409,7 +409,7 @@
   <div class="section">
     <p class="section-label">The pitch</p>
     <div class="callout">
-      <p>LYRA is the only social media management platform that responds to comments and reviews autonomously, 24/7 — with configurable AI autonomy and agency-controlled guardrails ensuring every response reflects the brand accurately. It also surfaces scheduled email campaigns from Klaviyo and Mailchimp directly on the social calendar, so agencies see every outbound channel in a single view. And with the LYRA Trend add-on, every workspace gets a daily AI-curated list of what's trending — scored for brand relevance, ready to drop into the composer in one click. Everything else — scheduling, captions, analytics — competitors do. The comment response engine, unified marketing calendar, and brand-filtered trend intelligence are why LYRA exists.</p>
+      <p>LYRA is the only social media management platform that responds to comments and reviews autonomously, 24/7 — with configurable AI autonomy and agency-controlled guardrails ensuring every response reflects the brand accurately. It also surfaces scheduled email campaigns from Klaviyo and Mailchimp directly on the social calendar, so agencies see every outbound channel in a single view. Everything else — scheduling, captions, analytics — competitors do. The comment response engine and unified marketing calendar are why LYRA exists.</p>
     </div>
   </div>
 
@@ -428,10 +428,10 @@
         <tbody>
           <tr><td><strong>LYRA Assistant</strong></td><td>Quarterly performance review + 3-month AI content strategy. One click to generate, one click to export as PDF.</td></tr>
           <tr><td><strong>Brand Intelligence</strong></td><td>Analyses website + social feed to build a brand voice profile. Powers every AI feature in the platform.</td></tr>
-          <tr><td><strong>Compose</strong></td><td>Write, AI-generate, score, and schedule posts across all platforms simultaneously. Repurpose any URL or text into platform-native variants. Trend-aware AI captions when LYRA Trend is active.</td></tr>
+          <tr><td><strong>Compose</strong></td><td>Write, AI-generate, score, and schedule posts across all platforms simultaneously. Repurpose any URL or text into platform-native variants.</td></tr>
           <tr><td><strong>Calendar</strong></td><td>Monthly view of all scheduled and published social posts plus Klaviyo and Mailchimp email campaigns — the full marketing picture in one place. Drag to reschedule. AI schedule generator.</td></tr>
           <tr><td><strong>Inbox</strong></td><td>Unified comment and review inbox. AI drafts or auto-posts responses 24/7.</td></tr>
-          <tr><td><strong>Trend Hub</strong></td><td>Add-on. Daily AI-curated trending topics scored for brand relevance. One click to carry a trend into the composer and angle AI captions around it.</td></tr>
+          <tr><td><strong>Trend Hub</strong></td><td><em>Not yet shipped.</em> Planned add-on — daily AI-curated trending topics scored for brand relevance. Checkout is disabled until it launches.</td></tr>
           <tr><td><strong>Analytics</strong></td><td>Cross-platform metrics, engagement charts, top posts. Competitor tracking. One-click client PDF reports.</td></tr>
           <tr><td><strong>SEO</strong></td><td>Google Search Console integration. AI meta titles, descriptions, and on-page scoring.</td></tr>
           <tr><td><strong>Settings</strong></td><td>Platform connections, email marketing integrations, AI autonomy, guardrails, crisis aware, client access levels, and add-ons.</td></tr>
@@ -497,8 +497,8 @@
       <li>
         <span class="step-num">08</span>
         <div class="step-content">
-          <p class="step-title">LYRA Trend — "Stay Ahead of the Conversation" (add-on)</p>
-          <p class="step-body">Open the <strong>Trend Hub</strong> from the sidebar. LYRA runs a daily AI pipeline — Perplexity surfaces what's trending across TikTok, Instagram, X, Reddit, and news; Claude then scores each trend for relevance to this workspace's brand profile. Up to 20 trends appear, ranked by relevance score. Click a trend to see the full description and the AI-written <strong>Why it fits</strong> explanation. Click <strong>Use this trend</strong> — LYRA marks it as used and opens the composer with an <strong>active trend chip</strong> set. Hit AI Generate and the caption is angled around the trend, still on-brand. <strong>Key point:</strong> every trend the client sees has already been filtered through their brand — no sifting through irrelevant noise. It's the difference between "what's trending" and "what's trending for you."</p>
+          <p class="step-title">LYRA Trend (not yet available — do not demo)</p>
+          <p class="step-body">Planned add-on: daily AI-scored trend discovery, matched to the workspace's brand, one click to carry into the composer. Not built yet — no Trend Hub, no discovery sync, no composer integration. Checkout is disabled. Do not walk a prospect through this until it actually ships.</p>
         </div>
       </li>
     </ul>
@@ -673,21 +673,13 @@
         <p class="number-value">4</p>
         <p class="number-label">Guardrail types available</p>
       </div>
-      <div class="number-card">
-        <p class="number-value">Daily</p>
-        <p class="number-label">LYRA Trend sync frequency (add-on)</p>
-      </div>
-      <div class="number-card">
-        <p class="number-value">Up to 20</p>
-        <p class="number-label">Brand-scored trends surfaced per workspace per sync</p>
-      </div>
     </div>
   </div>
 
   <!-- 8. What's New -->
   <div class="section">
-    <p class="section-label">What's new — Jul 2026</p>
-    <h2>Latest — all major platforms live, publishing pipeline confirmed end-to-end</h2>
+    <p class="section-label">What's new — Aug 2026</p>
+    <h2>Latest — approval workflow simplified, MCP gateway live for AI-agent control</h2>
     <p>Lead with these if showing to anyone who has seen an earlier version of the platform.</p>
     <div style="margin-top: 8px;">
       <div class="feature-row">
@@ -782,10 +774,17 @@
         </div>
       </div>
       <div class="feature-row">
+        <span class="feature-pnum" style="color: #4ade80;">★</span>
+        <div>
+          <p class="feature-title">LYRA MCP — control the whole workspace from Claude (or any MCP client)</p>
+          <p class="feature-desc">LYRA now has its own MCP server (Model Context Protocol) — a connector that lets Claude Desktop, Claude Code, or any other MCP-capable AI assistant draft, approve, schedule, and publish posts, manage the inbox, and act on brand/SEO/competitor tools directly, using natural conversation instead of clicking through the app. Full OAuth 2.1 login (same Auth0 tenant as the main app), the same approval/autonomy/guardrail rules apply exactly as they do in the UI — nothing bypasses them. Confirmed fully working end-to-end this week with real production data: an AI agent generating and scheduling a week of posts with attached video, through to approval, with zero manual UI steps. <strong>Talking point:</strong> this is a genuinely different category of feature from "AI writes your captions" — the whole platform becomes operable by an AI agent, not just AI-assisted. Early/technical-audience feature for now — not yet part of the standard non-technical walkthrough, but worth mentioning to any prospect who already uses Claude or is evaluating AI-agent workflows.</p>
+        </div>
+      </div>
+      <div class="feature-row">
         <span class="feature-pnum" style="color: #60a5fa;">N</span>
         <div>
-          <p class="feature-title">Client approval workflow — Calendar integrated</p>
-          <p class="feature-desc">The full agency → client approval loop is now wired into the content calendar. Agents submit posts for client approval (PENDING_APPROVAL status). Clients see Approve / Request changes buttons. Agents can recall drafts. All transitions are recorded in PostApproval records. Role-aware — CLIENT_APPROVE users only see approval actions, not scheduling controls.</p>
+          <p class="feature-title">Client approval workflow — one click from Approve to live, not two</p>
+          <p class="feature-desc">The full agency → client approval loop is wired into the content calendar. Agents submit posts for client approval (PENDING_APPROVAL status). <strong>Every role the platform authorizes to approve sees the Approve / Request changes buttons</strong> (previously only client reviewers did — agency staff had to use a workaround). <strong>New:</strong> approving a post that already has its media and a scheduled time now goes straight to Scheduled — no separate "Schedule post" click needed afterward. A post still missing media stays clearly marked <strong>Awaiting media</strong> rather than a plain "Approved" that doesn't explain why it hasn't gone out. All transitions are recorded in PostApproval records.</p>
         </div>
       </div>
       <div class="feature-row">
@@ -793,13 +792,6 @@
         <div>
           <p class="feature-title">Media upload via direct S3 presign</p>
           <p class="feature-desc">Media attached in the composer and schedule review now uploads directly from the browser to S3 via a presigned PUT URL — bypassing the Netlify function entirely. Removes the 4.5 MB payload limit. Supports images (JPEG, PNG, GIF, WebP) and video (MP4, MOV, WebM). Files are stored in a workspace-scoped folder in S3.</p>
-        </div>
-      </div>
-      <div class="feature-row">
-        <span class="feature-pnum" style="color: #a78bfa;">★</span>
-        <div>
-          <p class="feature-title">LYRA Trend — Brand-Relevant Trend Discovery</p>
-          <p class="feature-desc">Paid à la carte add-on, available on all plans. Daily AI pipeline: Perplexity surfaces what's trending across social platforms and news; Claude scores each trend for relevance to the workspace's brand profile. Up to 20 trends per workspace, ranked by score. One click carries a trend into the composer — AI captions angle around it automatically. Trend picker also accessible directly from the composer toolbar without leaving the page.</p>
         </div>
       </div>
       <div class="feature-row">
@@ -893,7 +885,7 @@
   <!-- Footer -->
   <div class="footer">
     <p>LYRA — Internal Use Only</p>
-    <p>lyraonline.ai &nbsp;·&nbsp; 29 Jul 2026</p>
+    <p>lyraonline.ai &nbsp;·&nbsp; 8 Aug 2026</p>
   </div>
 
 </div>

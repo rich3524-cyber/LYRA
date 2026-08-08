@@ -203,11 +203,19 @@ export function ComposeSection() {
           On Pro and Agency plans, if the workspace has client approval enabled, you will see a
           <Strong> Send for approval</Strong> option instead of (or alongside) Schedule.
           Clicking it saves the post with a <StatusBadge color="text-status-warning border-status-warning/30">Pending Approval</StatusBadge> status.
-          The post is not scheduled until the client approves it from their own login.
+          Anyone with approval permissions on the workspace can approve it from their own
+          login — usually the client, but agency staff can too if the client isn&apos;t the one
+          reviewing that day.
+        </p>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
+          Approving a post that already has media and a scheduled time takes it straight to
+          <Strong> Scheduled</Strong> — there&apos;s no separate step to trigger afterward. If
+          either is still missing, it stays at <Strong>Approved</Strong> until you add what&apos;s
+          missing, at which point it schedules itself automatically.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
           There is currently no email notification when a post is waiting for approval — the
-          client needs to check LYRA directly to see what&apos;s pending.
+          approver needs to check LYRA directly to see what&apos;s pending.
         </p>
       </Subsection>
     </section>

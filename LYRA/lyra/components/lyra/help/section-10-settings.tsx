@@ -128,6 +128,14 @@ export function SettingsSection() {
           on a client&apos;s behalf</Strong> and the <Strong>Compose</Strong> section for how
           those work today.
         </Note>
+        <Note>
+          A post&apos;s own author normally can&apos;t approve it themselves. The one
+          exception: if nobody else on the workspace has approval permissions — for example a
+          solo operator who turns on client approval before a real second reviewer has been
+          added — self-approval is allowed, and clearly labeled
+          (<Strong>Approve (no other reviewer available)</Strong>) so it&apos;s obvious no real
+          second-party review took place.
+        </Note>
       </Subsection>
 
       <Subsection title="Workspace settings — Integrations">
