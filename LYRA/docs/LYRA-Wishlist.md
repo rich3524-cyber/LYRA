@@ -42,6 +42,12 @@ These items were on the original Phase 2 plan. Most are built; the ones below ar
 
 ---
 
+## In Progress — LYRA Trend (not yet shipped)
+
+Scaffolded but not implemented: `app/api/trends/*` routes, `services/trends/trend-syncer.ts`, and `workers/trend-sync.worker.ts` are stubs (no `Trend` Prisma model even exists). Stripe checkout (`app/api/stripe/trend-checkout/route.ts`) was fully live before this pass — **now disabled** (returns 503) to stop billing customers for a non-functional add-on. The Demo Guide and in-app Help doc previously described this as a fully working feature; both have been corrected to say "not yet available." To actually ship: build the `Trend` model, the Perplexity discovery + Claude scoring pipeline, the sync worker, and the Trend Hub UI (`components/lyra/trends/trend-hub.tsx` currently renders `null`) — then re-enable checkout.
+
+---
+
 ## Backlog — Low Priority Polish
 
 | Feature | Notes |
@@ -244,10 +250,17 @@ None of this is visible on the brand's website. All of it belongs in the content
 
 ---
 
-### 🔵 Compliance — Needed Before Scaling to Europe
+### 🔵 Compliance & Certifications
 
 **16. GDPR tools**
 Data export (all data held for a user/workspace as a downloadable ZIP) and deletion requests (purge a workspace and all its data on request). Required for any EU customers. Also needed: a visible data processing agreement and a cookie consent banner on the marketing site. Low effort to build; high risk to skip.
+
+**18. SOC 2 / ISO 27001 certification** — *not currently needed, park for later*
+Surfaced during general compliance research (Aug 2026), not from any actual customer or prospect asking for it. Different trigger than GDPR above — this isn't a geography requirement, it's an enterprise/mid-market procurement checkbox. LYRA's current target customers (agencies, freelancers, SMBs) don't ask for either before buying; these matter to buyers with formal vendor-security review processes, which LYRA isn't selling to yet.
+
+*Cost reality check:* SOC 2 Type II runs roughly $20–80k+ and 6–12 months of evidence collection before the report even exists (Type I is faster and cheaper but far less credible to anyone who'd actually ask for one). ISO 27001 is a similar order of magnitude — a formal ISMS, a certification audit, and ongoing annual surveillance audits. Neither is a one-time cost; both are ongoing operational overhead once obtained.
+
+*When to actually act:* Only when a specific real deal is being blocked by a security questionnaire that requires one — not proactively "in case someone asks." At that point, start with a lighter interim step (a completed security questionnaire response, or a continuous-compliance tool like Vanta or Drata building an evidence trail toward SOC 2) rather than committing straight to a full audit.
 
 ---
 
@@ -282,5 +295,8 @@ Ideas from a dedicated feature brainstorm session. Not yet prioritised. None of 
 
 ---
 
-*Last updated: 29 Jul 2026 — full codebase audit against every unmarked item, checked against a week of real shipped work: four items marked ✅ this pass — Stripe billing integration (item 13, verified end-to-end with a real bug found+fixed), full end-to-end autonomous AI response (item 16, validated live on both Full Autonomy and Draft+Approve — Meta App Review turned out not to be the blocker, Zernio Bridge sidesteps it), PDF export reports (item 19, confirmed correct 28 Jul), and social feed analysis for Brand AI (backlog — `analyzeSocialPosts()` is wired up to LYRA's own post history, verified in code, no longer an empty array). Two items got partial-completion notes rather than a full check: Analytics dashboard depth (item 14 — platform breakdown/top posts/engagement chart exist, follower growth still has no data source) and Notifications (New Ideas item 1 — Crisis Aware email alerts shipped and verified, but failure/escalation alerts and the digest are still missing). Confirmed still correctly unbuilt: Team member invitations (item 3) — verified via a full grep sweep while fixing help-doc pages that had been falsely describing this as a real feature; GDPR self-service export/deletion (item 16 in Compliance — a manual, email-request-based deletion process exists, but no self-service ZIP export or automated purge); Production hardening (item 20) — no Sentry, structured logging, or worker health checks found anywhere.*
+*Last updated: 8 Aug 2026 — added item 18, SOC 2 / ISO 27001 certification, to the Compliance section (renamed from "Needed Before Scaling to Europe" since this item's trigger is enterprise procurement, not geography) — parked as not currently needed, with cost/trigger notes for when it's worth revisiting.*
+*Previous update (29 Jul 2026) — full codebase audit against every unmarked item, checked against a week of real shipped work: four items marked ✅ this pass — Stripe billing integration (item 13, verified end-to-end with a real bug found+fixed), full end-to-end autonomous AI response (item 16, validated live on both Full Autonomy and Draft+Approve — Meta App Review turned out not to be the blocker, Zernio Bridge sidesteps it), PDF export reports (item 19, confirmed correct 28 Jul), and social feed analysis for Brand AI (backlog — `analyzeSocialPosts()` is wired up to LYRA's own post history, verified in code, no longer an empty array). Two items got partial-completion notes rather than a full check: Analytics dashboard depth (item 14 — platform breakdown/top posts/engagement chart exist, follower growth still has no data source) and Notifications (New Ideas item 1 — Crisis Aware email alerts shipped and verified, but failure/escalation alerts and the digest are still missing). Confirmed still correctly unbuilt: Team member invitations (item 3) — verified via a full grep sweep while fixing help-doc pages that had been falsely describing this as a real feature; GDPR self-service export/deletion (item 16 in Compliance — a manual, email-request-based deletion process exists, but no self-service ZIP export or automated purge); Production hardening (item 20) — no Sentry, structured logging, or worker health checks found anywhere.*
 *Previous update (14 Jul 2026) — full codebase audit against every unmarked item: nothing found to be secretly further along than documented (no new ✅s warranted), but added clarifying notes on existing partial scaffolding for Pinterest/Threads/Bluesky (17c–17e, Zernio slug mapping exists, connect routes don't) and Agency HQ (item 7, a bare workspace-list scaffold exists at `app/(dashboard)/agency/clients/page.tsx`). Previous update — added Phase 3 CRM Integration (item 17): LYRA Public API + CRM Context Engine with CRM Suggestions in Composer; added meeting notes → content ideas connector (item 15, general-purpose: Otter/Fireflies/Fathom/Granola/Gemini via Zapier); GDPR tools renumbered to 16 (now 18); June 2026 update: added Slack/Microsoft Teams notifications (item 8); added GA4 integration (item 13); TikTok marked live (17b); items renumbered accordingly*
+
+#ISO27001 & SOC2
