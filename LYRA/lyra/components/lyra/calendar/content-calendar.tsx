@@ -30,6 +30,13 @@ import { toast } from 'sonner'
 
 type FilterValue = 'ALL' | 'SCHEDULED' | 'DRAFT' | 'PUBLISHED' | 'PENDING_APPROVAL' | 'FAILED'
 
+// Silent background refresh so the calendar reflects posts created or
+// changed elsewhere (e.g. via LYRA MCP) without the user having to reload.
+// A minute is frequent enough to feel current without meaningfully adding to
+// load -- this is the same GET /api/posts the initial load already uses,
+// already capped at 200 rows per workspace/month.
+const AUTO_REFRESH_MS = 60_000
+
 const FILTER_TABS: { value: FilterValue; label: string }[] = [
   { value: 'ALL',              label: 'All' },
   { value: 'SCHEDULED',        label: 'Scheduled' },
@@ -142,6 +149,13 @@ export function ContentCalendar({ workspaceId, plan, userRole, clientAccessLevel
     return Array.isArray(data) ? data : []
   }, [workspaceId, currentMonth])
 
+  const fetchCampaigns = useCallback(async (signal?: AbortSignal) => {
+    const month = format(currentMonth, 'yyyy-MM')
+    const res = await fetch(`/api/email-campaigns?workspaceId=${workspaceId}&month=${month}`, { signal })
+    const data: CalendarEmailCampaign[] = await res.json()
+    return Array.isArray(data) ? data : []
+  }, [workspaceId, currentMonth])
+
   const loadPosts = useCallback(() => {
     setLoading(true)
     fetchPosts()
@@ -171,12 +185,41 @@ export function ContentCalendar({ workspaceId, plan, userRole, clientAccessLevel
   }, [fetchPosts])
 
   useEffect(() => {
-    const month = format(currentMonth, 'yyyy-MM')
-    fetch(`/api/email-campaigns?workspaceId=${workspaceId}&month=${month}`)
-      .then((r) => r.json())
-      .then((data: CalendarEmailCampaign[]) => setCampaigns(Array.isArray(data) ? data : []))
-      .catch(() => setCampaigns([]))
-  }, [workspaceId, currentMonth])
+    const controller = new AbortController()
+    fetchCampaigns(controller.signal)
+      .then((data) => {
+        if (!controller.signal.aborted) setCampaigns(data)
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setCampaigns([])
+      })
+    return () => controller.abort()
+  }, [fetchCampaigns])
+
+  // Auto-refresh: re-fetches quietly in the background, never toggling
+  // `loading` (which would swap the grid for skeleton cells). Skipped while a
+  // drag is in progress so a mid-drag refetch can't reshuffle the card the
+  // user is holding out from under the pointer, and while the tab is hidden
+  // so a backgrounded workspace tab doesn't keep polling for nothing.
+  // Errors are swallowed rather than toasted -- a single missed background
+  // tick isn't actionable, and toasting one every minute on a real outage
+  // would just be noise on top of the initial-load error the user already saw.
+  useEffect(() => {
+    const tick = () => {
+      if (document.hidden || activePost) return
+      const controller = new AbortController()
+      Promise.all([fetchPosts(controller.signal), fetchCampaigns(controller.signal)])
+        .then(([freshPosts, freshCampaigns]) => {
+          if (controller.signal.aborted) return
+          setPosts(freshPosts)
+          setCampaigns(freshCampaigns)
+          setSelectedPost((prev) => (prev ? freshPosts.find((p) => p.id === prev.id) ?? prev : prev))
+        })
+        .catch(() => {})
+    }
+    const interval = setInterval(tick, AUTO_REFRESH_MS)
+    return () => clearInterval(interval)
+  }, [fetchPosts, fetchCampaigns, activePost])
 
   const filteredPosts = activeFilter === 'ALL'
     ? posts
