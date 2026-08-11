@@ -209,9 +209,15 @@ export function PostDetailPanel({ post, workspaceId, plan, userRole, clientAcces
         const body = await res.json().catch(() => null) as { error?: string } | null
         throw new Error(body?.error ?? 'Update failed')
       }
-      const updated = await res.json() as CalendarPost
+      // Merge rather than trust the response as a complete CalendarPost --
+      // same reasoning as the boost handlers below. The API route is meant
+      // to return every field the calendar needs, but a merge means a future
+      // gap there degrades to stale relation data instead of a render crash
+      // on the very next card render (post.socialAccount.platform on
+      // undefined, previously surfacing as a full page error).
+      const updated = await res.json() as Partial<CalendarPost>
       toast.success('Status updated')
-      onUpdated(updated)
+      onUpdated({ ...post, ...updated })
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update status')
     } finally {

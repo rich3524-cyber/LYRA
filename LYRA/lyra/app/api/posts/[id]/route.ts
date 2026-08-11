@@ -158,6 +158,15 @@ export async function PATCH(
         ...(scheduledAt !== undefined && { scheduledAt: scheduledAt ? new Date(scheduledAt) : null }),
         ...(mediaUrls !== undefined && { mediaUrls }),
       },
+      // Must match the shape GET /api/posts returns (CalendarPost): the
+      // frontend swaps this response straight into calendar state as a
+      // complete post rather than merging it, so a missing relation here
+      // isn't just an unused field -- it's `post.socialAccount.platform`
+      // throwing undefined on the very next render of that post's card.
+      include: {
+        socialAccount: { select: { platform: true, name: true, platformId: true, adAccountId: true } },
+        boost:         true,
+      },
     })
 
     // Manage PostApproval record on approval-related status transitions.

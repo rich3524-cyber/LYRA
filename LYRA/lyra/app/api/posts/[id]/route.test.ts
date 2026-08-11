@@ -90,6 +90,35 @@ describe('PATCH /api/posts/[id] — approval-status resolution', () => {
     expect(prisma.postApproval.upsert).not.toHaveBeenCalled()
   })
 
+  it('regression: includes socialAccount and boost on the update so the response is a complete CalendarPost', async () => {
+    // The frontend (post-detail-panel.tsx) swaps this response straight into
+    // calendar state as a full CalendarPost rather than merging it -- a
+    // missing socialAccount here previously crashed the very next render of
+    // that post's card (post.socialAccount.platform on undefined), which
+    // showed as a full page error until a reload re-fetched via GET
+    // /api/posts (which does include it).
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.post.findFirst).mockResolvedValue({
+      id: 'post-1', status: 'DRAFT', workspaceId: 'ws-1', authorId: 'user-2',
+      mediaUrls: [], requiresMedia: false,
+      socialAccount: { platform: 'FACEBOOK' },
+      workspace: { clientAccessLevel: 'NONE' },
+    } as any)
+    ;(prisma.post.update as any).mockImplementation(async ({ data }: any) => ({ id: 'post-1', ...data }))
+    vi.mocked(prisma.postApproval.upsert).mockResolvedValue({} as any)
+
+    await PATCH(req({ status: 'SCHEDULED', scheduledAt: '2026-09-01T00:00:00.000Z' }), ctx('post-1'))
+
+    expect(prisma.post.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: {
+          socialAccount: { select: { platform: true, name: true, platformId: true, adAccountId: true } },
+          boost:         true,
+        },
+      })
+    )
+  })
+
   it('regression: an APPROVED post being scheduled with no content change reaches SCHEDULED, not bounced back to PENDING_APPROVAL', async () => {
     vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
     vi.mocked(prisma.post.findFirst).mockResolvedValue({
