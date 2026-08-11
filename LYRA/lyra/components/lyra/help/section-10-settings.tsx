@@ -123,10 +123,12 @@ export function SettingsSection() {
           </li>
         </ul>
         <Note>
-          There is no self-service client onboarding link and no email notification when a
-          post is waiting for approval — see <Strong>Social Connections → Connecting accounts
-          on a client&apos;s behalf</Strong> and the <Strong>Compose</Strong> section for how
-          those work today.
+          There is still no self-service client onboarding link, and email never notifies
+          anyone that a post is waiting for approval — see <Strong>Social Connections →
+          Connecting accounts on a client&apos;s behalf</Strong> and the <Strong>Compose</Strong>{' '}
+          section for how those work today. On Agency plan (or Pro with Crisis Aware), a
+          connected <Strong>Team Notifications</Strong> Slack channel below does cover this —
+          see that subsection.
         </Note>
         <Note>
           A post&apos;s own author normally can&apos;t approve it themselves. The one
@@ -135,6 +137,69 @@ export function SettingsSection() {
           added — self-approval is allowed, and clearly labeled
           (<Strong>Approve (no other reviewer available)</Strong>) so it&apos;s obvious no real
           second-party review took place.
+        </Note>
+      </Subsection>
+
+      <Subsection title="Workspace settings — Approvals (deadlines)">
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          Only shown once <Strong>Client Access</Strong> above is set to Approve. Sets how long a
+          post can sit waiting for a reviewer before it is flagged overdue:
+        </p>
+        <ul className="space-y-2 font-sans text-sm text-text-secondary">
+          <li>
+            <Strong>Hours before a post&apos;s scheduled time</Strong> — for a post with a
+            scheduled date, the deadline counts back from that time. Defaults to 4 hours.
+          </li>
+          <li>
+            <Strong>Hours since submission, if no time is set</Strong> — for a post with no
+            scheduled date, the deadline counts forward from when it was submitted. Defaults
+            to 24 hours.
+          </li>
+        </ul>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
+          An overdue post shows an <Strong>Approval overdue</Strong> badge in the calendar and
+          post detail panel immediately — this is calculated live, not on a delay. An hourly
+          check separately fires one <Strong>Approval overdue</Strong> alert per post to the
+          workspace&apos;s connected Slack channel (see <Strong>Team Notifications</Strong>{' '}
+          below), if one is connected and that event is enabled. Approving, rejecting, or
+          resubmitting the post resets its deadline.
+        </p>
+      </Subsection>
+
+      <Subsection title="Workspace settings — Team Notifications">
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          Available on Agency plan, or Pro with the Crisis Aware add-on. Sends alerts to a
+          shared Slack channel so the whole team sees them at once, instead of relying on one
+          person to check email or forward a message. Email stays on regardless — this is an
+          addition, not a replacement.
+        </p>
+        <ul className="space-y-2 font-sans text-sm text-text-secondary">
+          <li>
+            <Strong>Connect Slack</Strong> — one click, no Slack App to create and no webhook
+            URL to paste in. One channel per workspace. Public channels are joined
+            automatically; for a private channel, run <code className="font-mono text-xs text-accent-silver bg-background-secondary px-1.5 py-0.5 rounded-md">/invite @Zernio</code>{' '}
+            in it first, since an app cannot add itself to a private channel.
+          </li>
+          <li>
+            <Strong>Events</Strong> — five are configurable per workspace, each with its own
+            on/off toggle: Crisis detected, Post failed to publish, New post pending approval,
+            and Approval overdue (all on by default), plus Post published (off by default —
+            the noisiest one).
+          </li>
+          <li>
+            <Strong>Send test</Strong> — sends a real message immediately so you can confirm
+            delivery and see how it looks, without waiting for a real event.
+          </li>
+          <li>
+            <Strong>Disconnect</Strong> — removes the channel from LYRA only. The Slack app
+            itself stays installed in your Slack workspace until removed there directly.
+          </li>
+        </ul>
+        <Note>
+          Messages arrive under LYRA&apos;s own name and icon in Slack, not a generic bot
+          identity. If a channel logs several failed deliveries in a row, a warning appears
+          here with the error — reconnect, or confirm the channel still exists. Crisis alerts
+          keep working over email throughout, since email never depends on Slack being up.
         </Note>
       </Subsection>
 
@@ -182,7 +247,9 @@ export function SettingsSection() {
           (see <Strong>Workspace settings → Crisis Aware</Strong> below). It comes from{' '}
           <code className="font-mono text-xs text-accent-silver bg-background-secondary px-1.5 py-0.5 rounded-md">notifications@lyraonline.ai</code>.
           No other event (a failed post, an expired token, a client approval decision) triggers
-          an email today — check the relevant screen in LYRA directly instead.
+          an email today — check the relevant screen in LYRA directly instead, or connect a
+          Slack channel under <Strong>Workspace settings → Team Notifications</Strong> above,
+          which does cover those events on Agency plan or Pro with Crisis Aware.
         </p>
       </Subsection>
     </section>
