@@ -181,10 +181,12 @@ export function SettingsSection() {
             in it first, since an app cannot add itself to a private channel.
           </li>
           <li>
-            <Strong>Events</Strong> — five are configurable per workspace, each with its own
-            on/off toggle: Crisis detected, Post failed to publish, New post pending approval,
-            and Approval overdue (all on by default), plus Post published (off by default —
-            the noisiest one).
+            <Strong>Events</Strong> — six are configurable per workspace, each with its own
+            on/off toggle: Crisis detected, Comment escalated, Post failed to publish, New post
+            pending approval, and Approval overdue (all on by default), plus Post published (off
+            by default — the noisiest one). Comment escalated covers a comment the AI declines to
+            answer itself (a guardrail match, or its own judgment) — separate from Crisis
+            detected, which is Crisis Aware specifically.
           </li>
           <li>
             <Strong>Send test</Strong> — sends a real message immediately so you can confirm

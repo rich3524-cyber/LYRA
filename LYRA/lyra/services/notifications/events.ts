@@ -7,6 +7,7 @@
 
 export const NOTIFICATION_EVENTS = [
   'CRISIS_DETECTED',
+  'COMMENT_ESCALATED',
   'POST_FAILED',
   'POST_PENDING_APPROVAL',
   'APPROVAL_SLA_BREACH',
@@ -46,6 +47,11 @@ export const EVENT_META: Record<NotificationEvent, EventMeta> = {
   CRISIS_DETECTED: {
     label:       'Crisis detected',
     description: 'Crisis Aware escalated a comment or a negative sentiment spike.',
+    defaultOn:   true,
+  },
+  COMMENT_ESCALATED: {
+    label:       'Comment escalated',
+    description: 'A comment needs a human reply instead of an AI one (not a crisis).',
     defaultOn:   true,
   },
   POST_FAILED: {

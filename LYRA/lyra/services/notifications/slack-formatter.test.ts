@@ -130,6 +130,39 @@ describe('buildMessage', () => {
     expect(msg.linkUrl).toBe('https://lyraonline.ai/workspace/ws_123/inbox')
   })
 
+  it('links to the Inbox, quotes the comment, and omits the Reason fact when none is given', () => {
+    const msg = buildMessage(
+      {
+        event:         'COMMENT_ESCALATED',
+        workspaceName: 'Acme',
+        platform:      'Instagram',
+        excerpt:       'This is unacceptable.',
+        authorName:    'Jane',
+      },
+      OPTS
+    )
+    expect(msg.title).toBe('Comment escalated — Acme')
+    expect(msg.summary).toContain('Instagram')
+    expect(msg.quote).toEqual({ text: 'This is unacceptable.', attribution: 'Jane' })
+    expect(msg.facts).toBeUndefined()
+    expect(msg.linkUrl).toBe('https://lyraonline.ai/workspace/ws_123/inbox')
+    expect(msg.linkLabel).toBe('Review in Inbox')
+  })
+
+  it('renders the escalation reason as a fact when one is given', () => {
+    const msg = buildMessage(
+      {
+        event:            'COMMENT_ESCALATED',
+        workspaceName:    'Acme',
+        platform:         'FACEBOOK',
+        excerpt:          'A pointed question',
+        escalationReason: 'Contains a legal threat',
+      },
+      OPTS
+    )
+    expect(msg.facts).toEqual([{ label: 'Reason', value: 'Contains a legal threat' }])
+  })
+
   it('says "No scheduled time" rather than rendering a null date', () => {
     const msg = buildMessage(
       {

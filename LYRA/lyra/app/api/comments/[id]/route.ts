@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { CommentStatus } from '@prisma/client'
+import { notifyChannel } from '@/services/notifications/channel-notifier'
+import { getPlatformLabel } from '@/lib/platform-labels'
 
 export const dynamic = 'force-dynamic'
 
@@ -91,6 +93,41 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         { error: 'Already responded.', alreadyResolved: true, status: 'RESPONDED' },
         { status: 400 }
       )
+    }
+
+    // A human just moved this comment into ESCALATED via the Escalate
+    // button -- the same alert the AI's own autonomous escalation fires in
+    // workers/ai-responder.worker.ts, so a teammate on Slack finds out
+    // either way. Looked up separately from the response below, and
+    // swallowed on failure, so a notification problem can never affect what
+    // the Escalate button itself sees back -- notifyChannel is fail-open too
+    // (see channel-notifier.ts), so this is belt and braces.
+    if (data.status === 'ESCALATED') {
+      try {
+        const account = await prisma.socialAccount.findUnique({
+          where:  { id: comment.socialAccountId },
+          select: { platform: true, workspace: { select: { name: true } } },
+        })
+        if (account) {
+          await notifyChannel(
+            comment.workspaceId,
+            {
+              event:            'COMMENT_ESCALATED',
+              workspaceName:    account.workspace.name,
+              platform:         getPlatformLabel(account.platform),
+              excerpt:          comment.content,
+              authorName:       comment.authorName,
+              escalationReason: typeof data.escalationReason === 'string' ? data.escalationReason : null,
+            },
+            // Same dedupe key the autonomous escalation path uses -- one
+            // alert per comment reaching ESCALATED, regardless of which
+            // path got it there first.
+            { dedupeKey: `escalated-${id}` }
+          )
+        }
+      } catch (err) {
+        console.error(`Failed to notify channel for escalated comment ${id}:`, err)
+      }
     }
 
     // updateMany doesn't return the written row the way update() did. No

@@ -15,8 +15,13 @@ vi.mock('@/lib/prisma', () => ({
     socialAccount: { findUnique: vi.fn() },
   },
 }))
+// The escalation branch notifies the workspace's Slack channel. notifyChannel
+// is fail-open so it would only log against the mocked prisma above, but
+// stubbing it keeps these cases about escalation-claim resolution.
+vi.mock('@/services/notifications/channel-notifier', () => ({ notifyChannel: vi.fn() }))
 
 import { processAiResponseJob } from './ai-responder.worker'
+import { notifyChannel } from '@/services/notifications/channel-notifier'
 
 function makeDeps(overrides: {
   comment?: Partial<Record<string, unknown>>
@@ -49,7 +54,7 @@ function makeDeps(overrides: {
   }
 
   const account = overrides.account === undefined
-    ? { id: 'acc-1', provider: 'NATIVE', zernioAccountId: null }
+    ? { id: 'acc-1', provider: 'NATIVE', zernioAccountId: null, platform: 'FACEBOOK', workspace: { name: 'Acme Co' } }
     : overrides.account
 
   const replyToComment = overrides.replyToComment ?? vi.fn().mockResolvedValue(undefined)
@@ -120,8 +125,33 @@ describe('processAiResponseJob', () => {
       },
     })
     expect(deps.prisma.comment.updateMany).toHaveBeenCalledTimes(1)
-    expect(deps.prisma.socialAccount.findUnique).not.toHaveBeenCalled()
     expect(deps.getProvider).not.toHaveBeenCalled()
+
+    // Alerts the workspace's Slack channel with the escalation context --
+    // one alert per comment reaching ESCALATED, dedupe-keyed on the comment.
+    expect(notifyChannel).toHaveBeenCalledWith(
+      'ws-1',
+      {
+        event:            'COMMENT_ESCALATED',
+        workspaceName:    'Acme Co',
+        platform:         'Facebook',
+        excerpt:          'Great product!',
+        authorName:       'Jane Doe',
+        escalationReason: 'Contains a legal threat',
+      },
+      { dedupeKey: 'escalated-comment-1' }
+    )
+  })
+
+  it('does not notify when the account lookup for the escalation alert comes back empty', async () => {
+    const { deps } = makeDeps({
+      generateResult: { response: null, shouldEscalate: true, escalationReason: 'Contains a legal threat' },
+      account: null,
+    })
+
+    await processAiResponseJob({ commentId: 'comment-1', autoPost: true }, deps)
+
+    expect(notifyChannel).not.toHaveBeenCalled()
   })
 
   it('does not perform any additional writes or sends when the escalation claim loses the race (count: 0)', async () => {
@@ -156,7 +186,7 @@ describe('processAiResponseJob', () => {
       data: { status: 'RESPONDED', finalResponse: 'Thanks so much!', respondedAt: expect.any(Date) },
     })
     expect(replyToComment).toHaveBeenCalledWith(
-      { id: 'acc-1', provider: 'NATIVE', zernioAccountId: null },
+      { id: 'acc-1', provider: 'NATIVE', zernioAccountId: null, platform: 'FACEBOOK', workspace: { name: 'Acme Co' } },
       'plat-post-1',
       'plat-comment-1',
       'Thanks so much!'

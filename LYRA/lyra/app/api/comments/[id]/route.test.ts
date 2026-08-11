@@ -4,11 +4,17 @@ vi.mock('@/lib/auth', () => ({ requireAuth: vi.fn() }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     comment: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+    socialAccount: { findUnique: vi.fn() },
   },
 }))
+// A transition to ESCALATED notifies the workspace's Slack channel.
+// notifyChannel is fail-open so it would only log against the mocked prisma
+// above, but stubbing it keeps these cases about the write itself.
+vi.mock('@/services/notifications/channel-notifier', () => ({ notifyChannel: vi.fn() }))
 
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { notifyChannel } from '@/services/notifications/channel-notifier'
 import { PATCH } from './route'
 
 function req(body: unknown) {
@@ -56,20 +62,46 @@ describe('PATCH /api/comments/[id]', () => {
   // handleEscalate sends, on a comment that hasn't been RESPONDED. This must
   // keep working -- the guard added by this fix excludes only RESPONDED, not
   // ESCALATED, specifically so this transition survives.
-  it('still allows escalating a non-RESPONDED comment via the guarded write', async () => {
+  it('still allows escalating a non-RESPONDED comment via the guarded write, and notifies the workspace channel', async () => {
     vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
-    vi.mocked(prisma.comment.findFirst).mockResolvedValue(baseComment() as any)
+    vi.mocked(prisma.comment.findFirst).mockResolvedValue(baseComment({ socialAccountId: 'acc-1' }) as any)
+    vi.mocked(prisma.socialAccount.findUnique).mockResolvedValue({
+      platform:  'FACEBOOK',
+      workspace: { name: 'Acme Co' },
+    } as any)
 
     const res = await PATCH(req({ status: 'ESCALATED', isEscalated: true }), ctx())
 
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body).toEqual({ ...baseComment(), status: 'ESCALATED', isEscalated: true })
+    expect(body).toEqual({ ...baseComment({ socialAccountId: 'acc-1' }), status: 'ESCALATED', isEscalated: true })
     expect(prisma.comment.update).not.toHaveBeenCalled()
     expect(prisma.comment.updateMany).toHaveBeenCalledWith({
       where: claimWhere('c1'),
       data: { status: 'ESCALATED', isEscalated: true },
     })
+    expect(notifyChannel).toHaveBeenCalledWith(
+      'ws-1',
+      {
+        event:            'COMMENT_ESCALATED',
+        workspaceName:    'Acme Co',
+        platform:         'Facebook',
+        excerpt:          'nice post',
+        authorName:       'Jane',
+        escalationReason: null,
+      },
+      { dedupeKey: 'escalated-c1' }
+    )
+  })
+
+  it('does not notify the workspace channel for a normal, non-escalating PATCH', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.comment.findFirst).mockResolvedValue(baseComment() as any)
+
+    await PATCH(req({ status: 'IGNORED' }), ctx())
+
+    expect(notifyChannel).not.toHaveBeenCalled()
+    expect(prisma.socialAccount.findUnique).not.toHaveBeenCalled()
   })
 
   // A normal, non-status PATCH (e.g. Ignore) still works and returns the

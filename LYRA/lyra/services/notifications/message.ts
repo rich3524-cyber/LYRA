@@ -24,6 +24,14 @@ export type NotificationInput =
       comment?: { content: string; authorName: string; platform: string } | null
     }
   | {
+      event: 'COMMENT_ESCALATED'
+      workspaceName: string
+      platform: string
+      excerpt: string
+      authorName?: string | null
+      escalationReason?: string | null
+    }
+  | {
       event: 'POST_FAILED'
       workspaceName: string
       platform: string
@@ -110,6 +118,18 @@ export function buildMessage(input: NotificationInput, opts: BuildMessageOptions
               text:        truncate(input.comment.content),
               attribution: `${input.comment.authorName} · ${input.comment.platform}`,
             }
+          : undefined,
+        linkUrl:   `${base}/inbox`,
+        linkLabel: 'Review in Inbox',
+      }
+
+    case 'COMMENT_ESCALATED':
+      return {
+        title:   `Comment escalated — ${input.workspaceName}`,
+        summary: `A ${input.platform} comment needs a human reply instead of an AI one.`,
+        quote:   { text: truncate(input.excerpt), attribution: input.authorName ?? undefined },
+        facts:   input.escalationReason
+          ? [{ label: 'Reason', value: truncate(input.escalationReason, 200) }]
           : undefined,
         linkUrl:   `${base}/inbox`,
         linkLabel: 'Review in Inbox',

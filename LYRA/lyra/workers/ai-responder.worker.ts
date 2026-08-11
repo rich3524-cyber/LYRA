@@ -3,6 +3,8 @@ import { redis } from '@/lib/redis'
 import { prisma } from '@/lib/prisma'
 import { generateCommentResponse } from '@/services/ai/response-generator'
 import { getProvider } from '@/services/social/provider'
+import { notifyChannel } from '@/services/notifications/channel-notifier'
+import { getPlatformLabel } from '@/lib/platform-labels'
 
 interface AiResponseJobData {
   commentId: string
@@ -134,6 +136,37 @@ export async function processAiResponseJob(jobData: AiResponseJobData, deps: AiR
     })
     if (escalated.count === 0) {
       console.log(`Comment ${commentId} already resolved by a concurrent process -- skipping escalation write`)
+      return
+    }
+
+    // Best-effort context lookup for the alert -- kept outside the write
+    // above and swallowed on failure so a lookup problem can never undo an
+    // escalation that has already happened. notifyChannel is itself
+    // fail-open (see channel-notifier.ts), so this is belt and braces.
+    try {
+      const account = await deps.prisma.socialAccount.findUnique({
+        where:  { id: comment.socialAccountId },
+        select: { platform: true, workspace: { select: { name: true } } },
+      })
+      if (account) {
+        await notifyChannel(
+          comment.workspaceId,
+          {
+            event:            'COMMENT_ESCALATED',
+            workspaceName:    account.workspace.name,
+            platform:         getPlatformLabel(account.platform),
+            excerpt:          comment.content,
+            authorName:       comment.authorName,
+            escalationReason: result.escalationReason ?? null,
+          },
+          // One alert per comment reaching ESCALATED, not per attempt -- a
+          // concurrent manual Escalate click racing this worker (or a
+          // stalled/re-delivered job) would otherwise double up.
+          { dedupeKey: `escalated-${commentId}` }
+        )
+      }
+    } catch (err) {
+      console.error(`Failed to notify channel for escalated comment ${commentId}:`, err)
     }
     return
   }
