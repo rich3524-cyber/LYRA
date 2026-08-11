@@ -2,67 +2,11 @@
 
 ---
 
-## 🔴 ACTION REQUIRED — do these first (added 2026-08-11)
+## ✅ Slack notifications + approval SLA tracking — live (confirmed 2026-08-11)
 
-The Slack notifications + approval SLA work is **code complete but not live**. Nothing works until steps 1–3 are done. Do them in order.
+All three manual steps from the original rollout are done: migration applied via the Supabase SQL Editor, `npx prisma generate` run, commit `84c7830` deployed clean via Netlify hosted CI, and an hourly cron-job.org entry created for `/api/cron/check-approval-slas`. The one previously-unverified design question is resolved: a live "Send test" on the Into The Wild Marketing workspace posted to Slack under the **"LYRA"** name — the Zernio `username`/`iconUrl` branding override works as designed, not the Zernio-fallback identity that was the risk case. See the 2026-08-11 (later) changelog entry for full build details.
 
-### Step 1 — Apply the database migration
-
-Open **Supabase → SQL Editor**, paste the entire contents of this file, and run it:
-
-```
-lyra/prisma/migrations-sql/2026-08-11-slack-notifications-approval-sla.sql
-```
-
-It creates the `NotificationChannel` table + `ChannelType` enum, adds two `Workspace` columns (`approvalSlaHours`, `approvalSlaUnscheduledHours`) and two `PostApproval` columns (`submittedAt`, `slaAlertedAt`), and backfills `submittedAt` for approvals already pending. It is idempotent — safe to re-run.
-
-Then, in the `lyra/` directory:
-```bash
-npx prisma generate
-```
-
-> Use the SQL Editor, not `prisma migrate` — `DIRECT_URL` is unreachable from this machine.
-
-### Step 2 — Deploy
-
-Push to `main` and let **Netlify hosted CI** build it. Do **not** run `netlify deploy --prod` locally — the local build currently fails on OneDrive filesystem errors (see the changelog entry; the code itself typechecks and tests clean).
-
-The Railway worker fleet also needs to redeploy, since a new worker was added (`workers/notification.worker.ts`). Railway's native GitHub auto-deploy should handle this on the same push — worth confirming it picked it up.
-
-### Step 3 — Create the cron job
-
-In **cron-job.org**, add a new job:
-
-| Field | Value |
-|---|---|
-| URL | `https://lyraonline.ai/api/cron/check-approval-slas` |
-| Schedule | Hourly |
-| Auth header | Same `CRON_SECRET` header as the existing 5 cron jobs |
-
-**Nothing SLA-related fires without this.** Four of five existing cron jobs silently auto-disabled once before, so check this one is actually enabled and green afterwards.
-
-### Step 4 — Connect Slack and verify (the important one)
-
-1. Go to **Workspace → Settings → Team Notifications → Connect Slack**.
-   - Requires Agency plan, or Pro with the Crisis Aware add-on.
-   - Requires you to be `AGENCY_ADMIN` or `SMB_OWNER` on that workspace.
-   - For a **private** channel, run `/invite @Zernio` in it *before* connecting — an app cannot add itself to a private channel.
-2. Press **Send test**.
-3. **Check the message's sender name and avatar.** This is the one thing I could not verify.
-   - If it shows **"LYRA"** with the LYRA icon — correct, everything works as designed.
-   - If it shows **"Zernio"** or a Zernio icon — the branding override didn't take. Messages still deliver fine, but tell me and I'll move the `username`/`iconUrl` fields to the right place in the payload. Zernio documents those fields, and documents `platformSpecificData` as where per-platform options go, but never the two together — so the placement is an educated inference.
-
-### Optional but recommended — stop the build failures recurring
-
-Exclude these two folders from OneDrive sync; they're the cause of the local build failures and they should never have been syncing anyway:
-```
-LYRA/lyra/node_modules
-LYRA/lyra/.next
-```
-
-### Heads-up on first run
-
-Any post already sitting in `PENDING_APPROVAL` past its deadline will fire one alert each on the first cron run after you connect a channel. That's real data, not a bug — but it may arrive as a small burst. Nothing fires for workspaces without a connected channel.
+Optional, still outstanding: excluding `lyra/node_modules` and `lyra/.next` from OneDrive sync (the cause of this machine's local build failures — hosted CI is unaffected).
 
 ---
 
@@ -73,9 +17,9 @@ Any post already sitting in `PENDING_APPROVAL` past its deadline will fire one a
 ---
 
 ## Changelog
-### 2026-08-11 (later) — Slack notifications + approval SLA tracking built (Wishlist item 8) — delivery mechanism switched mid-build from incoming webhooks to Zernio OAuth. **Code complete, NOT yet deployed or migrated.**
+### 2026-08-11 (later) — Slack notifications + approval SLA tracking built (Wishlist item 8) — delivery mechanism switched mid-build from incoming webhooks to Zernio OAuth. **Deployed and confirmed live.**
 
-⚠️ **Status: built and verified locally, not live.** Three manual steps remain before any of this functions — see "Before this works" at the end of this entry. No changelog claim here should be read as "shipped".
+✅ **Status: live.** Committed (`84c7830`), pushed, deployed clean via Netlify hosted CI, migration applied, cron-job.org entry created, and a real "Send test" on the Into The Wild Marketing workspace confirmed the message posts under the **"LYRA"** name — resolving the one open question below in the good direction. All three manual steps from "Before this works" are complete.
 
 📄 **Spec:** `lyra/docs/superpowers/specs/2026-08-11-slack-notifications-design.md`. Built via the usual brainstorm → spec → plan → implement flow, formalising the `Scope Docs - Future projects/LYRA-Slack-Teams-Scope.docx` doc written earlier the same day. Wishlist item 8 updated to match what was actually built.
 
@@ -105,12 +49,12 @@ Any post already sitting in `PENDING_APPROVAL` past its deadline will fire one a
 
 ❌ **The production build does not complete on this machine, for environmental reasons.** It compiles successfully (~31s), then the TypeScript worker dies with `UNKNOWN: read` (errno -4094) — a OneDrive filesystem error, reproduced across four attempts, on a different file each time. Hydrating all 67,532 `node_modules` files (`attrib +P -U /s /d` plus a forced read pass) and clearing `.next` got it further each run but never through; an earlier attempt also hit `EPERM: unlink` on `.next/static` from OneDrive locking build output. **This is not a code failure** — `npx tsc --noEmit`, the same check that build worker runs, is clean. Consistent with the existing standing recommendation to prefer hosted CI over local builds from this machine. **Worth considering excluding `lyra/node_modules` and `lyra/.next` from OneDrive sync**, since this will keep recurring.
 
-⚠️ **One thing genuinely unverified, and it matters:** the payload location of Slack's `username`/`iconUrl`. Zernio documents `platforms[].platformSpecificData` as the per-platform options object, and separately documents `username`/`iconUrl` as Slack's bot-identity overrides — but never the two *together*; their published platform guide still covers only the 14 platforms that predate Slack. This build places them in `platformSpecificData`, following the documented pattern. If Zernio ignores unknown fields, messages still deliver — they just post under the Zernio identity instead of LYRA's. Degraded, not broken. **This was the deciding factor in choosing Zernio over webhooks, so confirm it on the first real connected channel.**
+✅ **Resolved — confirmed via a live "Send test" on 2026-08-11.** The payload location of Slack's `username`/`iconUrl` was genuinely unverified going in: Zernio documents `platforms[].platformSpecificData` as the per-platform options object, and separately documents `username`/`iconUrl` as Slack's bot-identity overrides, but never the two *together*, and their published platform guide still covers only the 14 platforms that predate Slack. This build placed them in `platformSpecificData`, following the documented pattern — and it worked: a real test message on the Into The Wild Marketing workspace posted under the **"LYRA"** name, not Zernio's fallback identity. This was the deciding factor in choosing Zernio over webhooks, and it held.
 
-**Before this works — three manual steps:**
-1. **Apply the migration:** `lyra/prisma/migrations-sql/2026-08-11-slack-notifications-approval-sla.sql` via the Supabase SQL Editor (`DIRECT_URL` is unreachable from this machine). Creates `NotificationChannel` + `ChannelType`, adds the two `Workspace` threshold columns and the two `PostApproval` columns, and backfills `submittedAt = createdAt` for currently-pending approvals. Then `npx prisma generate`.
-2. **Create a cron-job.org entry** for `/api/cron/check-approval-slas`, hourly. Nothing SLA-related fires without it — and four of five existing cron jobs have silently auto-disabled once before (see the July 2026 entry).
-3. **Deploy** (hosted CI, per the note above), then connect a real Slack channel and press "Send test" to confirm both delivery and the branding question above.
+**Before this works — three manual steps (all complete):**
+1. ✅ **Migration applied:** `lyra/prisma/migrations-sql/2026-08-11-slack-notifications-approval-sla.sql` run via the Supabase SQL Editor (`DIRECT_URL` is unreachable from this machine). Created `NotificationChannel` + `ChannelType`, added the two `Workspace` threshold columns and the two `PostApproval` columns, backfilled `submittedAt = createdAt` for then-pending approvals. `npx prisma generate` run locally afterward.
+2. ✅ **cron-job.org entry created** for `/api/cron/check-approval-slas`, hourly, with the `CRON_SECRET` bearer auth header.
+3. ✅ **Deployed** via Netlify hosted CI (commit `84c7830`), then a real Slack channel connected and "Send test" pressed — confirming both delivery and LYRA branding above.
 
 Note on first run: posts already sitting in `PENDING_APPROVAL` past their deadline will each fire one alert on the first cron run after a workspace connects a channel. That is genuine, actionable data rather than a bug, but it can arrive as a small burst. Nothing fires for a workspace with no channel — deliberately, since claiming the once-only `slaAlertedAt` flag for a workspace that has nowhere to deliver would permanently silence those posts.
 
