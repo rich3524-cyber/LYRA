@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { parseBody, ValidationError } from '@/lib/validate'
 import { checkMediaCompatibility, formatCompatibilityIssue } from '@/services/social/media-compatibility'
 import { canWrite } from '@/lib/authz'
+import { isApprovalOverdue } from '@/services/notifications/approval-sla'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,36 +54,63 @@ export async function GET(req: Request) {
       }
     }
 
-    const posts = await prisma.post.findMany({
-      where: {
-        workspaceId,
-        ...(scheduledAtFilter ? { scheduledAt: scheduledAtFilter } : {}),
-        ...(status ? { status } : {}),
-      },
-      select: {
-        id: true,
-        authorId: true,
-        content: true,
-        status: true,
-        scheduledAt: true,
-        publishedAt: true,
-        platformPostId: true,
-        mediaUrls: true,
-        aiGenerated: true,
-        failureReason: true,
-        requiresMedia: true,
-        createdAt: true,
-        socialAccount: { select: { platform: true, name: true, platformId: true, adAccountId: true } },
-        boost: true,
-      },
-      orderBy: { createdAt: 'desc' },
-      // Safety cap -- the `month` filter naturally bounds calendar-view requests,
-      // but callers like the drafts list query by `status` alone with no date
-      // range, which had no limit at all before.
-      take: 200,
-    })
+    const [workspace, posts] = await Promise.all([
+      prisma.workspace.findUnique({
+        where:  { id: workspaceId },
+        select: { approvalSlaHours: true, approvalSlaUnscheduledHours: true },
+      }),
+      prisma.post.findMany({
+        where: {
+          workspaceId,
+          ...(scheduledAtFilter ? { scheduledAt: scheduledAtFilter } : {}),
+          ...(status ? { status } : {}),
+        },
+        select: {
+          id: true,
+          authorId: true,
+          content: true,
+          status: true,
+          scheduledAt: true,
+          publishedAt: true,
+          platformPostId: true,
+          mediaUrls: true,
+          aiGenerated: true,
+          failureReason: true,
+          requiresMedia: true,
+          createdAt: true,
+          socialAccount: { select: { platform: true, name: true, platformId: true, adAccountId: true } },
+          boost: true,
+          approval: { select: { submittedAt: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        // Safety cap -- the `month` filter naturally bounds calendar-view requests,
+        // but callers like the drafts list query by `status` alone with no date
+        // range, which had no limit at all before.
+        take: 200,
+      }),
+    ])
 
-    return NextResponse.json(posts)
+    // approvalOverdue is derived here rather than read from PostApproval's
+    // slaAlertedAt flag, so the badge reflects the rule right now -- it appears
+    // even if the cron hasn't run yet, and disappears the moment a post leaves
+    // PENDING_APPROVAL. Same helper the cron uses, so the two cannot disagree.
+    const slaConfig = {
+      approvalSlaHours:            workspace?.approvalSlaHours ?? 4,
+      approvalSlaUnscheduledHours: workspace?.approvalSlaUnscheduledHours ?? 24,
+    }
+    const now = new Date()
+    const withSla = posts.map(({ approval, ...post }) => ({
+      ...post,
+      approvalOverdue:
+        post.status === 'PENDING_APPROVAL' &&
+        isApprovalOverdue(
+          { scheduledAt: post.scheduledAt, submittedAt: approval?.submittedAt ?? null },
+          slaConfig,
+          now
+        ),
+    }))
+
+    return NextResponse.json(withSla)
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

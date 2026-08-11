@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { zernioClient, ZernioApiError } from '@/services/social/zernio-client'
+import { ensureZernioProfile } from '@/services/social/zernio-connect'
 import { toZernioPlatform } from '@/services/social/provider/platform-map'
 
 export const dynamic = 'force-dynamic'
@@ -40,22 +41,7 @@ export async function GET(
     // Lazy-create the Zernio profile for this workspace on first connect of any
     // platform. One profile per workspace, per the design (Profiles group
     // accounts the same way a LYRA Workspace does).
-    let zernioProfileId = workspace.zernioProfileId
-    if (!zernioProfileId) {
-      const { profile } = await zernioClient.createProfile(workspace.name)
-      const { count } = await prisma.workspace.updateMany({
-        where: { id: workspaceId, zernioProfileId: null },
-        data: { zernioProfileId: profile._id },
-      })
-      if (count > 0) {
-        zernioProfileId = profile._id
-      } else {
-        // Another concurrent request already persisted a profile id first --
-        // use theirs instead of the one we just (now-orphaned) created.
-        const current = await prisma.workspace.findUniqueOrThrow({ where: { id: workspaceId } })
-        zernioProfileId = current.zernioProfileId!
-      }
-    }
+    const zernioProfileId = await ensureZernioProfile(workspaceId, workspace.name)
 
     const redirectUrl = `${BASE_URL}/api/zernio/connect/callback?workspaceId=${encodeURIComponent(workspaceId)}`
     const { authUrl } = await zernioClient.getConnectUrl(zernioPlatform, zernioProfileId, redirectUrl)

@@ -12,9 +12,15 @@ vi.mock('@/lib/prisma', () => ({
   },
 }))
 
+// The PENDING_APPROVAL branch notifies the workspace's Slack channel.
+// notifyChannel is fail-open so it would only log against the mocked prisma
+// above, but stubbing it keeps these cases about approval-status resolution.
+vi.mock('@/services/notifications/channel-notifier', () => ({ notifyChannel: vi.fn() }))
+
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { APPROVER_ROLES } from '@/lib/authz'
+import { notifyChannel } from '@/services/notifications/channel-notifier'
 import { PATCH, DELETE } from './route'
 
 function req(body: unknown) {
@@ -54,8 +60,13 @@ describe('PATCH /api/posts/[id] — approval-status resolution', () => {
     expect(prisma.postApproval.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where:  { postId: 'post-1' },
-        create: { postId: 'post-1', status: 'PENDING' },
-        update: { status: 'PENDING', reviewedAt: null, reviewerId: null },
+        create: { postId: 'post-1', status: 'PENDING', submittedAt: expect.any(Date) },
+        update: {
+          status: 'PENDING', reviewedAt: null, reviewerId: null,
+          // Start of the new pending cycle, and the once-only SLA flag reset
+          // so a resubmitted post can alert again.
+          submittedAt: expect.any(Date), slaAlertedAt: null,
+        },
       })
     )
   })
@@ -142,10 +153,83 @@ describe('PATCH /api/posts/[id] — approval-status resolution', () => {
     expect(prisma.postApproval.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where:  { postId: 'post-1' },
-        create: { postId: 'post-1', status: 'PENDING' },
-        update: { status: 'PENDING', reviewedAt: null, reviewerId: null },
+        create: { postId: 'post-1', status: 'PENDING', submittedAt: expect.any(Date) },
+        update: {
+          status: 'PENDING', reviewedAt: null, reviewerId: null,
+          // Start of the new pending cycle, and the once-only SLA flag reset
+          // so a resubmitted post can alert again.
+          submittedAt: expect.any(Date), slaAlertedAt: null,
+        },
       })
     )
+  })
+
+  it('stamps a fresh submittedAt on the UPDATE branch, so a resubmitted post is not instantly overdue', async () => {
+    // The row is upserted on every approval transition, so createdAt still
+    // holds the FIRST submission after a recall-and-resubmit. If the SLA clock
+    // read createdAt, a post submitted weeks ago, rejected, and resubmitted now
+    // would read as long overdue the moment it re-entered approval.
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.post.findFirst).mockResolvedValue({
+      id: 'post-1', status: 'DRAFT', workspaceId: 'ws-1', authorId: 'user-2',
+      content: 'Resubmitted copy', mediaUrls: [], requiresMedia: false,
+      socialAccount: { platform: 'FACEBOOK' },
+      workspace: { clientAccessLevel: 'APPROVE', name: 'Acme' },
+      author: { name: 'Author' },
+    } as any)
+    ;(prisma.post.update as any).mockImplementation(async ({ data }: any) => ({ id: 'post-1', ...data }))
+    vi.mocked(prisma.postApproval.upsert).mockResolvedValue({} as any)
+
+    const before = Date.now()
+    await PATCH(req({ status: 'SCHEDULED', scheduledAt: '2026-09-01T00:00:00.000Z' }), ctx('post-1'))
+
+    const call = vi.mocked(prisma.postApproval.upsert).mock.calls[0][0] as any
+    expect(call.update.submittedAt.getTime()).toBeGreaterThanOrEqual(before)
+    expect(call.update.slaAlertedAt).toBeNull()
+    // create and update agree, so which branch Prisma takes cannot change the clock.
+    expect(call.create.submittedAt.getTime()).toBe(call.update.submittedAt.getTime())
+  })
+
+  it('notifies the workspace channel when a post enters approval', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.post.findFirst).mockResolvedValue({
+      id: 'post-1', status: 'DRAFT', workspaceId: 'ws-1', authorId: 'user-2',
+      content: 'Needs review', mediaUrls: [], requiresMedia: false,
+      socialAccount: { platform: 'FACEBOOK' },
+      workspace: { clientAccessLevel: 'APPROVE', name: 'Acme' },
+      author: { name: 'Jane' },
+    } as any)
+    ;(prisma.post.update as any).mockImplementation(async ({ data }: any) => ({ id: 'post-1', ...data }))
+    vi.mocked(prisma.postApproval.upsert).mockResolvedValue({} as any)
+
+    await PATCH(req({ status: 'SCHEDULED', scheduledAt: '2026-09-01T00:00:00.000Z' }), ctx('post-1'))
+
+    expect(notifyChannel).toHaveBeenCalledWith(
+      'ws-1',
+      expect.objectContaining({
+        event:         'POST_PENDING_APPROVAL',
+        workspaceName: 'Acme',
+        excerpt:       'Needs review',
+        authorName:    'Jane',
+      }),
+      expect.objectContaining({ dedupeKey: expect.stringContaining('pending-post-1-') })
+    )
+  })
+
+  it('does not notify when the post does not enter approval', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.post.findFirst).mockResolvedValue({
+      id: 'post-1', status: 'DRAFT', workspaceId: 'ws-1', authorId: 'user-2',
+      content: 'x', mediaUrls: [], requiresMedia: false,
+      socialAccount: { platform: 'FACEBOOK' },
+      workspace: { clientAccessLevel: 'NONE', name: 'Acme' },
+      author: { name: 'Jane' },
+    } as any)
+    ;(prisma.post.update as any).mockImplementation(async ({ data }: any) => ({ id: 'post-1', ...data }))
+
+    await PATCH(req({ status: 'SCHEDULED', scheduledAt: '2026-09-01T00:00:00.000Z' }), ctx('post-1'))
+
+    expect(notifyChannel).not.toHaveBeenCalled()
   })
 })
 

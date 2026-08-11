@@ -60,7 +60,29 @@ export async function PATCH(
     }
 
     const body = await req.json()
-    const { name, industry, websiteUrl, clientAccessLevel, aiResponseMode, crisisAware, timezone } = body
+    const {
+      name, industry, websiteUrl, clientAccessLevel, aiResponseMode, crisisAware, timezone,
+      approvalSlaHours, approvalSlaUnscheduledHours,
+    } = body
+
+    // Approval SLA thresholds are whole hours within a sane range. Validated
+    // rather than passed through: these are Int columns, so a non-integer or a
+    // string would be a Prisma-level 500, and a negative or absurd value would
+    // silently make the SLA either fire on everything or never fire at all.
+    const SLA_BOUNDS: Record<string, [number, number]> = {
+      approvalSlaHours:            [1, 720],
+      approvalSlaUnscheduledHours: [1, 720],
+    }
+    for (const [field, value] of Object.entries({ approvalSlaHours, approvalSlaUnscheduledHours })) {
+      if (value === undefined) continue
+      const [min, max] = SLA_BOUNDS[field]
+      if (!Number.isInteger(value) || value < min || value > max) {
+        return NextResponse.json(
+          { error: `${field} must be a whole number of hours between ${min} and ${max}.` },
+          { status: 400 }
+        )
+      }
+    }
 
     // Plan gate: Starter users cannot enable crisisAware
     if (crisisAware === true && existing.plan === 'STARTER') {
@@ -82,6 +104,8 @@ export async function PATCH(
         ...(aiResponseMode !== undefined && { aiResponseMode }),
         ...(crisisAware !== undefined && { crisisAware: crisisAware === true }),
         ...(timezone !== undefined && { timezone }),
+        ...(approvalSlaHours !== undefined && { approvalSlaHours }),
+        ...(approvalSlaUnscheduledHours !== undefined && { approvalSlaUnscheduledHours }),
       },
     })
 

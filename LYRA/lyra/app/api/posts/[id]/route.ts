@@ -6,6 +6,8 @@ import { PostStatus } from '@prisma/client'
 import { parseBody, ValidationError } from '@/lib/validate'
 import { checkMediaCompatibility, formatCompatibilityIssue } from '@/services/social/media-compatibility'
 import { APPROVER_ROLES } from '@/lib/authz'
+import { getPlatformLabel } from '@/lib/platform-labels'
+import { notifyChannel } from '@/services/notifications/channel-notifier'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,7 +37,9 @@ export async function PATCH(
         id: true, status: true, workspaceId: true, authorId: true,
         content: true, mediaUrls: true, requiresMedia: true, scheduledAt: true,
         socialAccount: { select: { platform: true } },
-        workspace: { select: { clientAccessLevel: true } },
+        // name/author are read only by the POST_PENDING_APPROVAL notification below.
+        workspace: { select: { clientAccessLevel: true, name: true } },
+        author:    { select: { name: true } },
       },
     })
 
@@ -161,11 +165,35 @@ export async function PATCH(
     // requested status, so a SCHEDULED request redirected to PENDING_APPROVAL
     // above still gets a reviewable PostApproval record created.
     if (finalStatus === 'PENDING_APPROVAL') {
+      // submittedAt starts the SLA clock for THIS pending cycle, and
+      // slaAlertedAt is cleared so a resubmitted post can alert again. Neither
+      // can key off createdAt: this row is upserted, so on a resubmit the
+      // update branch runs and createdAt still holds the first ever submission.
+      const submittedAt = new Date()
       await prisma.postApproval.upsert({
         where:  { postId: id },
-        create: { postId: id, status: 'PENDING' },
-        update: { status: 'PENDING', reviewedAt: null, reviewerId: null },
+        create: { postId: id, status: 'PENDING', submittedAt },
+        update: { status: 'PENDING', reviewedAt: null, reviewerId: null, submittedAt, slaAlertedAt: null },
       })
+
+      // Fire-and-forget by design -- notifyChannel never throws, and an alert
+      // problem must not fail a real approval submission.
+      await notifyChannel(
+        existing.workspaceId,
+        {
+          event:         'POST_PENDING_APPROVAL',
+          workspaceName: existing.workspace.name,
+          platform:      getPlatformLabel(existing.socialAccount.platform),
+          excerpt:       content ?? existing.content,
+          scheduledAt:   scheduledAt !== undefined
+            ? (scheduledAt ? new Date(scheduledAt) : null)
+            : existing.scheduledAt,
+          authorName:    existing.author?.name ?? null,
+        },
+        // Keyed on the submission instant, so a resubmit is a genuinely new
+        // alert while a double-click on Submit is not.
+        { dedupeKey: `pending-${id}-${submittedAt.getTime()}` }
+      )
     } else if (status === 'APPROVED') {
       // An approval decision happened, regardless of whether the post landed
       // on APPROVED (still awaiting media) or jumped straight to SCHEDULED.

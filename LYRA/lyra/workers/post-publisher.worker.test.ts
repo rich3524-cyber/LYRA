@@ -10,6 +10,11 @@ vi.mock('bullmq', () => ({ Worker: vi.fn().mockImplementation(function MockWorke
 vi.mock('@/lib/prisma', () => ({
   prisma: { post: { findUnique: vi.fn(), updateMany: vi.fn(), update: vi.fn() }, workspace: { findUnique: vi.fn() } },
 }))
+// The POST_PUBLISHED notification goes through the real (unmocked) prisma
+// singleton above, which has no notificationChannel key. notifyChannel is
+// fail-open so it would only log, but stubbing it keeps that noise out of the
+// test output and keeps these cases about publishing.
+vi.mock('@/services/notifications/channel-notifier', () => ({ notifyChannel: vi.fn() }))
 
 import { processPublishJob } from './post-publisher.worker'
 

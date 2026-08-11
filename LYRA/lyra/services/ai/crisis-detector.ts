@@ -1,8 +1,60 @@
 import { prisma } from '@/lib/prisma'
 import { anthropic, extractClaudeText, neutralizeFenceCloser } from '@/lib/anthropic'
 import { sendCrisisAlertEmail } from '@/services/notifications/crisis-alert-email'
+import { notifyChannel } from '@/services/notifications/channel-notifier'
+import { getPlatformLabel } from '@/lib/platform-labels'
 
 type Comment = { id: string; content: string }
+
+/**
+ * Posts the crisis to the workspace's Slack channel, alongside (never instead
+ * of) the email. Email stays the baseline path precisely so a broken or
+ * unpaid-for channel can never be the reason nobody hears about a crisis.
+ *
+ * Fetches its own comment excerpt rather than reusing the email's, because
+ * sendCrisisAlertEmail deliberately swallows all its own failures -- threading
+ * data out of it would couple the two paths' failure modes together.
+ */
+async function notifyCrisisChannel(
+  workspaceId: string,
+  triggerType: 'KEYWORD_MATCH' | 'SENTIMENT_SPIKE',
+  commentIds: string[]
+): Promise<void> {
+  try {
+    const [workspace, comment] = await Promise.all([
+      prisma.workspace.findUnique({ where: { id: workspaceId }, select: { name: true } }),
+      commentIds[0]
+        ? prisma.comment.findUnique({
+            where:  { id: commentIds[0] },
+            select: { content: true, authorName: true, socialAccount: { select: { platform: true } } },
+          })
+        : Promise.resolve(null),
+    ])
+    if (!workspace) return
+
+    await notifyChannel(
+      workspaceId,
+      {
+        event:         'CRISIS_DETECTED',
+        workspaceName: workspace.name,
+        triggerType,
+        comment:       comment
+          ? {
+              content:    comment.content,
+              authorName: comment.authorName,
+              platform:   getPlatformLabel(comment.socialAccount.platform),
+            }
+          : null,
+      },
+      // One alert per crisis event, not per comment in the batch.
+      { dedupeKey: `crisis-${workspaceId}-${commentIds[0] ?? 'none'}` }
+    )
+  } catch (error) {
+    // Fail open, same contract as the email path -- crisis detection itself has
+    // already committed by the time this runs.
+    console.error(`Crisis channel notification failed for workspace ${workspaceId}:`, error)
+  }
+}
 
 type DetectResult =
   | { triggered: false }
@@ -65,6 +117,7 @@ export async function checkAndTriggerCrisis(workspaceId: string, comments: Comme
       if (won) {
         console.log(`Crisis triggered for workspace ${workspaceId}: ${result.type}`)
         await sendCrisisAlertEmail(workspaceId, result.type, result.commentIds)
+        await notifyCrisisChannel(workspaceId, result.type, result.commentIds)
       }
     }
   } catch (error) {

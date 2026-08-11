@@ -81,6 +81,16 @@ model Workspace {
   crisisTriggeredAt DateTime?
   trendSubId        String?      @unique
   zernioProfileId   String?
+
+  // Approval SLA thresholds. Two rules, because a post can reach
+  // PENDING_APPROVAL without ever being given a scheduled time:
+  //   - scheduledAt set -> breach at (scheduledAt - approvalSlaHours)
+  //   - scheduledAt null -> breach at (submittedAt + approvalSlaUnscheduledHours)
+  // Without the second rule an unscheduled post could sit pending forever and
+  // never once alert, which is exactly the case the SLA exists to catch.
+  approvalSlaHours            Int @default(4)
+  approvalSlaUnscheduledHours Int @default(24)
+
   createdAt         DateTime     @default(now())
   updatedAt         DateTime     @updatedAt
 
@@ -98,6 +108,55 @@ model Workspace {
   competitors        Competitor[]
   reviews            Review[]
   emailIntegrations  EmailIntegration[]
+  notificationChannel NotificationChannel?
+}
+
+// A Slack (or, later, Teams) channel that LYRA posts event alerts into.
+//
+// Deliberately NOT a SocialAccount, even though the connection is made through
+// the same Zernio OAuth flow. A SocialAccount row would surface this channel in
+// the compose platform selector, the content calendar, analytics, and the
+// comment-sync cron (which iterates SocialAccount) -- Zernio's Slack inbox
+// ingests DMs and mentions, which would land in LYRA's Inbox as brand comments.
+// An alerts channel is not a publishing destination, so it gets its own table
+// and stays out of every one of those surfaces.
+//
+// workspaceId is @unique deliberately: v1 is exactly one channel per
+// workspace, enforced at the DB level rather than in route logic so a
+// concurrent double-connect can't create two. Relaxing this later is an index
+// change, not a restructure.
+model NotificationChannel {
+  id          String      @id @default(cuid())
+  workspaceId String      @unique
+  workspace   Workspace   @relation(fields: [workspaceId], references: [id])
+  type        ChannelType
+
+  // Zernio's account id for this connection. One Zernio account = one Slack
+  // channel. Not a credential -- the bearer secret is ZERNIO_API_KEY, which
+  // lives in env, so this needs no encryption. Ownership is verified against
+  // the workspace's own zernioProfileId on connect, never trusted from a
+  // redirect query param.
+  zernioAccountId String
+  // Slack channel name for display, e.g. "#client-acme-alerts".
+  label           String?
+
+  // Validated against the canonical list in services/notifications/events.ts
+  // rather than a Prisma enum, so adding an event doesn't need a migration.
+  enabledEvents String[]
+
+  lastDeliveryAt      DateTime?
+  lastDeliveryError   String?
+  consecutiveFailures Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum ChannelType {
+  SLACK
+  // Reserved. No formatter exists in this build -- Teams requires a Power
+  // Automate Workflow and Adaptive Cards, not the retired connector webhook.
+  TEAMS
 }
 
 enum Plan {
@@ -232,7 +291,23 @@ model PostApproval {
   status     ApprovalStatus @default(PENDING)
   notes      String?
   reviewedAt DateTime?
+
+  // Start of the CURRENT pending cycle -- deliberately not createdAt.
+  // This row is upserted on every approval transition (keyed on the unique
+  // postId), so on a recall-and-resubmit the update branch runs and createdAt
+  // still holds the FIRST EVER submission. A post submitted in June, rejected,
+  // edited, and resubmitted today would read as months overdue the instant it
+  // re-entered approval. Stamped fresh on every transition into PENDING.
+  submittedAt DateTime?
+
+  // Once-only SLA fired flag, cleared alongside submittedAt on resubmission so
+  // a resubmitted post can alert again on its new cycle.
+  slaAlertedAt DateTime?
+
   createdAt  DateTime       @default(now())
+
+  // The SLA cron scans for pending approvals that haven't alerted yet.
+  @@index([status, slaAlertedAt])
 }
 
 enum ApprovalStatus {

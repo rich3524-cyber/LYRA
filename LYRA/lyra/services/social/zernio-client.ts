@@ -139,6 +139,46 @@ export const zernioClient = {
       idempotencyKey ? { 'x-request-id': stableRequestId(idempotencyKey) } : undefined
     ),
 
+  // Notification delivery to a Slack channel connected as a NotificationChannel
+  // (NOT a SocialAccount -- see the model comment in schema.prisma). Same
+  // POST /posts endpoint as publishNow, but platform-specific options ride in
+  // `platformSpecificData` on the platform entry, which is where Zernio
+  // documents per-platform options generally.
+  //
+  // NOTE: Zernio documents `username`/`iconUrl` as Slack's bot-identity
+  // overrides, and documents platformSpecificData as the per-platform options
+  // object, but has not documented the two together -- their platform guide
+  // still covers only the 14 platforms predating Slack. If the fields are
+  // ignored, the message still delivers under Zernio's own bot identity.
+  // Must be confirmed against a real connected channel.
+  //
+  // idempotencyKey follows the same x-request-id convention as publishNow: a
+  // client-side timeout on this call has already been seen live for publishNow
+  // (2026-07-21), and a BullMQ retry without a stable key would post a second
+  // real message into the customer's channel.
+  sendSlackMessage: (
+    accountId: string,
+    content: string,
+    platformSpecificData?: Record<string, string>,
+    idempotencyKey?: string
+  ) =>
+    req<{ post?: { id: string; status: string }; existingPost?: { id: string; status: string } }>(
+      'POST',
+      '/posts',
+      {
+        content,
+        platforms: [
+          {
+            platform: 'slack',
+            accountId,
+            ...(platformSpecificData ? { platformSpecificData } : {}),
+          },
+        ],
+        publishNow: true,
+      },
+      idempotencyKey ? { 'x-request-id': stableRequestId(idempotencyKey) } : undefined
+    ),
+
   // There is no single endpoint that returns a flat list of comments for one account.
   // The real API is two-step: list POSTS that have comments (across all connected
   // accounts), then fetch the comments for one specific post (accountId required).

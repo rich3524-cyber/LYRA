@@ -12,12 +12,15 @@ import { AutonomySelector } from '@/components/lyra/settings/autonomy-selector'
 import { FacebookPagePicker } from '@/components/lyra/settings/facebook-page-picker'
 import { TimezoneSelector } from '@/components/lyra/settings/timezone-selector'
 import { EmailMarketingSection } from '@/components/lyra/settings/email-marketing-section'
+import { NotificationsSection } from '@/components/lyra/settings/notifications-section'
+import { ApprovalSlaSettings } from '@/components/lyra/settings/approval-sla-settings'
+import { hasCrisisAwareAccess, hasNotificationChannelAccess } from '@/lib/plan-access'
 import { PLATFORM_LABELS, getPlatformLabel } from '@/lib/platform-labels'
 import type { Platform } from '@prisma/client'
 
 interface Props {
   params: Promise<{ workspaceId: string }>
-  searchParams: Promise<{ connected?: string; fbpending?: string; error?: string }>
+  searchParams: Promise<{ connected?: string; fbpending?: string; error?: string; notifications?: string }>
 }
 
 interface PlatformConfig {
@@ -77,20 +80,30 @@ export default async function SettingsPage({ params, searchParams }: Props) {
   if (!user) redirect('/auth/login')
 
   const { workspaceId } = await params
-  const { connected, fbpending, error } = await searchParams
+  const { connected, fbpending, error, notifications } = await searchParams
 
   const workspace = await prisma.workspace.findFirst({
     where: { id: workspaceId, access: { some: { userId: user.id } } },
     select: {
       id: true, name: true, crisisAware: true, plan: true, timezone: true, aiResponseMode: true, trendSubId: true,
+      clientAccessLevel: true, approvalSlaHours: true, approvalSlaUnscheduledHours: true,
       agency: { select: { id: true, crisisAwareSubId: true } },
+      access: { where: { userId: user.id }, select: { role: true } },
     },
   })
   if (!workspace) notFound()
 
-  const hasCrisisAware =
-    workspace.plan === 'AGENCY' ||
-    (workspace.plan === 'PRO' && !!workspace.agency?.crisisAwareSubId)
+  // Both gates come from lib/plan-access.ts rather than being inlined here, so
+  // the server-side checks in the notification-channel routes can't drift from
+  // what this page shows.
+  const hasCrisisAware = hasCrisisAwareAccess(workspace.plan, workspace.agency?.crisisAwareSubId)
+  const hasNotifications = hasNotificationChannelAccess(workspace.plan, workspace.agency?.crisisAwareSubId)
+
+  // Mirrors OWNER_ROLES in the notification-channel routes -- showing a Connect
+  // button that is known to 403 is the exact bug the Approve button had.
+  const canManageChannels = workspace.access.some(
+    (a) => a.role === 'AGENCY_ADMIN' || a.role === 'SMB_OWNER'
+  )
 
   const accounts = await prisma.socialAccount.findMany({
     where: { workspaceId, isActive: true },
@@ -125,6 +138,12 @@ export default async function SettingsPage({ params, searchParams }: Props) {
     zernio_connect_failed: 'The connection could not be completed via Zernio. Try again.',
     zernio_no_facebook_pages:
       "Zernio couldn't find a Facebook Page to connect, even though you selected the Page and granted access on Facebook's own consent screen. This is confirmed to be an issue on Zernio's side, not something fixable from LYRA or your Facebook settings — contact Zernio support and reference error code \"no_facebook_pages\" on a connection where the Page was explicitly granted during consent.",
+    notifications_connect_failed:
+      'The Slack channel could not be connected. If the channel is private, run /invite @Zernio in it first, then try again.',
+    notifications_plan_required:
+      'Slack notifications are included with the Agency plan, or with the Crisis Aware add-on on Pro.',
+    notifications_already_connected:
+      'This workspace already has a notification channel. Disconnect it before connecting a different one.',
   }
   const connectErrorMessage = error
     ? CONNECT_ERRORS[error] ?? 'The connection could not be completed. Try again.'
@@ -149,6 +168,17 @@ export default async function SettingsPage({ params, searchParams }: Props) {
           <CheckCircle size={16} strokeWidth={1.5} className="text-status-success shrink-0" />
           <p className="font-sans text-sm text-text-primary">
             {connectedPlatformLabel} connected successfully.
+          </p>
+        </div>
+      )}
+
+      {/* Notification channel connected — separate from the social-account
+          banner above, since Slack is not a Platform. */}
+      {notifications === 'connected' && (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-background-secondary border border-background-border">
+          <CheckCircle size={16} strokeWidth={1.5} className="text-status-success shrink-0" />
+          <p className="font-sans text-sm text-text-primary">
+            Slack connected. Send a test message to confirm it reaches the right channel.
           </p>
         </div>
       )}
@@ -287,6 +317,28 @@ export default async function SettingsPage({ params, searchParams }: Props) {
           />
         )}
       </section>
+
+      {/* Approval deadlines — only meaningful where the approval flow is on */}
+      {workspace.clientAccessLevel === 'APPROVE' && (
+        <section className="space-y-3">
+          <p className="font-sans text-[11px] font-medium text-text-tertiary uppercase tracking-[0.1em]">
+            Approvals
+          </p>
+          <ApprovalSlaSettings
+            workspaceId={workspace.id}
+            approvalSlaHours={workspace.approvalSlaHours}
+            approvalSlaUnscheduledHours={workspace.approvalSlaUnscheduledHours}
+            canManage={canManageChannels}
+          />
+        </section>
+      )}
+
+      {/* Team Notifications */}
+      <NotificationsSection
+        workspaceId={workspace.id}
+        hasAccess={hasNotifications}
+        canManage={canManageChannels}
+      />
 
       {/* Email Marketing */}
       <EmailMarketingSection workspaceId={workspace.id} />

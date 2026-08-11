@@ -2,6 +2,8 @@ import { Worker } from 'bullmq'
 import { redis } from '@/lib/redis'
 import { prisma } from '@/lib/prisma'
 import { getProvider } from '@/services/social/provider'
+import { getPlatformLabel } from '@/lib/platform-labels'
+import { notifyChannel } from '@/services/notifications/channel-notifier'
 
 interface PublishJobData {
   postId: string
@@ -31,7 +33,8 @@ export async function processPublishJob(jobData: PublishJobData, deps: PublishJo
 
   const post = await deps.prisma.post.findUnique({
     where:   { id: postId },
-    include: { socialAccount: true },
+    // workspace.name is read only by the POST_PUBLISHED notification at the end.
+    include: { socialAccount: true, workspace: { select: { name: true } } },
   })
   if (!post) return
 
@@ -110,17 +113,42 @@ export async function processPublishJob(jobData: PublishJobData, deps: PublishJo
   // never called again) cover ordinary transient DB blips; if all of them
   // fail the post is left at PUBLISHING rather than the correct PUBLISHED --
   // stale-but-safe is the only acceptable failure mode here.
+  let recorded = false
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       await deps.prisma.post.update({
         where: { id: postId },
         data:  { status: 'PUBLISHED', publishedAt: new Date(), platformPostId, zernioPostId, failureReason: null },
       })
+      recorded = true
       break
     } catch (err) {
       console.error(`Post ${postId} published to the platform but recording PUBLISHED failed (attempt ${attempt}/3):`, err)
       if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 1000 * attempt))
     }
+  }
+
+  // Only announce a publish that was actually recorded. Notifying off the back
+  // of the platform call alone would tell the channel a post is live while
+  // LYRA still shows it stuck at PUBLISHING -- the same class of "LYRA says one
+  // thing, reality says another" bug this worker's retry loop exists to avoid.
+  // notifyChannel never throws, so the no-throw contract above still holds.
+  if (recorded) {
+    await notifyChannel(
+      post.workspaceId,
+      {
+        event:         'POST_PUBLISHED',
+        // Optional-chained because the unit tests build their own post
+        // fixtures against the mocked deps rather than this include.
+        workspaceName: post.workspace?.name ?? '',
+        platform:      getPlatformLabel(post.socialAccount.platform),
+        excerpt:       post.content,
+        // The provider contract returns platformPostId but no public URL, so
+        // the message deep-links to the LYRA calendar instead.
+        postUrl:       null,
+      },
+      { dedupeKey: `published-${postId}` }
+    )
   }
 }
 
@@ -141,13 +169,40 @@ worker.on('failed', async (job, err) => {
   if (job.attemptsMade < maxAttempts) return
 
   const { postId } = job.data as { postId: string }
-  await prisma.post.updateMany({
+  const failureReason = (err instanceof Error ? err.message : String(err)).slice(0, 500)
+  const { count } = await prisma.post.updateMany({
     where: { id: postId, status: 'PUBLISHING' },
-    data:  {
-      status: 'FAILED',
-      failureReason: (err instanceof Error ? err.message : String(err)).slice(0, 500),
+    data:  { status: 'FAILED', failureReason },
+  })
+
+  // Notify only when this call is the one that actually flipped the post to
+  // FAILED. The updateMany is status-scoped, so count === 0 means something
+  // else already resolved the post -- announcing a failure then would be
+  // reporting a state that isn't real.
+  if (count === 0) return
+
+  const post = await prisma.post.findUnique({
+    where:  { id: postId },
+    select: {
+      content:       true,
+      workspaceId:   true,
+      workspace:     { select: { name: true } },
+      socialAccount: { select: { platform: true } },
     },
   })
+  if (!post) return
+
+  await notifyChannel(
+    post.workspaceId,
+    {
+      event:         'POST_FAILED',
+      workspaceName: post.workspace.name,
+      platform:      getPlatformLabel(post.socialAccount.platform),
+      excerpt:       post.content,
+      failureReason,
+    },
+    { dedupeKey: `failed-${postId}` }
+  )
 })
 
 worker.on('error', (err) => {

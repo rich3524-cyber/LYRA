@@ -29,6 +29,10 @@ export interface CalendarPost {
   aiGenerated: boolean
   failureReason: string | null
   requiresMedia: boolean
+  // Derived server-side in GET /api/posts from the same rule the SLA cron
+  // uses, so the badge and the alert can never disagree. Optional because
+  // other producers of this shape (e.g. optimistic client updates) don't set it.
+  approvalOverdue?: boolean
   socialAccount: { platform: string; name: string; platformId: string; adAccountId: string | null }
   boost: PostBoost | null
 }
@@ -86,6 +90,10 @@ export const PostPreviewCard = memo(function PostPreviewCard({ post, onSelect }:
 
   const platformColor  = PLATFORM_COLORS[post.socialAccount.platform] ?? PLATFORM_COLORS['TWITTER']
   const isAwaitingMedia = (post.status === 'DRAFT' || post.status === 'APPROVED') && post.requiresMedia && post.mediaUrls.length === 0
+  // Takes the same badge slot as "awaiting media": both answer "why is this
+  // post not moving?", and a post can only be in one of the two states
+  // (awaiting media applies to DRAFT/APPROVED, overdue only to PENDING_APPROVAL).
+  const isApprovalOverdue = post.approvalOverdue === true
 
   return (
     <div
@@ -136,13 +144,23 @@ export const PostPreviewCard = memo(function PostPreviewCard({ post, onSelect }:
           <span
             className={cn(
               'font-sans text-[10px] uppercase tracking-wide px-1 rounded-full',
-              isAwaitingMedia
+              isAwaitingMedia || isApprovalOverdue
                 ? 'bg-status-warning/20 text-status-warning'
                 : STATUS_COLORS[post.status] ?? 'bg-background-border text-text-tertiary'
             )}
-            title={post.status === 'FAILED' && post.failureReason ? post.failureReason : undefined}
+            title={
+              post.status === 'FAILED' && post.failureReason
+                ? post.failureReason
+                : isApprovalOverdue
+                  ? 'This post has been waiting for approval past its deadline.'
+                  : undefined
+            }
           >
-            {isAwaitingMedia ? 'awaiting media' : post.status.toLowerCase().replace(/_/g, ' ')}
+            {isAwaitingMedia
+              ? 'awaiting media'
+              : isApprovalOverdue
+                ? 'approval overdue'
+                : post.status.toLowerCase().replace(/_/g, ' ')}
           </span>
         </div>
         <p className="font-sans text-[12px] text-text-secondary leading-tight line-clamp-2">

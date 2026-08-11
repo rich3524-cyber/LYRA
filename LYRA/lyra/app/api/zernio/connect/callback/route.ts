@@ -1,53 +1,16 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { zernioClient } from '@/services/social/zernio-client'
+import { findZernioAccount, unwrapProfileId } from '@/services/social/zernio-connect'
 import { fromZernioPlatform } from '@/services/social/provider/platform-map'
 
 export const dynamic = 'force-dynamic'
 
 const BASE_URL = process.env.APP_BASE_URL!
 
-// GET /v1/accounts is flaky -- confirmed live 2026-07-09 by calling it four times in a
-// row immediately after a real successful connection: empty, populated, empty, empty.
-// A single call right after the OAuth redirect can easily miss an account that
-// genuinely exists, which would wrongly kill a successful connection. Retry several
-// times with backoff before concluding the account really isn't there. Facebook in
-// particular took longer than LinkedIn to show up even with the original 4-attempt/3s
-// window (extra page-selection/Graph API round trip on Zernio's backend), so this
-// spans ~9s worst case.
-//
-// Zernio's redirect doesn't always include `accountId` -- confirmed live 2026-07-09:
-// LinkedIn's redirect included it, Facebook's did not (only `connected`, `profileId`,
-// `username`), despite docs implying it's always present when no selection is needed.
-// When accountId is missing, fall back to matching by (verified workspace profileId +
-// platform) instead -- still safe, since workspace.zernioProfileId is looked up
-// server-side, never trusted from the query string.
-async function findZernioAccount(opts: { zernioAccountId?: string; profileId?: string; platform?: string }) {
-  const delaysMs = [0, 500, 1000, 1500, 2000, 2000, 2000]
-  for (const delay of delaysMs) {
-    if (delay > 0) await new Promise((resolve) => setTimeout(resolve, delay))
-    const { accounts } = await zernioClient.listAccounts()
-    if (opts.zernioAccountId) {
-      const match = accounts.find(
-        (account) => account._id === opts.zernioAccountId || account.accountId === opts.zernioAccountId
-      )
-      if (match) return match
-    } else if (opts.profileId && opts.platform) {
-      const candidates = accounts.filter((account) => {
-        const pid = typeof account.profileId === 'string' ? account.profileId : account.profileId?._id
-        return pid === opts.profileId && account.platform === opts.platform
-      })
-      if (candidates.length > 0) {
-        // Most recently updated wins if the same platform is connected more than once
-        // under this profile (shouldn't normally happen, but pick deterministically).
-        candidates.sort((a, b) => String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? '')))
-        return candidates[0]
-      }
-    }
-  }
-  return undefined
-}
+// findZernioAccount and its live-established retry behaviour now live in
+// services/social/zernio-connect.ts, shared with the notification-channel
+// connect flow.
 
 // Zernio-side error codes we recognize and want to surface specifically (see
 // CONNECT_ERRORS in the settings page) rather than the generic
@@ -116,8 +79,7 @@ export async function GET(req: Request) {
     // profileId comes back as a populated object ({ _id, name }), not a bare string --
     // confirmed live 2026-07-09. Unwrap before comparing, or every real connection fails
     // this check (object !== string) and gets rejected as cross-tenant.
-    const matchedProfileId =
-      typeof matchedAccount?.profileId === 'string' ? matchedAccount.profileId : matchedAccount?.profileId?._id
+    const matchedProfileId = unwrapProfileId(matchedAccount)
     if (!matchedAccount || matchedProfileId !== workspace.zernioProfileId) {
       console.error(
         `Zernio callback: accountId ${zernioAccountId} does not belong to workspace ${workspaceId}'s Zernio profile (${workspace.zernioProfileId}) -- looks like a forged or cross-tenant accountId`

@@ -7,6 +7,7 @@ import aiResponderWorker from './ai-responder.worker'
 import brandSyncWorker from './brand-sync.worker'
 import { competitorMonitorWorker } from './competitor-monitor.worker'
 import metricsSyncWorker from './metrics-sync.worker'
+import notificationWorker from './notification.worker'
 
 const workers = [
   postPublisherWorker,
@@ -15,6 +16,7 @@ const workers = [
   brandSyncWorker,
   competitorMonitorWorker,
   metricsSyncWorker,
+  notificationWorker,
 ]
 
 console.log(`[workers] All ${workers.length} workers started`)
