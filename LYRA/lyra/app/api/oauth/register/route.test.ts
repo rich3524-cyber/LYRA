@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/auth0-management', () => ({
-  createAuth0Client: vi.fn(),
+  getOrCreateAuth0Client: vi.fn(),
 }))
 
 vi.mock('@/lib/rate-limit', () => ({
@@ -10,7 +10,7 @@ vi.mock('@/lib/rate-limit', () => ({
   getClientIp:    vi.fn(() => '127.0.0.1'),
 }))
 
-import { createAuth0Client } from '@/lib/auth0-management'
+import { getOrCreateAuth0Client } from '@/lib/auth0-management'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { POST } from './route'
 
@@ -29,7 +29,7 @@ describe('POST /api/oauth/register', () => {
   })
 
   it('registers a client and returns the RFC 7591 response shape', async () => {
-    vi.mocked(createAuth0Client).mockResolvedValue({
+    vi.mocked(getOrCreateAuth0Client).mockResolvedValue({
       client_id: 'new-client-abc',
       name:      'Claude',
       callbacks: ['https://claude.ai/api/mcp/auth_callback'],
@@ -52,14 +52,14 @@ describe('POST /api/oauth/register', () => {
     })
     expect(typeof body.client_id_issued_at).toBe('number')
 
-    expect(createAuth0Client).toHaveBeenCalledWith({
+    expect(getOrCreateAuth0Client).toHaveBeenCalledWith({
       name:         'Claude',
       redirectUris: ['https://claude.ai/api/mcp/auth_callback'],
     })
   })
 
   it('defaults client_name when omitted', async () => {
-    vi.mocked(createAuth0Client).mockResolvedValue({
+    vi.mocked(getOrCreateAuth0Client).mockResolvedValue({
       client_id: 'new-client-abc',
       name:      'MCP Client',
       callbacks: ['https://claude.ai/callback'],
@@ -67,7 +67,7 @@ describe('POST /api/oauth/register', () => {
 
     await POST(req({ redirect_uris: ['https://claude.ai/callback'] }))
 
-    expect(createAuth0Client).toHaveBeenCalledWith({
+    expect(getOrCreateAuth0Client).toHaveBeenCalledWith({
       name:         'MCP Client',
       redirectUris: ['https://claude.ai/callback'],
     })
@@ -78,13 +78,13 @@ describe('POST /api/oauth/register', () => {
     expect(res.status).toBe(400)
     const body = await res.json()
     expect(body.error).toBe('invalid_client_metadata')
-    expect(createAuth0Client).not.toHaveBeenCalled()
+    expect(getOrCreateAuth0Client).not.toHaveBeenCalled()
   })
 
   it('rejects a request with an empty redirect_uris array', async () => {
     const res = await POST(req({ redirect_uris: [] }))
     expect(res.status).toBe(400)
-    expect(createAuth0Client).not.toHaveBeenCalled()
+    expect(getOrCreateAuth0Client).not.toHaveBeenCalled()
   })
 
   it('rejects a non-https, non-localhost redirect_uri', async () => {
@@ -92,11 +92,11 @@ describe('POST /api/oauth/register', () => {
     expect(res.status).toBe(400)
     const body = await res.json()
     expect(body.error).toBe('invalid_redirect_uri')
-    expect(createAuth0Client).not.toHaveBeenCalled()
+    expect(getOrCreateAuth0Client).not.toHaveBeenCalled()
   })
 
   it('allows an http localhost redirect_uri for local development clients', async () => {
-    vi.mocked(createAuth0Client).mockResolvedValue({
+    vi.mocked(getOrCreateAuth0Client).mockResolvedValue({
       client_id: 'new-client-abc',
       name:      'Local Dev Client',
       callbacks: ['http://localhost:3000/callback'],
@@ -115,7 +115,7 @@ describe('POST /api/oauth/register', () => {
   })
 
   it('returns 500 when Auth0 client creation fails, without leaking internal error details', async () => {
-    vi.mocked(createAuth0Client).mockRejectedValue(new Error('Auth0 Management API client creation failed: 500 boom'))
+    vi.mocked(getOrCreateAuth0Client).mockRejectedValue(new Error('Auth0 Management API client creation failed: 500 boom'))
     const res = await POST(req({ redirect_uris: ['https://claude.ai/callback'] }))
     expect(res.status).toBe(500)
     const body = await res.json()
@@ -127,7 +127,7 @@ describe('POST /api/oauth/register', () => {
     expect(res.status).toBe(400)
     const body = await res.json()
     expect(body.error).toBe('invalid_client_metadata')
-    expect(createAuth0Client).not.toHaveBeenCalled()
+    expect(getOrCreateAuth0Client).not.toHaveBeenCalled()
   })
 
   it('rejects a redirect_uris array with more than 10 entries', async () => {
@@ -136,7 +136,7 @@ describe('POST /api/oauth/register', () => {
     expect(res.status).toBe(400)
     const body = await res.json()
     expect(body.error).toBe('invalid_client_metadata')
-    expect(createAuth0Client).not.toHaveBeenCalled()
+    expect(getOrCreateAuth0Client).not.toHaveBeenCalled()
   })
 
   it('rejects a client_name longer than 500 characters', async () => {
@@ -147,7 +147,7 @@ describe('POST /api/oauth/register', () => {
     expect(res.status).toBe(400)
     const body = await res.json()
     expect(body.error).toBe('invalid_client_metadata')
-    expect(createAuth0Client).not.toHaveBeenCalled()
+    expect(getOrCreateAuth0Client).not.toHaveBeenCalled()
   })
 
   it('returns 429 when the per-IP rate limit is exceeded', async () => {
@@ -156,6 +156,6 @@ describe('POST /api/oauth/register', () => {
     expect(res.status).toBe(429)
     const body = await res.json()
     expect(body.error).toBe('invalid_client_metadata')
-    expect(createAuth0Client).not.toHaveBeenCalled()
+    expect(getOrCreateAuth0Client).not.toHaveBeenCalled()
   })
 })

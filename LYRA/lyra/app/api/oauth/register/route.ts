@@ -1,6 +1,6 @@
 // app/api/oauth/register/route.ts
 import { NextResponse } from 'next/server'
-import { createAuth0Client } from '@/lib/auth0-management'
+import { getOrCreateAuth0Client } from '@/lib/auth0-management'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 const MAX_REDIRECT_URIS = 10
@@ -9,9 +9,14 @@ const MAX_STRING_LENGTH = 500
 // RFC 7591 Dynamic Client Registration. Unauthenticated by design -- this is
 // the entry point a not-yet-known OAuth client (e.g. Claude's MCP connector)
 // uses to register itself before any user has consented to anything. It
-// provisions a real Auth0 Application via the Management API (lib/auth0-management.ts)
-// as a public client (no secret, PKCE-only), scoped to authorization_code +
-// refresh_token grants -- see docs/LYRA-mcp-server-design.md section 2.2.
+// reuses an existing Auth0 Application when one already matches this exact
+// (name, redirect_uris) pair, or provisions a real one via the Management
+// API (lib/auth0-management.ts) as a public client (no secret, PKCE-only),
+// scoped to authorization_code + refresh_token grants -- see
+// docs/LYRA-mcp-server-design.md section 2.2. The reuse matters: this
+// tenant has a small fixed cap on total Applications, and a naive
+// always-create implementation previously exhausted it after a handful of
+// reconnects.
 export async function POST(req: Request) {
   // Unauthenticated + each call provisions a real, permanent Auth0
   // Application via two Management API round-trips -- cap per-IP so this
@@ -89,7 +94,7 @@ export async function POST(req: Request) {
   const clientName = typeof body.client_name === 'string' && body.client_name.trim() ? body.client_name.trim() : 'MCP Client'
 
   try {
-    const client = await createAuth0Client({ name: clientName, redirectUris })
+    const client = await getOrCreateAuth0Client({ name: clientName, redirectUris })
 
     return NextResponse.json(
       {

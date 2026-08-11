@@ -42,9 +42,58 @@ export interface Auth0ClientResult {
   callbacks: string[]
 }
 
-export async function createAuth0Client(params: CreateAuth0ClientParams): Promise<Auth0ClientResult> {
+interface Auth0ClientListEntry {
+  client_id: string
+  name?: string
+  callbacks?: string[]
+  app_type?: string
+}
+
+function sameRedirectSet(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false
+  const sortedA = [...a].sort()
+  const sortedB = [...b].sort()
+  return sortedA.every((uri, i) => uri === sortedB[i])
+}
+
+// Looks for a previously-registered Application matching this exact (name,
+// redirect_uris) pair. Best-effort: a list failure returns null rather than
+// throwing, so a transient Auth0 blip falls through to creating a new
+// client (the previous, always-create behaviour) instead of hard-failing
+// registration. Fetches one page (100) unfiltered by name/app_type -- Auth0's
+// Management API has no server-side equality filter for either on this
+// endpoint, and the tenant's own Application cap keeps the real count well
+// under that page size.
+async function findExistingAuth0Client(
+  token: string,
+  params: CreateAuth0ClientParams
+): Promise<Auth0ClientResult | null> {
   const domain = process.env.AUTH0_DOMAIN!
-  const token = await getManagementApiToken()
+  try {
+    const res = await fetch(
+      `https://${domain}/api/v2/clients?fields=client_id,name,callbacks,app_type&include_fields=true&per_page=100`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        signal:  AbortSignal.timeout(TIMEOUT_MS),
+      }
+    )
+    if (!res.ok) {
+      console.error(`Auth0 Management API client list failed: ${res.status} ${await res.text()}`)
+      return null
+    }
+    const clients = (await res.json()) as Auth0ClientListEntry[]
+    const match = clients.find(
+      (c) => c.app_type === 'native' && c.name === params.name && sameRedirectSet(c.callbacks ?? [], params.redirectUris)
+    )
+    return match ? { client_id: match.client_id, name: match.name ?? params.name, callbacks: match.callbacks ?? [] } : null
+  } catch (err) {
+    console.error('Auth0 Management API client list threw:', err)
+    return null
+  }
+}
+
+async function createAuth0ClientWithToken(token: string, params: CreateAuth0ClientParams): Promise<Auth0ClientResult> {
+  const domain = process.env.AUTH0_DOMAIN!
 
   const res = await fetch(`https://${domain}/api/v2/clients`, {
     method: 'POST',
@@ -83,4 +132,32 @@ export async function createAuth0Client(params: CreateAuth0ClientParams): Promis
     throw new Error(`Auth0 Management API client creation failed: ${res.status} ${await res.text()}`)
   }
   return await res.json() as Auth0ClientResult
+}
+
+// Always provisions a fresh Application. Kept as its own export for callers
+// that genuinely want a new client every time; getOrCreateAuth0Client below
+// is what the DCR route uses.
+export async function createAuth0Client(params: CreateAuth0ClientParams): Promise<Auth0ClientResult> {
+  const token = await getManagementApiToken()
+  return createAuth0ClientWithToken(token, params)
+}
+
+// RFC 7591 registration identifies a piece of client software, not an
+// individual end-user or device -- OAuth's own client_id model already works
+// this way. Minting a brand-new, permanent Auth0 Application on every
+// registration call meant every reconnect that lost its stored client_id (a
+// new device, a cleared cache, the MCP client re-registering after an
+// update) burned one more slot forever, on a tenant with a small fixed cap
+// on total Applications -- confirmed live: 4 duplicate "Claude" Applications
+// existed from repeat registrations before this tenant's Application limit
+// was hit. Reusing an existing Application when the same (name,
+// redirect_uris) pair registers again stops that leak: two genuinely
+// different client apps would need to send both the same name and the same
+// full redirect_uris set to collide, which is what "the same software"
+// means in this context.
+export async function getOrCreateAuth0Client(params: CreateAuth0ClientParams): Promise<Auth0ClientResult> {
+  const token = await getManagementApiToken()
+  const existing = await findExistingAuth0Client(token, params)
+  if (existing) return existing
+  return createAuth0ClientWithToken(token, params)
 }
