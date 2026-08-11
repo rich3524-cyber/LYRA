@@ -2,6 +2,17 @@
 
 ---
 
+## 🔄 Continuing on a different machine — pick up here (2026-08-11 evening)
+
+Richard is switching to the laptop. Nothing is broken or blocking — this is a clean pause point mid-planning, not an incident. Two things are in flight:
+
+1. **Bulk scheduling / CSV import (Wishlist item 5) — fully designed, not yet built.** Design spec: `lyra/docs/superpowers/specs/2026-08-12-bulk-scheduling-csv-import-design.md`. Implementation plan (5 TDD tasks, no schema changes, one new dependency `exceljs`): `lyra/docs/superpowers/plans/2026-08-12-bulk-scheduling-csv-import.md`. Both are committed. **Next step:** pick Subagent-Driven or Inline execution and build it — the plan is fully self-contained (real code in every step, exact current-file references already verified), so a fresh session can pick it up directly without re-reading this whole doc first.
+2. **Email digest (Wishlist item 6) — not yet designed.** Richard named it as a target and the brainstorming conversation had just opened (asked whether he had specific thoughts, same as the CSV import flow) when the session paused. No design decisions exist yet — start from a clean brainstorm, not a partial one.
+
+Both came out of a "what should we tackle next" recommendation this session gave: item 2 (Client portal) and item 3 (Team invitations) were also recommended as high-leverage, but Richard chose to run with item 5 and item 6 first. Items 2 and 3 are still fully unbuilt and still worth raising if picking a next feature cold.
+
+---
+
 ## ✅ Slack notifications + approval SLA tracking — live (confirmed 2026-08-11)
 
 All three manual steps from the original rollout are done: migration applied via the Supabase SQL Editor, `npx prisma generate` run, commit `84c7830` deployed clean via Netlify hosted CI, and an hourly cron-job.org entry created for `/api/cron/check-approval-slas`. The one previously-unverified design question is resolved: a live "Send test" on the Into The Wild Marketing workspace posted to Slack under the **"LYRA"** name — the Zernio `username`/`iconUrl` branding override works as designed, not the Zernio-fallback identity that was the risk case. See the 2026-08-11 (later) changelog entry for full build details.
@@ -17,6 +28,20 @@ Optional, still outstanding: excluding `lyra/node_modules` and `lyra/.next` from
 ---
 
 ## Changelog
+### 2026-08-11 (evening, later) — Calendar auto-refresh shipped; Slack alert added for non-crisis comment escalation; CSV import fully designed and planned
+
+✅ **Calendar auto-refresh** — the content calendar now silently re-fetches posts and email campaigns every 60 seconds, so content created elsewhere (e.g. via LYRA MCP) shows up without a manual reload. Skips a tick while a drag is in progress or the tab is hidden; a failed background tick is swallowed rather than toasted. Deployed (`eda951f`).
+
+✅ **Comment escalated — new Slack event (Wishlist item 1).** Closes the one real remaining gap in the notification wishlist item after today's Slack build: a comment the AI declines to answer (a guardrail match, or its own judgment) had no alert anywhere. New `COMMENT_ESCALATED` event fires from both `workers/ai-responder.worker.ts`'s autonomous escalation branch and the manual Escalate button (`app/api/comments/[id]/route.ts`), sharing one dedupe key per comment so a human clicking Escalate right after the AI already did collapses into one alert. Deployed (`f2846dd`).
+
+🧭 **Asked what to tackle next off the Wishlist, and recommended three items** by weighing what's already been invested against what's currently invisible or blocking: **Client portal** (item 2 — the approval workflow got heavily polished today but clients still have zero UI to use it from), **Team member invitations** (item 3 — currently a direct DB insert, a hard blocker for real onboarding), and **Email digest** (item 6 — good leverage since it reuses already-tracked data and unblocks the Slack weekly-digest event that got parked earlier today). Richard chose to run with **CSV import (item 5)** and **Email digest (item 6)** instead — CSV import wasn't on the original top-3 list but was raised as an honorable mention.
+
+📄 **CSV import (Wishlist item 5) — fully brainstormed, spec'd, and planned. Not built.** Richard's own framing shaped the whole design: every agency's spreadsheet is shaped differently, so rather than build a flexible column-mapping importer, LYRA hands out a **locked, downloadable `.xlsx` template** (not plain CSV, despite the item's name — a real Excel dropdown on the Platform column, scoped to the workspace's actually-connected accounts, closes an entire class of import error before the file is even uploaded). One row per platform (Richard's call — "neater and less chance of error"). Media is optional and fetched-and-rehosted server-side through the existing SSRF-hardened `safeFetch` + S3 `putObjectBuffer` helpers, not required to already be hosted in LYRA. A review screen shows every row's ready/warning/error status before anything touches the calendar, matching the AI Schedule Generator's existing review-before-commit pattern. No schema changes — reuses `POST /api/posts`'s exact approval-routing rule and `checkMediaCompatibility` rather than duplicating either. Design spec: `lyra/docs/superpowers/specs/2026-08-12-bulk-scheduling-csv-import-design.md`. Implementation plan (5 TDD tasks — template generator, parser + pure row-validation service, parse route, commit route, review-screen UI): `lyra/docs/superpowers/plans/2026-08-12-bulk-scheduling-csv-import.md`. Both committed, genuinely self-contained (real code throughout, current-file references already verified against the live codebase) — a fresh session can execute the plan directly.
+
+🔍 **Email digest (Wishlist item 6) — brainstorming just opened, no decisions made.** Paused here for the laptop switch; pick up with a fresh set of clarifying questions, not assumed context from the CSV import conversation.
+
+---
+
 ### 2026-08-11 (evening) — LYRA MCP DCR permanently fixed (Auth0 Application leak closed) + a real approve-button crash found and fixed
 
 🔒 **Permanent fix for the recurring Auth0 "too_many_entities" DCR failure.** Richard hit it again trying to reconnect LYRA MCP in Claude Desktop ("Couldn't register with LYRA's sign-in service"). Root-caused live via Netlify function logs rather than assumed: `POST /api/oauth/register` (the RFC 7591 Dynamic Client Registration shim) was minting a brand-new, permanent Auth0 Application on every registration call. RFC 7591 registration identifies a piece of client *software*, not an individual end-user or device — OAuth's own `client_id` model already works this way — so every reconnect that lost its stored `client_id` (a new device, a cleared cache, a client re-registering after an update) burned one more slot forever, on a tenant with a small fixed Application cap (confirmed via the Auth0 dashboard: only 10 total Applications existed, 4 of them duplicate "Claude" entries, before the cap started rejecting new registrations outright). This is the second time this exact class of failure has hit — previously "fixed" only by manually deleting old entries in the dashboard, which was a reset, not a fix.
