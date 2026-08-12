@@ -4,6 +4,9 @@ import ExcelJS from 'exceljs'
 import { parseBulkImportFile } from './xlsx-parser'
 import { BULK_IMPORT_HEADER_ROW, BULK_IMPORT_FIRST_DATA_ROW } from './xlsx-template'
 
+// The row the generated template puts its greyed-out example on.
+const EXAMPLE_ROW = BULK_IMPORT_FIRST_DATA_ROW - 1
+
 async function buildFixture(dataRows: unknown[][]): Promise<Buffer> {
   const workbook = new ExcelJS.Workbook()
   const sheet = workbook.addWorksheet('Posts')
@@ -61,26 +64,81 @@ describe('parseBulkImportFile', () => {
     expect(rows[1].rowNumber).toBe(BULK_IMPORT_FIRST_DATA_ROW + 2)
   })
 
-  it('reads the example row too, so a user who forgets to delete it sees it flagged', async () => {
-    // The template's example row sits directly above the first data row, so it
-    // is out of range by construction -- this pins that boundary.
+  it('skips the untouched example row without reporting it as an error', async () => {
     const workbook = new ExcelJS.Workbook()
     const sheet = workbook.addWorksheet('Posts')
-    sheet.getRow(BULK_IMPORT_FIRST_DATA_ROW - 1).values = ['x', 'y', 'z', 'EXAMPLE', '']
-    sheet.getRow(BULK_IMPORT_FIRST_DATA_ROW).values = ['2026-07-15', '09:00', 'FACEBOOK', 'Real', '']
+    sheet.getRow(BULK_IMPORT_HEADER_ROW).values = ['Date', 'Time', 'Platform', 'Caption', 'Media URL']
+    sheet.getRow(EXAMPLE_ROW).values = ['2026-09-01', '09:00', 'FACEBOOK', 'EXAMPLE — delete this row before uploading', '']
+    sheet.getRow(EXAMPLE_ROW + 1).values = ['2026-07-15', '09:00', 'FACEBOOK', 'Real', '']
     const buffer = Buffer.from(await workbook.xlsx.writeBuffer())
 
-    const rows = await parseBulkImportFile(buffer)
-    expect(rows.map((r) => r.caption)).toEqual(['Real'])
+    expect((await parseBulkImportFile(buffer)).map((r) => r.caption)).toEqual(['Real'])
   })
 
-  it('coerces non-string cells (a real date or number typed by Excel) to trimmed strings', async () => {
+  it('reads a row typed OVER the example row instead of silently dropping it', async () => {
+    // Found in real use: the template says to delete the example row, but the
+    // natural thing to do is type over it. Skipping that row by position lost
+    // a post the user had filled in, with no error anywhere.
+    const workbook = new ExcelJS.Workbook()
+    const sheet = workbook.addWorksheet('Posts')
+    sheet.getRow(BULK_IMPORT_HEADER_ROW).values = ['Date', 'Time', 'Platform', 'Caption', 'Media URL']
+    sheet.getRow(EXAMPLE_ROW).values = ['2026-07-15', '09:00', 'FACEBOOK', 'TEST TEST TEST', '']
+    const buffer = Buffer.from(await workbook.xlsx.writeBuffer())
+
+    expect((await parseBulkImportFile(buffer)).map((r) => r.caption)).toEqual(['TEST TEST TEST'])
+  })
+
+  it('reads data starting immediately below the header, since deleting the example row shifts everything up', async () => {
+    // Deleting a row in Excel shifts the rows beneath it up by one, so a user
+    // who follows the instruction literally has real data on the example row's
+    // old line. Anchoring to the header, not to a fixed data row, covers both.
+    const workbook = new ExcelJS.Workbook()
+    const sheet = workbook.addWorksheet('Posts')
+    sheet.getRow(BULK_IMPORT_HEADER_ROW).values = ['Date', 'Time', 'Platform', 'Caption', 'Media URL']
+    sheet.getRow(BULK_IMPORT_HEADER_ROW + 1).values = ['2026-07-15', '09:00', 'FACEBOOK', 'First', '']
+    sheet.getRow(BULK_IMPORT_HEADER_ROW + 2).values = ['2026-07-16', '10:00', 'INSTAGRAM', 'Second', '']
+    const buffer = Buffer.from(await workbook.xlsx.writeBuffer())
+
+    expect((await parseBulkImportFile(buffer)).map((r) => r.caption)).toEqual(['First', 'Second'])
+  })
+
+  it('converts an Excel Date cell in the Date column to YYYY-MM-DD', async () => {
+    // Excel coerces anything date-shaped into a real Date regardless of the
+    // cell's display format -- confirmed against a real filled-in template.
     const buffer = await buildFixture([
-      [new Date('2026-07-15T00:00:00Z'), 900, 'FACEBOOK', '  padded  ', ''],
+      [new Date(Date.UTC(2026, 7, 13)), '09:00', 'FACEBOOK', 'Hello', ''],
     ])
+    expect((await parseBulkImportFile(buffer))[0].date).toBe('2026-08-13')
+  })
+
+  it('converts an Excel time-only Date cell to HH:MM', async () => {
+    // Excel stores a bare time against its own 1899-12-30 epoch. Formatting
+    // that as a date produced "1899-12-30", which then failed validation with
+    // a message telling the user to use HH:MM -- which is what they had typed.
+    const buffer = await buildFixture([
+      ['2026-08-13', new Date(Date.UTC(1899, 11, 30, 19, 0)), 'FACEBOOK', 'Hello', ''],
+    ])
+    expect((await parseBulkImportFile(buffer))[0].time).toBe('19:00')
+  })
+
+  it('zero-pads a single-digit hour from an Excel time cell', async () => {
+    const buffer = await buildFixture([
+      ['2026-08-13', new Date(Date.UTC(1899, 11, 30, 9, 5)), 'FACEBOOK', 'Hello', ''],
+    ])
+    expect((await parseBulkImportFile(buffer))[0].time).toBe('09:05')
+  })
+
+  it('converts a numeric time serial (fraction of a day) to HH:MM', async () => {
+    // Some producers write a bare number rather than a date-typed cell.
+    const buffer = await buildFixture([['2026-08-13', 0.5, 'FACEBOOK', 'Hello', '']])
+    expect((await parseBulkImportFile(buffer))[0].time).toBe('12:00')
+  })
+
+  it('still accepts plain text in both columns, for a hand-built file', async () => {
+    const buffer = await buildFixture([['2026-08-13', '19:00', 'FACEBOOK', '  padded  ', '']])
     const [row] = await parseBulkImportFile(buffer)
-    expect(typeof row.date).toBe('string')
-    expect(row.time).toBe('900')
+    expect(row.date).toBe('2026-08-13')
+    expect(row.time).toBe('19:00')
     expect(row.caption).toBe('padded')
   })
 
