@@ -106,6 +106,30 @@ describe('POST /api/workspaces/[id]/bulk-import/commit', () => {
     )
   })
 
+  it('creates the PostApproval row alongside a post that lands in approval', async () => {
+    // Without this the SLA cron cannot see the post at all -- it filters on the
+    // related approval row -- so approval-overdue alerts stay silent forever
+    // while the calendar badge (derived from scheduledAt) says otherwise.
+    vi.mocked(prisma.workspaceAccess.findFirst).mockResolvedValue(
+      accessAs('AGENCY_ADMIN', 'APPROVE') as never
+    )
+
+    await POST(req([ROW]), ctx())
+
+    const call = vi.mocked(prisma.post.create).mock.calls[0][0] as {
+      data: { approval?: { create: { status: string; submittedAt: Date } } }
+    }
+    expect(call.data.approval?.create.status).toBe('PENDING')
+    expect(call.data.approval?.create.submittedAt).toBeInstanceOf(Date)
+  })
+
+  it('does not create an approval row for a workspace with no approval flow', async () => {
+    await POST(req([ROW]), ctx())
+
+    const call = vi.mocked(prisma.post.create).mock.calls[0][0] as { data: { approval?: unknown } }
+    expect(call.data.approval).toBeUndefined()
+  })
+
   it('creates every row in a single transaction', async () => {
     await POST(req([ROW, { ...ROW, socialAccountId: 'acc-ig' }]), ctx())
 

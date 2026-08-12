@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
+import { ApprovalStatus } from '@prisma/client'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { canWrite } from '@/lib/authz'
@@ -111,6 +112,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       rows.map((row) => (row.mediaUrl ? rehostMedia(workspaceId, row.mediaUrl) : Promise.resolve(null)))
     )
 
+    // A post created straight into PENDING_APPROVAL needs its PostApproval row
+    // here -- the SLA cron filters on the related approval row, so without one
+    // an imported post is invisible to approval-overdue alerting. Same fix as
+    // POST /api/posts, which had the identical gap.
+    const submittedAt = new Date()
+    const approvalCreate =
+      finalStatus === 'PENDING_APPROVAL'
+        ? { approval: { create: { status: ApprovalStatus.PENDING, submittedAt } } }
+        : {}
+
     const posts = await prisma.$transaction(
       rows.map((row, i) =>
         prisma.post.create({
@@ -122,6 +133,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             mediaUrls:       rehosted[i] ? [rehosted[i]!] : [],
             status:          finalStatus,
             scheduledAt:     new Date(row.scheduledAt),
+            ...approvalCreate,
           },
         })
       )

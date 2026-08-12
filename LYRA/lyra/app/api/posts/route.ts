@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { PostStatus, Platform } from '@prisma/client'
+import { PostStatus, Platform, ApprovalStatus } from '@prisma/client'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { parseBody, ValidationError } from '@/lib/validate'
@@ -193,6 +193,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No connected accounts for selected platforms' }, { status: 400 })
     }
 
+    // A post created straight into PENDING_APPROVAL needs its PostApproval row
+    // here. PATCH /api/posts/[id] creates one on the "Submit for approval"
+    // transition, but nothing did for a post that lands in approval at
+    // creation time -- and the SLA cron filters on the related approval row,
+    // so those posts were invisible to approval-overdue alerting entirely
+    // (confirmed against production: every pending post had no approval row).
+    // The overdue *badge* still showed, since it derives from scheduledAt, so
+    // the badge and the alert silently disagreed.
+    const submittedAt = new Date()
+    const approvalCreate =
+      finalStatus === 'PENDING_APPROVAL'
+        ? { approval: { create: { status: ApprovalStatus.PENDING, submittedAt } } }
+        : {}
+
     // Create one Post per social account
     const posts = await prisma.$transaction(
       socialAccounts.map((account) =>
@@ -207,6 +221,7 @@ export async function POST(req: Request) {
             scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
             topic: topic ?? null,
             requiresMedia: requiresMedia ?? false,
+            ...approvalCreate,
           },
           include: { socialAccount: { select: { platform: true, name: true } } },
         })
