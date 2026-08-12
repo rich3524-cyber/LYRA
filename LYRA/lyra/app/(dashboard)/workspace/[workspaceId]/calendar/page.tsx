@@ -3,9 +3,10 @@ import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { ContentCalendar } from '@/components/lyra/calendar/content-calendar'
 import { ScheduleGenerator } from '@/components/lyra/schedule/schedule-generator'
-import { APPROVER_ROLES } from '@/lib/authz'
+import { APPROVER_ROLES, canWrite } from '@/lib/authz'
+import type { UserRole } from '@prisma/client'
 import Link from 'next/link'
-import { Plus } from 'lucide-react'
+import { Plus, Upload } from 'lucide-react'
 
 interface Props {
   params: Promise<{ workspaceId: string }>
@@ -55,6 +56,15 @@ export default async function CalendarPage({ params }: Props) {
             hasBrandProfile={hasBrandProfile}
             connectedPlatforms={connectedPlatforms}
           />
+          {canWrite(userRole as UserRole) && (
+            <Link
+              href={`/workspace/${workspaceId}/calendar/bulk-import`}
+              className="inline-flex items-center gap-1.5 text-xs font-medium bg-background-tertiary border border-background-border-mid text-text-secondary hover:text-text-primary px-3 h-8 rounded-md transition-colors"
+            >
+              <Upload size={13} />
+              Bulk import
+            </Link>
+          )}
           <Link
             href={`/workspace/${workspaceId}/compose`}
             className="inline-flex items-center gap-1.5 text-xs font-medium bg-accent-platinum text-background-primary hover:bg-accent-white px-3 h-8 rounded-md transition-colors"
