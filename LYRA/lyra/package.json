@@ -25,7 +25,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@prisma/client": "^6.19.3",
     "@react-pdf/renderer": "^4.5.1",
-    "@sparticuz/chromium-min": "^148.0.0",
+    "@sparticuz/chromium-min": "^149.0.0",
     "@stripe/stripe-js": "^9.5.0",
     "@tiptap/extension-placeholder": "^3.23.2",
     "@tiptap/react": "^3.23.2",
