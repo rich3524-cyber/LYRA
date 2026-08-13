@@ -38,7 +38,10 @@ describe('getNextStatuses', () => {
   })
 
   describe('DRAFT', () => {
-    it('offers only "Submit for approval" when the workspace requires client approval — "Mark as scheduled" would silently redirect to it, so it is not shown', () => {
+    // "Mark as scheduled" would silently redirect to PENDING_APPROVAL under
+    // an approval workflow (see resolveApprovalTransition), so it's not
+    // shown alongside "Submit for approval" here.
+    it('offers only "Submit for approval" when the workspace requires client approval', () => {
       const options = getNextStatuses('DRAFT', 'AGENCY_ADMIN', 'APPROVE', false)
       expect(options).toEqual([
         { value: 'PENDING_APPROVAL', label: 'Submit for approval' },

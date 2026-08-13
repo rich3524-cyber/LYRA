@@ -92,20 +92,26 @@ export function getNextStatuses(
         // means a future change to that rule is inherited automatically
         // instead of silently drifting again.
         //
-        // requiresMedia/hasMedia below are inert for this specific call --
+        // requiresMedia/hasMedia are derived from isAwaitingMedia (this
+        // post's real media state) even though -- like contentChanged and
+        // hasScheduledAt below -- they're inert for this specific call:
         // resolveApprovalTransition's isApprovingReadyPost shortcut only
-        // fires for requestedStatus 'APPROVED', and this call always asks
-        // about 'SCHEDULED', so neither value changes the outcome here. Any
-        // self-consistent pair works; false/true (media not required) is
-        // used for clarity, not because it reflects this post's real media
-        // state.
+        // fires for requestedStatus 'APPROVED', never true here (this call
+        // always asks about 'SCHEDULED'), so requiresMedia/hasMedia/
+        // hasScheduledAt are never consulted; and the content-changed
+        // exemption clause only applies when existingStatus is 'APPROVED',
+        // never true here either (existingStatus is hardcoded 'DRAFT'), so
+        // contentChanged is never consulted. None of these four values
+        // change the outcome of this call -- see the spec-review trace on
+        // this commit for the full proof, or
+        // docs/superpowers/specs/2026-08-14-post-lifecycle-extraction-design.md.
         const wouldNeedApproval = resolveApprovalTransition({
           requestedStatus:    'SCHEDULED',
           existingStatus:     'DRAFT',
           clientAccessLevel:  clientAccessLevel as ClientAccess,
           contentChanged:     false,
-          requiresMedia:      false,
-          hasMedia:           true,
+          requiresMedia:      isAwaitingMedia,
+          hasMedia:           !isAwaitingMedia,
           hasScheduledAt:     true,
         }) === 'PENDING_APPROVAL'
 
