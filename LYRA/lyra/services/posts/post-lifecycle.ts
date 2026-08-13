@@ -30,19 +30,23 @@ export interface ResolveApprovalTransitionInput {
   existingStatus: PostStatus
   clientAccessLevel: ClientAccess
   contentChanged: boolean
-  hasMediaIfRequired: boolean
+  requiresMedia: boolean
+  hasMedia: boolean
   hasScheduledAt: boolean
 }
 
 export function resolveApprovalTransition(input: ResolveApprovalTransitionInput): PostStatus | undefined {
   const {
     requestedStatus, existingStatus, clientAccessLevel,
-    contentChanged, hasMediaIfRequired, hasScheduledAt,
+    contentChanged, requiresMedia, hasMedia, hasScheduledAt,
   } = input
 
-  // Approving no longer leaves the post sitting in APPROVED waiting for a
-  // separate "Schedule post" click -- if media/schedule requirements are
-  // already satisfied, the approval itself is the last gate.
+  const hasMediaIfRequired = !(requiresMedia && !hasMedia)
+
+  // Approving no longer always leaves the post sitting in APPROVED waiting
+  // for a separate "Schedule post" click -- if media/schedule requirements
+  // are already satisfied, the approval itself is the last gate. APPROVED
+  // is still reachable when those requirements aren't met yet.
   const isApprovingReadyPost =
     requestedStatus === 'APPROVED' && hasMediaIfRequired && hasScheduledAt
   if (isApprovingReadyPost) return 'SCHEDULED'
@@ -51,7 +55,7 @@ export function resolveApprovalTransition(input: ResolveApprovalTransitionInput)
   // PENDING_APPROVAL, EXCEPT for the one legitimate route out of the
   // approval flow: an already-APPROVED post whose content hasn't changed
   // since approval. A content change forces re-review same as any other
-  // non-approved post -- see the bypass-fix test above.
+  // non-approved post -- see the "bypass fix" test in this module's test suite.
   const needsReview =
     requestedStatus === 'SCHEDULED' &&
     clientAccessLevel === 'APPROVE' &&

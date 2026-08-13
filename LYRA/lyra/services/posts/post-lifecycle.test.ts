@@ -34,56 +34,70 @@ describe('resolveApprovalTransition', () => {
   it('jumps straight to SCHEDULED when approving a post whose media and schedule are both already ready', () => {
     expect(resolveApprovalTransition({
       requestedStatus: 'APPROVED', existingStatus: 'PENDING_APPROVAL', clientAccessLevel: 'APPROVE',
-      contentChanged: false, hasMediaIfRequired: true, hasScheduledAt: true,
+      contentChanged: false, requiresMedia: false, hasMedia: false, hasScheduledAt: true,
     })).toBe('SCHEDULED')
   })
 
   it('stays at APPROVED when media is still required and missing', () => {
     expect(resolveApprovalTransition({
       requestedStatus: 'APPROVED', existingStatus: 'PENDING_APPROVAL', clientAccessLevel: 'APPROVE',
-      contentChanged: false, hasMediaIfRequired: false, hasScheduledAt: true,
+      contentChanged: false, requiresMedia: true, hasMedia: false, hasScheduledAt: true,
     })).toBe('APPROVED')
   })
 
   it('stays at APPROVED when there is no scheduledAt yet, even if media is ready', () => {
     expect(resolveApprovalTransition({
       requestedStatus: 'APPROVED', existingStatus: 'PENDING_APPROVAL', clientAccessLevel: 'APPROVE',
-      contentChanged: false, hasMediaIfRequired: true, hasScheduledAt: false,
+      contentChanged: false, requiresMedia: false, hasMedia: false, hasScheduledAt: false,
     })).toBe('APPROVED')
   })
 
   it('redirects a SCHEDULED request from DRAFT to PENDING_APPROVAL when the workspace requires client approval', () => {
     expect(resolveApprovalTransition({
       requestedStatus: 'SCHEDULED', existingStatus: 'DRAFT', clientAccessLevel: 'APPROVE',
-      contentChanged: false, hasMediaIfRequired: true, hasScheduledAt: true,
+      contentChanged: false, requiresMedia: false, hasMedia: false, hasScheduledAt: true,
     })).toBe('PENDING_APPROVAL')
   })
 
   it('leaves a SCHEDULED request unchanged when the workspace does not require client approval', () => {
     expect(resolveApprovalTransition({
       requestedStatus: 'SCHEDULED', existingStatus: 'DRAFT', clientAccessLevel: 'NONE',
-      contentChanged: false, hasMediaIfRequired: true, hasScheduledAt: true,
+      contentChanged: false, requiresMedia: false, hasMedia: false, hasScheduledAt: true,
     })).toBe('SCHEDULED')
   })
 
   it('exempts an already-APPROVED post with unchanged content from being redirected back to PENDING_APPROVAL', () => {
     expect(resolveApprovalTransition({
       requestedStatus: 'SCHEDULED', existingStatus: 'APPROVED', clientAccessLevel: 'APPROVE',
-      contentChanged: false, hasMediaIfRequired: true, hasScheduledAt: true,
+      contentChanged: false, requiresMedia: false, hasMedia: false, hasScheduledAt: true,
     })).toBe('SCHEDULED')
   })
 
   it('bypass fix: redirects an APPROVED post with CHANGED content back to PENDING_APPROVAL for re-review', () => {
     expect(resolveApprovalTransition({
       requestedStatus: 'SCHEDULED', existingStatus: 'APPROVED', clientAccessLevel: 'APPROVE',
-      contentChanged: true, hasMediaIfRequired: true, hasScheduledAt: true,
+      contentChanged: true, requiresMedia: false, hasMedia: false, hasScheduledAt: true,
     })).toBe('PENDING_APPROVAL')
   })
 
   it('passes through an undefined requestedStatus unchanged (a PATCH that does not touch status)', () => {
     expect(resolveApprovalTransition({
       requestedStatus: undefined, existingStatus: 'DRAFT', clientAccessLevel: 'APPROVE',
-      contentChanged: false, hasMediaIfRequired: true, hasScheduledAt: true,
+      contentChanged: false, requiresMedia: false, hasMedia: false, hasScheduledAt: true,
     })).toBeUndefined()
+  })
+
+  it('jumps straight to SCHEDULED when approving a ready post even in a workspace with no client approval requirement', () => {
+    expect(resolveApprovalTransition({
+      requestedStatus: 'APPROVED', existingStatus: 'PENDING_APPROVAL', clientAccessLevel: 'NONE',
+      contentChanged: false, requiresMedia: false, hasMedia: false, hasScheduledAt: true,
+    })).toBe('SCHEDULED')
+  })
+
+  it('passes through a defined non-SCHEDULED, non-APPROVED requestedStatus unchanged (e.g. moving an APPROVED post back to DRAFT)', () => {
+    expect(resolveApprovalTransition({
+      requestedStatus: 'DRAFT', existingStatus: 'APPROVED', clientAccessLevel: 'APPROVE',
+      contentChanged: false, requiresMedia: false, hasMedia: false, hasScheduledAt: true,
+    })).toBe('DRAFT')
   })
 })
