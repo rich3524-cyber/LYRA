@@ -2,6 +2,41 @@
 
 ---
 
+## 🔒 Pre-beta security hardening pass (2026-08-13)
+
+**Trigger: Beta launch next week.** Richard asked for as thorough a security pass as genuinely applies to this app's actual shape (Next.js/Prisma on Netlify + Railway, no mobile app, no on-prem infra) — not a generic enterprise checklist. This was two passes: a SAST scan the evening before (found and fixed one real bug — see the 12 Aug evening entry below), then this one, a systematic adversarial review of the real attack surface plus the two dependency upgrades flagged the night before.
+
+**Adversarial review — four independent audits, run in parallel:**
+
+| Dimension | Coverage | Result |
+|---|---|---|
+| Cross-tenant IDOR | 82/82 API routes | **Zero findings.** Every workspace-scoped resource is correctly gated. |
+| SSRF / external fetch | ~125 `fetch(` call sites traced | **Zero findings.** Every user-URL fetch routes through `lib/safe-fetch.ts`; no bypasses. |
+| Webhook signatures + CSRF | Stripe + Zernio webhooks; 53 state-changing routes | **Zero findings.** Both webhooks verify signatures constant-time on the raw body before trusting payload; `SameSite=Lax` session cookies are a genuinely adequate CSRF mitigation here (verified, not assumed — checked the actual cookie config and the two multipart/form-data routes specifically). |
+| Rate limiting | 9 unauthenticated + ~23 expensive authenticated routes | **3 real gaps, all fixed** — see below. |
+
+The IDOR result is the one that matters most for a multi-tenant SaaS, and it held up because of real prior investment: the RBAC audit from 2 Aug (44 routes closed) and the workspace-scoping conventions established since are still holding under a fresh, independent pass, not just self-reported as fixed.
+
+**Fixed, deployed, and verified this session:**
+- **`next` 16.2.6 → 16.3.0** — fixes several HIGH-severity CVEs including two SSRF advisories (Server Actions on custom servers; rewrites via attacker-controlled destination hostname). Non-major, full regression pass (441 tests, clean typecheck) before deploying.
+- **`sharp` 0.34.5 → 0.35.3** — fixes 4 inherited libvips CVEs. Semver-major, so verified beyond "tests pass": exercised the native pipeline directly (create → encode → resize → re-encode → metadata) on this machine to confirm the prebuilt binary still loads correctly after the bump, since that's the actual risk with a native addon upgrade.
+- **Stripe checkout plan-key bypass** (found in the SAST pass, fixed same evening) — `!PLANS[plan]` was bypassable via `Object.prototype` property names like `"__proto__"`.
+- **Bulk-import commit route** — now validates row content/scheduledAt shape server-side, not just account ownership, so a malformed direct request fails cleanly instead of taking down the whole transaction batch.
+- **Rate limiting added to 3 routes** that had none: `seo/pages/[pageId]/generate` (a live Claude call), `bulk-import/parse` + `bulk-import/commit` (external fetches + S3 writes fanning out per row, up to 500 rows/call), `posts/[id]/boost` (spends real money via Meta's Ads API — nothing stopped looping across every published post in a workspace).
+- **`social/connect/[platform]`** — the access check admitted any workspace member including read-only `CLIENT_VIEW` to a route that starts a real OAuth connect flow. Narrowed to match every other write-capable route's gate.
+
+**Checked and deliberately NOT changed:**
+- A moderate `uuid` advisory transitively declared by `exceljs` (today's bulk-import dependency) — confirmed unreachable, since `exceljs`'s own library code never actually calls `uuid` (only an unused example script does). Downgrading `exceljs` to "fix" it would risk breaking bulk-import for zero real security benefit.
+- `brace-expansion` — resolved automatically via `npm audit fix` (non-breaking), no manual work needed.
+
+**Skipped, and why** (matches this project's own already-decided stance where relevant): mobile hardening (no mobile app), WAF/IDS/IPS/network segmentation (PaaS deployment, nothing to configure that way), HashiCorp Vault/SIEM (env vars are the established working secret store), formal SOC2/HIPAA/PCI-DSS compliance validation (Wishlist item 18 already parked this as premature).
+
+**One thing only Richard can check**: whether MFA is enabled for account logins in the Auth0 tenant dashboard. Not visible from the codebase — worth confirming before beta given how much Auth0 config work has happened across this project.
+
+Full verification throughout: 457/457 tests passing, clean typecheck, lint clean on every changed file, secrets sweep clean (no hardcoded credentials anywhere in the repo or git history).
+
+---
+
 ## 🟡 Bulk import — live and smoke-tested; two paths still unexercised (2026-08-12)
 
 **Bulk scheduling / CSV import (Wishlist item 5) is built, deployed, and verified against real data.** The happy path was smoke-tested end to end by Richard and confirmed by direct DB query — a real `.xlsx` uploaded, parsed, reviewed, and committed to a post with the correct UTC instant (19:00 Sydney → `09:00Z`) and the correct status (`PENDING_APPROVAL`, since ITWM has client approval on, so the import did **not** bypass approval).
