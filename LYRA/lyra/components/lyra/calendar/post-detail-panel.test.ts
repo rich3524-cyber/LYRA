@@ -38,15 +38,14 @@ describe('getNextStatuses', () => {
   })
 
   describe('DRAFT', () => {
-    it('includes "Submit for approval" when the workspace requires client approval', () => {
+    it('offers only "Submit for approval" when the workspace requires client approval — "Mark as scheduled" would silently redirect to it, so it is not shown', () => {
       const options = getNextStatuses('DRAFT', 'AGENCY_ADMIN', 'APPROVE', false)
       expect(options).toEqual([
         { value: 'PENDING_APPROVAL', label: 'Submit for approval' },
-        { value: 'SCHEDULED', label: 'Mark as scheduled' },
       ])
     })
 
-    it('omits "Submit for approval" when the workspace does not require it', () => {
+    it('offers only "Mark as scheduled" when the workspace does not require client approval', () => {
       const options = getNextStatuses('DRAFT', 'AGENCY_ADMIN', 'NONE', false)
       expect(options).toEqual([{ value: 'SCHEDULED', label: 'Mark as scheduled' }])
     })

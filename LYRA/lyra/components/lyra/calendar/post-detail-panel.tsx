@@ -7,8 +7,9 @@ import { format, differenceInDays } from 'date-fns'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { APPROVER_ROLES } from '@/lib/authz'
-import type { Platform } from '@prisma/client'
+import type { Platform, ClientAccess } from '@prisma/client'
 import { getPlatformShortLabel, getPlatformColor } from '@/lib/platform-labels'
+import { canSelfApprove, resolveApprovalTransition } from '@/services/posts/post-lifecycle'
 import {
   CalendarPost,
   PostBoost,
@@ -47,19 +48,20 @@ export function getNextStatuses(
   const hasApprovalFlow = clientAccessLevel === 'APPROVE'
 
   const options = (() => {
-    // Mirrors the backend's conditional self-approval rule
-    // (app/api/posts/[id]/route.ts): the author can't approve their own post
+    // Mirrors the shared post-lifecycle module's self-approval rule
+    // (services/posts/post-lifecycle.ts, also used by
+    // app/api/posts/[id]/route.ts): the author can't approve their own post
     // when someone else on the workspace genuinely could, so that case only
     // offers the non-approval action -- no button is shown that's known to
     // fail with 403. When no other approver exists anywhere on the
     // workspace, self-approval is allowed but the label makes explicit that
     // no real second-party review is happening.
-    if (status === 'PENDING_APPROVAL' && canApprove && isAuthor && hasOtherApprover) {
-      return [
-        { value: 'DRAFT', label: 'Recall for editing' },
-      ]
-    }
-    if (status === 'PENDING_APPROVAL' && canApprove && isAuthor && !hasOtherApprover) {
+    if (status === 'PENDING_APPROVAL' && canApprove && isAuthor) {
+      if (!canSelfApprove({ isAuthor, hasOtherApprover })) {
+        return [
+          { value: 'DRAFT', label: 'Recall for editing' },
+        ]
+      }
       return [
         { value: 'APPROVED', label: 'Approve (no other reviewer available)', variant: 'approve' as const },
         { value: 'DRAFT',    label: 'Request changes',                      variant: 'reject'  as const },
@@ -80,11 +82,38 @@ export function getNextStatuses(
     if (userRole === 'CLIENT_APPROVE') return []
 
     switch (status) {
-      case 'DRAFT':
+      case 'DRAFT': {
+        // "Mark as scheduled" would silently be redirected server-side to
+        // PENDING_APPROVAL whenever the workspace requires client approval
+        // (see resolveApprovalTransition in services/posts/post-lifecycle.ts)
+        // -- showing it alongside "Submit for approval" as if it were a
+        // distinct, faster action was misleading. Calling the shared
+        // function here (rather than hardcoding hasApprovalFlow directly)
+        // means a future change to that rule is inherited automatically
+        // instead of silently drifting again.
+        //
+        // requiresMedia/hasMedia below are inert for this specific call --
+        // resolveApprovalTransition's isApprovingReadyPost shortcut only
+        // fires for requestedStatus 'APPROVED', and this call always asks
+        // about 'SCHEDULED', so neither value changes the outcome here. Any
+        // self-consistent pair works; false/true (media not required) is
+        // used for clarity, not because it reflects this post's real media
+        // state.
+        const wouldNeedApproval = resolveApprovalTransition({
+          requestedStatus:    'SCHEDULED',
+          existingStatus:     'DRAFT',
+          clientAccessLevel:  clientAccessLevel as ClientAccess,
+          contentChanged:     false,
+          requiresMedia:      false,
+          hasMedia:           true,
+          hasScheduledAt:     true,
+        }) === 'PENDING_APPROVAL'
+
         return [
           ...(hasApprovalFlow ? [{ value: 'PENDING_APPROVAL', label: 'Submit for approval' }] : []),
-          { value: 'SCHEDULED', label: 'Mark as scheduled' },
+          ...(wouldNeedApproval ? [] : [{ value: 'SCHEDULED', label: 'Mark as scheduled' }]),
         ]
+      }
       case 'PENDING_APPROVAL':
         // Reached only when canApprove is false -- i.e. CLIENT_VIEW, the
         // read-only role, which shouldn't be able to act on posts at all.
