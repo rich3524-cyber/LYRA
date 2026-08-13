@@ -25,6 +25,9 @@ The post from that smoke test goes **overdue at 05:00 UTC on 13 Aug = 3pm Sydney
 
 1. **Email digest (Wishlist item 6) — not yet designed.** Richard named it as a target and the brainstorming conversation had only just opened when the previous session paused. No design decisions exist yet — start from a clean brainstorm, not a partial one.
 2. **Client portal (item 2)** and **Team member invitations (item 3)** remain fully unbuilt and were both flagged as high-leverage: the approval workflow has been heavily polished but clients still have no UI to use it from, and team invitations are still a direct DB insert, which is a hard blocker for real onboarding.
+3. **Two dependency upgrades flagged by a SAST pass, deliberately not done yet — both need a real regression test pass, not a blind bump:**
+   - `next` → `16.3.0` (non-major). Fixes several HIGH-severity CVEs currently on the installed <16.2.11 version, most notably two SSRF advisories (Server Actions on custom servers; rewrites via attacker-controlled destination hostname) and a Server Actions DoS.
+   - `sharp` → `0.35.3` (**semver-major**). Fixes 4 inherited libvips CVEs (2026-33327/33328/35590/35591). `sharp` is used for real image processing in this app, so this one specifically needs manual verification that media processing still works correctly after the bump, not just a clean `npm test`.
 
 ---
 
@@ -43,6 +46,16 @@ Optional, still outstanding: excluding `lyra/node_modules` and `lyra/.next` from
 ---
 
 ## Changelog
+### 2026-08-12 (evening) — SAST pass across the whole app; one real bug found and fixed, two dependency upgrades flagged for later
+
+🔍 **Ran a proper static-analysis security pass** (`eslint-plugin-security` against every `.ts`/`.tsx` file, plus `npm audit`), triggered by a `/security-scanning:security-sast` request rather than found incidentally. 117 raw hits, 114 of them `detect-object-injection` — a rule with a well-known high false-positive rate on typed codebases, and every one spot-checked here (across API routes, services, and components) turned out to be an internal enum/index/loop-variable lookup, not an attacker-keyed read. Also cleared: a flagged regex in `lib/safe-fetch.ts` (bounded `{1,3}` digit groups, no real ReDoS shape) and a dynamic `RegExp` in `lib/anthropic.ts`'s `neutralizeFenceCloser` (the tag-name argument is a hardcoded literal at all 9 call sites, never attacker input) and a non-literal `readFile` in the legal-docs route (the filename is checked against a 3-item allowlist before it ever reaches the filesystem call).
+
+✅ **One real bug found and fixed**: `POST /api/stripe/create-checkout` validated the request's `plan` field with `!PLANS[plan]` — since `PLANS` is a plain object literal, a value like `"__proto__"` or `"constructor"` resolves through the prototype chain to a truthy value and passes the check. Practical severity is low (Stripe rejects the resulting malformed session-create call, so the outcome is a confusing 500, not a billing bypass), but it's the exact bug class `app/api/upload/media-presign/route.ts` already documents and fixes with `Object.hasOwn()` — this route had just missed the same treatment. Fixed the same way; new test file (none existed before) covers the happy path, an invalid plan, and all five `Object.prototype` property names as explicit regression cases. 439/439 tests passing, clean typecheck and lint. Deployed (`a8f42c1`).
+
+⚠️ **Two dependency upgrades flagged, deliberately not done** — both need a real regression pass, not a blind version bump, so they're logged in "What's next" above rather than rushed: `next` → `16.3.0` (non-major, fixes several HIGH-severity CVEs including two SSRF advisories) and `sharp` → `0.35.3` (**semver-major**, fixes 4 inherited libvips CVEs, needs manual verification that image processing still works after the bump). A moderate-severity `uuid` advisory pulled in transitively by `exceljs` (today's bulk-import dependency) was also noted but not actioned — lower priority, unclear reachability in how this codebase actually uses it.
+
+---
+
 ### 2026-08-12 (later) — Smoke-testing bulk import found two more real bugs, one of them in the approval-SLA feature shipped the day before
 
 Richard ran the first real smoke test against a genuinely filled-in template. It surfaced two defects that **every unit test had missed**, for the same underlying reason: the tests build fixtures with plain string cells, which is not what Excel actually produces, and they assert on mocked Prisma calls rather than on what ends up in the database.
