@@ -15,7 +15,15 @@ import { prisma } from '@/lib/prisma'
 import { notifyChannel } from '@/services/notifications/channel-notifier'
 import { getPlatformLabel } from '@/lib/platform-labels'
 
-export function buildApprovalCreateInput(finalStatus: PostStatus, submittedAt: Date) {
+export function buildApprovalCreateInput(
+  finalStatus: PostStatus,
+  submittedAt: Date
+): { approval: { create: { status: typeof ApprovalStatus.PENDING; submittedAt: Date } } } | Record<string, never> {
+  // Uses the ApprovalStatus enum constant (not a 'PENDING' literal, unlike the
+  // rest of this file) because this function has no other type anchor forcing
+  // the literal to stay narrow -- without the enum here, TypeScript would
+  // widen it to plain `string` and this object's shape would stop matching
+  // what Prisma's `approval.create` nested-write actually expects.
   return finalStatus === 'PENDING_APPROVAL'
     ? { approval: { create: { status: ApprovalStatus.PENDING, submittedAt } } }
     : {}
@@ -76,17 +84,22 @@ export async function upsertApprovalOnTransition(input: UpsertApprovalOnTransiti
   } else if (requestedStatus === 'APPROVED') {
     // An approval decision happened, regardless of whether the post landed
     // on APPROVED (still awaiting media) or jumped straight to SCHEDULED --
-    // checks the RAW requested status, not finalStatus, deliberately.
+    // checks the RAW requested status, not finalStatus, deliberately: checking
+    // finalStatus here would miss approvals that jumped straight to SCHEDULED
+    // via the ready-post shortcut, leaving no APPROVED bookkeeping row behind
+    // at all.
+    const reviewedAt = new Date()
     await prisma.postApproval.upsert({
       where:  { postId },
-      create: { postId, status: 'APPROVED', reviewerId, reviewedAt: new Date() },
-      update: { status: 'APPROVED', reviewerId, reviewedAt: new Date() },
+      create: { postId, status: 'APPROVED', reviewerId, reviewedAt },
+      update: { status: 'APPROVED', reviewerId, reviewedAt },
     })
   } else if (finalStatus === 'DRAFT' && existingStatus === 'PENDING_APPROVAL') {
+    const reviewedAt = new Date()
     await prisma.postApproval.upsert({
       where:  { postId },
-      create: { postId, status: 'REJECTED', reviewedAt: new Date() },
-      update: { status: 'REJECTED', reviewedAt: new Date() },
+      create: { postId, status: 'REJECTED', reviewedAt },
+      update: { status: 'REJECTED', reviewedAt },
     })
   }
 }

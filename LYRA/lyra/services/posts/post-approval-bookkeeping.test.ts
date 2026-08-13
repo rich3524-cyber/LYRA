@@ -92,6 +92,17 @@ describe('upsertApprovalOnTransition', () => {
         update: { status: 'REJECTED', reviewedAt: expect.any(Date) },
       })
     )
+    expect(notifyChannel).not.toHaveBeenCalled()
+  })
+
+  it('does nothing when both finalStatus and requestedStatus are undefined (a PATCH that never touched status)', async () => {
+    await upsertApprovalOnTransition({
+      postId: 'post-1', finalStatus: undefined, requestedStatus: undefined,
+      existingStatus: 'DRAFT', reviewerId: 'user-1', workspaceId: 'ws-1',
+      workspaceName: 'Acme', platform: 'FACEBOOK', excerpt: 'hello', scheduledAt: null, authorName: null,
+    })
+
+    expect(prisma.postApproval.upsert).not.toHaveBeenCalled()
   })
 
   it('does nothing when a DRAFT->DRAFT no-op transition does not come from PENDING_APPROVAL', async () => {
