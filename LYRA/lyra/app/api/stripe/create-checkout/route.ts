@@ -24,7 +24,13 @@ export async function POST(req: Request) {
     }
     const { plan } = await req.json() as { plan: PlanKey }
 
-    if (!PLANS[plan]) {
+    // Object.hasOwn, not a plain PLANS[plan] truthiness check -- PLANS is a
+    // plain object literal, so a plan value like "__proto__", "constructor",
+    // or "toString" resolves through the prototype chain to a truthy value
+    // and would sail past `!PLANS[plan]`. Same fix already applied to
+    // app/api/upload/media-presign/route.ts's equivalent ALLOWED_MIME_TYPES
+    // lookup, for the same reason.
+    if (!Object.hasOwn(PLANS, plan)) {
       return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
     }
 
