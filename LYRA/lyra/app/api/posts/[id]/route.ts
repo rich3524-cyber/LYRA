@@ -51,6 +51,7 @@ export async function PATCH(
     // swap on an already-scheduled post could otherwise reintroduce a
     // known-broken platform/format combo (e.g. GIF -> Instagram) undetected.
     const effectiveStatus = status ?? existing.status
+    const effectiveMediaUrls = mediaUrls ?? existing.mediaUrls
     if (mediaUrls !== undefined && effectiveStatus === 'SCHEDULED') {
       const issues = checkMediaCompatibility(mediaUrls, [existing.socialAccount.platform])
       if (issues.length > 0) {
@@ -62,7 +63,6 @@ export async function PATCH(
     }
 
     if (effectiveStatus === 'SCHEDULED' && existing.requiresMedia) {
-      const effectiveMediaUrls = mediaUrls ?? existing.mediaUrls
       if (effectiveMediaUrls.length === 0) {
         return NextResponse.json(
           { error: 'This post is awaiting media. Attach an image or video before scheduling.' },
@@ -105,30 +105,13 @@ export async function PATCH(
     // is the path the web app's UI actually uses most often for DRAFT ->
     // SCHEDULED (e.g. post-detail-panel.tsx's "Mark as scheduled" action), so
     // without it here a two-call POST-then-PATCH sequence could bypass the
-    // approval gate the create-time fix alone put in place.
-    //
-    // An APPROVED post being scheduled is exempted from the redirect below --
-    // that's the one legitimate route out of the approval flow, and without
-    // the exemption no approved post could ever reach the publisher -- but
-    // ONLY when its content/media haven't changed since approval. "Edit in
-    // Composer" lets the post's own author change content on an APPROVED
-    // post and re-save with status: 'SCHEDULED'; without the contentChanged
-    // check that would publish unreviewed content under an approval a
-    // reviewer gave to different content, bypassing the APPROVER_ROLES /
-    // self-approval guard above (which only fires for status: 'APPROVED',
-    // not 'SCHEDULED'). A content change forces re-review same as any other
-    // non-approved post.
-    //
-    // A re-save of an already-SCHEDULED post (existing.status === 'SCHEDULED',
-    // e.g. editing content/media via the Composer and saving again) is
-    // deliberately still routed back to PENDING_APPROVAL here regardless of
-    // contentChanged: it's already past the one-time APPROVED exemption, so
-    // it should be reviewed again before it publishes.
+    // approval gate the create-time fix alone put in place. See
+    // resolveApprovalTransition in services/posts/post-lifecycle.ts for the
+    // full transition rules (APPROVED exemption, contentChanged re-review,
+    // SCHEDULED re-save handling, etc.).
     const contentChanged =
       (content !== undefined && content !== existing.content) ||
       (mediaUrls !== undefined && mediaUrls.join('\u0000') !== existing.mediaUrls.join('\u0000'))
-
-    const effectiveMediaUrls = mediaUrls ?? existing.mediaUrls
 
     const finalStatus = resolveApprovalTransition({
       requestedStatus:    status,
@@ -137,6 +120,11 @@ export async function PATCH(
       contentChanged,
       requiresMedia:      existing.requiresMedia,
       hasMedia:           effectiveMediaUrls.length > 0,
+      // Deliberately the pre-update value, not a newly-submitted scheduledAt
+      // from this same request -- matches the original pre-migration
+      // behavior (isApprovingReadyPost also read existing.scheduledAt only).
+      // Keep this asymmetric with hasMedia (which does use the effective,
+      // post-update value) when reusing resolveApprovalTransition elsewhere.
       hasScheduledAt:     existing.scheduledAt !== null,
     })
 
@@ -159,7 +147,8 @@ export async function PATCH(
       },
     })
 
-    // Manage PostApproval record on approval-related status transitions.
+    // Runs after post.update deliberately -- bookkeeping should reflect a
+    // status write that has actually landed, not one still in flight.
     await upsertApprovalOnTransition({
       postId:            id,
       finalStatus,
