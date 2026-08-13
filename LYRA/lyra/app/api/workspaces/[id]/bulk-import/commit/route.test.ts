@@ -75,6 +75,18 @@ describe('POST /api/workspaces/[id]/bulk-import/commit', () => {
     expect(prisma.post.create).not.toHaveBeenCalled()
   })
 
+  it('rejects a row with empty content, before checking account ownership', async () => {
+    const res = await POST(req([{ ...ROW, content: '   ' }]), ctx())
+    expect(res.status).toBe(400)
+    expect(prisma.post.create).not.toHaveBeenCalled()
+  })
+
+  it('rejects a row with an unparseable scheduledAt', async () => {
+    const res = await POST(req([{ ...ROW, scheduledAt: 'not-a-date' }]), ctx())
+    expect(res.status).toBe(400)
+    expect(prisma.post.create).not.toHaveBeenCalled()
+  })
+
   it('rejects a socialAccountId that does not belong to this workspace', async () => {
     // The client posts back parsed rows, so the account id is caller-supplied
     // -- without this check it could attach a post to another tenant's account.

@@ -84,6 +84,27 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       )
     }
 
+    // The review screen only ever sends well-formed rows, but this route has
+    // no way to tell a real review-screen submission from a hand-crafted
+    // request to the same endpoint -- shape must be re-checked server-side,
+    // not just account ownership. Without this, a malformed scheduledAt would
+    // reach `new Date(...)` as Invalid Date, which Prisma rejects, failing
+    // the whole $transaction (and every other row in the same batch) with a
+    // generic 500 instead of naming the actual bad row.
+    const badRow = rows.find(
+      (row) =>
+        typeof row.content !== 'string' ||
+        row.content.trim().length === 0 ||
+        typeof row.scheduledAt !== 'string' ||
+        Number.isNaN(new Date(row.scheduledAt).getTime())
+    )
+    if (badRow) {
+      return NextResponse.json(
+        { error: 'One or more rows have empty content or an invalid scheduledAt.' },
+        { status: 400 }
+      )
+    }
+
     // The client posts back the rows it was given, so socialAccountId is
     // caller-supplied and must be re-checked against this workspace. Without
     // this, a crafted request could attach posts to another tenant's account.
