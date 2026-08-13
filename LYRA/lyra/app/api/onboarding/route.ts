@@ -9,9 +9,13 @@ import { parseBody, ValidationError } from '@/lib/validate'
 export const dynamic = 'force-dynamic'
 
 const patchOnboardingSchema = z.object({
-  websiteUrl:  z.string().nullish(),
-  industry:    z.string().nullish(),
-  brandBrief:  z.string().nullish(),
+  websiteUrl:  z.string().url().max(2048).nullish(),
+  industry:    z.string().max(200).nullish(),
+  // brandBrief becomes BrandProfile.voiceSummary, which is interpolated into
+  // the autonomous AI responder's prompt (fenced against injection, but
+  // still bounded here so a single onboarding submission can't balloon the
+  // prompt on every future comment reply for this workspace).
+  brandBrief:  z.string().max(2000).nullish(),
   complete:    z.boolean().optional(),
 })
 
@@ -78,6 +82,12 @@ export async function PATCH(req: Request) {
     const record = await prisma.onboardingToken.findUnique({ where: { token } })
     if (!record) return NextResponse.json({ error: 'Invalid token' }, { status: 404 })
     if (record.expiresAt < new Date()) return NextResponse.json({ error: 'Token expired' }, { status: 410 })
+
+    // Per-IP limiting above doesn't meaningfully throttle a distributed attempt
+    // against this specific token; a per-token limit closes that gap regardless
+    // of how many source IPs are used.
+    const { allowed: tokenAllowed } = await checkRateLimit(`onboarding-patch-token:${token}`, 10, 3600)
+    if (!tokenAllowed) return rateLimitResponse()
 
     const { websiteUrl, industry, brandBrief, complete } = await parseBody(req, patchOnboardingSchema)
 

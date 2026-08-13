@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('next/headers', () => ({
   headers: vi.fn(),
@@ -18,7 +18,7 @@ vi.mock('./jwt-verify', () => ({
   verifyAuth0AccessToken: vi.fn(),
 }))
 
-import { getUserFromBearerToken, getCurrentUser } from './auth'
+import { getUserFromBearerToken, getCurrentUser, checkCronAuth } from './auth'
 import { headers } from 'next/headers'
 import { auth0 } from './auth0'
 import { prisma } from './prisma'
@@ -131,5 +131,45 @@ describe('getCurrentUser', () => {
     expect(result).toEqual(sessionUser)
     expect(verifyAuth0AccessToken).not.toHaveBeenCalled()
     expect(prisma.user.findUnique).not.toHaveBeenCalled()
+  })
+})
+
+describe('checkCronAuth', () => {
+  const ORIGINAL_SECRET = process.env.CRON_SECRET
+
+  beforeEach(() => {
+    process.env.CRON_SECRET = 'test-cron-secret-value'
+  })
+
+  afterEach(() => {
+    process.env.CRON_SECRET = ORIGINAL_SECRET
+  })
+
+  function reqWithAuth(header: string | null) {
+    return { headers: { get: () => header } } as unknown as Request
+  }
+
+  it('fails closed when CRON_SECRET is not set', () => {
+    delete process.env.CRON_SECRET
+    expect(checkCronAuth(reqWithAuth('Bearer anything'))).toBe(false)
+  })
+
+  it('rejects a missing Authorization header', () => {
+    expect(checkCronAuth(reqWithAuth(null))).toBe(false)
+  })
+
+  it('rejects a well-formed but wrong secret', () => {
+    expect(checkCronAuth(reqWithAuth('Bearer wrong-secret'))).toBe(false)
+  })
+
+  it('accepts the exact expected Bearer secret', () => {
+    expect(checkCronAuth(reqWithAuth('Bearer test-cron-secret-value'))).toBe(true)
+  })
+
+  it('rejects a header with different length than expected without throwing', () => {
+    // Exercises the length pre-check that exists so timingSafeEqual (which
+    // throws on mismatched buffer lengths) never sees mismatched-length input.
+    expect(checkCronAuth(reqWithAuth('Bearer short'))).toBe(false)
+    expect(checkCronAuth(reqWithAuth('Bearer ' + 'x'.repeat(500)))).toBe(false)
   })
 })

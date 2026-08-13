@@ -464,7 +464,7 @@ describe('POST /api/mcp/respond-to-item', () => {
     expect(prisma.comment.update).not.toHaveBeenCalled()
     expect(prisma.comment.updateMany).toHaveBeenCalledWith({
       where: { id: 'c1', status: 'RESPONDED' },
-      data: { status: 'AI_DRAFTED', finalResponse: null, respondedAt: null },
+      data: { status: 'AI_DRAFTED', aiDraftResponse: 'Thanks!', finalResponse: null, respondedAt: null },
     })
   })
 
@@ -502,7 +502,7 @@ describe('POST /api/mcp/respond-to-item', () => {
     // silent overwrite of whatever the comment's real current state now is.
     expect(prisma.comment.updateMany).toHaveBeenCalledWith({
       where: { id: 'c1', status: 'RESPONDED' },
-      data: { status: 'AI_DRAFTED', finalResponse: null, respondedAt: null },
+      data: { status: 'AI_DRAFTED', aiDraftResponse: 'Thanks!', finalResponse: null, respondedAt: null },
     })
     expect(prisma.comment.update).not.toHaveBeenCalled()
   })

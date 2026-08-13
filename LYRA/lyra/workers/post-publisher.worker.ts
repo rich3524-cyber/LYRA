@@ -158,51 +158,62 @@ const worker = new Worker(
   { connection: redis, concurrency: 5 }
 )
 
-worker.on('failed', async (job, err) => {
-  console.error(`Post ${job?.data.postId} failed:`, err)
-  if (!job) return
+// BullMQ does not await or catch the promise an event listener returns -- if
+// the async body below throws (most likely from the very Prisma/DB issue
+// that caused the job to fail in the first place), an async listener passed
+// directly to worker.on() becomes an unhandled rejection that (per
+// workers/index.ts's unhandledRejection handler) takes down the entire
+// 7-worker fleet, not just this one job. Keep the listener itself
+// synchronous and catch the async work explicitly.
+worker.on('failed', (job, err) => {
+  void (async () => {
+    console.error(`Post ${job?.data.postId} failed:`, err)
+    if (!job) return
 
-  // Only mark the post permanently FAILED once BullMQ has genuinely exhausted
-  // every configured retry attempt -- if more retries remain, leave it at
-  // PUBLISHING so the next attempt (see above) picks it back up.
-  const maxAttempts = job.opts.attempts ?? 1
-  if (job.attemptsMade < maxAttempts) return
+    // Only mark the post permanently FAILED once BullMQ has genuinely
+    // exhausted every configured retry attempt -- if more retries remain,
+    // leave it at PUBLISHING so the next attempt (see above) picks it back up.
+    const maxAttempts = job.opts.attempts ?? 1
+    if (job.attemptsMade < maxAttempts) return
 
-  const { postId } = job.data as { postId: string }
-  const failureReason = (err instanceof Error ? err.message : String(err)).slice(0, 500)
-  const { count } = await prisma.post.updateMany({
-    where: { id: postId, status: 'PUBLISHING' },
-    data:  { status: 'FAILED', failureReason },
+    const { postId } = job.data as { postId: string }
+    const failureReason = (err instanceof Error ? err.message : String(err)).slice(0, 500)
+    const { count } = await prisma.post.updateMany({
+      where: { id: postId, status: 'PUBLISHING' },
+      data:  { status: 'FAILED', failureReason },
+    })
+
+    // Notify only when this call is the one that actually flipped the post to
+    // FAILED. The updateMany is status-scoped, so count === 0 means something
+    // else already resolved the post -- announcing a failure then would be
+    // reporting a state that isn't real.
+    if (count === 0) return
+
+    const post = await prisma.post.findUnique({
+      where:  { id: postId },
+      select: {
+        content:       true,
+        workspaceId:   true,
+        workspace:     { select: { name: true } },
+        socialAccount: { select: { platform: true } },
+      },
+    })
+    if (!post) return
+
+    await notifyChannel(
+      post.workspaceId,
+      {
+        event:         'POST_FAILED',
+        workspaceName: post.workspace.name,
+        platform:      getPlatformLabel(post.socialAccount.platform),
+        excerpt:       post.content,
+        failureReason,
+      },
+      { dedupeKey: `failed-${postId}` }
+    )
+  })().catch((handlerErr) => {
+    console.error(`post-publisher failed-handler itself threw for job ${job?.id}:`, handlerErr)
   })
-
-  // Notify only when this call is the one that actually flipped the post to
-  // FAILED. The updateMany is status-scoped, so count === 0 means something
-  // else already resolved the post -- announcing a failure then would be
-  // reporting a state that isn't real.
-  if (count === 0) return
-
-  const post = await prisma.post.findUnique({
-    where:  { id: postId },
-    select: {
-      content:       true,
-      workspaceId:   true,
-      workspace:     { select: { name: true } },
-      socialAccount: { select: { platform: true } },
-    },
-  })
-  if (!post) return
-
-  await notifyChannel(
-    post.workspaceId,
-    {
-      event:         'POST_FAILED',
-      workspaceName: post.workspace.name,
-      platform:      getPlatformLabel(post.socialAccount.platform),
-      excerpt:       post.content,
-      failureReason,
-    },
-    { dedupeKey: `failed-${postId}` }
-  )
 })
 
 worker.on('error', (err) => {

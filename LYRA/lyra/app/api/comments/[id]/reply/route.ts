@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getProvider, ProviderUnsupported } from '@/services/social/provider'
+import { rollbackCommentClaim } from '@/lib/comment-rollback'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,28 +41,7 @@ type RouteContext = { params: Promise<{ id: string }> }
 // rollbackToDraft, not resolved here.
 async function rollbackClaim(commentId: string, priorStatus: string, draftResponse: string): Promise<void> {
   const restoredStatus = priorStatus === 'ESCALATED' ? 'ESCALATED' : 'AI_DRAFTED'
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      await prisma.comment.updateMany({
-        // Own-claim-scoped (status: 'RESPONDED'), not the broader `notIn`/`not`
-        // predicate used elsewhere in this file: only roll back if the
-        // comment is still in the exact RESPONDED state this request's own
-        // claim just set. If a concurrent write changed it in between, this
-        // correctly no-ops instead of clobbering whatever that other state
-        // now is.
-        where: { id: commentId, status: 'RESPONDED' },
-        data: { status: restoredStatus, aiDraftResponse: draftResponse, finalResponse: null, respondedAt: null },
-      })
-      return
-    } catch (rollbackErr) {
-      console.error(`Rollback failed for comment ${commentId} (attempt ${attempt}/3):`, rollbackErr)
-      if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 1000 * attempt))
-    }
-  }
-  console.error(
-    `Comment ${commentId} may be permanently stuck marked RESPONDED with no reply actually sent -- ` +
-    `all 3 rollback attempts failed. Needs manual investigation/reconciliation.`
-  )
+  await rollbackCommentClaim(prisma.comment, commentId, draftResponse, restoredStatus)
 }
 
 export async function POST(req: Request, { params }: RouteContext) {

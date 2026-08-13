@@ -1,5 +1,14 @@
 # LYRA — Project Handover Document
 
+> **⚠️ SUPERSEDED — this copy stopped being updated in mid-June 2026.**
+> The current, actively-maintained Handover doc is one directory up:
+> [`../LYRA-Handover.md`](../LYRA-Handover.md). Notably, this file's
+> references to cron-job.org below are stale — cron scheduling migrated to
+> Railway on 2026-08-13 (see the current doc's "Cron jobs migrated from
+> cron-job.org to Railway" entry). This copy is kept only as a historical
+> changelog of sessions up to mid-June; do not follow its operational
+> instructions.
+
 **Date:** May 2026 (updated May 2026)  
 **Prepared by:** Claude Code (Anthropic)  
 **Project owner:** Richard Unwin, Into The Wild Marketing

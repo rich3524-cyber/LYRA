@@ -1,5 +1,5 @@
 import ExcelJS from 'exceljs'
-import { BULK_IMPORT_HEADER_ROW } from './xlsx-template'
+import { BULK_IMPORT_HEADER_ROW, BULK_IMPORT_MAX_DATA_ROWS } from './xlsx-template'
 
 export interface RawImportRow {
   rowNumber: number
@@ -90,12 +90,20 @@ export async function parseBulkImportFile(buffer: Buffer): Promise<RawImportRow[
   if (!sheet) return []
 
   const rows: RawImportRow[] = []
+  // sheet.rowCount is attacker-controlled -- a crafted .xlsx can inflate it far
+  // beyond what the compressed upload size limit would suggest (a decompression
+  // bomb), so the loop must not trust it as a safe iteration count on its own.
+  // The x4 margin (rather than exactly BULK_IMPORT_MAX_DATA_ROWS) allows for
+  // legitimate blank/example rows interleaved with real data without truncating
+  // a real import; the `break` below still stops well short of scanning an
+  // enormous rowCount once real data rows alone have exceeded the limit.
+  const lastRowToScan = Math.min(sheet.rowCount, BULK_IMPORT_HEADER_ROW + BULK_IMPORT_MAX_DATA_ROWS * 4)
   // Anchored to the header, not to a fixed data row. The template's example
   // row sits directly beneath the header, and deleting it -- which the
   // instructions ask for -- shifts every real row up one. Starting lower than
   // this silently swallowed the user's first post in both cases: the one they
   // typed over the example, and the one that moved up after they deleted it.
-  for (let rowNumber = BULK_IMPORT_HEADER_ROW + 1; rowNumber <= sheet.rowCount; rowNumber++) {
+  for (let rowNumber = BULK_IMPORT_HEADER_ROW + 1; rowNumber <= lastRowToScan; rowNumber++) {
     const row = sheet.getRow(rowNumber)
     const [, date, time, platform, caption, mediaUrl] = row.values as unknown[]
 
@@ -124,6 +132,10 @@ export async function parseBulkImportFile(buffer: Buffer): Promise<RawImportRow[
     if (!parsed.date && !parsed.time && !parsed.platform && !parsed.caption && !parsed.mediaUrl) continue
 
     rows.push(parsed)
+    // Stop scanning once real data rows alone have exceeded the limit -- the
+    // caller (parse/route.ts) still reports "too many rows" from this length,
+    // it just no longer requires scanning an unbounded rowCount to get there.
+    if (rows.length > BULK_IMPORT_MAX_DATA_ROWS) break
   }
   return rows
 }

@@ -109,8 +109,16 @@ async function createAuth0ClientWithToken(token: string, params: CreateAuth0Clie
     // provisions -- leeway: 0 matches "Reuse Interval: 0" in the dashboard's
     // equivalent Application-level control.
     body: JSON.stringify({
-      name:                       params.name,
+      name:                       `[DCR] ${params.name}`,
       app_type:                   'native',
+      // Force the consent prompt for every dynamically-registered client.
+      // Auth0 defaults new Applications to first-party, and first-party
+      // clients can skip consent when the target API allows it -- since this
+      // shim provisions a client for an arbitrary, unauthenticated caller,
+      // silently skipping consent would let a phished login link redirect
+      // straight to token issuance with no visible step for the user to
+      // notice or decline.
+      is_first_party:             false,
       token_endpoint_auth_method: 'none',
       grant_types:                ['authorization_code', 'refresh_token'],
       callbacks:                  params.redirectUris,

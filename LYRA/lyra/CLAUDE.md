@@ -22,7 +22,7 @@ LYRA (lyraonline.ai) is a premium AI-powered social media intelligence SaaS plat
 
 | Layer | Technology | Notes |
 |---|---|---|
-| Framework | Next.js 15 (App Router) + TypeScript | Always use App Router, never Pages Router |
+| Framework | Next.js 16 (App Router) + TypeScript | Always use App Router, never Pages Router |
 | UI Components | shadcn/ui + Tailwind CSS | Radix primitives — never build from scratch |
 | Animation | Framer Motion | All transitions, page loads, sidebar collapse |
 | Icons | Lucide React ONLY | Never emoji as icons. Never mix icon sets. |
@@ -211,127 +211,32 @@ Before any UI PR is merged, verify:
 
 ## File Structure
 
-```
-lyra/
-├── CLAUDE.md                          ← You are here
-├── app/
-│   ├── (auth)/                        ← Login, signup, onboarding link flow
-│   │   ├── login/page.tsx
-│   │   ├── signup/page.tsx
-│   │   └── onboard/[token]/page.tsx   ← Guided client social connect
-│   ├── (dashboard)/                   ← All authenticated pages
-│   │   ├── layout.tsx                 ← App shell (sidebar + header)
-│   │   ├── page.tsx                   ← Dashboard home
-│   │   └── workspace/[workspaceId]/
-│   │       ├── page.tsx               ← Workspace overview
-│   │       ├── calendar/page.tsx      ← Content calendar
-│   │       ├── compose/page.tsx       ← Post composer
-│   │       ├── inbox/page.tsx         ← AI comment response inbox
-│   │       ├── brand/page.tsx         ← Brand intelligence profile
-│   │       ├── analytics/page.tsx     ← Performance dashboard
-│   │       └── settings/page.tsx      ← Workspace settings
-│   ├── agency/
-│   │   ├── clients/page.tsx           ← All client workspaces
-│   │   ├── clients/new/page.tsx       ← Create new workspace
-│   │   └── settings/page.tsx          ← Agency guardrails + team
-│   ├── account/
-│   │   └── billing/page.tsx           ← Stripe billing portal
-│   └── api/
-│       ├── auth/[auth0]/route.ts      ← Auth0 callback handler
-│       ├── workspaces/route.ts        ← GET list, POST create
-│       ├── workspaces/[id]/route.ts   ← GET, PATCH, DELETE
-│       ├── posts/route.ts             ← GET list, POST create
-│       ├── posts/[id]/route.ts        ← GET, PATCH, DELETE
-│       ├── comments/route.ts          ← GET comments inbox
-│       ├── brand-intelligence/
-│       │   ├── build/route.ts         ← Trigger brand profile build
-│       │   └── refresh/route.ts       ← Refresh existing profile
-│       ├── ai/
-│       │   ├── generate/route.ts      ← AI caption generation
-│       │   └── respond/route.ts       ← AI comment response draft
-│       ├── social/
-│       │   ├── connect/[platform]/route.ts   ← OAuth initiation
-│       │   └── callback/[platform]/route.ts  ← OAuth callbacks
-│       ├── onboarding/route.ts        ← Token generation
-│       ├── stripe/
-│       │   ├── webhook/route.ts       ← Stripe events
-│       │   └── create-checkout/route.ts
-│       └── cron/
-│           ├── sync-comments/route.ts ← Every 5 min
-│           ├── sync-metrics/route.ts  ← Every hour
-│           └── brand-refresh/route.ts ← Weekly
-├── components/
-│   ├── ui/                            ← shadcn/ui — DO NOT edit
-│   └── lyra/
-│       ├── app-shell/
-│       │   ├── sidebar.tsx
-│       │   ├── header.tsx
-│       │   └── workspace-switcher.tsx
-│       ├── composer/
-│       │   ├── post-composer.tsx
-│       │   ├── platform-selector.tsx
-│       │   ├── media-uploader.tsx
-│       │   └── ai-suggest-panel.tsx
-│       ├── calendar/
-│       │   ├── content-calendar.tsx
-│       │   ├── calendar-day.tsx
-│       │   └── post-preview-card.tsx
-│       ├── inbox/
-│       │   ├── response-inbox.tsx
-│       │   ├── comment-card.tsx
-│       │   └── response-composer.tsx
-│       ├── brand/
-│       │   ├── brand-profile.tsx
-│       │   ├── voice-summary.tsx
-│       │   └── intelligence-status.tsx
-│       ├── analytics/
-│       │   ├── performance-dashboard.tsx
-│       │   ├── engagement-chart.tsx
-│       │   └── platform-breakdown.tsx
-│       └── onboarding/
-│           ├── onboarding-flow.tsx
-│           └── social-connect-step.tsx
-├── lib/
-│   ├── design-tokens.ts               ← Master token reference
-│   ├── auth.ts                        ← getCurrentUser, requireAuth
-│   ├── prisma.ts                      ← Prisma singleton
-│   ├── anthropic.ts                   ← Claude API client
-│   ├── redis.ts                       ← Redis client for BullMQ
-│   ├── stripe.ts                      ← Stripe client + PLANS config
-│   ├── s3.ts                          ← S3 upload/download helpers
-│   ├── encrypt.ts                     ← AES-256-GCM token encryption
-│   └── utils.ts                       ← cn() and shared utilities
-├── services/
-│   ├── brand-intelligence/
-│   │   ├── scraper.ts                 ← Website crawler (Cheerio)
-│   │   ├── social-analyzer.ts         ← Social feed data extractor
-│   │   ├── document-parser.ts         ← PDF/Word guidelines parser
-│   │   └── profile-builder.ts         ← Claude brand profile builder
-│   ├── ai/
-│   │   ├── caption-generator.ts       ← Post caption via Claude
-│   │   ├── response-generator.ts      ← Comment response via Claude
-│   │   └── prompt-builder.ts          ← Prompt construction from brand profile
-│   ├── social/
-│   │   ├── facebook.ts
-│   │   ├── instagram.ts
-│   │   ├── linkedin.ts
-│   │   ├── tiktok.ts
-│   │   ├── twitter.ts
-│   │   └── google-business.ts
-│   └── scheduler/
-│       ├── post-queue.ts              ← BullMQ post scheduling
-│       └── sync-queue.ts             ← Background sync jobs
-├── workers/                           ← Deployed separately on Railway
-│   ├── post-publisher.worker.ts
-│   ├── comment-monitor.worker.ts
-│   ├── ai-responder.worker.ts
-│   └── brand-sync.worker.ts
-├── prisma/
-│   └── schema.prisma                  ← Full database schema
-├── types/
-│   └── index.ts                       ← Shared TypeScript types
-└── middleware.ts                      ← Auth + workspace access control
-```
+> **This section previously described a planning-stage scaffold, not the
+> actual codebase, and had drifted badly (a fictional `app/(auth)/` route
+> group, `types/index.ts`, `services/scheduler/sync-queue.ts` — none of these
+> exist). Corrected 2026-08-13 per that session's full-codebase review.**
+> For the current, accurate structure, read `README.md`'s "Architecture at a
+> glance" section and/or the actual file tree — don't trust a hand-maintained
+> copy here, since this is exactly how it drifted the first time.
+
+**One specific correction worth calling out because it's actively dangerous
+to get wrong:** `middleware.ts` does **NOT** handle auth or workspace access
+control — it only attaches an `x-pathname` request header, and explicitly
+excludes `/api/**` from its matcher entirely. Every route enforces its own
+authorization via `requireAuth()` / `lib/authz.ts` — there is no
+middleware-level backstop. A new API route that forgets its own auth/access
+check is **not** caught by anything upstream.
+
+Real, current locations worth knowing directly (verify against the actual
+tree before relying on any of these, since paths do change):
+- `lib/auth.ts` — `getCurrentUser`, `requireAuth`, `checkCronAuth`
+- `lib/authz.ts`, `lib/plan-access.ts` — role/entitlement gating
+- `lib/prisma.ts` — Prisma singleton (always import from here, never `new PrismaClient()`)
+- `lib/encrypt.ts` — AES-256-GCM token encryption
+- `services/social/provider/` — the `SocialProvider` abstraction (Zernio + native)
+- `workers/index.ts` — the single long-lived worker-fleet entry point deployed to Railway
+- `prisma/schema.prisma` — full schema (see `prisma/migrations/README.md` for known drift from the live DB)
+- `app/api/cron/*` — triggered by 5 Railway cron services, config is dashboard-only, not in this repo (see `README.md`)
 
 ---
 
@@ -556,6 +461,13 @@ npm run start
 ---
 
 ## Implementation Order
+
+> **Historical — this entire roadmap is complete.** All 20 items below shipped
+> long ago, and the codebase has since gone well beyond this plan (MCP
+> gateway, bulk CSV import, Crisis Aware guardrails, Zernio platform bridge,
+> approval-SLA tracking, none of which appear here). Kept for historical
+> context only — do not use this as a guide for what to build next or in what
+> order; see `LYRA-Handover.md`'s "What's next" section for that instead.
 
 Always build in this order — each phase depends on the previous:
 

@@ -28,6 +28,25 @@ function ctx(id = 'ws-1') {
   return { params: Promise.resolve({ id }) }
 }
 
+// rehostMedia now reads the response body via a stream reader to enforce a
+// byte-size cap, rather than calling arrayBuffer() directly -- fixture bodies
+// need a real (fake) ReadableStream, not just an arrayBuffer() stub.
+function fakeBody(bytes = 4) {
+  return {
+    getReader: () => {
+      let done = false
+      return {
+        read: async () => {
+          if (done) return { done: true, value: undefined }
+          done = true
+          return { done: false, value: new Uint8Array(bytes) }
+        },
+        cancel: async () => {},
+      }
+    },
+  }
+}
+
 function req(rows: unknown[]) {
   return new Request('http://localhost', {
     method:  'POST',
@@ -165,9 +184,9 @@ describe('POST /api/workspaces/[id]/bulk-import/commit', () => {
 
   it('re-hosts a reachable media URL to S3 and stores the resulting LYRA URL, not the original', async () => {
     vi.mocked(safeFetch).mockResolvedValue({
-      ok:          true,
-      headers:     { get: () => 'image/jpeg' },
-      arrayBuffer: async () => new ArrayBuffer(4),
+      ok:      true,
+      headers: { get: () => 'image/jpeg' },
+      body:    fakeBody(),
     } as never)
 
     await POST(req([{ ...ROW, mediaUrl: 'https://example.com/photo.jpg' }]), ctx())
@@ -210,14 +229,58 @@ describe('POST /api/workspaces/[id]/bulk-import/commit', () => {
 
   it('tolerates a content-type carrying a charset parameter', async () => {
     vi.mocked(safeFetch).mockResolvedValue({
-      ok:          true,
-      headers:     { get: () => 'image/png; charset=binary' },
-      arrayBuffer: async () => new ArrayBuffer(4),
+      ok:      true,
+      headers: { get: () => 'image/png; charset=binary' },
+      body:    fakeBody(),
     } as never)
 
     await POST(req([{ ...ROW, mediaUrl: 'https://example.com/a.png' }]), ctx())
 
     expect(putObjectBuffer).toHaveBeenCalledTimes(1)
+  })
+
+  it('imports without media, not a 500, when the remote body exceeds the 50MB cap', async () => {
+    // Content-Length declares a size over the cap -- rehostMedia must bail out
+    // before ever reading the body, not just after buffering the whole thing.
+    vi.mocked(safeFetch).mockResolvedValue({
+      ok:      true,
+      headers: { get: (name: string) => (name === 'content-type' ? 'image/jpeg' : `${60 * 1024 * 1024}`) },
+      body:    fakeBody(),
+    } as never)
+
+    const res = await POST(req([{ ...ROW, mediaUrl: 'https://example.com/huge.jpg' }]), ctx())
+    const body = await res.json()
+
+    expect(res.status).toBe(200)
+    expect(body.created).toBe(1)
+    expect(putObjectBuffer).not.toHaveBeenCalled()
+    const createCall = vi.mocked(prisma.post.create).mock.calls[0][0] as { data: { mediaUrls: string[] } }
+    expect(createCall.data.mediaUrls).toEqual([])
+  })
+
+  it('caps concurrent media fetches instead of firing all rows at once', async () => {
+    let concurrent = 0
+    let maxConcurrent = 0
+    vi.mocked(safeFetch).mockImplementation(async () => {
+      concurrent++
+      maxConcurrent = Math.max(maxConcurrent, concurrent)
+      await new Promise((resolve) => setTimeout(resolve, 5))
+      concurrent--
+      return { ok: true, headers: { get: () => 'image/jpeg' }, body: fakeBody() } as never
+    })
+    vi.mocked(prisma.socialAccount.findMany).mockResolvedValue([
+      { id: 'acc-fb' }, { id: 'acc-ig' },
+    ] as never)
+
+    const rows = Array.from({ length: 40 }, (_, i) => ({
+      ...ROW,
+      socialAccountId: i % 2 ? 'acc-fb' : 'acc-ig',
+      mediaUrl:        `https://example.com/${i}.jpg`,
+    }))
+    await POST(req(rows), ctx())
+
+    expect(maxConcurrent).toBeLessThanOrEqual(8)
+    expect(maxConcurrent).toBeGreaterThan(1) // still genuinely concurrent, not serialized
   })
 
   it('returns 401 when unauthenticated', async () => {

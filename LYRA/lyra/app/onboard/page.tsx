@@ -21,11 +21,22 @@ export default async function OnboardPage({
   const user = await requireAuth()
   const { plan: planParam, billing: billingParam } = await searchParams
 
-  const normalisedPlan = planParam?.toLowerCase() as PlanParam | undefined
-  const planKey = (normalisedPlan && PLAN_MAP[normalisedPlan]) ?? 'PRO'
+  const normalisedPlan = planParam?.toLowerCase()
+  // Object.hasOwn, not a plain PLAN_MAP[normalisedPlan] lookup -- PLAN_MAP is a
+  // plain object literal, so a plan value like "constructor" would resolve
+  // through the prototype chain to a truthy value and bypass the fallback.
+  const planKey =
+    normalisedPlan && Object.hasOwn(PLAN_MAP, normalisedPlan)
+      ? PLAN_MAP[normalisedPlan as PlanParam]
+      : 'PRO'
   const billing = billingParam === 'annual' ? 'annual' : 'monthly'
   const plan = PLANS[planKey]
   const priceId = billing === 'annual' ? plan.annualPriceId : plan.priceId
+  // Metadata must carry the RESOLVED plan key, never the raw query param --
+  // otherwise an unrecognized ?plan= value charges this price but leaves the
+  // Stripe webhook unable to resolve a plan from metadata, silently leaving
+  // the new Agency on its schema default instead of the plan actually charged.
+  const planMeta = planKey.toLowerCase()
 
   // Find the user's existing agency, or create one and link this user to it.
   let agency = user.agency
@@ -45,14 +56,14 @@ export default async function OnboardPage({
     line_items: [{ price: priceId, quantity: 1 }],
     subscription_data: {
       trial_period_days: 30,
-      metadata: { agencyId: agency.id, plan: normalisedPlan ?? 'pro', userId: user.id },
+      metadata: { agencyId: agency.id, plan: planMeta, userId: user.id },
     },
     success_url: `${baseUrl}/onboard/success`,
     cancel_url:  `${baseUrl}/?cancelled=1`,
     ...(agency.stripeCustomerId ? { customer: agency.stripeCustomerId } : {}),
     metadata: {
       agencyId: agency.id,
-      plan:     normalisedPlan ?? 'pro',
+      plan:     planMeta,
       userId:   user.id,
     },
   })

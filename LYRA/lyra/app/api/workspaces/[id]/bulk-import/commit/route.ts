@@ -8,8 +8,19 @@ import { safeFetch } from '@/lib/safe-fetch'
 import { putObjectBuffer } from '@/lib/s3'
 import { BULK_IMPORT_MAX_DATA_ROWS } from '@/lib/xlsx-template'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
+import { mapWithConcurrency } from '@/lib/concurrency'
 
 export const dynamic = 'force-dynamic'
+
+// Matches the cap every other upload path in the app already enforces
+// (upload/presign, upload/route, lib/upload-media.ts) -- this was the one
+// media path that didn't, letting an attacker point rows at multi-gigabyte
+// responses.
+const MAX_MEDIA_BYTES = 50 * 1024 * 1024
+// Up to BULK_IMPORT_MAX_DATA_ROWS (500) rows can carry a mediaUrl; firing all
+// of them at once is a real OOM/socket-exhaustion risk, not just theoretical.
+const MEDIA_FETCH_CONCURRENCY = 8
+const MAX_CONTENT_LENGTH = 5000
 
 interface CommitRow {
   socialAccountId: string
@@ -49,7 +60,27 @@ async function rehostMedia(workspaceId: string, url: string): Promise<string | n
     const ext = EXT_BY_CONTENT_TYPE[contentType]
     if (!ext) return null
 
-    const buffer = Buffer.from(await res.arrayBuffer())
+    const declaredLength = Number(res.headers.get('content-length') ?? NaN)
+    if (Number.isFinite(declaredLength) && declaredLength > MAX_MEDIA_BYTES) return null
+
+    // Enforce the cap by reading the stream ourselves rather than trusting
+    // Content-Length (absent or lying), since the whole point is bounding
+    // memory use regardless of what the remote host claims.
+    const reader = res.body?.getReader()
+    if (!reader) return null
+    const chunks: Uint8Array[] = []
+    let total = 0
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      total += value.byteLength
+      if (total > MAX_MEDIA_BYTES) {
+        await reader.cancel().catch(() => {})
+        return null
+      }
+      chunks.push(value)
+    }
+    const buffer = Buffer.concat(chunks)
     const key = `media/${workspaceId}/${randomUUID()}.${ext}`
     await putObjectBuffer(key, buffer, contentType)
 
@@ -103,12 +134,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       (row) =>
         typeof row.content !== 'string' ||
         row.content.trim().length === 0 ||
+        row.content.length > MAX_CONTENT_LENGTH ||
         typeof row.scheduledAt !== 'string' ||
         Number.isNaN(new Date(row.scheduledAt).getTime())
     )
     if (badRow) {
       return NextResponse.json(
-        { error: 'One or more rows have empty content or an invalid scheduledAt.' },
+        { error: 'One or more rows have empty, oversized content or an invalid scheduledAt.' },
         { status: 400 }
       )
     }
@@ -137,8 +169,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // fetch can take seconds and Prisma's transactions hold a DB connection
     // open for their whole duration -- doing this inline would tie up one
     // connection per row while waiting on the network.
-    const rehosted = await Promise.all(
-      rows.map((row) => (row.mediaUrl ? rehostMedia(workspaceId, row.mediaUrl) : Promise.resolve(null)))
+    const rehosted = await mapWithConcurrency(rows, MEDIA_FETCH_CONCURRENCY, (row) =>
+      row.mediaUrl ? rehostMedia(workspaceId, row.mediaUrl) : Promise.resolve(null)
     )
 
     // A post created straight into PENDING_APPROVAL needs its PostApproval row

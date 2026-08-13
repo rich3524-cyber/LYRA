@@ -1,6 +1,7 @@
 import { Platform } from '@prisma/client'
 import { checkMediaCompatibility } from '@/services/social/media-compatibility'
 import { safeFetch } from '@/lib/safe-fetch'
+import { mapWithConcurrency } from '@/lib/concurrency'
 import type { RawImportRow } from '@/lib/xlsx-parser'
 
 // Pure per-row validation for the bulk importer. No database and no request
@@ -196,5 +197,8 @@ export async function validateImportRows(
   // One `now` for the whole batch, so a slow media check can't make two rows
   // with the same timestamp disagree about whether they're in the past.
   const now = new Date()
-  return Promise.all(rows.map((row) => validateImportRow(row, connectedAccounts, timeZone, now)))
+  // Bounded concurrency, not Promise.all -- up to BULK_IMPORT_MAX_DATA_ROWS
+  // (500) rows can each carry a mediaUrl HEAD check against an
+  // attacker-influenceable host.
+  return mapWithConcurrency(rows, 8, (row) => validateImportRow(row, connectedAccounts, timeZone, now))
 }

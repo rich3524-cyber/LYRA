@@ -5,6 +5,7 @@ import { generateCommentResponse } from '@/services/ai/response-generator'
 import { getProvider } from '@/services/social/provider'
 import { notifyChannel } from '@/services/notifications/channel-notifier'
 import { getPlatformLabel } from '@/lib/platform-labels'
+import { rollbackCommentClaim } from '@/lib/comment-rollback'
 
 interface AiResponseJobData {
   commentId: string
@@ -64,29 +65,7 @@ const defaultDeps: AiResponseJobDeps = { prisma, generateCommentResponse, getPro
 // decision (e.g. a periodic reconciliation job that flags RESPONDED comments
 // with no matching outbound send record) that's out of scope for this fix.
 async function rollbackToDraft(deps: AiResponseJobDeps, commentId: string, draftResponse: string): Promise<void> {
-  for (let attempt = 1; attempt <= 3; attempt++) {
-    try {
-      await deps.prisma.comment.updateMany({
-        // Own-claim-scoped (status: 'RESPONDED'), not the broader `notIn`
-        // predicate used elsewhere in this file: only roll back if the
-        // comment is still in the exact RESPONDED state this job's own claim
-        // just set. If a concurrent write changed it in between (e.g. a
-        // human resolved it some other way while this job was retrying),
-        // this correctly no-ops instead of clobbering whatever that other
-        // state now is.
-        where: { id: commentId, status: 'RESPONDED' },
-        data: { status: 'AI_DRAFTED', aiDraftResponse: draftResponse, finalResponse: null, respondedAt: null },
-      })
-      return
-    } catch (rollbackErr) {
-      console.error(`Rollback to AI_DRAFTED failed for comment ${commentId} (attempt ${attempt}/3):`, rollbackErr)
-      if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 1000 * attempt))
-    }
-  }
-  console.error(
-    `Comment ${commentId} may be permanently stuck marked RESPONDED with no reply actually sent -- ` +
-    `all 3 rollback attempts failed. Needs manual investigation/reconciliation.`
-  )
+  await rollbackCommentClaim(deps.prisma.comment, commentId, draftResponse)
 }
 
 // Exported (rather than left as an anonymous closure passed to `new Worker(...)`)

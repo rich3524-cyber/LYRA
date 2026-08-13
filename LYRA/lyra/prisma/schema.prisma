@@ -39,7 +39,11 @@ enum UserRole {
 model Agency {
   id               String   @id @default(cuid())
   name             String
-  plan             Plan     @default(AGENCY)
+  // Fails closed: an Agency row created before its Stripe webhook resolves a
+  // plan (e.g. the onboarding flow, which creates the row before the checkout
+  // session redirect completes) must start with the LEAST entitled plan, not
+  // the most expensive one -- see the 2026-08-13 security review's C-1 finding.
+  plan             Plan     @default(STARTER)
   stripeCustomerId String?  @unique
   stripeSubId      String?  @unique
   crisisAwareSubId String?  @unique
@@ -188,6 +192,11 @@ model WorkspaceAccess {
 
   @@unique([userId, workspaceId])
   @@index([userId])
+  // Both indexes above lead with userId, so a workspaceId-only predicate (the
+  // crisis-alert-email path, services/notifications/crisis-alert-email.ts)
+  // can't use either -- full table scan across every access grant for every
+  // tenant. See the 2026-08-13 performance review.
+  @@index([workspaceId, role])
 }
 
 model SocialAccount {
@@ -269,6 +278,12 @@ model Post {
   @@index([status, scheduledAt])
   @@index([publishedAt])
   @@index([socialAccountId])
+  // Hit by 3 real hot paths ordering by createdAt on a workspaceId-filtered
+  // set with no matching index today (the workspace overview page, the
+  // general posts list, brand-intelligence build) -- all three currently
+  // force an in-memory sort instead of an index walk. See the 2026-08-13
+  // performance review.
+  @@index([workspaceId, createdAt])
 }
 
 enum PostStatus {

@@ -28,8 +28,18 @@ export async function POST(_req: Request, { params }: RouteContext) {
       return NextResponse.json({ error: exists ? 'Forbidden' : 'Post not found' }, { status: exists ? 403 : 404 })
     }
 
-    if (post.status === 'PUBLISHED') {
-      return NextResponse.json({ error: 'Post already published.' }, { status: 400 })
+    // Atomic compare-and-swap, matching workers/post-publisher.worker.ts's own
+    // SCHEDULED->PUBLISHING claim -- without this, a plain read-check here
+    // races the cron: a SCHEDULED post whose time has just passed can be
+    // picked up by the worker AND have "Publish now" clicked in the same
+    // window, and both would pass a status check that ran before either
+    // claimed the row, calling the provider twice for the same post.
+    const claimed = await prisma.post.updateMany({
+      where: { id: postId, status: { notIn: ['PUBLISHED', 'PUBLISHING'] } },
+      data:  { status: 'PUBLISHING' },
+    })
+    if (claimed.count === 0) {
+      return NextResponse.json({ error: 'Post already published or currently publishing.' }, { status: 400 })
     }
 
     // Restored from the pre-provider-seam version of this route: a clear 400
@@ -46,14 +56,30 @@ export async function POST(_req: Request, { params }: RouteContext) {
       return NextResponse.json({ error: 'This account has no access token.' }, { status: 400 })
     }
 
-    const { platformPostId, zernioPostId } = await getProvider(post.socialAccount).publish(post.socialAccount, {
-      postId: post.id,
-      content: post.content,
-      mediaUrls: post.mediaUrls,
-    })
+    let platformPostId: string
+    let zernioPostId: string | undefined
+    try {
+      ;({ platformPostId, zernioPostId } = await getProvider(post.socialAccount).publish(post.socialAccount, {
+        postId: post.id,
+        content: post.content,
+        mediaUrls: post.mediaUrls,
+      }))
+    } catch (sendError) {
+      // The claim above already flipped this post to PUBLISHING before we
+      // knew whether the platform call would succeed -- revert to whatever
+      // it was before this request's own claim (own-claim-scoped, so a
+      // concurrent write in between is never clobbered) rather than leaving
+      // it permanently stranded in PUBLISHING with no reconciler to pick it
+      // back up.
+      await prisma.post.updateMany({
+        where: { id: postId, status: 'PUBLISHING' },
+        data:  { status: post.status },
+      })
+      throw sendError
+    }
 
-    await prisma.post.update({
-      where: { id: postId },
+    await prisma.post.updateMany({
+      where: { id: postId, status: 'PUBLISHING' },
       data:  { status: 'PUBLISHED', publishedAt: new Date(), platformPostId, zernioPostId },
     })
 

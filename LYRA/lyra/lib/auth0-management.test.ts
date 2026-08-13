@@ -56,8 +56,9 @@ describe('createAuth0Client', () => {
     expect(clientInit.headers).toEqual({ 'Content-Type': 'application/json', Authorization: 'Bearer mgmt-token-abc' })
     const clientBody = JSON.parse(clientInit.body as string)
     expect(clientBody).toEqual({
-      name: 'Claude',
+      name: '[DCR] Claude',
       app_type: 'native',
+      is_first_party: false,
       token_endpoint_auth_method: 'none',
       grant_types: ['authorization_code', 'refresh_token'],
       callbacks: ['https://claude.ai/callback'],

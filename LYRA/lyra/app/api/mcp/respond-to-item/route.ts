@@ -6,6 +6,7 @@ import { parseBody, ValidationError } from '@/lib/validate'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { generateCommentResponse, checkGuardrailViolation, checkAlwaysEscalate } from '@/services/ai/response-generator'
 import { getProvider, ProviderUnsupported } from '@/services/social/provider'
+import { rollbackCommentClaim } from '@/lib/comment-rollback'
 
 export const dynamic = 'force-dynamic'
 
@@ -260,16 +261,12 @@ export async function POST(req: Request) {
       // differs from what was actually sent. Native-path accounts have no
       // dedup at all, regardless of text.
       //
-      // Own-claim-scoped (status: 'RESPONDED'), not unconditional: only roll
-      // back if the comment is still in the exact RESPONDED state this
-      // request's own claim above just set. If a concurrent write changed
-      // it in between, this correctly no-ops instead of silently
-      // overwriting whatever that other state now is (e.g. a legitimate
-      // concurrent ESCALATED write).
-      await prisma.comment.updateMany({
-        where: { id: commentId, status: 'RESPONDED' },
-        data: { status: 'AI_DRAFTED', finalResponse: null, respondedAt: null },
-      })
+      // Shared with workers/ai-responder.worker.ts and
+      // app/api/comments/[id]/reply/route.ts -- retries on transient DB
+      // failure and restores aiDraftResponse (finalText) so a retry doesn't
+      // need to regenerate the draft from scratch, matching those two sites
+      // exactly rather than a third, unhardened copy of the same write.
+      await rollbackCommentClaim(prisma.comment, commentId, finalText)
       if (sendError instanceof ProviderUnsupported) {
         return NextResponse.json({ error: sendError.message }, { status: 400 })
       }

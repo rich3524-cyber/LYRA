@@ -243,12 +243,24 @@ export function createPinnedDispatcher({ address, family }: ValidatedAddress): A
  * fetch call on the same internal protocol version always, regardless of
  * which Node version (or which future undici bump) this runs under.
  */
-export async function safeFetch(rawUrl: string, init: RequestInit = {}, maxRedirects = 3): Promise<Response> {
+export async function safeFetch(
+  rawUrl: string,
+  init: RequestInit = {},
+  maxRedirects = 3,
+  timeoutMs = 15_000,
+): Promise<Response> {
+  // One timeout spans every hop of the whole call, not a fresh one per
+  // redirect -- resetting per-hop would let a chain of N redirects multiply
+  // the effective timeout by N. A caller-supplied signal (e.g. upload/from-url's
+  // own AbortSignal.timeout) always wins over the default.
+  const { signal: callerSignal, ...restInit } = init
+  const signal = callerSignal ?? AbortSignal.timeout(timeoutMs)
+
   let currentUrl = rawUrl
   for (let hop = 0; hop <= maxRedirects; hop++) {
     const { url: parsed, addresses } = await resolveAndValidate(currentUrl)
     const dispatcher = createPinnedDispatcher(addresses[0])
-    const fetchInit: RequestInit & { dispatcher?: Agent } = { ...init, redirect: 'manual', dispatcher }
+    const fetchInit: RequestInit & { dispatcher?: Agent } = { ...restInit, redirect: 'manual', dispatcher, signal }
     // undici ships its own RequestInit/Response types, structurally close to
     // but not identical to the DOM lib's (e.g. newer TS lib helpers add
     // disposable-iterator members to global Headers that undici's own types
