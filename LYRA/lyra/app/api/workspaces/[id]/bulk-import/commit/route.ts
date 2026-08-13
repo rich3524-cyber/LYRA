@@ -165,6 +165,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // import must not bypass client approval just because it arrived as a
     // batch instead of individual composer submissions. Every bulk-imported
     // row is conceptually a SCHEDULED request; bulk import has no draft path.
+    // (see resolveCreateStatus in services/posts/post-lifecycle.ts)
     const finalStatus = resolveCreateStatus('SCHEDULED', access.workspace.clientAccessLevel)
 
     // Media re-hosting runs before the transaction, not inside it. An external
@@ -179,6 +180,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // here -- the SLA cron filters on the related approval row, so without one
     // an imported post is invisible to approval-overdue alerting. Same fix as
     // POST /api/posts, which had the identical gap.
+    // (see buildApprovalCreateInput in services/posts/post-approval-bookkeeping.ts)
     const submittedAt = new Date()
     const approvalCreate = buildApprovalCreateInput(finalStatus, submittedAt)
 
