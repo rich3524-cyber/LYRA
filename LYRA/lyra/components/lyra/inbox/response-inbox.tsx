@@ -14,6 +14,8 @@ import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
+import type { Platform } from '@prisma/client'
+import { getPlatformShortLabel } from '@/lib/platform-labels'
 
 interface CommentData {
   id:                string
@@ -27,11 +29,6 @@ interface CommentData {
   escalationReason?: string | null
   createdAt:         string
   socialAccount:     { platform: string; name: string }
-}
-
-const PLATFORM_LABELS: Record<string, string> = {
-  FACEBOOK: 'FB', INSTAGRAM: 'IG', LINKEDIN: 'LI',
-  TIKTOK: 'TT', TWITTER: 'X', GOOGLE_BUSINESS: 'GBP',
 }
 
 function CountBadge({ count, variant }: { count: number; variant?: 'warning' | 'default' }) {
@@ -153,7 +150,7 @@ export function ResponseInbox({
                     : 'bg-background-secondary border-background-border text-text-secondary hover:border-background-border-mid'
                 }`}
               >
-                {p === 'ALL' ? 'All' : (PLATFORM_LABELS[p] ?? p)}
+                {p === 'ALL' ? 'All' : getPlatformShortLabel(p as Platform)}
               </button>
             ))}
           </div>

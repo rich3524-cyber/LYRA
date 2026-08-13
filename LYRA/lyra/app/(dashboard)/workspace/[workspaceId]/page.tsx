@@ -4,6 +4,7 @@ import { format } from 'date-fns'
 import { CalendarIcon, MessageSquare, Share2, PenSquare } from 'lucide-react'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getPlatformShortLabel } from '@/lib/platform-labels'
 
 interface Props {
   params: Promise<{ workspaceId: string }>
@@ -29,11 +30,6 @@ const STATUS_COLOUR: Record<string, string> = {
   PUBLISHED:        'text-status-success bg-status-success/10',
   FAILED:           'text-status-error bg-status-error/10',
   CANCELLED:        'text-text-tertiary bg-background-hover',
-}
-
-const PLATFORM_SHORT: Record<string, string> = {
-  FACEBOOK: 'FB', INSTAGRAM: 'IG', LINKEDIN: 'LI',
-  TIKTOK: 'TT', TWITTER: 'X', YOUTUBE: 'YT', GOOGLE_BUSINESS: 'GBP',
 }
 
 export default async function WorkspaceOverviewPage({ params }: Props) {
@@ -184,7 +180,7 @@ export default async function WorkspaceOverviewPage({ params }: Props) {
                   <div className="min-w-0 flex items-center gap-3">
                     {platform && (
                       <span className="font-mono text-xs text-text-tertiary shrink-0 w-7">
-                        {PLATFORM_SHORT[platform] ?? platform}
+                        {getPlatformShortLabel(platform)}
                       </span>
                     )}
                     <p className="font-sans text-sm text-text-primary truncate">

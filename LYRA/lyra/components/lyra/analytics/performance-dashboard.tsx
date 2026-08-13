@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { TrendingUp, MessageSquare, BarChart2, Eye, Heart, Share2, CheckCheck, Play, RefreshCw } from 'lucide-react'
+import type { Platform } from '@prisma/client'
+import { getPlatformShortLabel } from '@/lib/platform-labels'
 
 // recharts is a sizeable dependency that only this chart needs -- load it lazily
 // (client-only, no SSR) so the rest of the analytics dashboard's JS isn't blocked
@@ -31,11 +33,6 @@ interface AnalyticsData {
   series:            DataPoint[]
   platformBreakdown: PlatformStat[]
   topPosts:          TopPost[]
-}
-
-const PLATFORM_LABELS: Record<string, string> = {
-  FACEBOOK: 'FB', INSTAGRAM: 'IG', LINKEDIN: 'LI',
-  TIKTOK: 'TT', TWITTER: 'X', YOUTUBE: 'YT', GOOGLE_BUSINESS: 'GBP',
 }
 
 // Computed once at module load — getTimezoneOffset() returns the *negative* of
@@ -71,7 +68,7 @@ function PlatformBreakdownList({ breakdown }: { breakdown: PlatformStat[] }) {
       {breakdown.map(({ platform, count }) => (
         <div key={platform} className="space-y-1">
           <div className="flex items-center justify-between font-sans text-xs">
-            <span className="text-text-secondary">{PLATFORM_LABELS[platform] ?? platform}</span>
+            <span className="text-text-secondary">{getPlatformShortLabel(platform as Platform)}</span>
             <span className="font-mono text-text-tertiary">{count}</span>
           </div>
           <div className="h-1.5 bg-background-hover rounded-full overflow-hidden">
@@ -232,7 +229,7 @@ export function PerformanceDashboard({ workspaceId }: { workspaceId: string }) {
                 <div key={post.id} className="rounded-lg border border-background-border bg-background-tertiary p-3 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-background-hover border border-background-border-mid text-text-tertiary">
-                      {PLATFORM_LABELS[post.platform] ?? post.platform}
+                      {getPlatformShortLabel(post.platform as Platform)}
                     </span>
                     <div className="flex items-center gap-3 font-sans text-xs text-text-tertiary">
                       <span className="flex items-center gap-1"><Eye size={12} strokeWidth={1.5} />{post.reach.toLocaleString()}</span>

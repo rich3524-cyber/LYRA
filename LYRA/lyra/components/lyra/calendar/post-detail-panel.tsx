@@ -7,11 +7,11 @@ import { format, differenceInDays } from 'date-fns'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { APPROVER_ROLES } from '@/lib/authz'
+import type { Platform } from '@prisma/client'
+import { getPlatformShortLabel, getPlatformColor } from '@/lib/platform-labels'
 import {
   CalendarPost,
   PostBoost,
-  PLATFORM_LABELS,
-  PLATFORM_COLORS,
   STATUS_COLORS,
 } from './post-preview-card'
 
@@ -273,7 +273,7 @@ export function PostDetailPanel({ post, workspaceId, plan, userRole, clientAcces
   }
 
   const date           = post?.scheduledAt
-  const platformColor  = post ? (PLATFORM_COLORS[post.socialAccount.platform] ?? PLATFORM_COLORS['TWITTER']) : PLATFORM_COLORS['TWITTER']
+  const platformColor  = getPlatformColor((post?.socialAccount.platform ?? 'TWITTER') as Platform)
   const isAwaitingMedia = post ? post.requiresMedia && post.mediaUrls.length === 0 : false
   // Derived server-side in GET /api/posts from the same rule the SLA cron uses.
   const isApprovalOverdue = post?.approvalOverdue === true
@@ -329,7 +329,7 @@ export function PostDetailPanel({ post, workspaceId, plan, userRole, clientAcces
                   aria-hidden="true"
                 />
                 <span className="font-sans text-xs text-text-secondary truncate">
-                  {PLATFORM_LABELS[post.socialAccount.platform] ?? post.socialAccount.platform}
+                  {getPlatformShortLabel(post.socialAccount.platform as Platform)}
                   {' · '}
                   {post.socialAccount.name}
                 </span>

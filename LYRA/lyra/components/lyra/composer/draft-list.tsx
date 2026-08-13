@@ -4,17 +4,14 @@ import { useEffect, useState, useCallback } from 'react'
 import { format } from 'date-fns'
 import { Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import type { Platform } from '@prisma/client'
+import { getPlatformShortLabel } from '@/lib/platform-labels'
 
 interface Draft {
   id: string
   content: string
   createdAt: string
   socialAccount: { platform: string; name: string }
-}
-
-const PLATFORM_SHORT: Record<string, string> = {
-  FACEBOOK: 'FB', INSTAGRAM: 'IG', LINKEDIN: 'LI',
-  TIKTOK: 'TT', TWITTER: 'X', GOOGLE_BUSINESS: 'GBP',
 }
 
 export function DraftList({ workspaceId }: { workspaceId: string }) {
@@ -77,7 +74,7 @@ export function DraftList({ workspaceId }: { workspaceId: string }) {
             <div className="min-w-0 space-y-1">
               <div className="flex items-center gap-2">
                 <span className="font-mono text-xs text-accent-silver">
-                  {PLATFORM_SHORT[d.socialAccount.platform] ?? d.socialAccount.platform}
+                  {getPlatformShortLabel(d.socialAccount.platform as Platform)}
                 </span>
                 <span className="font-sans text-xs text-text-tertiary">
                   {format(new Date(d.createdAt), 'MMM d')}

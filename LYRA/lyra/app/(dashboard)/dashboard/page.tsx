@@ -3,16 +3,8 @@ import { redirect } from 'next/navigation'
 import { ArrowRight, Plus, Building2, PenSquare, MessageSquare, Zap, Globe, Share2, ChevronRight } from 'lucide-react'
 import { getCurrentUser } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-
-const PLATFORM_COLORS: Record<string, string> = {
-  FACEBOOK:        '#1877F2',
-  INSTAGRAM:       '#E1306C',
-  LINKEDIN:        '#0A66C2',
-  TWITTER:         '#1DA1F2',
-  TIKTOK:          '#010101',
-  GOOGLE_BUSINESS: '#EA4335',
-  YOUTUBE:         '#FF0000',
-}
+import type { Platform } from '@prisma/client'
+import { getPlatformColor } from '@/lib/platform-labels'
 
 export default async function DashboardHome() {
   const user = await getCurrentUser()
@@ -252,7 +244,7 @@ export default async function DashboardHome() {
                             <span
                               key={platform}
                               className="rounded-full"
-                              style={{ width: 7, height: 7, backgroundColor: PLATFORM_COLORS[platform] ?? '#888' }}
+                              style={{ width: 7, height: 7, backgroundColor: getPlatformColor(platform as Platform) }}
                               title={platform}
                             />
                           ))}
