@@ -1,166 +1,109 @@
-# Comprehensive Code Review Report — LYRA
+# LYRA — Comprehensive Code Review Report
 
-**Review date:** 29 Jul – 2 Aug 2026 · **Phases completed:** 1-5 · **Total findings: 212** (26 Critical · 62 High · 74 Medium · 50 Low)
+**Review date:** 2026-08-13 · **Prior review:** 2026-08-02 (archived at `.full-review/archive-2026-08-02/`)
 
 ## Review Target
 
-Full LYRA codebase re-review — a social-media-management SaaS (Next.js 16 App Router, TypeScript, Prisma 6/Postgres via Supabase, BullMQ workers on Railway, Netlify hosting, Auth0, Stripe billing, Resend email). ~285 source files, ~30,000 LOC. A prior full review ran 18 Jul 2026 (all Critical/High findings from that pass fixed, archived to `.full-review/archive-2026-07-18/`). This review covers the whole codebase again — not just the delta — per explicit user direction, since a large amount of new work shipped in between: two Crisis Aware features, Stripe billing going fully live, per-platform media customisation, AI Schedule Generator fixes, and a full 48-item alpha testing pass.
+Full LYRA codebase: `app/`, `components/`, `services/`, `workers/`, `lib/`, `prisma/schema.prisma`. Same scope as the 2026-08-02 review, re-run fresh to reflect everything shipped since (MCP gateway Phase 3, bulk import/CSV scheduling, self-approval deadlock fix, pre-beta security hardening pass, and — completed in this same session, immediately before this review began — the Railway cron migration and its production incident).
 
 ## Executive Summary
 
-LYRA's core engineering is genuinely strong where it has been exercised under real incident pressure: the publish worker's compare-and-swap claim logic, the SSRF-safe-fetch abstraction, the OAuth CSRF signer, and the TypeScript discipline (`strict: true`, zero `as any`, zero deprecated framework APIs) all reflect real craft. The problems concentrate in three places that recur across every phase of this review: **(1) partial adoption** — correct abstractions exist (`lib/safe-fetch.ts`, `lib/validate.ts`, `lib/encrypt.ts`, the one file with proper role gating) but are applied to a small minority of the call sites that need them; **(2) a billed feature that does nothing** — LYRA Trend is fully purchasable via live Stripe checkout while every functional endpoint behind it is an empty stub or a 503, and is described as fully working in both the customer-facing Demo Guide and the in-app Help docs; **(3) zero enforcement layer** — no CI test gate despite 37 passing tests existing, no role-based access control on 62 of 66 mutating routes, no environment isolation (PR previews share the live production database and Stripe account), and a live hardcoded Meta API token sitting in a git repository whose root is the user's entire OneDrive folder. None of these are subtle — each was independently re-confirmed against source by at least one phase, and several were found independently by two or three phases working from different angles, which is itself a strong confidence signal on both severity and priority.
+LYRA is a well-above-average codebase for its stage: sophisticated concurrency handling, unusually honest "why"-focused comments that name real past incidents, zero `any`/`@ts-ignore`/TODO markers in production code, and a clean `tsc --noEmit`. The pre-beta security hardening pass (documented earlier this session) held up under fresh adversarial review — multi-tenant authorization, SSRF defense, webhook verification, and encryption were all independently confirmed sound. **The dominant failure pattern across every review dimension — code quality, architecture, security, performance, testing, documentation, and operations — is the same one, appearing at every layer: correct patterns get built once, with good reasoning, and then only partially adopted or maintained, leaving the second and third copy to drift.** That pattern produced one live, verified, user-triggerable billing/entitlement bypass, a real production incident during this same session (independently analyzed by the DevOps review as a symptom of the identical root cause), and dozens of smaller instances of the same shape at every layer from Prisma queries to documentation.
 
----
+**Six independent review passes converged on the same handful of root issues from different angles — that convergence is itself the strongest signal in this report about what to fix first:**
+
+1. **The billing/entitlement bypass** was found and independently confirmed by three separate reviewers (architecture, security, testing) from three different angles — a query-param confusion, a fail-open schema default, and a total absence of test coverage on the exact code path — all describing the same live bug.
+2. **"CI doesn't gate production deploys"** was found independently by two reviewers (architecture/data-model, DevOps) reading the same workflow file, and the DevOps review supplied the concrete branch-protection fix.
+3. **"Things get built well once, then drift"** was named explicitly as the root cause by the architecture review (for code), the documentation review (for docs — two diverging Handover files, a stale README, a stale CLAUDE.md), and the DevOps review (for infrastructure — this session's own production incident was traced to exactly this pattern: Railway dashboard state diverging from `railway.toml` with nothing to catch it).
 
 ## Findings by Priority
 
-### Critical Issues (P0 — Must Fix Immediately)
+### Critical Issues (P0 — Must Fix Before Beta)
 
-**Security & data exposure:**
-1. **[Security]** Live, real Meta Graph API access token hardcoded in `scripts/meta-api-test.mjs`, confirmed NOT covered by any `.gitignore` rule — CVSS 10.0. Revoke the token immediately, independent of any code fix.
-2. **[Security]** The `CLIENT_VIEW` role (meant to be read-only) can publish live posts, spend ad budget, and delete crisis keywords on 62 of 66 mutating routes — role predicates exist in only 4 files. CVSS 9.0, full curl-based PoC provided.
+- **Live billing/entitlement bypass, confirmed end-to-end and exploitable at zero cost.** `/onboard?plan=<any unrecognized value>` charges the Stripe "Pro" price but writes the unresolved raw param into checkout metadata instead of the resolved plan key; the webhook correctly no-ops on an unresolvable plan (a deliberate prior fix), leaving the new `Agency` row on its schema default — which is `AGENCY`, the most expensive tier, not the cheapest. The checkout includes a 30-day free trial, so this costs an attacker nothing and is repeatable with new signups. *(Sources: Architecture/data-model A1+B1, Security C-1, Testing #1 — zero test coverage on the exact branch containing the bug.)*
+- **An MCP OAuth account-takeover chain**: unauthenticated Dynamic Client Registration with no redirect-host allowlist and a public client that isn't marked non-first-party (so Auth0 may skip consent), combined with the codebase advertising 6 OAuth scopes that nothing anywhere ever checks, combined with a bearer token being honored by `getCurrentUser()` on every mutating route in the app — not just MCP routes. Full chain traced from unauthenticated registration to a full-privilege token for the victim's entire account. *(Source: Security H-1, rated High by CVSS but functionally an account-takeover; Testing confirmed one existing passing test actually documents and pins the vulnerable bearer-everywhere behavior as correct.)*
+- **Unbounded resource consumption in the newest major feature.** Bulk-import media re-hosting has no byte-size cap (every sibling upload path enforces 50MB; this one doesn't) and fires up to 500 concurrent fetches with no timeout on the underlying `safeFetch`, fully buffering each response in memory before an S3 write. Independently flagged Critical by both the security review (resource-exhaustion/cost-abuse) and the performance review (real OOM/function-timeout risk on any import with substantial media), with the performance review noting this is worse than how the architecture pass had originally framed it. *(Sources: Security H-3, Performance Critical finding, Testing #4/#6.)*
+- **The post-lifecycle approval state machine has 4 independent implementations and no single owner.** Each copy's own code comments record real divergences already shipped and fixed post-launch — the self-approval deadlock fix had to land in 2 files; a missing-approval-row bug was independently fixed twice in separate sessions because the second copy wasn't known about. This is the product's core differentiator and its most duplicated logic. *(Source: Architecture C1.)*
+- **No shared multi-tenant authorization primitive**, expressed as 2 incompatible idioms across dozens of routes with the identical authorization failure returning different HTTP status codes depending which file you're in — though the security review's fresh adversarial sweep found this materially better in practice than the architecture pass estimated (51 of 55 mutating routes do carry both a tenancy and role check today; only 2 gaps found, both now documented as Medium fixes). The structural risk (no primitive, so the next 31st copy could omit the check) remains real even though today's actual coverage is good. *(Sources: Architecture C2, Security's independent re-verification.)*
+- **CI does not gate what deploys to production — confirmed independently by two separate reviewers reading the same files.** Netlify and Railway both auto-deploy via native GitHub integration in parallel with, not after, the test/build pipeline. Any red test currently has zero effect on what ships. The DevOps review supplied a concrete, low-effort fix: branch protection on `main` requiring existing CI checks — no new pipeline work needed. *(Sources: Architecture/data-model C1, DevOps Finding 1, Testing #6.)*
+- **The security-critical primitives protecting billing, auth, and the entire public cron surface have zero test coverage**, confirmed by direct file inspection: `lib/authz.ts`, `lib/plan-access.ts`, `lib/encrypt.ts`, and `checkCronAuth` (the sole gate on all 6 public `/api/cron/*` endpoints — and all 6 of those routes are themselves also untested). Each was read and found correct on the merits by the security review, but nothing in CI would catch a regression in any of them. *(Sources: Architecture/data-model C2-test, Security's line-by-line verification, Testing #2/#3.)*
+- **The third, unhardened copy of the safety-critical comment-reply rollback can permanently strand a customer's comment as falsely "answered" with no reply sent.** The other two copies have a 3-attempt retry and draft preservation; this one (in the MCP respond-to-item route) has neither. *(Source: Code Quality C1.)*
+- **No `unhandledRejection`/`uncaughtException` handler on the 7-worker fleet.** Combined with Railway's bounded restart-retry count, one unhandled rejection anywhere in the fleet can permanently stop all publishing, AI responses, and sync until a human notices — and at least 2 identified live code paths can trigger this today. *(Source: Code Quality C1, workers pass.)*
+- **A destructive, unreferenced SQL file sits in the repo next to the real schema files.** `prisma/schema.sql` is materially stale (missing more than half the current tables) and its first executable line is `DROP TABLE ... CASCADE` — nothing in code or CI references it, but its filename and location read as authoritative. *(Sources: Architecture/data-model A4, Documentation C1 — independently confirmed by two reviewers.)*
+- **Two actively-diverging `LYRA-Handover.md` files exist**, and the one physically inside the project directory — the one a session working from that directory would naturally consult — is the stale one, still instructing readers to configure cron-job.org, a mechanism this same session just finished retiring. *(Source: Documentation C2 — a genuinely new discovery this pass, not previously known.)*
+- **`README.md`, the most likely first document read, was never updated for today's Railway cron migration**, still describing the now-retired cron-job.org mechanism as primary. *(Source: Documentation C3.)*
 
-**Billing integrity:**
-3. **[Code Quality]** Customers can be billed for LYRA Trend, which returns HTTP 503 on every functional endpoint; the "Manage subscription" cancel button has an empty try block with a stale TODO.
-4. **[Architecture]** LYRA Trend is fully purchasable and entirely unimplemented, independently confirmed by two separate reviewers; no `Trend` Prisma model exists at all.
-5. **[Architecture]** No entitlement layer exists — plan limits are declared in dead schema columns and enforced nowhere consistently, including a direct API bypass that unlocks the paid Crisis Aware add-on for free.
-6. **[Documentation]** `docs/LYRA-Demo-Reference-Guide.html` sells LYRA Trend as one of three reasons "LYRA exists," with a full working-feature walkthrough — none of it real.
-7. **[Documentation]** `components/lyra/help/section-13-trends.tsx` (in-app, customer-facing) describes the same non-functional feature with step-by-step activation instructions.
-8. **[Documentation]** `section-10-settings.tsx` describes a fictional "Approval notifications" toggle that directly contradicts an honest, correct statement elsewhere in the same Help document.
+### High Priority (P1 — Fix Before Public GA)
 
-**Data-loss / publishing correctness:**
-9. **[Code Quality]** Scheduled posts can be permanently stranded after a Crisis Aware pause — a `return` from a BullMQ processor resolves as completed, not retried, and re-enqueueing becomes a silent no-op.
-10. **[Code Quality]** A random third-party stock photo can be published to a customer's live Instagram account when media resolution fails, silently substituting rather than refusing.
-11. **[Code Quality]** The Analytics page hard-crashes on any API failure — a poison `{}` value flows into `data.summary.postsPublished`, throwing and taking down the whole route.
-12. **[Architecture]** No database migration system for a system taking live payments — three parallel, unreconciled sources of truth for the live schema, no drift detection, no rollback path.
+*Grouped by area; full detail with file:line references and code fixes is in each phase's raw output file.*
 
-**Testing / CI enforcement:**
-13. **[Code Quality]** Tests exist (37, passing) but cover ~1.4% of LOC and `npm test` is not run in CI at all — confirmed independently by 3 separate phases (Code Quality, Testing, CI/CD).
-14. **[Testing]** `npm test`/`vitest run` never invoked in CI — the 37 tests provide zero regression protection in the shipped pipeline.
-15. **[Testing]** `app/api/stripe/webhook/route.ts` has zero tests despite two documented live billing incidents in its own comments.
-16. **[Testing]** `workers/post-publisher.worker.ts` has zero tests despite documented double-publish and dead-retry incidents.
-17. **[Testing]** `lib/oauth-state.ts`, the sole CSRF defense for every social OAuth connect flow, has zero tests while its structural twin has six.
+**Architecture & data model:** the paid-feature entitlement helper built after the 2026-08-02 review to prevent exactly this class of bug is still not imported by the one route that flips the paid flag — a live, repeatable revenue leak; the one manual "Publish now" route lacks the atomic claim its two siblings both correctly use, enabling a double-publish race; schema and the live database are confirmed (via direct SQL audit) to already disagree on one relation's delete behavior; only 11 of ~30 relations declare `onDelete`, and the resulting hand-written cascade-delete chains are already missing several tables; `Comment.workspaceId` — the most security-critical column in the schema — has no foreign key; zero Postgres RLS anywhere, isolation is entirely application-level; the `SocialProvider` abstraction covers half its domain, OAuth has no interface at all and forces a 7-way import fan-out; no error taxonomy or dead-letter queue exists anywhere; posts stranded mid-publish have no reconciler; analytics is computed twice from different metric fields and can disagree with itself for the same customer; account deletion 500s for a documented, common case (breaking the GDPR delete-account path); a 3-month-stale destructive SQL file (see Critical); no validated config layer, with one confirmed-currently-occurring consequence (Klaviyo signups being silently dropped from the marketing list today).
 
-**Performance (production-breaking under real load):**
-18. **[Performance]** `sync-metrics` cron runs ~200 sequential external API calls inline in a single serverless function with no worker offload and no duration override — near-certain to exceed the hosting platform's timeout ceiling on any workspace with real volume.
-19. **[Performance]** `SocialAccount.zernioAccountId` has no index despite being the sole predicate of two high-frequency webhook queries — a full table scan across all customers.
-20. **[Performance]** No database migration system, repeated here for its performance consequence — no way to audit which indexes actually exist in production.
-21. **[Performance]** The Netlify app and Railway worker fleet share a single `connection_limit=1` Postgres connection — all configured BullMQ worker concurrency is decorative under real load.
-22. **[Performance]** (Compounds #21) — sequential `sync-metrics` fan-out onto the same starved connection pool.
+**Security:** unauthenticated onboarding token endpoint writes attacker-reachable text into the one region of the AI responder's prompt that isn't fenced against injection, unlike every other untrusted field in the same prompt — reachable via forwarded onboarding links, consequential once combined with full autonomy mode.
 
-**Documentation foundation:**
-23. **[Documentation]** `README.md` is 100% unmodified Next.js boilerplate — zero project-specific setup information, and actively tells contributors to deploy on Vercel (wrong platform).
+**Performance:** `WorkspaceAccess` has no index usable for a workspace-only lookup, forcing a full cross-tenant table scan specifically on the crisis-alert-email path — the one place in the product designed to be low-latency under active-incident pressure; `Post` is missing an index hit by 3 real hot paths including the page that loads on nearly every dashboard visit.
 
-**CI/CD:**
-24. **[CI/CD]** Worker deployment failures are silently swallowed by `continue-on-error: true` — a broken Railway deploy shows green with no alert.
-25. **[CI/CD]** No environment isolation — every Netlify PR preview build shares the live production database, Stripe account, and Auth0 tenant.
-26. **[CI/CD]** CI has zero path filtering — any commit anywhere in the user's entire OneDrive-rooted repository triggers a full build and a live worker redeploy.
+**Testing:** route-level test coverage is ~25% overall and 0% for the entire cron surface; the component/UI layer has no rendering tests and the current tooling is structurally incapable of producing one (no DOM environment configured at all) — the interactive calendar, composer, and approval workflow have zero regression protection beyond manual QA.
 
-### High Priority (P1 — Fix Before Next Release)
+**Documentation:** CLAUDE.md — which explicitly instructs future sessions to treat it as an unquestionable source of truth — contains 5 confirmed inaccuracies, the most dangerous being that it describes `middleware.ts` as handling "Auth + workspace access control" when the real file does neither; it also omits the single most business-critical cron route from its own cron documentation. The migration ledger's own "known drift" section undersells the real drift. No API documentation exists for the 82-route surface.
 
-**Authorization & auth (Security/Architecture, 8 items):** 40 of 46 mutating routes perform no role check, only membership; authorization hand-rolled across 51 files in two incompatible 403-vs-404 idioms; auth failures signalled by comparing a magic string (`error.message === 'Unauthorized'`) at 60 call sites; `middleware.ts` excludes `/api` entirely from any framework-level auth backstop, already producing two real gaps (`seo/connect` discarding its own auth result; `upload/presign`'s tenant check conditional on client-sent data); Agency↔Workspace relationship modelled two incompatible ways, creating a tenant-isolation risk; SSRF gap in `services/brand-intelligence/scraper.ts` — never adopted the safe-fetch wrapper built specifically for it, and confirmed to also run inside the always-on Railway worker with an unauthenticated write path setting the target URL; `EmailIntegration.apiKey` (Klaviyo/Mailchimp/Customer.io keys) stored and read back in plaintext while structurally identical tokens elsewhere are correctly encrypted; presigned S3 uploads have no enforceable size limit (the check is skippable, and the S3 API can't express the constraint server-side regardless).
+**Framework/best practices:** the App Router's core error/loading/streaming primitives (`error.tsx`, `loading.tsx`, `not-found.tsx`, `<Suspense>`) are entirely unused across the whole app, so any Server Component error crashes the full route rather than a scoped boundary.
 
-**Dependency & infrastructure security (Security, 3 items):** 14 npm audit advisories (10 High, confirmed via direct `npm audit` run) with zero CI security scanning of any kind; Docker build context copies the full `.env` (42 live secrets) with no `.dockerignore`, worker container runs as root on an unpinned base image; rate limiting is bypassable by spoofing `x-forwarded-for` on the two unauthenticated routes that need it most.
-
-**Billing & entitlement correctness (Code Quality/Security, 3 items):** Stripe billing events can be permanently lost — idempotency claim returns 200 on any DB error, and the compensating rollback has the mirror bug; cancelling the Crisis Aware add-on or downgrading a plan never revokes the entitlement flag — a churned customer keeps the paid feature indefinitely; no rate limiting on the four most expensive routes while the cheapest routes are capped — inverted relative to actual cost.
-
-**Reliability/error-handling (Code Quality, 7 items):** three routes swallow exceptions and report success anyway; dashboard setup checklist renders hardcoded booleans ignoring real computed state; six UI mutations skip `res.ok` checks, one of which can wipe an operator's in-progress draft; multiple unguarded async handlers produce unhandled rejections that leave UI permanently stuck; no worker `'error'` listeners anywhere (one unhandled BullMQ event crashes the whole process); comment-monitor worker failure paths structurally prevent BullMQ's configured retries from ever running; comment ingestion implemented three times with active data-loss drift between them.
-
-**AI/LLM infrastructure (Code Quality, 2 items):** no shared Anthropic/Claude wrapper — 11 call sites, 7 different JSON parsers, 5/11 hardcode the model string, only 1/11 sets a request timeout, zero retries anywhere; `noUncheckedIndexedAccess` is off and the same unsafe response-indexing pattern is duplicated across 10 AI service files (independently reconfirmed by Phase 4A as 9 files with a concrete fix).
-
-**Validation & data integrity (Code Quality/Framework, 3 items):** `lib/validate.ts` (a correct Zod-based parser) used by only 3 of 66 routes, 30 do an unvalidated type assertion instead; 56 `process.env.X!` assertions with no boot-time validation, with concrete real-world consequences already documented; Zod never applied to ~30 outbound third-party API responses (Facebook, LinkedIn, GSC, Zernio, etc.) — an inverted risk posture since those are the shapes LYRA doesn't control.
-
-**Testing gaps on security/reliability-critical code (Testing, 6 items):** the only 4 files implementing RBAC have zero tests, with no mechanical guard against route #67 shipping ungated; SSRF-critical logic (`lib/safe-fetch.ts`'s redirect-hop re-validation) is untested; `sync-metrics`'s per-item failure isolation and lookup-id fallback are untested, and no load/timing test exists anywhere that would catch a timeout-ceiling regression before production; both flagged `Promise.all`-not-`allSettled` batch-failure sites are untested — one has an adjacent, otherwise-thorough test file that stops just short of covering the risky function; `vitest.config.ts`'s glob + missing jsdom environment jointly block any future component test; no coverage tool is installed at all, so the ~1.4% figure is a manual estimate invisible to CI.
-
-**Documentation accuracy (Documentation, 3 items):** Crisis Aware's email alert is described as merely "planned" in one paragraph of `section-10-settings.tsx`, directly contradicted by the same file's own correct description 70 lines later; `LYRA-Handover.md`'s environment-variable table is missing `RESEND_API_KEY` and both Crisis Aware Stripe price-ID variables, despite the same document's changelog correctly recording both features as shipped; the internal API route reference covers under half of the 66 real routes and omits `/api/cron/publish-due-posts` — the single route that actually publishes scheduled content.
-
-**Framework/language (Framework, 3 items):** `getCurrentUser()` is not wrapped in React's `cache()` despite performing an Auth0 fetch and a Prisma write, firing twice per dashboard page load onto the already-starved connection pool; no `engines` field, with three genuinely different Node-version/worker-entrypoint declarations across local/Docker/Railway/Netlify; Zod never applied to outbound third-party responses (see above, cross-listed as both a Code Quality and Framework finding since both phases independently found it).
-
-**CI/CD & operations (CI/CD, 6 items):** `npm test` never runs in the actual CI pipeline (third independent confirmation of this exact gap); two live, actively-drifting duplicate copies of the entire app tree, `Dockerfile.worker`, and CI workflows exist at the repo root vs. the real project directory; neither `Dockerfile.worker` is actually wired to Railway's build (it uses Nixpacks, not Docker) — meaning the Critical Docker security finding is currently dormant rather than exploitable, but reactivates the moment anyone touches `railway.toml`; zero monitoring/error-tracking/alerting anywhere in the stack; `CRON_SECRET` is shell-interpolated rather than passed via `env:`, and the most business-critical cron (`publish-due-posts`) has no version-controlled fallback trigger at all; no `npm audit`/CodeQL/Dependabot/secret-scanning gate anywhere in CI.
+**DevOps:** config drift is a systemic pattern across the deployment surface — the exact mechanism behind this session's own real production incident (Railway dashboard settings silently diverging from `railway.toml`, with nothing automated to catch it) — and the same shape recurs in at least 4 other places (undeclared cron services, a Dockerfile that doesn't describe production, the Prisma ledger vs. live DB). No monitoring or alerting exists on worker-fleet liveness at all — confirmed by the codebase's own comments, not speculation — which is why the incident took ~15 minutes and a human noticing to catch rather than an automated alert.
 
 ### Medium Priority (P2 — Plan for Next Sprint)
 
-**Duplication & shared-code gaps:** 14 copies of a platform-label map with inconsistent values; 33 components hand-roll the same fetch/loading/error triad; `analytics/sync` and `cron/sync-metrics` are near-verbatim copies already diverged in staleness windows and batch sizes; three email-marketing providers duplicate validation/dispatch logic; six copies of platform OAuth `getAuthUrl`/`exchangeCode`; analytics aggregation logic independently duplicated between the dashboard and the customer PDF report, risking two different numbers for the same period.
-
-**Data model & schema:** `onDelete: Cascade` present on roughly half the relation graph, compensated for by a hand-maintained 16-statement delete transaction that already caused one production FK-violation incident; several denormalized boolean/status fields that can drift from their source of truth, including one with the same failure mode as the Crisis Aware stranding bug; 13+ missing indexes on FK/filtered columns beyond the two already elevated to Critical/High; webhook idempotency loses events on timeout due to a claim-then-process window with no partial-completion state; founding-member counter is a non-atomic count-then-update race.
-
-**Security (non-Critical/High):** PKCE `code_verifier` transported unencrypted inside the Twitter OAuth `state` parameter; CSP's `script-src` includes `unsafe-inline` and `connect-src` allows any HTTPS host; indirect prompt injection — scraped third-party content reaches Claude with no fencing at 10 of 11 call sites; any authenticated user can create unlimited workspaces and self-assign admin with no plan-limit check; public Klaviyo subscribe endpoint fully unauthenticated and unrate-limited; zero structured logging/audit trail anywhere.
-
-**Documentation & process:** `docs/LYRA-Wishlist.md` has zero entry for the billed, non-functional LYRA Trend feature; no architecture documentation exists anywhere (no ADRs, no diagrams); no real migration ledger — schema history lives only as changelog prose.
-
-**Framework/build:** `satisfies`/discriminated-union exhaustiveness unused; systemic client-fetch-on-mount pattern across 14+ components instead of Server Component data fetching; `shadcn` CLI misplaced in production dependencies; heavyweight headless-Chromium stack used for one static, cacheable PDF route that duplicates a lighter dependency already in use; no `serverExternalPackages` declared; 7 route handlers missing try/catch.
-
-**CI/CD:** no verifiable branch protection on `main`; no `.dockerignore` (dormant, resurfaces the moment the Docker path is activated); no documented rollback procedure for either deploy target; lint runs non-blocking due to an explicitly-documented 762-error backlog.
-
-**Testing:** BullMQ processor logic baked into unexported `new Worker()` closures across all 5 workers, structurally blocking unit tests without a refactor; retry/backoff configuration values have no test pinning them; the two known auth-bypass gaps found by manual code reading have no test that would catch them mechanically.
+Extensive across every phase — full detail in the phase files. Recurring themes worth naming once rather than per-instance: duplicated status/label/color maps across the frontend (6+ copies of platform labels alone, some missing platforms and rendering raw enum values to customers); zod validation adopted at a fraction of the routes/handlers that need it; LLM JSON output cast without validation at several persistence sites; several unbounded or uncapped queries/fan-outs beyond the Critical bulk-import one; no shared frontend data-fetching/caching layer; the CSP nonce migration plan that would close the last real gap in an otherwise strong header configuration is fully written and sitting unexecuted in a code comment nobody would find without opening that specific file; no dependency or secret scanning in CI; several dependencies materially behind latest including the Anthropic SDK the product's AI features run on.
 
 ### Low Priority (P3 — Track in Backlog)
 
-A find-and-replace accident shipped a lucide icon's literal component name into live Facebook-connect dialog copy; hardcoded `'AU'` ad targeting regardless of workspace locale; a likely-retired pinned Perplexity model; a styled `<span>` posing as a call-to-action with no `onClick`; dev-only test dependencies shipped into a production Docker image; platform label/limit rules duplicated across 6 files with no server-side enforcement; the shared `Button` primitive bypassed by 44 of 52 files; three empty scaffold directories; two "god components" over 480 lines each; non-atomic rate limiter (downgraded from Medium — real but narrow blast radius); OAuth state-signing key falls back to reusing the session-encryption secret; no test-DB/integration-test scaffolding anywhere; no documented test-file convention; no adversarial-input test cases for third-party API mappers; no freshness/provenance marker distinguishing verified documentation from aspirational design-spec content; two removable non-null assertions; stale `tsconfig.json` target; only one Server Action in the entire app; zero `loading.tsx`/`error.tsx`/`Suspense` usage anywhere; a dead, unreferenced marketing-page component subtree; unused `axios` dependency; no pre-commit hooks; no `CODEOWNERS`; no `.env.example` template.
-
----
+Style/consistency items, dead code (an entire fully-built, fully-tested, zero-caller `Review` feature; several dead upload-route duplicates; unused schema columns), minor robustness nits in otherwise-correct security primitives, React 19 hooks available but unused in favor of hand-rolled equivalents, a missing `viewport` export, and various small documentation gaps. Full lists in each phase file.
 
 ## Findings by Category
 
-| Category | Critical | High | Medium | Low | Total |
-|---|---|---|---|---|---|
-| Code Quality | 5 | 18 | 24 | 15 | 62 |
-| Architecture | 3 | 10 | 9 | 6 | 28 |
-| Security | 2 | 9 | 15 | 11 | 37 |
-| Performance | 5 | 7 | 6 | 3 | 21 |
-| Testing | 4 | 6 | 5 | 3 | 18 |
-| Documentation | 4 | 3 | 3 | 1 | 11 |
-| Framework & Language | 0 | 3 | 7 | 8 | 18 |
-| CI/CD & DevOps | 3 | 6 | 5 | 3 | 17 |
-| **Total** | **26** | **62** | **74** | **50** | **212** |
+| Category | Critical | High | Medium | Low |
+|---|---:|---:|---:|---:|
+| Code Quality | 2 | 6+ | 9+ | 6+ |
+| Architecture & Data Model | 8 | 15+ | 20+ | 10+ |
+| Security | 1 | 3 | 10 | 14 |
+| Performance | 1 | 3 | 4 | 7 |
+| Testing | 4 | 5 | 5 | — |
+| Documentation | 3 | 3 | 3 | 3 (2 positive) |
+| Framework/Best Practices | 0 | 1 | 2 | 4 |
+| CI/CD & DevOps | 1 | 2 | 2 | 2 |
 
----
+*(Counts are approximate and not fully deduplicated across phases by design — several findings above were independently discovered by 2-3 reviewers from different angles, which is reported as a confidence signal in the Executive Summary rather than collapsed into one line. See each phase's `0X-*.md` file for exact, itemized findings with file:line references and code-level fixes.)*
 
 ## Recommended Action Plan
 
-**1. Today, independent of any code change (effort: trivial):**
-Revoke the hardcoded Meta Graph API token (`scripts/meta-api-test.mjs`) at developers.facebook.com. This is live and exploitable right now regardless of anything else in this plan.
+**Before beta (this week):**
+1. Fix the billing/entitlement bypass at both ends — reject unresolvable plan params in `app/onboard/page.tsx` and flip `Agency.plan`'s schema default from `AGENCY` to `STARTER`, then audit existing Agency rows against their real Stripe price. *(Small effort, highest-confidence finding in the whole review.)*
+2. Reject `Authorization: Bearer` on any route outside the MCP surface (one middleware check) — collapses the OAuth account-takeover chain's blast radius immediately while the full fix (scope enforcement, DCR host allowlist) is scheduled.
+3. Cap bulk-import media re-hosting by size and concurrency, and add a timeout to `safeFetch` itself (fixes every one of its 8 callers at once).
+4. Delete `prisma/schema.sql`.
+5. Reconcile the two `LYRA-Handover.md` files into one canonical copy, and update `README.md`'s cron section — both small, both currently actively misleading.
+6. Turn on branch protection on `main` requiring the existing CI checks — no new pipeline code needed, closes the "CI doesn't gate deploys" finding immediately.
 
-**2. This week — stop active harm (effort: small-medium each):**
-- Disable Netlify PR preview deploys until per-context env overrides exist (small — one `netlify.toml` change), closing the "every PR touches production data" gap.
-- Remove `continue-on-error: true` from the worker deploy job and add a failure notification (small).
-- Add `paths:` filtering to `deploy.yml` so unrelated OneDrive commits stop triggering live deploys (small).
-- Add the missing `test` job to CI, gating `build` on it — the single highest-leverage fix in this entire report, converting 37 existing tests plus everything written going forward from decorative to enforced (small).
-- Pause LYRA Trend billing (Stripe checkout) or fast-track a minimal working sync, given customers are actively being charged for a non-functional feature (business decision + small code change to disable checkout).
-- Fix the CSRF-critical untested `lib/oauth-state.ts` and the Stripe webhook idempotency error-swallow bug together with their tests (medium).
+**Before public GA:**
+7. Extract `services/posts/post-lifecycle.ts` as the single owner of the approval state machine, consumed by all 4 current copies.
+8. Write tests for `lib/authz.ts`, `lib/plan-access.ts`, `lib/encrypt.ts`, and `checkCronAuth` — small, pure functions, the highest test-ROI item in the report given what they protect.
+9. Add the atomic claim to the manual "Publish now" route to match its two siblings.
+10. Add the two missing database indexes (`WorkspaceAccess`, `Post`) — cheap, and they get harder to add as tables grow.
+11. Correct CLAUDE.md's architecture/file-structure sections, or replace them with a pointer to README's more current "Architecture at a glance."
+12. Add a minimal HTTP health listener to the worker fleet and point an external uptime monitor with real alerting at it — directly targets the root cause of this session's own production incident.
 
-**3. Next 1-2 weeks — close the authorization gap (effort: large):**
-- Build a real, centralized role/entitlement-checking middleware or helper and roll it out across the 62 ungated mutating routes — this is the single largest structural gap in the review (Security C2, Architecture C3, both Code Quality and Architecture H1-H4). Budget this as one focused effort rather than piecemeal route fixes, and write the repo-wide static test (Testing T5) alongside it so the gap can't silently reopen.
-- Adopt `safeFetch()` in `services/brand-intelligence/scraper.ts` (small once role-gating work has established the pattern of "find every call site and fix them together").
-- Encrypt `EmailIntegration.apiKey` at the data-access boundary, matching the existing pattern for `SocialAccount`/`SeoConnection` (medium).
-
-**4. Next 2-4 weeks — fix what actually breaks under load (effort: medium-large):**
-- Give the Railway worker fleet its own `DATABASE_URL` with a real connection pool, separate from the Netlify app's — this single change makes every configured BullMQ `concurrency` setting actually mean something (medium, high impact).
-- Refactor `sync-metrics` to fan out through the existing BullMQ worker infrastructure instead of running ~200 sequential calls inline in a serverless function (medium).
-- Add the missing indexes flagged across Phase 1-2 (`SocialAccount.zernioAccountId` first, then the other 13+) — cheap, mechanical, high-confidence fix (small).
-- Stand up a real Prisma migration ledger, retiring the ad-hoc hand-run-SQL pattern — this is both a correctness and an auditability fix and unblocks confident index/schema changes going forward (large, foundational).
-
-**5. Ongoing / next sprint — documentation and process hygiene (effort: small-medium, high trust impact):**
-- Rewrite `README.md` from scratch with real setup instructions (small, was already partially scoped by Phase 3/4B).
-- Fix all four documentation-accuracy Criticals (Demo Guide + Help doc Trend claims, the fictional Approval-notifications toggle) — apply the same "confirmed live + file:line citation" discipline `LYRA-Handover.md` already uses, since that discipline is precisely what kept that document accurate while the customer-facing docs weren't.
-- Add `@vitest/coverage-v8` and start reporting (not yet gating) coverage in CI, to make future regressions in test investment visible.
-- Delete the dead root-level app tree / `Dockerfile.worker` / `.github/workflows/` duplicates, or explicitly document why a second copy exists — this single cleanup removes a meaningful source of future confusion and accidental dead-end edits.
-
-**6. Backlog — everything else:**
-Work through the remaining Medium/Low findings opportunistically, prioritizing anything that touches a file already being modified for one of the above (e.g., while fixing the role-gating gap, also fix the 403-vs-404 inconsistency in the same routes; while touching the Anthropic call sites for the shared wrapper, also fix the `noUncheckedIndexedAccess` violations in the same files).
-
----
+**Ongoing:**
+13. Extract business logic out of route handlers into `services/` by domain, highest-churn areas first (posts, analytics, billing) — the architecture review's single highest-leverage structural recommendation, and the codebase already contains two internal examples (`services/notifications/`, `services/posts/bulk-import.ts`) proving the pattern works when followed through.
+14. Consolidate the ~6 duplicated platform-label/status maps into the one canonical module that already exists but is under-adopted.
+15. Execute the CSP nonce migration plan that's already fully written in `middleware.ts`.
+16. Add a config-drift check (Railway dashboard vs. declared state) as a scheduled CI job.
+17. Add Dependabot and a basic secret-scan step to CI.
+18. Build out component-level test tooling (DOM environment + Testing Library) so the UI layer can start gaining coverage.
 
 ## Review Metadata
 
-- **Review date:** 29 Jul – 2 Aug 2026
-- **Phases completed:** 0 (scope), 1A/1B (Code Quality & Architecture), 2A/2B (Security & Performance), Checkpoint 1 (user approved "Continue"), 3A/3B (Testing & Documentation), 4A/4B (Best Practices & CI/CD), 5 (this report)
-- **Flags applied:** Security Focus: no · Performance Critical: no · Strict Mode: no · Framework: Next.js 16 (TypeScript, App Router)
-- **Prior review:** 18 Jul 2026, archived to `.full-review/archive-2026-07-18/` — all findings from that pass were fixed prior to this review starting
-- **Output files:**
-  - Scope: `.full-review/00-scope.md`
-  - Quality & Architecture: `.full-review/01-quality-architecture.md`
-  - Security & Performance: `.full-review/02-security-performance.md`
-  - Testing & Documentation: `.full-review/03-testing-documentation.md`
-  - Best Practices: `.full-review/04-best-practices.md`
-  - Final Report: `.full-review/05-final-report.md` (this file)
+- **Review date:** 2026-08-13
+- **Phases completed:** 0 (scope), 1 (Code Quality & Architecture — 2 sub-passes each, 4 agent reports), 2 (Security & Performance — 2 agent reports), Checkpoint 1 (user approved continuation), 3 (Testing & Documentation — 2 agent reports), 4 (Best Practices & DevOps — 2 agent reports), 5 (this consolidated report)
+- **Total independent agent reports:** 10, covering code quality (top-level + workers/lib + components + API routes + services), architecture (top-level + data-model/cross-cutting), security, performance, testing, documentation, framework/language, and CI/CD/DevOps
+- **Flags applied:** none (standard full-codebase pass, no `--security-focus`/`--performance-critical`/`--strict-mode`)
+- **Prior review:** 2026-08-02, archived at `.full-review/archive-2026-08-02/` — findings from that review were re-verified against current code rather than assumed still valid; several were confirmed already fixed and explicitly not re-flagged (noted inline in the relevant phase files)

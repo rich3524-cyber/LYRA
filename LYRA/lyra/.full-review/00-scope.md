@@ -2,16 +2,18 @@
 
 ## Target
 
-Full LYRA codebase re-review. LYRA is a social-media-management SaaS (Next.js 16 App Router, TypeScript, Prisma/Postgres, BullMQ workers on Railway, Netlify hosting). A prior full review ran 18 Jul 2026 (all Critical/High findings fixed, archived to `.full-review/archive-2026-07-18/`). Since then a large amount of new work has shipped: two Crisis Aware features (AI-suggested keywords, email alerts), Stripe billing going live end-to-end (with a real webhook bug found+fixed), per-platform media customisation in Compose, AI Schedule Generator fixes (timeout/scaling + Awaiting Media gate), and a full 48-item alpha testing pass. This review covers the whole codebase again, not just the delta, per user direction.
+Full LYRA codebase re-review — same scope as the 2026-08-02 review, re-run fresh to reflect everything shipped since then (MCP gateway Phase 3, bulk import/CSV scheduling, self-approval deadlock fix, pre-beta security hardening pass, Railway cron migration, and the many smaller fixes recorded in LYRA-Handover.md between 2026-08-02 and 2026-08-13).
+
+LYRA is a multi-tenant social media management SaaS: Next.js 16 (App Router) on Netlify, PostgreSQL via Supabase + Prisma, BullMQ workers on Railway (Redis-backed), Auth0 for auth, Stripe for billing, Zernio as the unified social-platform API, Anthropic Claude for AI features. A separate `lyra-mcp` service (not in this review's path scope) exposes an MCP gateway.
 
 ## Files
 
-- `app/` — Next.js App Router pages and API routes
-- `components/` — React components (dashboard UI, composer, calendar, inbox, settings, help docs)
-- `services/` — domain logic (AI, social platform providers, brand intelligence, notifications, schedule generation, SEO, analytics)
-- `workers/` — BullMQ background workers (post publisher, comment monitor, AI responder, brand sync, competitor monitor)
-- `lib/` — shared infrastructure (Prisma client, Stripe/Resend/Anthropic clients, auth, S3, Redis, rate limiting, encryption)
-- `prisma/schema.prisma` — full data model
+- `app/` — Next.js App Router: pages, layouts, and all `app/api/**/route.ts` API routes
+- `components/` — React components (calendar, composer, dashboard, etc.)
+- `services/` — business-logic layer (posts, social publishing, webhooks, bulk-import, etc.)
+- `workers/` — BullMQ worker fleet (post-publisher, ai-responder, sync workers, etc.)
+- `lib/` — shared utilities (auth, rate-limit, encrypt, jwt-verify, safe-fetch, anthropic, authz, etc.)
+- `prisma/schema.prisma` — data model
 
 ## Flags
 
@@ -27,3 +29,7 @@ Full LYRA codebase re-review. LYRA is a social-media-management SaaS (Next.js 16
 3. Testing & Documentation
 4. Best Practices & Standards
 5. Consolidated Report
+
+## Prior review
+
+A full review of this same scope was completed 2026-08-02 (212 findings, all Critical/High remediated same day per LYRA-Handover.md) — archived at `.full-review/archive-2026-08-02/`. This run is independent and re-assesses current state; it does not assume prior findings are still valid or still fixed.
