@@ -194,12 +194,14 @@ export async function POST(req: Request) {
 
     // A post created straight into PENDING_APPROVAL needs its PostApproval row
     // here. PATCH /api/posts/[id] creates one on the "Submit for approval"
-    // transition, but nothing did for a post that lands in approval at
-    // creation time -- and the SLA cron filters on the related approval row,
-    // so those posts were invisible to approval-overdue alerting entirely
-    // (confirmed against production: every pending post had no approval row).
-    // The overdue *badge* still showed, since it derives from scheduledAt, so
-    // the badge and the alert silently disagreed.
+    // transition (see upsertApprovalOnTransition in
+    // services/posts/post-approval-bookkeeping.ts), but nothing did for a post
+    // that lands in approval at creation time -- and the SLA cron filters on
+    // the related approval row, so those posts were invisible to
+    // approval-overdue alerting entirely (confirmed against production: every
+    // pending post had no approval row). The overdue *badge* still showed,
+    // since it derives from scheduledAt, so the badge and the alert silently
+    // disagreed.
     const submittedAt = new Date()
     const approvalCreate = buildApprovalCreateInput(finalStatus, submittedAt)
 
