@@ -2,6 +2,20 @@
 
 ---
 
+## ✅ Cron jobs migrated from cron-job.org to Railway (2026-08-13)
+
+**Why:** cron-job.org has silently auto-disabled jobs more than once with no alerting (see 2026-05 entry below) — a failure mode with no visibility since nothing surfaces it except noticing the effect days later. Railway's own deploy history and logs make failures visible instead, and it's infrastructure already paid for and monitored.
+
+**What changed:** all 5 of LYRA's `/api/cron/*` routes (`brand-refresh`, `check-approval-slas`, `publish-due-posts`, `sync-comments`, `sync-metrics`) are now triggered by 5 new Railway services (`cron-brand-refresh`, `cron-check-approval-slas`, `cron-publish-due-posts`, `cron-sync-comments`, `cron-sync-metrics`) instead of cron-job.org. The routes themselves are unchanged — same `CRON_SECRET` bearer-auth, same logic. Each Railway service runs one shared script, `scripts/cron/trigger.mjs` (new), configured per-service via two env vars (`CRON_ROUTE`, `CRON_SECRET`) and a **Deploy → Cron Schedule** dashboard field — Railway's cron model is "run once, execute, exit," re-triggered per schedule, not a long-running process. The Railway CLI (v5.26.1) has no flags for Start Command or Cron Schedule — both had to be set by hand in the dashboard per service.
+
+**Schedules used:** `check-approval-slas` and `publish-due-posts` schedules were known exactly (hourly, every 5 min). `sync-comments`, `sync-metrics`, and `brand-refresh` were inferred from cron-job.org's "next run" timestamps only, not the actual configured interval — **treat these three as best-guess** until a few days of side-by-side comparison confirm they match. All 5 have now fired for real and returned clean responses from their routes.
+
+**Recommendation:** leave the 5 matching cron-job.org entries running in parallel for a few days as a safety comparison, especially for the 3 inferred schedules, before deleting them.
+
+**🔴 Real incident during setup, since resolved:** while manually configuring the 5 new services' Start Command fields one after another in the Railway dashboard, the **main `LYRA` worker service** (the actual production fleet — post-publisher, ai-responder, comment/metric-sync workers, entirely separate from the 5 new cron services) ended up with its own Start Command overwritten to `node scripts/cron/trigger.mjs` — almost certainly a paste landing on the wrong service while moving between very similar-looking settings pages. `LYRA` has no `CRON_ROUTE`/`CRON_SECRET` (correctly, since it isn't a cron trigger), so it exited 1 immediately on every restart and Railway marked it `CRASHED` — taking real publishing/AI/sync offline for roughly 15 minutes before it was noticed and fixed by resetting the Start Command back to `npx tsx workers/index.ts`. Confirmed fully recovered via actual runtime logs (`[workers] All 7 workers started`), not just a green status. **Worth double-checking `LYRA`'s Settings → Deploy page once now** — Start Command should read `npx tsx workers/index.ts` and Cron Schedule should be blank — since this is exactly the kind of thing that could silently drift again during any future dashboard work on the cron services sitting next to it in the same project.
+
+---
+
 ## 🔒 Pre-beta security hardening pass (2026-08-13)
 
 **Trigger: Beta launch next week.** Richard asked for as thorough a security pass as genuinely applies to this app's actual shape (Next.js/Prisma on Netlify + Railway, no mobile app, no on-prem infra) — not a generic enterprise checklist. This was two passes: a SAST scan the evening before (found and fixed one real bug — see the 12 Aug evening entry below), then this one, a systematic adversarial review of the real attack surface plus the two dependency upgrades flagged the night before.
