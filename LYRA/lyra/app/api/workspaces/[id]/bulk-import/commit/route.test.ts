@@ -12,11 +12,16 @@ vi.mock('@/lib/prisma', () => ({
 }))
 vi.mock('@/lib/safe-fetch', () => ({ safeFetch: vi.fn() }))
 vi.mock('@/lib/s3', () => ({ putObjectBuffer: vi.fn() }))
+vi.mock('@/lib/rate-limit', () => ({
+  checkRateLimit:    vi.fn(),
+  rateLimitResponse: vi.fn(() => new Response(JSON.stringify({ error: 'Too many requests, please try again shortly.' }), { status: 429 })),
+}))
 
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { safeFetch } from '@/lib/safe-fetch'
 import { putObjectBuffer } from '@/lib/s3'
+import { checkRateLimit } from '@/lib/rate-limit'
 import { POST } from './route'
 
 function ctx(id = 'ws-1') {
@@ -46,6 +51,7 @@ describe('POST /api/workspaces/[id]/bulk-import/commit', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as never)
+    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: true, remaining: 4 })
     vi.mocked(prisma.workspaceAccess.findFirst).mockResolvedValue(accessAs('AGENCY_ADMIN') as never)
     vi.mocked(prisma.socialAccount.findMany).mockResolvedValue([
       { id: 'acc-fb' }, { id: 'acc-ig' },
@@ -62,6 +68,14 @@ describe('POST /api/workspaces/[id]/bulk-import/commit', () => {
     const res = await POST(req([ROW]), ctx())
     expect(res.status).toBe(403)
     expect(prisma.post.create).not.toHaveBeenCalled()
+  })
+
+  it('returns 429 without touching the database when the rate limit is exceeded', async () => {
+    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, remaining: 0 })
+    const res = await POST(req([ROW]), ctx())
+    expect(res.status).toBe(429)
+    expect(prisma.post.create).not.toHaveBeenCalled()
+    expect(checkRateLimit).toHaveBeenCalledWith('bulk-import-commit:user-1', 5, 300)
   })
 
   it('returns 400 when rows is missing or empty', async () => {

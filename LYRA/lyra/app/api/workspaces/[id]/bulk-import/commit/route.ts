@@ -7,6 +7,7 @@ import { canWrite } from '@/lib/authz'
 import { safeFetch } from '@/lib/safe-fetch'
 import { putObjectBuffer } from '@/lib/s3'
 import { BULK_IMPORT_MAX_DATA_ROWS } from '@/lib/xlsx-template'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,6 +73,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!access || !canWrite(access.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
+
+    // The most expensive route in this feature: every row with a mediaUrl
+    // triggers a real external fetch and an S3 write, and one call can carry
+    // up to BULK_IMPORT_MAX_DATA_ROWS of them. Tighter than the parse route
+    // for that reason -- a real import happens rarely, not many times a minute.
+    const { allowed } = await checkRateLimit(`bulk-import-commit:${user.id}`, 5, 300)
+    if (!allowed) return rateLimitResponse()
 
     const { rows } = (await req.json().catch(() => ({}))) as { rows?: CommitRow[] }
     if (!Array.isArray(rows) || rows.length === 0) {

@@ -11,11 +11,16 @@ vi.mock('@/lib/prisma', () => ({
 }))
 vi.mock('@/lib/xlsx-parser', () => ({ parseBulkImportFile: vi.fn() }))
 vi.mock('@/services/posts/bulk-import', () => ({ validateImportRows: vi.fn() }))
+vi.mock('@/lib/rate-limit', () => ({
+  checkRateLimit:    vi.fn(),
+  rateLimitResponse: vi.fn(() => new Response(JSON.stringify({ error: 'Too many requests, please try again shortly.' }), { status: 429 })),
+}))
 
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { parseBulkImportFile } from '@/lib/xlsx-parser'
 import { validateImportRows } from '@/services/posts/bulk-import'
+import { checkRateLimit } from '@/lib/rate-limit'
 import { POST } from './route'
 
 function ctx(id = 'ws-1') {
@@ -32,6 +37,7 @@ describe('POST /api/workspaces/[id]/bulk-import/parse', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as never)
+    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: true, remaining: 9 })
     vi.mocked(prisma.workspaceAccess.findFirst).mockResolvedValue({ role: 'AGENCY_ADMIN' } as never)
     vi.mocked(prisma.workspace.findUnique).mockResolvedValue({ timezone: 'Australia/Sydney' } as never)
     vi.mocked(prisma.socialAccount.findMany).mockResolvedValue([
@@ -53,6 +59,14 @@ describe('POST /api/workspaces/[id]/bulk-import/parse', () => {
     const res = await POST(reqWithFile(), ctx())
     expect(res.status).toBe(403)
     expect(parseBulkImportFile).not.toHaveBeenCalled()
+  })
+
+  it('returns 429 without reading the upload when the rate limit is exceeded', async () => {
+    vi.mocked(checkRateLimit).mockResolvedValue({ allowed: false, remaining: 0 })
+    const res = await POST(reqWithFile(), ctx())
+    expect(res.status).toBe(429)
+    expect(parseBulkImportFile).not.toHaveBeenCalled()
+    expect(checkRateLimit).toHaveBeenCalledWith('bulk-import-parse:user-1', 10, 60)
   })
 
   it('returns 400 when no file is attached', async () => {

@@ -5,6 +5,7 @@ import { canWrite } from '@/lib/authz'
 import { parseBulkImportFile } from '@/lib/xlsx-parser'
 import { validateImportRows } from '@/services/posts/bulk-import'
 import { BULK_IMPORT_MAX_DATA_ROWS } from '@/lib/xlsx-template'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,6 +23,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!access || !canWrite(access.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
+
+    // Every row with a Media URL gets a real safeFetch HEAD request during
+    // validation below (up to BULK_IMPORT_MAX_DATA_ROWS of them) -- an
+    // uncapped route accepting file uploads AND fanning out external
+    // requests is exactly the class this app already rate-limits everywhere
+    // else (uploads, AI generation, reports).
+    const { allowed } = await checkRateLimit(`bulk-import-parse:${user.id}`, 10, 60)
+    if (!allowed) return rateLimitResponse()
 
     const formData = await req.formData()
     const file = formData.get('file')

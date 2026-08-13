@@ -30,9 +30,11 @@ export async function GET(
 
     // Cross-tenant guard: the connect route now mutates Workspace.zernioProfileId,
     // so (unlike the old native-only version) it needs an access check up front
-    // rather than relying solely on the callback's check.
+    // rather than relying solely on the callback's check. Excludes CLIENT_VIEW --
+    // this kicks off a real OAuth connect flow that can attach a new social
+    // account to the workspace, not a read.
     const workspace = await prisma.workspace.findFirst({
-      where: { id: workspaceId, access: { some: { userId: user.id } } },
+      where: { id: workspaceId, access: { some: { userId: user.id, role: { not: 'CLIENT_VIEW' } } } },
     })
     if (!workspace) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })

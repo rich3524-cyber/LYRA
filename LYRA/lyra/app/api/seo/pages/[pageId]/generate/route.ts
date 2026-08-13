@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { analyzePage } from '@/services/seo/on-page-analyzer'
 import { generateSeoContent } from '@/services/seo/content-generator'
 import type { SeoContentType } from '@prisma/client'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -14,6 +15,13 @@ export async function POST(
 ) {
   try {
     const user = await requireAuth()
+
+    // Every other AI-generation route in this app rate-limits per user
+    // (ai/generate, ai/repurpose, ai/respond, schedule/generate) -- this one
+    // was the outlier, with no throttle on a real Claude API call.
+    const { allowed } = await checkRateLimit(`seo-generate:${user.id}`, 20, 60)
+    if (!allowed) return rateLimitResponse()
+
     const { pageId } = await params
 
     const page = await prisma.seoPage.findFirst({

@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { decrypt } from '@/lib/encrypt'
 import { createBoost, cancelBoost } from '@/services/social/meta-ads'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 export const dynamic = 'force-dynamic'
 
@@ -12,6 +13,14 @@ type RouteContext = { params: Promise<{ id: string }> }
 export async function POST(req: Request, { params }: RouteContext) {
   try {
     const user = await requireAuth()
+
+    // This route spends real money via Meta's Ads API on success. The
+    // per-post ACTIVE-boost check below stops a single post being boosted
+    // twice, but nothing else stopped a compromised session looping this
+    // across every published post in a workspace back-to-back.
+    const { allowed } = await checkRateLimit(`boost-create:${user.id}`, 10, 300)
+    if (!allowed) return rateLimitResponse()
+
     const { id: postId } = await params
     const body = await req.json() as {
       budget: number
