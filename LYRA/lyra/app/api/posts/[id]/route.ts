@@ -6,8 +6,8 @@ import { PostStatus } from '@prisma/client'
 import { parseBody, ValidationError } from '@/lib/validate'
 import { checkMediaCompatibility, formatCompatibilityIssue } from '@/services/social/media-compatibility'
 import { APPROVER_ROLES } from '@/lib/authz'
-import { getPlatformLabel } from '@/lib/platform-labels'
-import { notifyChannel } from '@/services/notifications/channel-notifier'
+import { canSelfApprove, resolveApprovalTransition } from '@/services/posts/post-lifecycle'
+import { upsertApprovalOnTransition } from '@/services/posts/post-approval-bookkeeping'
 
 export const dynamic = 'force-dynamic'
 
@@ -95,7 +95,7 @@ export async function PATCH(
             role: { in: [...APPROVER_ROLES] },
           },
         })
-        if (otherApprover) {
+        if (!canSelfApprove({ isAuthor: true, hasOtherApprover: !!otherApprover })) {
           return NextResponse.json({ error: 'Cannot approve your own post' }, { status: 403 })
         }
       }
@@ -128,27 +128,17 @@ export async function PATCH(
       (content !== undefined && content !== existing.content) ||
       (mediaUrls !== undefined && mediaUrls.join('\u0000') !== existing.mediaUrls.join('\u0000'))
 
-    // Approving no longer leaves the post sitting in APPROVED waiting for a
-    // separate "Schedule post" click. If media requirements are already
-    // satisfied AND the post already has a scheduled time, the approval
-    // itself is the last gate, so it goes straight to SCHEDULED. APPROVED
-    // stays reachable only when the post still needs media or a scheduled
-    // time -- attaching media or a time re-routes it back through
-    // PENDING_APPROVAL for re-review (via the Composer, since editing
-    // content/media sets contentChanged), and approving again is what
-    // actually reaches SCHEDULED.
     const effectiveMediaUrls = mediaUrls ?? existing.mediaUrls
-    const hasMediaIfRequired = !(existing.requiresMedia && effectiveMediaUrls.length === 0)
-    const isApprovingReadyPost =
-      status === 'APPROVED' && hasMediaIfRequired && existing.scheduledAt !== null
 
-    const finalStatus: PostStatus | undefined = isApprovingReadyPost
-      ? 'SCHEDULED'
-      : status === 'SCHEDULED' &&
-        existing.workspace.clientAccessLevel === 'APPROVE' &&
-        !(existing.status === 'APPROVED' && !contentChanged)
-        ? 'PENDING_APPROVAL'
-        : status
+    const finalStatus = resolveApprovalTransition({
+      requestedStatus:    status,
+      existingStatus:     existing.status,
+      clientAccessLevel:  existing.workspace.clientAccessLevel,
+      contentChanged,
+      requiresMedia:      existing.requiresMedia,
+      hasMedia:           effectiveMediaUrls.length > 0,
+      hasScheduledAt:     existing.scheduledAt !== null,
+    })
 
     const post = await prisma.post.update({
       where: { id },
@@ -170,54 +160,21 @@ export async function PATCH(
     })
 
     // Manage PostApproval record on approval-related status transitions.
-    // Branches key off finalStatus (what was actually written), not the raw
-    // requested status, so a SCHEDULED request redirected to PENDING_APPROVAL
-    // above still gets a reviewable PostApproval record created.
-    if (finalStatus === 'PENDING_APPROVAL') {
-      // submittedAt starts the SLA clock for THIS pending cycle, and
-      // slaAlertedAt is cleared so a resubmitted post can alert again. Neither
-      // can key off createdAt: this row is upserted, so on a resubmit the
-      // update branch runs and createdAt still holds the first ever submission.
-      const submittedAt = new Date()
-      await prisma.postApproval.upsert({
-        where:  { postId: id },
-        create: { postId: id, status: 'PENDING', submittedAt },
-        update: { status: 'PENDING', reviewedAt: null, reviewerId: null, submittedAt, slaAlertedAt: null },
-      })
-
-      // Fire-and-forget by design -- notifyChannel never throws, and an alert
-      // problem must not fail a real approval submission.
-      await notifyChannel(
-        existing.workspaceId,
-        {
-          event:         'POST_PENDING_APPROVAL',
-          workspaceName: existing.workspace.name,
-          platform:      getPlatformLabel(existing.socialAccount.platform),
-          excerpt:       content ?? existing.content,
-          scheduledAt:   scheduledAt !== undefined
-            ? (scheduledAt ? new Date(scheduledAt) : null)
-            : existing.scheduledAt,
-          authorName:    existing.author?.name ?? null,
-        },
-        // Keyed on the submission instant, so a resubmit is a genuinely new
-        // alert while a double-click on Submit is not.
-        { dedupeKey: `pending-${id}-${submittedAt.getTime()}` }
-      )
-    } else if (status === 'APPROVED') {
-      // An approval decision happened, regardless of whether the post landed
-      // on APPROVED (still awaiting media) or jumped straight to SCHEDULED.
-      await prisma.postApproval.upsert({
-        where:  { postId: id },
-        create: { postId: id, status: 'APPROVED', reviewerId: user.id, reviewedAt: new Date() },
-        update: { status: 'APPROVED', reviewerId: user.id, reviewedAt: new Date() },
-      })
-    } else if (finalStatus === 'DRAFT' && existing.status === 'PENDING_APPROVAL') {
-      await prisma.postApproval.upsert({
-        where:  { postId: id },
-        create: { postId: id, status: 'REJECTED', reviewedAt: new Date() },
-        update: { status: 'REJECTED', reviewedAt: new Date() },
-      })
-    }
+    await upsertApprovalOnTransition({
+      postId:            id,
+      finalStatus,
+      requestedStatus:   status,
+      existingStatus:    existing.status,
+      reviewerId:        user.id,
+      workspaceId:       existing.workspaceId,
+      workspaceName:     existing.workspace.name,
+      platform:          existing.socialAccount.platform,
+      excerpt:           content ?? existing.content,
+      scheduledAt:       scheduledAt !== undefined
+        ? (scheduledAt ? new Date(scheduledAt) : null)
+        : existing.scheduledAt,
+      authorName:        existing.author?.name ?? null,
+    })
 
     return NextResponse.json(post)
   } catch (error) {
