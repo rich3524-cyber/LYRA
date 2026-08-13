@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
+import { isAllowedBearerRoute, isRestrictedBearerRoute } from './lib/mcp-bearer-allowlist'
 
 // --- CSP nonce (script-src 'unsafe-inline' removal) -- evaluated, NOT implemented ---
 // next.config.ts's script-src currently needs 'unsafe-inline' for the 4 truly-inline
@@ -40,6 +41,19 @@ import type { NextRequest } from 'next/server'
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
+  // A bearer token authenticates as a specific user with no route restriction of its
+  // own (see getUserFromBearerToken in lib/auth.ts) -- without this, an MCP OAuth token
+  // scoped for the gateway's own tool surface would work as a full-privilege API key
+  // against every route in the app. Reject it here, before any route handler runs, if
+  // it's presented outside the exact set of routes the gateway actually calls.
+  if (isRestrictedBearerRoute(pathname)) {
+    const authHeader = request.headers.get('authorization')
+    if (authHeader?.startsWith('Bearer ') && !isAllowedBearerRoute(request.method, pathname)) {
+      return NextResponse.json({ error: 'Bearer-token authentication is not accepted on this route.' }, { status: 403 })
+    }
+    return NextResponse.next()
+  }
+
   // Pass the current pathname to server components via request headers
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-pathname', pathname)
@@ -48,5 +62,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|favicon\\.ico|brand).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon\\.ico|brand).*)'],
 }
