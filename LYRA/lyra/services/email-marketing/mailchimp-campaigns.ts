@@ -1,10 +1,18 @@
 import { safeFetch } from '@/lib/safe-fetch'
 import type { EmailCampaignData } from './klaviyo-campaigns'
 
+// A real Mailchimp datacenter suffix is always 2 letters + 1-3 digits (us1,
+// us21, ...). The previous check (non-empty, <=10 chars) let almost any
+// string through -- e.g. an apiKey of "x-evil.io/" extracts a "server" of
+// "evil.io/", which the caller below interpolates directly into a hostname
+// (`${server}.api.mailchimp.com`), producing a request to a host the caller
+// chose, not Mailchimp's.
+const MAILCHIMP_SERVER_PATTERN = /^[a-z]{2}\d{1,3}$/
+
 export function extractMailchimpServer(apiKey: string): string {
   const parts = apiKey.split('-')
   const server = parts[parts.length - 1]
-  if (!server || server.length > 10 || parts.length < 2) {
+  if (!server || parts.length < 2 || !MAILCHIMP_SERVER_PATTERN.test(server)) {
     throw new Error(
       'Invalid Mailchimp API key format — expected a key ending in -us1, -us2, etc.'
     )

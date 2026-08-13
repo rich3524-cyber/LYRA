@@ -172,4 +172,15 @@ describe('checkCronAuth', () => {
     expect(checkCronAuth(reqWithAuth('Bearer short'))).toBe(false)
     expect(checkCronAuth(reqWithAuth('Bearer ' + 'x'.repeat(500)))).toBe(false)
   })
+
+  it('rejects a header with equal JS string .length but different byte length, without throwing', () => {
+    // A multi-byte character (e.g. 'é' = 2 bytes in UTF-8) can make two
+    // strings report the same .length while their Buffer byte length
+    // differs -- exercises the byte-length comparison, not the JS
+    // string-length one.
+    const secret = process.env.CRON_SECRET!
+    const multiByteSameJsLength = 'x'.repeat(secret.length - 1) + 'é'
+    expect(() => checkCronAuth(reqWithAuth(`Bearer ${multiByteSameJsLength}`))).not.toThrow()
+    expect(checkCronAuth(reqWithAuth(`Bearer ${multiByteSameJsLength}`))).toBe(false)
+  })
 })

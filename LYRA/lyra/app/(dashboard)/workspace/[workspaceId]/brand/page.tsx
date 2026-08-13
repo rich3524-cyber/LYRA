@@ -1,7 +1,9 @@
+// force-dynamic alone is sufficient to opt this route out of static
+// rendering -- `revalidate = 0` and `unstable_noStore()` (removed) were
+// redundant with it, and unstable_noStore is Next's own legacy API as of
+// the v16 docs (superseded by force-dynamic/connection() for this case).
 export const dynamic = 'force-dynamic'
-export const revalidate = 0
 
-import { unstable_noStore as noStore } from 'next/cache'
 import { redirect, notFound } from 'next/navigation'
 import { Zap, Globe, Share2, Lock } from 'lucide-react'
 import Link from 'next/link'
@@ -40,7 +42,6 @@ function timeAgo(date: Date): string {
 }
 
 export default async function BrandPage({ params }: Props) {
-  noStore()
   const user = await getCurrentUser()
   if (!user) redirect('/auth/login')
 

@@ -42,10 +42,12 @@ jobs:
           curl -f -X GET "$CRON_URL" -H "Authorization: $CRON_AUTH"
 
   publish-due-posts:
-    # Backstop only. The primary trigger is an external cron-job.org account
-    # (outside version control) hitting this endpoint every 1 minute — this job
-    # exists so scheduled posts still go out within a few minutes even if that
-    # external account is ever lost, lapses, or gets locked out.
+    # Backstop only. As of 2026-08-13 the primary trigger is a Railway cron
+    # service (cron-publish-due-posts, running scripts/cron/trigger.mjs on a
+    # dashboard-configured schedule -- see LYRA-Handover.md's "Cron jobs
+    # migrated from cron-job.org to Railway" entry). This job exists so
+    # scheduled posts still go out within a few minutes even if the Railway
+    # service is ever misconfigured or its schedule lapses.
     if: github.event.schedule == '2-59/5 * * * *'
     runs-on: ubuntu-latest
     steps:

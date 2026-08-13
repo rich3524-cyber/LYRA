@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 import { z } from 'zod'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { canWrite } from '@/lib/authz'
 import { parseBody, ValidationError } from '@/lib/validate'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
@@ -41,7 +42,7 @@ export async function POST(req: Request) {
     const access = await prisma.workspaceAccess.findFirst({
       where: { workspaceId, userId: user.id },
     })
-    if (!access) {
+    if (!access || !canWrite(access.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 

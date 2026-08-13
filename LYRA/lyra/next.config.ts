@@ -47,9 +47,14 @@ const nextConfig: NextConfig = {
   images: {
     // Composer/schedule-review media thumbnails are next/image now instead of raw
     // <img> -- their src is always our own upload bucket (media/{workspaceId}/...),
-    // never a third-party URL, so this narrow pattern is enough for them.
+    // never a third-party URL. Pinned to the actual bucket/region, not a
+    // wildcard -- `*.s3.*.amazonaws.com` let /_next/image proxy and cache any
+    // attacker-owned bucket in any region, not just ours.
     remotePatterns: [
-      { protocol: 'https', hostname: '*.s3.*.amazonaws.com' },
+      {
+        protocol: 'https',
+        hostname: `${process.env.AWS_S3_BUCKET}.s3.${process.env.S3_REGION ?? 'ap-southeast-2'}.amazonaws.com`,
+      },
     ],
   },
   async headers() {
@@ -63,6 +68,11 @@ const nextConfig: NextConfig = {
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
           { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
           { key: 'Content-Security-Policy', value: CSP },
+          // No window.open/window.opener usage anywhere in the app (verified) --
+          // safe to isolate the browsing context group without risking a
+          // popup-based OAuth/payment flow.
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+          { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
         ],
       },
       {

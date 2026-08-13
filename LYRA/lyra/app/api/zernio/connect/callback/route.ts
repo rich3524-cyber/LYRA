@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { canWrite } from '@/lib/authz'
 import { findZernioAccount, unwrapProfileId } from '@/services/social/zernio-connect'
 import { fromZernioPlatform } from '@/services/social/provider/platform-map'
 
@@ -26,7 +27,7 @@ export async function GET(req: Request) {
   const workspaceId = searchParams.get('workspaceId')
   const connectedSlug = searchParams.get('connected')
   const zernioAccountId = searchParams.get('accountId')
-  const username = searchParams.get('username') ?? ''
+  const username = (searchParams.get('username') ?? '').slice(0, 120)
   const zernioError = searchParams.get('error')
 
   if (!workspaceId) {
@@ -36,14 +37,17 @@ export async function GET(req: Request) {
   try {
     const user = await requireAuth()
 
-    // Verify the authenticated user actually has access to the target workspace.
-    // Same cross-tenant protection as /api/social/callback/[platform] -- without
-    // this, a forged workspaceId in the redirect could inject a Zernio account
-    // into another tenant's workspace.
+    // Verify the authenticated user actually has access to the target workspace,
+    // with write access -- this callback is directly reachable by URL (the
+    // redirect it's guessable from doesn't guarantee the connect route's own
+    // role check already ran), same reasoning as the notification-channel
+    // callback's OWNER_ROLES check. Without this, a read-only CLIENT_VIEW
+    // member could flip a deactivated account back to isActive: true and
+    // overwrite its handle/name via this URL directly.
     const workspaceAccess = await prisma.workspaceAccess.findFirst({
       where: { workspaceId, userId: user.id },
     })
-    if (!workspaceAccess) {
+    if (!workspaceAccess || !canWrite(workspaceAccess.role)) {
       return NextResponse.redirect(`${BASE_URL}?error=oauth_failed`)
     }
 

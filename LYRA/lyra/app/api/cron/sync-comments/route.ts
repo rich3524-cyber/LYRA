@@ -8,12 +8,16 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  // Capped like every sibling cron (publish-due-posts: 500, sync-metrics: 200)
+  // -- this was the one cron in the fleet with an uncapped, platform-wide
+  // query and an unbounded Promise.all fan-out of BullMQ .add() calls.
   const accounts = await prisma.socialAccount.findMany({
     where: {
       isActive: true,
       workspace: { aiResponseMode: { not: 'OFF' } },
     },
     select: { id: true },
+    take: 500,
   })
 
   await Promise.all(

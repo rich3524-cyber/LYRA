@@ -243,6 +243,21 @@ export function createPinnedDispatcher({ address, family }: ValidatedAddress): A
  * fetch call on the same internal protocol version always, regardless of
  * which Node version (or which future undici bump) this runs under.
  */
+// Header names that must never cross an origin boundary on a redirect --
+// several safeFetch callers (services/email-marketing/*) pass a real
+// third-party API key in one of these. Without stripping them, a redirect
+// response from a trusted host (or an attacker who can influence the
+// redirect target) walks the tenant's stored credential to an arbitrary
+// destination -- the same failure mode `curl --location-trusted` warns about.
+const CREDENTIAL_HEADERS = ['authorization', 'cookie', 'klaviyo-api-key', 'x-api-key', 'proxy-authorization']
+
+function stripCredentialsIfCrossOrigin(headers: HeadersInit | undefined, from: URL, to: URL): HeadersInit | undefined {
+  if (from.origin === to.origin) return headers
+  const stripped = new Headers(headers)
+  for (const name of CREDENTIAL_HEADERS) stripped.delete(name)
+  return stripped
+}
+
 export async function safeFetch(
   rawUrl: string,
   init: RequestInit = {},
@@ -253,14 +268,17 @@ export async function safeFetch(
   // redirect -- resetting per-hop would let a chain of N redirects multiply
   // the effective timeout by N. A caller-supplied signal (e.g. upload/from-url's
   // own AbortSignal.timeout) always wins over the default.
-  const { signal: callerSignal, ...restInit } = init
+  const { signal: callerSignal, headers: initHeaders, ...restInit } = init
   const signal = callerSignal ?? AbortSignal.timeout(timeoutMs)
 
   let currentUrl = rawUrl
+  let currentHeaders = initHeaders
+  let previousOrigin: URL | null = null
   for (let hop = 0; hop <= maxRedirects; hop++) {
     const { url: parsed, addresses } = await resolveAndValidate(currentUrl)
+    if (previousOrigin) currentHeaders = stripCredentialsIfCrossOrigin(currentHeaders, previousOrigin, parsed)
     const dispatcher = createPinnedDispatcher(addresses[0])
-    const fetchInit: RequestInit & { dispatcher?: Agent } = { ...restInit, redirect: 'manual', dispatcher, signal }
+    const fetchInit: RequestInit & { dispatcher?: Agent } = { ...restInit, headers: currentHeaders, redirect: 'manual', dispatcher, signal }
     // undici ships its own RequestInit/Response types, structurally close to
     // but not identical to the DOM lib's (e.g. newer TS lib helpers add
     // disposable-iterator members to global Headers that undici's own types
@@ -274,6 +292,7 @@ export async function safeFetch(
     if (res.status >= 300 && res.status < 400) {
       const location = res.headers.get('location')
       if (!location) return res
+      previousOrigin = parsed
       currentUrl = new URL(location, parsed).toString()
       continue
     }

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type Stripe from 'stripe'
 
 vi.mock('@/lib/stripe', () => ({
@@ -38,13 +38,29 @@ function makeEvent(overrides: { id: string; type: string; object: Record<string,
   } as unknown as Stripe.Event
 }
 
+const ORIGINAL_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET
+
 beforeEach(() => {
   vi.clearAllMocks()
+  process.env.STRIPE_WEBHOOK_SECRET = 'whsec_test_secret'
   vi.mocked(prisma.processedWebhookEvent.create).mockResolvedValue({ id: 'evt_default' } as never)
   vi.mocked(prisma.processedWebhookEvent.delete).mockResolvedValue({ id: 'evt_default' } as never)
 })
 
+afterEach(() => {
+  process.env.STRIPE_WEBHOOK_SECRET = ORIGINAL_WEBHOOK_SECRET
+})
+
 describe('POST /api/stripe/webhook', () => {
+  it('returns 500 and never calls constructEvent when STRIPE_WEBHOOK_SECRET is not set', async () => {
+    delete process.env.STRIPE_WEBHOOK_SECRET
+
+    const res = await POST(makeRequest())
+
+    expect(res.status).toBe(500)
+    expect(stripe.webhooks.constructEvent).not.toHaveBeenCalled()
+  })
+
   it('returns 400 and never touches the database when signature verification fails', async () => {
     vi.mocked(stripe.webhooks.constructEvent).mockImplementation(() => {
       throw new Error('invalid signature')

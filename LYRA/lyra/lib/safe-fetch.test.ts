@@ -313,4 +313,45 @@ describe('safeFetch', () => {
     })
     expect(secondHopAddress).toEqual([{ address: '203.0.113.50', family: 4 }])
   })
+
+  it('strips Authorization/API-key headers on a cross-origin redirect hop, but keeps them on a same-origin hop', async () => {
+    vi.mocked(resolve4)
+      .mockResolvedValueOnce(['203.0.113.9'])  // first hop
+      .mockResolvedValueOnce(['203.0.113.50']) // cross-origin redirect target
+    vi.mocked(resolve6).mockResolvedValue([])
+
+    const fetchMock = vi.mocked(undiciFetch)
+    fetchMock
+      .mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: 'https://attacker.example.com/steal' } }) as never)
+      .mockResolvedValueOnce(new Response('ok', { status: 200 }) as never)
+
+    await safeFetch('https://trusted.example.com/start', {
+      headers: { Authorization: 'Bearer real-api-key', 'X-Api-Key': 'real-key', 'X-Other': 'keep-me' },
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const secondHopInit = fetchMock.mock.calls[1][1] as { headers?: Headers }
+    const secondHopHeaders = new Headers(secondHopInit.headers)
+    expect(secondHopHeaders.get('authorization')).toBeNull()
+    expect(secondHopHeaders.get('x-api-key')).toBeNull()
+    expect(secondHopHeaders.get('x-other')).toBe('keep-me')
+  })
+
+  it('keeps credential headers when a redirect stays on the same origin', async () => {
+    vi.mocked(resolve4).mockResolvedValue(['203.0.113.9'])
+    vi.mocked(resolve6).mockResolvedValue([])
+
+    const fetchMock = vi.mocked(undiciFetch)
+    fetchMock
+      .mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: 'https://trusted.example.com/next' } }) as never)
+      .mockResolvedValueOnce(new Response('ok', { status: 200 }) as never)
+
+    await safeFetch('https://trusted.example.com/start', {
+      headers: { Authorization: 'Bearer real-api-key' },
+    })
+
+    const secondHopInit = fetchMock.mock.calls[1][1] as { headers?: Headers }
+    const secondHopHeaders = new Headers(secondHopInit.headers)
+    expect(secondHopHeaders.get('authorization')).toBe('Bearer real-api-key')
+  })
 })

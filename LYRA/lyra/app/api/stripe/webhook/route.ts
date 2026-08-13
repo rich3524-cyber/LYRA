@@ -27,9 +27,20 @@ export async function POST(req: Request) {
 
   if (!sig) return NextResponse.json({ error: 'Missing signature' }, { status: 400 })
 
+  // Matches the same explicit guard app/api/zernio/webhook/route.ts already
+  // has -- without it, an unset secret makes constructEvent throw with
+  // stripe's own generic verification-failure message, indistinguishable
+  // from "someone forged this signature" rather than "this deploy is
+  // misconfigured."
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
+  if (!webhookSecret) {
+    console.error('STRIPE_WEBHOOK_SECRET is not set — rejecting webhook')
+    return NextResponse.json({ error: 'Webhook not configured' }, { status: 500 })
+  }
+
   let event: ReturnType<typeof stripe.webhooks.constructEvent>
   try {
-    event = stripe.webhooks.constructEvent(body, sig, process.env.STRIPE_WEBHOOK_SECRET!)
+    event = stripe.webhooks.constructEvent(body, sig, webhookSecret)
   } catch {
     return NextResponse.json({ error: 'Invalid signature' }, { status: 400 })
   }

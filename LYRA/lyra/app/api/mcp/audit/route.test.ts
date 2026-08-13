@@ -37,7 +37,7 @@ describe('POST /api/mcp/audit', () => {
 
   it('writes an audit row for a request the caller has access to', async () => {
     vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
-    vi.mocked(prisma.workspaceAccess.findFirst).mockResolvedValue({ id: 'access-1' } as any)
+    vi.mocked(prisma.workspaceAccess.findFirst).mockResolvedValue({ id: 'access-1', role: 'AGENCY_ADMIN' } as any)
     vi.mocked(prisma.mcpAuditLog.create).mockResolvedValue({} as any)
 
     const res = await POST(req({
@@ -60,9 +60,23 @@ describe('POST /api/mcp/audit', () => {
     })
   })
 
+  it('rejects a read-only CLIENT_VIEW member -- audit-log writes must be role-gated like every other mutation', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.workspaceAccess.findFirst).mockResolvedValue({ id: 'access-1', role: 'CLIENT_VIEW' } as any)
+
+    const res = await POST(req({
+      workspaceId: 'ws-1',
+      toolName:    'schedule_post',
+      outcome:     'SUCCESS',
+    }))
+
+    expect(res.status).toBe(403)
+    expect(prisma.mcpAuditLog.create).not.toHaveBeenCalled()
+  })
+
   it('writes an ERROR row with the error message when provided', async () => {
     vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
-    vi.mocked(prisma.workspaceAccess.findFirst).mockResolvedValue({ id: 'access-1' } as any)
+    vi.mocked(prisma.workspaceAccess.findFirst).mockResolvedValue({ id: 'access-1', role: 'AGENCY_ADMIN' } as any)
     vi.mocked(prisma.mcpAuditLog.create).mockResolvedValue({} as any)
 
     await POST(req({
@@ -91,7 +105,7 @@ describe('POST /api/mcp/audit', () => {
 
   it('writes a row with params: Prisma.DbNull when the request body has params: null', async () => {
     vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
-    vi.mocked(prisma.workspaceAccess.findFirst).mockResolvedValue({ id: 'access-1' } as any)
+    vi.mocked(prisma.workspaceAccess.findFirst).mockResolvedValue({ id: 'access-1', role: 'AGENCY_ADMIN' } as any)
     vi.mocked(prisma.mcpAuditLog.create).mockResolvedValue({} as any)
 
     const res = await POST(req({
@@ -149,7 +163,7 @@ describe('POST /api/mcp/audit', () => {
 
   it('returns 400 when the serialized params size exceeds the cap', async () => {
     vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
-    vi.mocked(prisma.workspaceAccess.findFirst).mockResolvedValue({ id: 'access-1' } as any)
+    vi.mocked(prisma.workspaceAccess.findFirst).mockResolvedValue({ id: 'access-1', role: 'AGENCY_ADMIN' } as any)
 
     const res = await POST(req({
       workspaceId: 'ws-1',

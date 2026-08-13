@@ -262,6 +262,15 @@ describe('POST /api/comments/[id]/reply', () => {
     expect(prisma.comment.findFirst).not.toHaveBeenCalled()
   })
 
+  it('returns 400 when response text exceeds the 2000 character cap, before any DB lookup', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+
+    const res = await POST(req({ response: 'a'.repeat(2001) }), ctx())
+
+    expect(res.status).toBe(400)
+    expect(prisma.comment.findFirst).not.toHaveBeenCalled()
+  })
+
   it('returns 403 when the user lacks access, 404 when the comment truly does not exist', async () => {
     vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
     vi.mocked(prisma.comment.findFirst).mockResolvedValue(null)

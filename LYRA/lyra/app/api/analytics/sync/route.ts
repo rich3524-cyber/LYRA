@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { canWrite } from '@/lib/authz'
 import { subDays, subHours } from 'date-fns'
 import { zernioClient } from '@/services/social/zernio-client'
 
@@ -23,7 +24,9 @@ export async function POST(req: Request) {
     const access = await prisma.workspaceAccess.findFirst({
       where: { userId: user.id, workspaceId },
     })
-    if (!access) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    if (!access || !canWrite(access.role)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     const since      = subDays(new Date(), 30)
     const recentSync = subHours(new Date(), 1)

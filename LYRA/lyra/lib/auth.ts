@@ -105,6 +105,13 @@ export function checkCronAuth(req: Request): boolean {
   if (!secret) return false
   const auth = req.headers.get('authorization') ?? ''
   const expected = `Bearer ${secret}`
-  if (auth.length !== expected.length) return false
-  return timingSafeEqual(Buffer.from(auth), Buffer.from(expected))
+  // Byte length, not JS string .length (UTF-16 code units) -- a header with
+  // multi-byte characters can have equal .length but different Buffer byte
+  // length, which would otherwise reach timingSafeEqual (which throws on
+  // mismatched buffer lengths) and surface as an uncaught 500 instead of a
+  // clean 401.
+  const authBuf = Buffer.from(auth)
+  const expectedBuf = Buffer.from(expected)
+  if (authBuf.byteLength !== expectedBuf.byteLength) return false
+  return timingSafeEqual(authBuf, expectedBuf)
 }

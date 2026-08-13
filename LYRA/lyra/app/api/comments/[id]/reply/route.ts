@@ -48,10 +48,16 @@ export async function POST(req: Request, { params }: RouteContext) {
   try {
     const user = await requireAuth()
     const { id: commentId } = await params
-    const { response } = await req.json() as { response: string }
+    const { response } = await req.json().catch(() => ({})) as { response?: string }
 
     if (!response?.trim()) {
       return NextResponse.json({ error: 'Response text required' }, { status: 400 })
+    }
+    // Matches the cap the sibling MCP route (respond-to-item) already
+    // enforces -- unbounded caller text was reaching a real public post and
+    // the DB unchecked.
+    if (response.length > 2000) {
+      return NextResponse.json({ error: 'Response text must be 2000 characters or fewer' }, { status: 400 })
     }
 
     // Fetch and authorize in one scoped query so there's never an unscoped

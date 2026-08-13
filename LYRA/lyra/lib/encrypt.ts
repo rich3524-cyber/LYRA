@@ -27,5 +27,12 @@ export function decrypt(stored: string): string {
   const ciphertext = Buffer.from(stored.slice(56), 'hex')
   const decipher = createDecipheriv(ALGORITHM, key, iv)
   decipher.setAuthTag(tag)
-  return decipher.update(ciphertext).toString('utf8') + decipher.final('utf8')
+  // Buffer.concat before decoding, not decipher.update(...).toString('utf8')
+  // + decipher.final('utf8') -- calling .toString('utf8') on a partial
+  // Buffer before the stream is complete risks splitting a multi-byte UTF-8
+  // character across the boundary and silently corrupting it. Benign today
+  // only because GCM's update() call happens to return the entire plaintext
+  // in one call for typical payload sizes -- this makes it correct
+  // regardless of how the underlying stream chunks the output.
+  return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8')
 }
