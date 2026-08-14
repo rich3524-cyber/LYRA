@@ -78,5 +78,20 @@ Return ONLY valid JSON. No markdown, no explanation.`
   })
 
   const text = extractClaudeText(response)
-  return JSON.parse(text) as BrandProfileData
+  const parsed = JSON.parse(text) as BrandProfileData
+
+  if (
+    typeof parsed.voiceSummary !== 'string' ||
+    !Array.isArray(parsed.toneAttributes) ||
+    !Array.isArray(parsed.contentThemes) ||
+    typeof parsed.audienceProfile?.demographics !== 'string' ||
+    !Array.isArray(parsed.audienceProfile?.interests) ||
+    !Array.isArray(parsed.audienceProfile?.painPoints) ||
+    typeof parsed.audienceProfile?.language !== 'string' ||
+    typeof parsed.postingGuidelines !== 'string'
+  ) {
+    throw new Error('Invalid brand profile response shape')
+  }
+
+  return parsed
 }

@@ -1,0 +1,62 @@
+{
+  "_readme": [
+    "Documents the EXPECTED config for LYRA's 5 cron-* Railway services, as a",
+    "target for a future drift check to compare against (not yet wired into",
+    ".github/workflows/config-drift.yml -- see that file's header comment).",
+    "",
+    "Each service's schedule lives ONLY in the Railway dashboard's Deploy ->",
+    "Cron Schedule field today; nothing in this repo declared it before this",
+    "file. `serviceName`, `cronRoute`, and `startCommand` below are sourced",
+    "directly from LYRA-Handover.md's 2026-08-13 'Cron jobs migrated from",
+    "cron-job.org to Railway' entry and are high-confidence. `cronSchedule`",
+    "values are NOT confirmed against the live Railway dashboard -- see each",
+    "entry's `scheduleConfidence` and `scheduleSource` before trusting them.",
+    "",
+    "Before this file is wired into an automated check: open each service in",
+    "Railway (Settings -> Deploy -> Cron Schedule) and correct any",
+    "`scheduleConfidence: \"best-guess\"` entries to the real value, then flip",
+    "`scheduleConfidence` to \"confirmed\"."
+  ],
+  "sharedStartCommand": {
+    "value": "node scripts/cron/trigger.mjs",
+    "confidence": "confirmed",
+    "source": "LYRA-Handover.md, 2026-08-13 entry -- this is the literal Start Command that accidentally overwrote the main LYRA service's own Start Command during setup, i.e. it is quoted verbatim from what the 5 cron-* services were each configured with."
+  },
+  "services": [
+    {
+      "serviceName": "cron-check-approval-slas",
+      "cronRoute": "/api/cron/check-approval-slas",
+      "cronSchedule": "0 * * * *",
+      "scheduleConfidence": "best-guess",
+      "scheduleSource": "Cadence (hourly) is confirmed exactly in LYRA-Handover.md ('known exactly'). The specific minute-of-hour (:00) is NOT recorded anywhere and is only assumed here -- verify the real value in the Railway dashboard."
+    },
+    {
+      "serviceName": "cron-publish-due-posts",
+      "cronRoute": "/api/cron/publish-due-posts",
+      "cronSchedule": "*/5 * * * *",
+      "scheduleConfidence": "best-guess",
+      "scheduleSource": "Cadence (every 5 minutes) is confirmed exactly in LYRA-Handover.md ('known exactly'). The specific offset within each 5-minute window is NOT recorded and is only assumed here -- verify the real value in the Railway dashboard. Note: crons.yml's own 'publish-due-posts' backstop job intentionally runs at :02,:07,:12... to avoid firing in the same minute as this service, which implies (but does not confirm) this service runs on :00,:05,:10..."
+    },
+    {
+      "serviceName": "cron-sync-comments",
+      "cronRoute": "/api/cron/sync-comments",
+      "cronSchedule": "*/5 * * * *",
+      "scheduleConfidence": "best-guess",
+      "scheduleSource": "LYRA-Handover.md explicitly flags this schedule as inferred from cron-job.org's 'next run' timestamps only, not the actual configured interval -- 'treat as best-guess until a few days of side-by-side comparison confirm they match'. Not yet confirmed as of this file's creation. Value here mirrors crons.yml's redundant GitHub Actions backstop cadence for the same job, which is a reasonable but unverified assumption."
+    },
+    {
+      "serviceName": "cron-sync-metrics",
+      "cronRoute": "/api/cron/sync-metrics",
+      "cronSchedule": "0 * * * *",
+      "scheduleConfidence": "best-guess",
+      "scheduleSource": "Same caveat as cron-sync-comments: LYRA-Handover.md explicitly flags this as inferred, not confirmed. Value here mirrors crons.yml's redundant GitHub Actions backstop cadence for the same job."
+    },
+    {
+      "serviceName": "cron-brand-refresh",
+      "cronRoute": "/api/cron/brand-refresh",
+      "cronSchedule": "0 2 * * 0",
+      "scheduleConfidence": "best-guess",
+      "scheduleSource": "Same caveat as cron-sync-comments: LYRA-Handover.md explicitly flags this as inferred, not confirmed. Value here mirrors crons.yml's redundant GitHub Actions backstop cadence for the same job (Sunday 2am UTC)."
+    }
+  ]
+}

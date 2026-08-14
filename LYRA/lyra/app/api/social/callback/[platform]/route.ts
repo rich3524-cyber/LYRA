@@ -1,15 +1,16 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { encrypt } from '@/lib/encrypt'
 import { verifyState } from '@/lib/oauth-state'
-import * as facebook from '@/services/social/facebook'
-import * as instagram from '@/services/social/instagram'
-import * as linkedin from '@/services/social/linkedin'
-import * as google from '@/services/social/google-business'
 import * as twitter from '@/services/social/twitter'
-import * as tiktok from '@/services/social/tiktok'
-import * as youtube from '@/services/social/youtube'
+import {
+  connectFacebook,
+  connectLinkedIn,
+  connectGoogleBusiness,
+  connectTwitter,
+  connectTikTok,
+  connectYouTube,
+} from '@/services/social/oauth-connect'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,93 +46,22 @@ export async function GET(
 
     switch (platform) {
       case 'facebook': {
-        const shortToken = await facebook.exchangeCode(code)
-        const longToken = await facebook.getLongLivedToken(shortToken)
-        const pages = await facebook.getPages(longToken)
-        const adAccountId = await facebook.fetchAdAccountId(longToken)
-
-        // Store pending Page-picker state in DB (10-minute TTL).
-        // Tokens are encrypted before storage; the complete route decrypts and writes to DB.
-        const pending = await prisma.facebookPending.create({
-          data: {
-            workspaceId,
-            expiresAt: new Date(Date.now() + 10 * 60 * 1000),
-            data: {
-              adAccountId,
-              pages: pages.map((p) => ({
-                id: p.id,
-                name: p.name,
-                avatarUrl: p.avatarUrl ?? null,
-                encryptedToken: encrypt(p.accessToken),
-              })),
-            },
-          },
-        })
-
+        const { pendingKey } = await connectFacebook(workspaceId, code)
         return NextResponse.redirect(
-          `${BASE_URL}/workspace/${workspaceId}/settings?fbpending=${pending.key}`
+          `${BASE_URL}/workspace/${workspaceId}/settings?fbpending=${pendingKey}`
         )
       }
 
       case 'linkedin': {
-        const { accessToken, expiresIn } = await linkedin.exchangeCode(code)
-        const memberId = await linkedin.getMemberId(accessToken)
-        const orgs = await linkedin.getOrganizations(accessToken, memberId)
-
-        if (orgs.length === 0) {
+        const { connected } = await connectLinkedIn(workspaceId, code)
+        if (!connected) {
           return NextResponse.redirect(`${BASE_URL}/workspace/${workspaceId}/settings?error=linkedin_no_orgs`)
-        }
-
-        for (const org of orgs) {
-          await prisma.socialAccount.upsert({
-            where: { workspaceId_platform_platformId: { workspaceId, platform: 'LINKEDIN', platformId: org.id } },
-            create: {
-              workspaceId,
-              platform: 'LINKEDIN',
-              platformId: org.id,
-              handle: org.name,
-              name: org.name,
-              avatarUrl: org.logoUrl,
-              accessToken: encrypt(accessToken),
-              tokenExpiry: new Date(Date.now() + expiresIn * 1000),
-              provider: 'NATIVE',
-            },
-            update: {
-              accessToken: encrypt(accessToken),
-              tokenExpiry: new Date(Date.now() + expiresIn * 1000),
-              isActive: true,
-            },
-          })
         }
         break
       }
 
       case 'google': {
-        const { accessToken, refreshToken, expiresIn } = await google.exchangeCode(code)
-        const locations = await google.getLocations(accessToken, refreshToken, expiresIn)
-
-        for (const loc of locations) {
-          await prisma.socialAccount.upsert({
-            where: { workspaceId_platform_platformId: { workspaceId, platform: 'GOOGLE_BUSINESS', platformId: loc.id } },
-            create: {
-              workspaceId,
-              platform: 'GOOGLE_BUSINESS',
-              platformId: loc.id,
-              handle: loc.name,
-              name: loc.name,
-              accessToken: encrypt(loc.accessToken),
-              refreshToken: encrypt(loc.refreshToken),
-              tokenExpiry: loc.tokenExpiry,
-              provider: 'NATIVE',
-            },
-            update: {
-              accessToken: encrypt(loc.accessToken),
-              refreshToken: encrypt(loc.refreshToken),
-              tokenExpiry: loc.tokenExpiry,
-              isActive: true,
-            },
-          })
-        }
+        await connectGoogleBusiness(workspaceId, code)
         break
       }
 
@@ -141,86 +71,17 @@ export async function GET(
         const codeVerifier = await twitter.consumeCodeVerifier(rawState!)
         if (!codeVerifier) return NextResponse.redirect(`${BASE_URL}?error=oauth_failed`)
 
-        const { accessToken, refreshToken, expiresIn } = await twitter.exchangeCode(code, codeVerifier)
-        const user = await twitter.getUser(accessToken)
-
-        await prisma.socialAccount.upsert({
-          where: { workspaceId_platform_platformId: { workspaceId, platform: 'TWITTER', platformId: user.id } },
-          create: {
-            workspaceId,
-            platform: 'TWITTER',
-            platformId: user.id,
-            handle: user.username,
-            name: user.name,
-            avatarUrl: user.avatarUrl,
-            accessToken: encrypt(accessToken),
-            refreshToken: encrypt(refreshToken),
-            tokenExpiry: new Date(Date.now() + expiresIn * 1000),
-            provider: 'NATIVE',
-          },
-          update: {
-            accessToken: encrypt(accessToken),
-            refreshToken: encrypt(refreshToken),
-            tokenExpiry: new Date(Date.now() + expiresIn * 1000),
-            isActive: true,
-          },
-        })
+        await connectTwitter(workspaceId, code, codeVerifier)
         break
       }
 
       case 'tiktok': {
-        const { accessToken, refreshToken, openId, expiresIn } = await tiktok.exchangeCode(code)
-        const user = await tiktok.getUser(accessToken, openId)
-
-        await prisma.socialAccount.upsert({
-          where: { workspaceId_platform_platformId: { workspaceId, platform: 'TIKTOK', platformId: openId } },
-          create: {
-            workspaceId,
-            platform: 'TIKTOK',
-            platformId: openId,
-            handle: user.name,
-            name: user.name,
-            avatarUrl: user.avatarUrl,
-            accessToken: encrypt(accessToken),
-            refreshToken: encrypt(refreshToken),
-            tokenExpiry: new Date(Date.now() + expiresIn * 1000),
-            provider: 'NATIVE',
-          },
-          update: {
-            accessToken: encrypt(accessToken),
-            refreshToken: encrypt(refreshToken),
-            tokenExpiry: new Date(Date.now() + expiresIn * 1000),
-            isActive: true,
-          },
-        })
+        await connectTikTok(workspaceId, code)
         break
       }
 
       case 'youtube': {
-        const { accessToken, refreshToken, expiresIn } = await youtube.exchangeCode(code)
-        const channel = await youtube.getChannel(accessToken, refreshToken, expiresIn)
-
-        await prisma.socialAccount.upsert({
-          where: { workspaceId_platform_platformId: { workspaceId, platform: 'YOUTUBE', platformId: channel.id } },
-          create: {
-            workspaceId,
-            platform: 'YOUTUBE',
-            platformId: channel.id,
-            handle: channel.handle,
-            name: channel.name,
-            avatarUrl: channel.avatarUrl,
-            accessToken: encrypt(accessToken),
-            refreshToken: encrypt(refreshToken),
-            tokenExpiry: channel.tokenExpiry,
-            provider: 'NATIVE',
-          },
-          update: {
-            accessToken: encrypt(accessToken),
-            refreshToken: encrypt(refreshToken),
-            tokenExpiry: channel.tokenExpiry,
-            isActive: true,
-          },
-        })
+        await connectYouTube(workspaceId, code)
         break
       }
 

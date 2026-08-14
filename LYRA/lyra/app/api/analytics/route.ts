@@ -2,8 +2,18 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { format, subDays, eachDayOfInterval } from 'date-fns'
+import { getCachedJSON, setCachedJSON } from '@/lib/cache'
 
 export const dynamic = 'force-dynamic'
+
+// Short TTL cache for the full-history aggregation below -- this route
+// re-scans every published post (+ metrics + comments) for the workspace on
+// every call, which gets expensive as post history grows. 60s keeps the
+// dashboard feeling live while taking repeat/polling requests for the same
+// workspace+period+timezone off the Postgres hot path. Not real-time-critical
+// data, so a short TTL alone (no active invalidation on new metrics/posts) is
+// an acceptable v1 tradeoff -- see PR description.
+const ANALYTICS_CACHE_TTL_SECONDS = 60
 
 
 export async function GET(req: Request) {
@@ -23,6 +33,17 @@ export async function GET(req: Request) {
       where: { userId: user.id, workspaceId },
     })
     if (!access) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+    // Cache key must be scoped to every input that changes the response body:
+    // workspaceId (obviously -- a collision here leaks one customer's
+    // analytics into another's response), period, and tzOffset (shifts which
+    // day each post's engagement buckets into, per the localFmt/days comments
+    // below). The auth + workspace-access checks above always run against
+    // Postgres for every request, cache hit or not -- only the expensive
+    // aggregation past this point is cached.
+    const cacheKey = `analytics:${workspaceId}:${period}:${tzOffset}`
+    const cached = await getCachedJSON<Record<string, unknown>>(cacheKey)
+    if (cached) return NextResponse.json(cached)
 
     const since = subDays(new Date(), period)
 
@@ -136,7 +157,7 @@ export async function GET(req: Request) {
         publishedAt: p.publishedAt,
       }))
 
-    return NextResponse.json({
+    const responseBody = {
       summary: {
         postsPublished: posts.length,
         totalReach,
@@ -150,7 +171,11 @@ export async function GET(req: Request) {
       series,
       platformBreakdown,
       topPosts,
-    })
+    }
+
+    await setCachedJSON(cacheKey, responseBody, ANALYTICS_CACHE_TTL_SECONDS)
+
+    return NextResponse.json(responseBody)
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

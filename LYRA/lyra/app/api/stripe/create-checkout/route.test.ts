@@ -83,4 +83,25 @@ describe('POST /api/stripe/create-checkout', () => {
     const res = await POST(req({ plan: 'PRO' }))
     expect(res.status).toBe(401)
   })
+
+  // Regression: a malformed JSON body previously reached `await req.json()`
+  // unguarded, threw a SyntaxError, and fell through to the generic 500
+  // handler. parseBody now converts that into a clean 400 before any
+  // Stripe/Prisma call happens.
+  it('returns 400 (not 500) for a body that is not valid JSON', async () => {
+    const badReq = new Request('http://localhost/api/stripe/create-checkout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{not valid json',
+    })
+    const res = await POST(badReq)
+    expect(res.status).toBe(400)
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled()
+  })
+
+  it('returns 400 when plan is missing from the body', async () => {
+    const res = await POST(req({}))
+    expect(res.status).toBe(400)
+    expect(stripe.checkout.sessions.create).not.toHaveBeenCalled()
+  })
 })
