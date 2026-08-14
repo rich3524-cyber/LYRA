@@ -1,10 +1,23 @@
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { stripe, PLANS, type PlanKey } from '@/lib/stripe'
 import { canWrite } from '@/lib/authz'
+import { parseBody, ValidationError } from '@/lib/validate'
 
 export const dynamic = 'force-dynamic'
+
+// Only the shape (a string) is validated here -- which string values are
+// actually acceptable plan keys is still decided below via Object.hasOwn,
+// which also guards against prototype-chain property names (see comment on
+// that check). Narrowing this schema to z.enum(Object.keys(PLANS)) would
+// change the response body for those cases (ValidationError's generic
+// message instead of the existing 'Invalid plan' message the tests assert),
+// so the shape check and the value check are kept deliberately separate.
+const createCheckoutSchema = z.object({
+  plan: z.string(),
+})
 
 
 export async function POST(req: Request) {
@@ -22,7 +35,7 @@ export async function POST(req: Request) {
     if (!canWrite(user.role)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
-    const { plan } = await req.json() as { plan: PlanKey }
+    const { plan: planInput } = await parseBody(req, createCheckoutSchema)
 
     // Object.hasOwn, not a plain PLANS[plan] truthiness check -- PLANS is a
     // plain object literal, so a plan value like "__proto__", "constructor",
@@ -30,9 +43,10 @@ export async function POST(req: Request) {
     // and would sail past `!PLANS[plan]`. Same fix already applied to
     // app/api/upload/media-presign/route.ts's equivalent ALLOWED_MIME_TYPES
     // lookup, for the same reason.
-    if (!Object.hasOwn(PLANS, plan)) {
+    if (!Object.hasOwn(PLANS, planInput)) {
       return NextResponse.json({ error: 'Invalid plan' }, { status: 400 })
     }
+    const plan = planInput as PlanKey
 
     // Find the agency this user belongs to
     const agency = await prisma.agency.findFirst({
@@ -56,6 +70,10 @@ export async function POST(req: Request) {
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    if (error instanceof ValidationError) {
+      console.error('POST /api/stripe/create-checkout validation failed:', error.issues)
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
     console.error('POST /api/stripe/create-checkout error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

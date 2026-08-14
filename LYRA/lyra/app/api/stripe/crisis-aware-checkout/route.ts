@@ -1,14 +1,25 @@
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { stripe } from '@/lib/stripe'
+import { parseBody, ValidationError } from '@/lib/validate'
 
 export const dynamic = 'force-dynamic'
+
+const crisisAwareCheckoutSchema = z.object({
+  workspaceId: z.string().min(1),
+  // Previously typed but not runtime-checked -- any string other than
+  // 'annual' silently fell through to the monthly price ID rather than
+  // being rejected, so e.g. a typo'd 'annual ' would quietly bill the wrong
+  // amount. Now an unrecognised value 400s instead of guessing.
+  billing: z.enum(['monthly', 'annual']).optional().default('monthly'),
+})
 
 export async function POST(req: Request) {
   try {
     const user = await requireAuth()
-    const { workspaceId, billing = 'monthly' } = await req.json() as { workspaceId: string; billing?: 'monthly' | 'annual' }
+    const { workspaceId, billing } = await parseBody(req, crisisAwareCheckoutSchema)
 
     const workspace = await prisma.workspace.findFirst({
       where: { id: workspaceId, access: { some: { userId: user.id, role: { not: 'CLIENT_VIEW' } } } },
@@ -47,6 +58,10 @@ export async function POST(req: Request) {
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    if (error instanceof ValidationError) {
+      console.error('POST /api/stripe/crisis-aware-checkout validation failed:', error.issues)
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
     console.error('POST /api/stripe/crisis-aware-checkout error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
