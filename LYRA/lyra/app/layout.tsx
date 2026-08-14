@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { DM_Sans, Instrument_Serif, Geist_Mono } from 'next/font/google'
 import Script from 'next/script'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -88,6 +88,11 @@ export const metadata: Metadata = {
   other: {
     'facebook-domain-verification': '1zdz2p7z9vsq0qh3nzc2qwm36gojlu',
   },
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
 }
 
 export default function RootLayout({
