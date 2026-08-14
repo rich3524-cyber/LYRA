@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import useSWR from 'swr'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname } from 'next/navigation'
@@ -73,29 +74,30 @@ export function Sidebar({
   // (router.push), same reason activeWorkspaceId above is re-derived from the live
   // pathname rather than trusted from props. Re-fetch a live count keyed on the
   // active workspace so the badge doesn't keep showing a previous workspace's count.
-  const [liveUnreadCount, setLiveUnreadCount] = useState(unreadCount)
-
-  useEffect(() => {
-    let cancelled = false
-
-    function refetch() {
-      fetch(`/api/comments/unread-count?workspaceId=${activeWorkspaceId}`)
-        .then((r) => (r.ok ? r.json() : null))
-        .then((data: { count?: number } | null) => {
-          if (!cancelled && data && typeof data.count === 'number') setLiveUnreadCount(data.count)
-        })
-        .catch(() => {
-          // Silently ignore -- keep showing the last known count
-        })
-    }
-
-    refetch()
-    window.addEventListener('focus', refetch)
-    return () => {
-      cancelled = true
-      window.removeEventListener('focus', refetch)
-    }
-  }, [activeWorkspaceId])
+  //
+  // useSWR replaces the previous hand-rolled fetch-on-mount +
+  // `window.addEventListener('focus', ...)` effect -- revalidateOnFocus is an
+  // SWRConfig default (see components/lyra/app-shell/swr-provider.tsx), so
+  // the focus-triggered refetch comes for free instead of a manual listener.
+  // `fallbackData` seeds the initial render with the server-computed prop so
+  // there's no flash of "0" before the first client fetch resolves, matching
+  // the previous behaviour of initialising local state from the prop. On a
+  // failed fetch the callback throws and SWR keeps the last *successful*
+  // `data` value untouched (its default error behaviour) rather than us
+  // having to re-derive a fallback -- same net effect as the original's
+  // silent `.catch(() => {})`, which likewise left the last known count
+  // showing.
+  const { data: liveUnreadCount } = useSWR<number>(
+    `/api/comments/unread-count?workspaceId=${activeWorkspaceId}`,
+    async (url: string) => {
+      const r = await fetch(url)
+      if (!r.ok) throw new Error('Failed to load unread count')
+      const data = (await r.json()) as { count?: number }
+      if (typeof data.count !== 'number') throw new Error('Unexpected response shape')
+      return data.count
+    },
+    { fallbackData: unreadCount, keepPreviousData: true },
+  )
 
   function renderNavItems(isCollapsed: boolean) {
     return navItems.map(({ href, label, icon: Icon, proOnly }) => {
