@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { decrypt } from '@/lib/encrypt'
-import * as linkedin from '@/services/social/linkedin'
-import { getProvider } from '@/services/social/provider'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
+import { syncWorkspaceComments } from '@/services/comments/sync'
 
 export const dynamic = 'force-dynamic'
 
@@ -26,134 +24,7 @@ export async function POST(req: Request) {
     })
     if (!workspace) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-    // Fetches the full row (not a narrow select) because getProvider(account).
-    // fetchRecentComments(account) needs the whole SocialAccount shape, same as
-    // every other provider-dispatched call site in the codebase (e.g.
-    // post-publisher.worker.ts's include: { socialAccount: true }).
-    const accounts = await prisma.socialAccount.findMany({
-      where: { workspaceId, isActive: true, platform: { in: ['FACEBOOK', 'INSTAGRAM', 'LINKEDIN'] } },
-    })
-
-    let newCount = 0
-
-    for (const account of accounts) {
-      // Zernio-connected accounts (the default connection method going forward)
-      // never have a local accessToken -- Zernio holds the platform credentials
-      // on their own side. This used to fall through to the accessToken check
-      // below and get silently skipped every time, meaning comment sync never
-      // worked at all for any Zernio account -- confirmed live 21 Jul 2026 via
-      // production logs showing the skip firing on every sync attempt. Route
-      // these through the same provider abstraction publish()/replyToComment()
-      // already use instead.
-      if (account.provider === 'ZERNIO' && account.zernioAccountId != null) {
-        let normalized
-        try {
-          normalized = await getProvider(account).fetchRecentComments(account)
-        } catch (err) {
-          console.error(`Zernio comment sync failed for account ${account.id}:`, err)
-          continue
-        }
-        if (normalized.length === 0) continue
-        // Mirror the webhook's self-comment filter: skip comments posted by the
-        // connected account itself (e.g. the Facebook Page commenting on its own
-        // post). The webhook has isOwner + handle matching; here we only have the
-        // account's name/handle to compare against.
-        const selfName   = account.name?.toLowerCase()
-        const selfHandle = account.handle?.toLowerCase()
-        const incoming   = normalized.filter(c => {
-          if (selfName   && c.authorName?.toLowerCase()   === selfName)   return false
-          if (selfHandle && c.authorHandle?.toLowerCase() === selfHandle) return false
-          return true
-        })
-        if (incoming.length === 0) continue
-        const created = await prisma.comment.createManyAndReturn({
-          data: incoming.map((c) => ({
-            workspaceId,
-            socialAccountId:   account.id,
-            platformCommentId: c.externalId,
-            platformPostId:    c.postExternalId,
-            authorName:        c.authorName || 'Unknown',
-            authorHandle:      c.authorHandle,
-            content:           c.text,
-            platformCreatedAt: c.createdAt,
-            status:            'PENDING' as const,
-          })),
-          skipDuplicates: true,
-        })
-        newCount += created.length
-        continue
-      }
-
-      if (!account.accessToken) {
-        console.error(`Skipping comment sync for account ${account.id} — no access token`)
-        continue
-      }
-      const token = decrypt(account.accessToken)
-
-      type RawComment = { id: string; message: string; from?: { name?: string }; created_time: string }
-      let rawComments: RawComment[] = []
-
-      try {
-        if (account.platform === 'FACEBOOK') {
-          const res = await fetch(
-            `https://graph.facebook.com/v19.0/${account.platformId}/feed?fields=comments{message,from,created_time}&limit=25&access_token=${token}`
-          )
-          const data = await res.json() as { data?: Array<{ comments?: { data?: RawComment[] } }> }
-          for (const post of data.data ?? []) {
-            rawComments = rawComments.concat(post.comments?.data ?? [])
-          }
-        } else if (account.platform === 'INSTAGRAM') {
-          const res = await fetch(
-            `https://graph.facebook.com/v19.0/${account.platformId}/media?fields=comments{text,username,timestamp}&limit=25&access_token=${token}`
-          )
-          const data = await res.json() as { data?: Array<{ comments?: { data?: Array<{ id: string; text: string; username?: string; timestamp: string }> } }> }
-          for (const media of data.data ?? []) {
-            for (const c of media.comments?.data ?? []) {
-              rawComments.push({ id: c.id, message: c.text, from: { name: c.username }, created_time: c.timestamp })
-            }
-          }
-        } else if (account.platform === 'LINKEDIN') {
-          // Fetch recent org posts then gather comments on each.
-          // platformCommentId for LinkedIn = full comment URN (encodes post context for replies).
-          const posts = await linkedin.getOrgPosts(token, account.platformId)
-          for (const post of posts.slice(0, 10)) {
-            const comments = await linkedin.getPostComments(token, post.urn)
-            for (const c of comments) {
-              rawComments.push({
-                id:           c.commentUrn,
-                message:      c.text,
-                from:         { name: 'LinkedIn Member' },
-                created_time: new Date(c.createdAt).toISOString(),
-              })
-            }
-          }
-        }
-      } catch (err) {
-        // Per-account resilience is intentional here (one account's failure
-        // shouldn't block sync for the others, matching the Zernio branch
-        // above) -- but this previously logged nothing at all, so a total
-        // failure across every account was indistinguishable from "no new
-        // comments" in both the response and the logs.
-        console.error(`Comment sync failed for account ${account.id}:`, err)
-        continue
-      }
-
-      if (rawComments.length === 0) continue
-
-      const created = await prisma.comment.createManyAndReturn({
-        data: rawComments.map((comment) => ({
-          workspaceId,
-          socialAccountId:   account.id,
-          platformCommentId: comment.id,
-          authorName:        comment.from?.name ?? 'Unknown',
-          content:           comment.message,
-          platformCreatedAt: new Date(comment.created_time),
-          status:            'PENDING' as const,
-        })),
-        skipDuplicates: true,
-      })
-      newCount += created.length
-    }
+    const newCount = await syncWorkspaceComments(workspaceId)
 
     return NextResponse.json({ synced: newCount })
   } catch (error) {
