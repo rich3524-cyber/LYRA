@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
-import { ApprovalStatus } from '@prisma/client'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { canWrite } from '@/lib/authz'
@@ -9,6 +8,8 @@ import { putObjectBuffer } from '@/lib/s3'
 import { BULK_IMPORT_MAX_DATA_ROWS } from '@/lib/xlsx-template'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { mapWithConcurrency } from '@/lib/concurrency'
+import { resolveCreateStatus } from '@/services/posts/post-lifecycle'
+import { buildApprovalCreateInput } from '@/services/posts/post-approval-bookkeeping'
 
 export const dynamic = 'force-dynamic'
 
@@ -162,8 +163,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     // Same approval-routing rule POST /api/posts already applies -- a bulk
     // import must not bypass client approval just because it arrived as a
-    // batch instead of individual composer submissions.
-    const finalStatus = access.workspace.clientAccessLevel === 'APPROVE' ? 'PENDING_APPROVAL' : 'SCHEDULED'
+    // batch instead of individual composer submissions. Every bulk-imported
+    // row is conceptually a SCHEDULED request; bulk import has no draft path.
+    // (see resolveCreateStatus in services/posts/post-lifecycle.ts)
+    const finalStatus = resolveCreateStatus('SCHEDULED', access.workspace.clientAccessLevel)
 
     // Media re-hosting runs before the transaction, not inside it. An external
     // fetch can take seconds and Prisma's transactions hold a DB connection
@@ -177,11 +180,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // here -- the SLA cron filters on the related approval row, so without one
     // an imported post is invisible to approval-overdue alerting. Same fix as
     // POST /api/posts, which had the identical gap.
+    // (see buildApprovalCreateInput in services/posts/post-approval-bookkeeping.ts)
     const submittedAt = new Date()
-    const approvalCreate =
-      finalStatus === 'PENDING_APPROVAL'
-        ? { approval: { create: { status: ApprovalStatus.PENDING, submittedAt } } }
-        : {}
+    const approvalCreate = buildApprovalCreateInput(finalStatus, submittedAt)
 
     const posts = await prisma.$transaction(
       rows.map((row, i) =>
