@@ -4,6 +4,7 @@ import Script from 'next/script'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from 'sonner'
 import { NavigationLoader } from '@/components/lyra/app-shell/navigation-loader'
+import { SWRProvider } from '@/components/lyra/app-shell/swr-provider'
 import './globals.css'
 
 const GTM_ID  = 'GTM-KH28ZQGJ'
@@ -179,7 +180,9 @@ export default function RootLayout({
           />
         </noscript>
         <NavigationLoader />
-        <TooltipProvider>{children}</TooltipProvider>
+        <SWRProvider>
+          <TooltipProvider>{children}</TooltipProvider>
+        </SWRProvider>
         <Toaster theme="dark" position="bottom-right" />
       </body>
     </html>
