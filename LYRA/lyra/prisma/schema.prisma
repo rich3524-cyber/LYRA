@@ -110,7 +110,6 @@ model Workspace {
   searchConsoleData  SearchConsoleData[]
   crisisEvents       CrisisEvent[]
   competitors        Competitor[]
-  reviews            Review[]
   emailIntegrations  EmailIntegration[]
   notificationChannel NotificationChannel?
 }
@@ -222,7 +221,6 @@ model SocialAccount {
 
   posts    Post[]
   comments Comment[]
-  reviews  Review[]
 
   @@unique([workspaceId, platform, platformId])
   @@index([zernioAccountId])
@@ -589,25 +587,6 @@ model FacebookPending {
   createdAt   DateTime @default(now())
 
   @@index([expiresAt])
-}
-
-model Review {
-  id              String        @id @default(cuid())
-  workspaceId     String
-  workspace       Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  socialAccountId String
-  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
-  zernioReviewId  String
-  rating          Int?
-  text            String?
-  authorName      String?
-  status          String        @default("NEW") // NEW | REPLIED | SKIPPED
-  replyText       String?
-  createdAt       DateTime      @default(now())
-  reviewedAt      DateTime?
-
-  @@unique([socialAccountId, zernioReviewId])
-  @@index([workspaceId, status])
 }
 
 enum EmailProvider {
