@@ -1,8 +1,7 @@
-// The only file-size gate that actually runs -- a separate 50MB check exists in
-// app/api/upload/route.ts, but nothing in the app calls that route; every real
-// upload goes through this function. Without this, a large file's only failure
-// mode was the presigned URL's 5-minute expiry silently killing a slow upload
-// partway through, discarded into a generic "Failed to upload media" toast.
+// The only file-size gate that actually runs -- every real upload goes through
+// this function. Without this, a large file's only failure mode was the
+// presigned URL's 5-minute expiry silently killing a slow upload partway
+// through, discarded into a generic "Failed to upload media" toast.
 export const MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024 // 50 MB
 
 export async function uploadMediaFile(file: File, workspaceId: string): Promise<string> {
