@@ -6,8 +6,8 @@ import { PostStatus } from '@prisma/client'
 import { parseBody, ValidationError } from '@/lib/validate'
 import { checkMediaCompatibility, formatCompatibilityIssue } from '@/services/social/media-compatibility'
 import { APPROVER_ROLES } from '@/lib/authz'
-import { getPlatformLabel } from '@/lib/platform-labels'
-import { notifyChannel } from '@/services/notifications/channel-notifier'
+import { canSelfApprove, resolveApprovalTransition } from '@/services/posts/post-lifecycle'
+import { upsertApprovalOnTransition } from '@/services/posts/post-approval-bookkeeping'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,6 +51,7 @@ export async function PATCH(
     // swap on an already-scheduled post could otherwise reintroduce a
     // known-broken platform/format combo (e.g. GIF -> Instagram) undetected.
     const effectiveStatus = status ?? existing.status
+    const effectiveMediaUrls = mediaUrls ?? existing.mediaUrls
     if (mediaUrls !== undefined && effectiveStatus === 'SCHEDULED') {
       const issues = checkMediaCompatibility(mediaUrls, [existing.socialAccount.platform])
       if (issues.length > 0) {
@@ -62,7 +63,6 @@ export async function PATCH(
     }
 
     if (effectiveStatus === 'SCHEDULED' && existing.requiresMedia) {
-      const effectiveMediaUrls = mediaUrls ?? existing.mediaUrls
       if (effectiveMediaUrls.length === 0) {
         return NextResponse.json(
           { error: 'This post is awaiting media. Attach an image or video before scheduling.' },
@@ -95,7 +95,7 @@ export async function PATCH(
             role: { in: [...APPROVER_ROLES] },
           },
         })
-        if (otherApprover) {
+        if (!canSelfApprove({ isAuthor: true, hasOtherApprover: !!otherApprover })) {
           return NextResponse.json({ error: 'Cannot approve your own post' }, { status: 403 })
         }
       }
@@ -105,50 +105,28 @@ export async function PATCH(
     // is the path the web app's UI actually uses most often for DRAFT ->
     // SCHEDULED (e.g. post-detail-panel.tsx's "Mark as scheduled" action), so
     // without it here a two-call POST-then-PATCH sequence could bypass the
-    // approval gate the create-time fix alone put in place.
-    //
-    // An APPROVED post being scheduled is exempted from the redirect below --
-    // that's the one legitimate route out of the approval flow, and without
-    // the exemption no approved post could ever reach the publisher -- but
-    // ONLY when its content/media haven't changed since approval. "Edit in
-    // Composer" lets the post's own author change content on an APPROVED
-    // post and re-save with status: 'SCHEDULED'; without the contentChanged
-    // check that would publish unreviewed content under an approval a
-    // reviewer gave to different content, bypassing the APPROVER_ROLES /
-    // self-approval guard above (which only fires for status: 'APPROVED',
-    // not 'SCHEDULED'). A content change forces re-review same as any other
-    // non-approved post.
-    //
-    // A re-save of an already-SCHEDULED post (existing.status === 'SCHEDULED',
-    // e.g. editing content/media via the Composer and saving again) is
-    // deliberately still routed back to PENDING_APPROVAL here regardless of
-    // contentChanged: it's already past the one-time APPROVED exemption, so
-    // it should be reviewed again before it publishes.
+    // approval gate the create-time fix alone put in place. See
+    // resolveApprovalTransition in services/posts/post-lifecycle.ts for the
+    // full transition rules (APPROVED exemption, contentChanged re-review,
+    // SCHEDULED re-save handling, etc.).
     const contentChanged =
       (content !== undefined && content !== existing.content) ||
       (mediaUrls !== undefined && mediaUrls.join('\u0000') !== existing.mediaUrls.join('\u0000'))
 
-    // Approving no longer leaves the post sitting in APPROVED waiting for a
-    // separate "Schedule post" click. If media requirements are already
-    // satisfied AND the post already has a scheduled time, the approval
-    // itself is the last gate, so it goes straight to SCHEDULED. APPROVED
-    // stays reachable only when the post still needs media or a scheduled
-    // time -- attaching media or a time re-routes it back through
-    // PENDING_APPROVAL for re-review (via the Composer, since editing
-    // content/media sets contentChanged), and approving again is what
-    // actually reaches SCHEDULED.
-    const effectiveMediaUrls = mediaUrls ?? existing.mediaUrls
-    const hasMediaIfRequired = !(existing.requiresMedia && effectiveMediaUrls.length === 0)
-    const isApprovingReadyPost =
-      status === 'APPROVED' && hasMediaIfRequired && existing.scheduledAt !== null
-
-    const finalStatus: PostStatus | undefined = isApprovingReadyPost
-      ? 'SCHEDULED'
-      : status === 'SCHEDULED' &&
-        existing.workspace.clientAccessLevel === 'APPROVE' &&
-        !(existing.status === 'APPROVED' && !contentChanged)
-        ? 'PENDING_APPROVAL'
-        : status
+    const finalStatus = resolveApprovalTransition({
+      requestedStatus:    status,
+      existingStatus:     existing.status,
+      clientAccessLevel:  existing.workspace.clientAccessLevel,
+      contentChanged,
+      requiresMedia:      existing.requiresMedia,
+      hasMedia:           effectiveMediaUrls.length > 0,
+      // Deliberately the pre-update value, not a newly-submitted scheduledAt
+      // from this same request -- matches the original pre-migration
+      // behavior (isApprovingReadyPost also read existing.scheduledAt only).
+      // Keep this asymmetric with hasMedia (which does use the effective,
+      // post-update value) when reusing resolveApprovalTransition elsewhere.
+      hasScheduledAt:     existing.scheduledAt !== null,
+    })
 
     const post = await prisma.post.update({
       where: { id },
@@ -169,55 +147,23 @@ export async function PATCH(
       },
     })
 
-    // Manage PostApproval record on approval-related status transitions.
-    // Branches key off finalStatus (what was actually written), not the raw
-    // requested status, so a SCHEDULED request redirected to PENDING_APPROVAL
-    // above still gets a reviewable PostApproval record created.
-    if (finalStatus === 'PENDING_APPROVAL') {
-      // submittedAt starts the SLA clock for THIS pending cycle, and
-      // slaAlertedAt is cleared so a resubmitted post can alert again. Neither
-      // can key off createdAt: this row is upserted, so on a resubmit the
-      // update branch runs and createdAt still holds the first ever submission.
-      const submittedAt = new Date()
-      await prisma.postApproval.upsert({
-        where:  { postId: id },
-        create: { postId: id, status: 'PENDING', submittedAt },
-        update: { status: 'PENDING', reviewedAt: null, reviewerId: null, submittedAt, slaAlertedAt: null },
-      })
-
-      // Fire-and-forget by design -- notifyChannel never throws, and an alert
-      // problem must not fail a real approval submission.
-      await notifyChannel(
-        existing.workspaceId,
-        {
-          event:         'POST_PENDING_APPROVAL',
-          workspaceName: existing.workspace.name,
-          platform:      getPlatformLabel(existing.socialAccount.platform),
-          excerpt:       content ?? existing.content,
-          scheduledAt:   scheduledAt !== undefined
-            ? (scheduledAt ? new Date(scheduledAt) : null)
-            : existing.scheduledAt,
-          authorName:    existing.author?.name ?? null,
-        },
-        // Keyed on the submission instant, so a resubmit is a genuinely new
-        // alert while a double-click on Submit is not.
-        { dedupeKey: `pending-${id}-${submittedAt.getTime()}` }
-      )
-    } else if (status === 'APPROVED') {
-      // An approval decision happened, regardless of whether the post landed
-      // on APPROVED (still awaiting media) or jumped straight to SCHEDULED.
-      await prisma.postApproval.upsert({
-        where:  { postId: id },
-        create: { postId: id, status: 'APPROVED', reviewerId: user.id, reviewedAt: new Date() },
-        update: { status: 'APPROVED', reviewerId: user.id, reviewedAt: new Date() },
-      })
-    } else if (finalStatus === 'DRAFT' && existing.status === 'PENDING_APPROVAL') {
-      await prisma.postApproval.upsert({
-        where:  { postId: id },
-        create: { postId: id, status: 'REJECTED', reviewedAt: new Date() },
-        update: { status: 'REJECTED', reviewedAt: new Date() },
-      })
-    }
+    // Runs after post.update deliberately -- bookkeeping should reflect a
+    // status write that has actually landed, not one still in flight.
+    await upsertApprovalOnTransition({
+      postId:            id,
+      finalStatus,
+      requestedStatus:   status,
+      existingStatus:    existing.status,
+      reviewerId:        user.id,
+      workspaceId:       existing.workspaceId,
+      workspaceName:     existing.workspace.name,
+      platform:          existing.socialAccount.platform,
+      excerpt:           content ?? existing.content,
+      scheduledAt:       scheduledAt !== undefined
+        ? (scheduledAt ? new Date(scheduledAt) : null)
+        : existing.scheduledAt,
+      authorName:        existing.author?.name ?? null,
+    })
 
     return NextResponse.json(post)
   } catch (error) {

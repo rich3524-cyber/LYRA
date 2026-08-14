@@ -5,6 +5,8 @@ import { useDraggable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { GripVertical } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import type { Platform } from '@prisma/client'
+import { getPlatformShortLabel, getPlatformColor } from '@/lib/platform-labels'
 
 export interface PostBoost {
   id: string
@@ -37,33 +39,6 @@ export interface CalendarPost {
   boost: PostBoost | null
 }
 
-export const PLATFORM_LABELS: Record<string, string> = {
-  FACEBOOK:        'FB',
-  INSTAGRAM:       'IG',
-  LINKEDIN:        'LI',
-  TIKTOK:          'TT',
-  TWITTER:         'X',
-  GOOGLE_BUSINESS: 'GBP',
-  YOUTUBE:         'YT',
-  PINTEREST:       'PIN',
-  THREADS:         'TH',
-  BLUESKY:         'BSky',
-}
-
-// Platform brand colours — inline styles are intentional here (external brand identities, not LYRA's design system)
-export const PLATFORM_COLORS: Record<string, string> = {
-  FACEBOOK:        '#1877F2',
-  INSTAGRAM:       '#C13584',
-  LINKEDIN:        '#0A66C2',
-  TIKTOK:          '#FF0050',
-  TWITTER:         '#888888',
-  GOOGLE_BUSINESS: '#4285F4',
-  YOUTUBE:         '#FF0000',
-  PINTEREST:       '#E60023',
-  THREADS:         '#888888',
-  BLUESKY:         '#0085FF',
-}
-
 export const STATUS_COLORS: Record<string, string> = {
   DRAFT:            'bg-background-border-mid text-text-tertiary',
   SCHEDULED:        'bg-status-info/20 text-status-info',
@@ -88,7 +63,7 @@ export const PostPreviewCard = memo(function PostPreviewCard({ post, onSelect }:
     ? { transform: CSS.Translate.toString(transform) }
     : undefined
 
-  const platformColor  = PLATFORM_COLORS[post.socialAccount.platform] ?? PLATFORM_COLORS['TWITTER']
+  const platformColor  = getPlatformColor(post.socialAccount.platform as Platform)
   const isAwaitingMedia = (post.status === 'DRAFT' || post.status === 'APPROVED') && post.requiresMedia && post.mediaUrls.length === 0
   // Takes the same badge slot as "awaiting media": both answer "why is this
   // post not moving?", and a post can only be in one of the two states
@@ -128,7 +103,7 @@ export const PostPreviewCard = memo(function PostPreviewCard({ post, onSelect }:
         type="button"
         className="flex-1 min-w-0 text-left rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-text-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-background-tertiary"
         onClick={() => onSelect(post)}
-        aria-label={`Open post details — ${PLATFORM_LABELS[post.socialAccount.platform] ?? post.socialAccount.platform}, ${post.status.toLowerCase().replace(/_/g, ' ')}`}
+        aria-label={`Open post details — ${getPlatformShortLabel(post.socialAccount.platform as Platform)}, ${post.status.toLowerCase().replace(/_/g, ' ')}`}
       >
         <div className="flex items-center justify-between gap-1 mb-1">
           <div className="flex items-center gap-1">
@@ -138,7 +113,7 @@ export const PostPreviewCard = memo(function PostPreviewCard({ post, onSelect }:
               aria-hidden="true"
             />
             <span className="font-mono text-[10px] text-text-tertiary">
-              {PLATFORM_LABELS[post.socialAccount.platform] ?? post.socialAccount.platform}
+              {getPlatformShortLabel(post.socialAccount.platform as Platform)}
             </span>
           </div>
           <span

@@ -1,7 +1,10 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import useSWR from 'swr'
 import dynamic from 'next/dynamic'
 import { TrendingUp, MessageSquare, BarChart2, Eye, Heart, Share2, CheckCheck, Play, RefreshCw } from 'lucide-react'
+import type { Platform } from '@prisma/client'
+import { getPlatformShortLabel } from '@/lib/platform-labels'
 
 // recharts is a sizeable dependency that only this chart needs -- load it lazily
 // (client-only, no SSR) so the rest of the analytics dashboard's JS isn't blocked
@@ -31,11 +34,6 @@ interface AnalyticsData {
   series:            DataPoint[]
   platformBreakdown: PlatformStat[]
   topPosts:          TopPost[]
-}
-
-const PLATFORM_LABELS: Record<string, string> = {
-  FACEBOOK: 'FB', INSTAGRAM: 'IG', LINKEDIN: 'LI',
-  TIKTOK: 'TT', TWITTER: 'X', YOUTUBE: 'YT', GOOGLE_BUSINESS: 'GBP',
 }
 
 // Computed once at module load — getTimezoneOffset() returns the *negative* of
@@ -71,7 +69,7 @@ function PlatformBreakdownList({ breakdown }: { breakdown: PlatformStat[] }) {
       {breakdown.map(({ platform, count }) => (
         <div key={platform} className="space-y-1">
           <div className="flex items-center justify-between font-sans text-xs">
-            <span className="text-text-secondary">{PLATFORM_LABELS[platform] ?? platform}</span>
+            <span className="text-text-secondary">{getPlatformShortLabel(platform as Platform)}</span>
             <span className="font-mono text-text-tertiary">{count}</span>
           </div>
           <div className="h-1.5 bg-background-hover rounded-full overflow-hidden">
@@ -86,30 +84,33 @@ function PlatformBreakdownList({ breakdown }: { breakdown: PlatformStat[] }) {
   )
 }
 
-export function PerformanceDashboard({ workspaceId }: { workspaceId: string }) {
-  const [data, setData]           = useState<AnalyticsData | null>(null)
-  const [error, setError]         = useState<string | null>(null)
-  const [period, setPeriod]       = useState(30)
-  const [syncing, setSyncing]     = useState(false)
-  const [refreshTick, setRefresh] = useState(0)
-  const loading = data === null && error === null
+// Dedicated fetcher (rather than the app-wide default from SWRProvider) so
+// the thrown error message stays exactly `Failed to load analytics (${status})`
+// -- the text the error panel below has always shown -- instead of the
+// generic message the shared fetcher uses for every other endpoint.
+async function analyticsFetcher(url: string): Promise<AnalyticsData> {
+  const r = await fetch(url)
+  if (!r.ok) throw new Error(`Failed to load analytics (${r.status})`)
+  return r.json() as Promise<AnalyticsData>
+}
 
-  useEffect(() => {
-    let active = true
-    setError(null)
-    fetch(`/api/analytics?workspaceId=${workspaceId}&period=${period}&tzOffset=${TZ_OFFSET}`)
-      .then(r => {
-        if (!r.ok) throw new Error(`Failed to load analytics (${r.status})`)
-        return r.json() as Promise<AnalyticsData>
-      })
-      .then((d) => { if (active) setData(d) })
-      // Previously fell back to `setData({})` here, which left later renders
-      // reading `data.summary.postsPublished` off an empty object and
-      // crashing the whole route. A real error state instead of a malformed
-      // `data` lets the render path fail gracefully.
-      .catch((err: Error) => { if (active) setError(err.message) })
-    return () => { active = false }
-  }, [workspaceId, period, refreshTick])
+export function PerformanceDashboard({ workspaceId }: { workspaceId: string }) {
+  const [period, setPeriod]   = useState(30)
+  const [syncing, setSyncing] = useState(false)
+
+  // useSWR replaces the previous fetch-on-mount effect keyed on
+  // [workspaceId, period, refreshTick]. `keepPreviousData: true` reproduces
+  // the original's exact stale-while-revalidate feel: switching between the
+  // 7d/30d/90d tabs kept showing the previous period's numbers until the new
+  // ones arrived rather than flashing back to skeletons (the old effect never
+  // reset `data` before re-fetching) -- and tabbing back to an already-loaded
+  // period is now served instantly from SWR's cache instead of re-fetching.
+  const { data, error, isLoading, mutate } = useSWR<AnalyticsData>(
+    `/api/analytics?workspaceId=${workspaceId}&period=${period}&tzOffset=${TZ_OFFSET}`,
+    analyticsFetcher,
+    { keepPreviousData: true },
+  )
+  const loading = isLoading
 
   async function handleSync() {
     setSyncing(true)
@@ -119,7 +120,9 @@ export function PerformanceDashboard({ workspaceId }: { workspaceId: string }) {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ workspaceId }),
       })
-      setRefresh(t => t + 1)
+      // Revalidate the current period's key in place of the old
+      // refreshTick-bump trick that forced the fetch effect to re-run.
+      await mutate()
     } finally {
       setSyncing(false)
     }
@@ -157,7 +160,7 @@ export function PerformanceDashboard({ workspaceId }: { workspaceId: string }) {
       {error ? (
         <div className="rounded-xl border border-background-border bg-background-secondary p-6 text-center space-y-1">
           <p className="font-sans text-sm text-status-error">Couldn&apos;t load analytics — try refreshing</p>
-          <p className="font-sans text-xs text-text-tertiary">{error}</p>
+          <p className="font-sans text-xs text-text-tertiary">{error.message}</p>
         </div>
       ) : (
       <>
@@ -232,7 +235,7 @@ export function PerformanceDashboard({ workspaceId }: { workspaceId: string }) {
                 <div key={post.id} className="rounded-lg border border-background-border bg-background-tertiary p-3 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-mono text-xs px-1.5 py-0.5 rounded bg-background-hover border border-background-border-mid text-text-tertiary">
-                      {PLATFORM_LABELS[post.platform] ?? post.platform}
+                      {getPlatformShortLabel(post.platform as Platform)}
                     </span>
                     <div className="flex items-center gap-3 font-sans text-xs text-text-tertiary">
                       <span className="flex items-center gap-1"><Eye size={12} strokeWidth={1.5} />{post.reach.toLocaleString()}</span>

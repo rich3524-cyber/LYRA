@@ -7,11 +7,12 @@ import { format, differenceInDays } from 'date-fns'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { APPROVER_ROLES } from '@/lib/authz'
+import type { Platform, ClientAccess } from '@prisma/client'
+import { getPlatformShortLabel, getPlatformColor } from '@/lib/platform-labels'
+import { canSelfApprove, resolveApprovalTransition } from '@/services/posts/post-lifecycle'
 import {
   CalendarPost,
   PostBoost,
-  PLATFORM_LABELS,
-  PLATFORM_COLORS,
   STATUS_COLORS,
 } from './post-preview-card'
 
@@ -47,19 +48,20 @@ export function getNextStatuses(
   const hasApprovalFlow = clientAccessLevel === 'APPROVE'
 
   const options = (() => {
-    // Mirrors the backend's conditional self-approval rule
-    // (app/api/posts/[id]/route.ts): the author can't approve their own post
+    // Mirrors the shared post-lifecycle module's self-approval rule
+    // (services/posts/post-lifecycle.ts, also used by
+    // app/api/posts/[id]/route.ts): the author can't approve their own post
     // when someone else on the workspace genuinely could, so that case only
     // offers the non-approval action -- no button is shown that's known to
     // fail with 403. When no other approver exists anywhere on the
     // workspace, self-approval is allowed but the label makes explicit that
     // no real second-party review is happening.
-    if (status === 'PENDING_APPROVAL' && canApprove && isAuthor && hasOtherApprover) {
-      return [
-        { value: 'DRAFT', label: 'Recall for editing' },
-      ]
-    }
-    if (status === 'PENDING_APPROVAL' && canApprove && isAuthor && !hasOtherApprover) {
+    if (status === 'PENDING_APPROVAL' && canApprove && isAuthor) {
+      if (!canSelfApprove({ isAuthor, hasOtherApprover })) {
+        return [
+          { value: 'DRAFT', label: 'Recall for editing' },
+        ]
+      }
       return [
         { value: 'APPROVED', label: 'Approve (no other reviewer available)', variant: 'approve' as const },
         { value: 'DRAFT',    label: 'Request changes',                      variant: 'reject'  as const },
@@ -80,11 +82,44 @@ export function getNextStatuses(
     if (userRole === 'CLIENT_APPROVE') return []
 
     switch (status) {
-      case 'DRAFT':
+      case 'DRAFT': {
+        // "Mark as scheduled" would silently be redirected server-side to
+        // PENDING_APPROVAL whenever the workspace requires client approval
+        // (see resolveApprovalTransition in services/posts/post-lifecycle.ts)
+        // -- showing it alongside "Submit for approval" as if it were a
+        // distinct, faster action was misleading. Calling the shared
+        // function here (rather than hardcoding hasApprovalFlow directly)
+        // means a future change to that rule is inherited automatically
+        // instead of silently drifting again.
+        //
+        // requiresMedia/hasMedia are derived from isAwaitingMedia (this
+        // post's real media state) even though -- like contentChanged and
+        // hasScheduledAt below -- they're inert for this specific call:
+        // resolveApprovalTransition's isApprovingReadyPost shortcut only
+        // fires for requestedStatus 'APPROVED', never true here (this call
+        // always asks about 'SCHEDULED'), so requiresMedia/hasMedia/
+        // hasScheduledAt are never consulted; and the content-changed
+        // exemption clause only applies when existingStatus is 'APPROVED',
+        // never true here either (existingStatus is hardcoded 'DRAFT'), so
+        // contentChanged is never consulted. None of these four values
+        // change the outcome of this call -- see the spec-review trace on
+        // this commit for the full proof, or
+        // docs/superpowers/specs/2026-08-14-post-lifecycle-extraction-design.md.
+        const wouldNeedApproval = resolveApprovalTransition({
+          requestedStatus:    'SCHEDULED',
+          existingStatus:     'DRAFT',
+          clientAccessLevel:  clientAccessLevel as ClientAccess,
+          contentChanged:     false,
+          requiresMedia:      isAwaitingMedia,
+          hasMedia:           !isAwaitingMedia,
+          hasScheduledAt:     true,
+        }) === 'PENDING_APPROVAL'
+
         return [
           ...(hasApprovalFlow ? [{ value: 'PENDING_APPROVAL', label: 'Submit for approval' }] : []),
-          { value: 'SCHEDULED', label: 'Mark as scheduled' },
+          ...(wouldNeedApproval ? [] : [{ value: 'SCHEDULED', label: 'Mark as scheduled' }]),
         ]
+      }
       case 'PENDING_APPROVAL':
         // Reached only when canApprove is false -- i.e. CLIENT_VIEW, the
         // read-only role, which shouldn't be able to act on posts at all.
@@ -273,7 +308,7 @@ export function PostDetailPanel({ post, workspaceId, plan, userRole, clientAcces
   }
 
   const date           = post?.scheduledAt
-  const platformColor  = post ? (PLATFORM_COLORS[post.socialAccount.platform] ?? PLATFORM_COLORS['TWITTER']) : PLATFORM_COLORS['TWITTER']
+  const platformColor  = getPlatformColor((post?.socialAccount.platform ?? 'TWITTER') as Platform)
   const isAwaitingMedia = post ? post.requiresMedia && post.mediaUrls.length === 0 : false
   // Derived server-side in GET /api/posts from the same rule the SLA cron uses.
   const isApprovalOverdue = post?.approvalOverdue === true
@@ -329,7 +364,7 @@ export function PostDetailPanel({ post, workspaceId, plan, userRole, clientAcces
                   aria-hidden="true"
                 />
                 <span className="font-sans text-xs text-text-secondary truncate">
-                  {PLATFORM_LABELS[post.socialAccount.platform] ?? post.socialAccount.platform}
+                  {getPlatformShortLabel(post.socialAccount.platform as Platform)}
                   {' · '}
                   {post.socialAccount.name}
                 </span>

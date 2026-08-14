@@ -22,7 +22,9 @@ import { useDroppable } from '@dnd-kit/core'
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from 'lucide-react'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
-import { PostPreviewCard, CalendarPost, PLATFORM_COLORS, PLATFORM_LABELS } from './post-preview-card'
+import type { Platform } from '@prisma/client'
+import { getPlatformShortLabel, getPlatformColor } from '@/lib/platform-labels'
+import { PostPreviewCard, CalendarPost } from './post-preview-card'
 import { PostDetailPanel } from './post-detail-panel'
 import { EmailCampaignCard, CalendarEmailCampaign } from './email-campaign-card'
 import { cn } from '@/lib/utils'
@@ -94,14 +96,14 @@ function DayCell({
         {platforms.length > 0 && (
           <div
             className="flex items-center gap-0.5"
-            aria-label={`Platforms: ${platforms.map((p) => PLATFORM_LABELS[p] ?? p).join(', ')}`}
+            aria-label={`Platforms: ${platforms.map((p) => getPlatformShortLabel(p as Platform)).join(', ')}`}
           >
             {platforms.map((platform) => (
               <span
                 key={platform}
                 className="rounded-full shrink-0"
-                style={{ width: 6, height: 6, backgroundColor: PLATFORM_COLORS[platform] ?? PLATFORM_COLORS['TWITTER'] }}
-                title={PLATFORM_LABELS[platform] ?? platform}
+                style={{ width: 6, height: 6, backgroundColor: getPlatformColor(platform as Platform) }}
+                title={getPlatformShortLabel(platform as Platform)}
                 aria-hidden="true"
               />
             ))}
@@ -395,7 +397,7 @@ export function ContentCalendar({ workspaceId, plan, userRole, clientAccessLevel
                           >
                             <span
                               className="rounded-full shrink-0"
-                              style={{ width: 8, height: 8, backgroundColor: PLATFORM_COLORS[post.socialAccount.platform] ?? PLATFORM_COLORS['TWITTER'] }}
+                              style={{ width: 8, height: 8, backgroundColor: getPlatformColor(post.socialAccount.platform as Platform) }}
                               aria-hidden="true"
                             />
                             {post.scheduledAt && (

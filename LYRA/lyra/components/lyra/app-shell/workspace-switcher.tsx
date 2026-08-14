@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import useSWR from 'swr'
 import { Check, ChevronsUpDown, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -25,8 +26,6 @@ interface Workspace {
 
 export function WorkspaceSwitcher({ workspaceId }: { workspaceId: string }) {
   const [open, setOpen] = useState(false)
-  const [workspaces, setWorkspaces] = useState<Workspace[]>([])
-  const [current, setCurrent] = useState<Workspace | null>(null)
   const router = useRouter()
   const pathname = usePathname()
 
@@ -34,17 +33,15 @@ export function WorkspaceSwitcher({ workspaceId }: { workspaceId: string }) {
   // so we can't rely on the prop when the user has switched workspaces.
   const activeWorkspaceId = pathname.match(/\/workspace\/([^/]+)/)?.[1] ?? workspaceId
 
-  useEffect(() => {
-    fetch('/api/workspaces')
-      .then((r) => r.json())
-      .then((data: Workspace[]) => {
-        setWorkspaces(data)
-        setCurrent(data.find((w) => w.id === activeWorkspaceId) ?? null)
-      })
-      .catch(() => {
-        // Silently ignore — workspaces API not yet configured
-      })
-  }, [activeWorkspaceId])
+  // useSWR (global fetcher + defaults from SWRProvider) replaces the previous
+  // fetch-on-mount effect. This component only renders `!isCollapsed`
+  // (sidebar.tsx) -- collapsing and re-expanding the sidebar previously
+  // remounted it and re-triggered a fresh `/api/workspaces` GET every time;
+  // SWR now serves that from cache instead. Errors are silently ignored
+  // (same as the original .catch), leaving `workspaces` empty rather than
+  // surfacing a toast for what's a secondary nav affordance.
+  const { data: workspaces = [] } = useSWR<Workspace[]>('/api/workspaces')
+  const current = workspaces.find((w) => w.id === activeWorkspaceId) ?? null
 
   return (
     <Popover open={open} onOpenChange={setOpen}>

@@ -6,6 +6,8 @@ import { PostPreview } from './post-preview'
 import { DraftList } from './draft-list'
 import { cn } from '@/lib/utils'
 import type { PostingPatterns } from '@/services/ai/engagement-analyzer'
+import type { Platform } from '@prisma/client'
+import { getPlatformLabel } from '@/lib/platform-labels'
 
 export interface EditingPost {
   id: string
@@ -100,7 +102,7 @@ export function ComposeClient({ workspaceId, connectedPlatforms, postingPatterns
                       : 'border-background-border text-text-tertiary hover:text-text-secondary'
                   )}
                 >
-                  {p.charAt(0) + p.slice(1).toLowerCase().replace('_', ' ')}
+                  {getPlatformLabel(p as Platform)}
                 </button>
               ))}
             </div>

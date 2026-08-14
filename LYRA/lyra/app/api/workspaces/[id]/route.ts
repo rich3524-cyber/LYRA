@@ -1,13 +1,37 @@
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import type { UserRole } from '@prisma/client'
+import { ClientAccess, Autonomy, type UserRole } from '@prisma/client'
+import { parseBody, ValidationError } from '@/lib/validate'
 
 // Settings changes and deletion are owner-level actions -- previously gated on
 // mere membership, so any role including a read-only CLIENT_VIEW could delete
 // or reconfigure the whole workspace. GET (viewing) intentionally stays
 // membership-only; only PATCH/DELETE pass `roles`.
 const OWNER_ROLES: UserRole[] = ['AGENCY_ADMIN', 'SMB_OWNER']
+
+// approvalSlaHours/approvalSlaUnscheduledHours keep their existing manual
+// SLA_BOUNDS check below (whole hours, 1-720) with its field-specific error
+// message untouched -- the schema here only guarantees they arrive as
+// *numbers* (not a string/object/array, which previously reached
+// Number.isInteger() safely anyway but would have hit Prisma raw on some
+// other malformed shape downstream). clientAccessLevel and aiResponseMode
+// gate real authorization/plan behavior (what a CLIENT_VIEW user can do;
+// whether AI replies autonomously) so an invalid value must be rejected
+// rather than passed through to Prisma, which previously threw a raw 500 on
+// an enum violation.
+const patchWorkspaceSchema = z.object({
+  name:                        z.string().optional(),
+  industry:                    z.string().nullish(),
+  websiteUrl:                  z.string().nullish(),
+  clientAccessLevel:           z.nativeEnum(ClientAccess).optional(),
+  aiResponseMode:              z.nativeEnum(Autonomy).optional(),
+  crisisAware:                 z.boolean().optional(),
+  timezone:                    z.string().optional(),
+  approvalSlaHours:            z.number().optional(),
+  approvalSlaUnscheduledHours: z.number().optional(),
+})
 
 async function getWorkspaceForUser(id: string, userId: string, roles?: UserRole[]) {
   return prisma.workspace.findFirst({
@@ -59,11 +83,10 @@ export async function PATCH(
       return NextResponse.json({ error: 'Workspace not found' }, { status: 404 })
     }
 
-    const body = await req.json()
     const {
       name, industry, websiteUrl, clientAccessLevel, aiResponseMode, crisisAware, timezone,
       approvalSlaHours, approvalSlaUnscheduledHours,
-    } = body
+    } = await parseBody(req, patchWorkspaceSchema)
 
     // Approval SLA thresholds are whole hours within a sane range. Validated
     // rather than passed through: these are Int columns, so a non-integer or a
@@ -113,6 +136,10 @@ export async function PATCH(
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    if (error instanceof ValidationError) {
+      console.error('PATCH /api/workspaces/[id] validation failed:', error.issues)
+      return NextResponse.json({ error: error.message }, { status: 400 })
     }
     console.error('PATCH /api/workspaces/[id] error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

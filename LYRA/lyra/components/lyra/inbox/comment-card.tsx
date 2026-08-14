@@ -2,6 +2,8 @@
 import { memo, useState } from 'react'
 import { toast } from 'sonner'
 import { AlertTriangle, CheckCheck, EyeOff, Sparkles, Loader2 } from 'lucide-react'
+import type { Platform } from '@prisma/client'
+import { getPlatformShortLabel } from '@/lib/platform-labels'
 
 interface CommentData {
   id:                string
@@ -15,11 +17,6 @@ interface CommentData {
   escalationReason?: string | null
   createdAt:         string
   socialAccount:     { platform: string; name: string }
-}
-
-const PLATFORM_LABELS: Record<string, string> = {
-  FACEBOOK: 'FB', INSTAGRAM: 'IG', LINKEDIN: 'LI',
-  TIKTOK: 'TT', TWITTER: 'X', GOOGLE_BUSINESS: 'GBP',
 }
 
 const SENTIMENT_COLOURS: Record<string, string> = {
@@ -193,7 +190,7 @@ export const CommentCard = memo(function CommentCard({
             </span>
           )}
           <span className="text-xs px-1.5 py-0.5 rounded bg-background-hover border border-background-border-mid text-text-secondary font-mono">
-            {PLATFORM_LABELS[comment.socialAccount.platform] ?? comment.socialAccount.platform}
+            {getPlatformShortLabel(comment.socialAccount.platform as Platform)}
           </span>
         </div>
       </div>

@@ -5,6 +5,8 @@ import { RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import type { PostingPatterns, PostingSlot } from '@/services/ai/engagement-analyzer'
+import type { Platform } from '@prisma/client'
+import { getPlatformLabel } from '@/lib/platform-labels'
 
 interface Props {
   workspaceId: string
@@ -81,10 +83,6 @@ function timeAgo(iso: string): string {
   return `${Math.floor(h / 24)}d ago`
 }
 
-function platformLabel(p: string): string {
-  return p.charAt(0) + p.slice(1).toLowerCase().replace('_', ' ')
-}
-
 export function EngagementInsights({
   workspaceId,
   postingPatterns: initialPatterns,
@@ -159,7 +157,7 @@ export function EngagementInsights({
               return (
                 <div key={platform} className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <span className="font-sans text-xs text-text-secondary">{platformLabel(platform)}</span>
+                    <span className="font-sans text-xs text-text-secondary">{getPlatformLabel(platform as Platform)}</span>
                     <span className="font-mono text-xs text-text-tertiary tabular-nums">
                       {count} of {THRESHOLD} posts
                     </span>
@@ -199,7 +197,7 @@ export function EngagementInsights({
                         : 'border border-background-border text-text-tertiary cursor-not-allowed opacity-50'
                   }`}
                 >
-                  {platformLabel(platform)}
+                  {getPlatformLabel(platform as Platform)}
                   {!hasData && (
                     <span className="ml-1 text-[10px]">({count}/{THRESHOLD})</span>
                   )}

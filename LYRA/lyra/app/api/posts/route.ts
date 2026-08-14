@@ -1,12 +1,14 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { PostStatus, Platform, ApprovalStatus } from '@prisma/client'
+import { PostStatus, Platform } from '@prisma/client'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { parseBody, ValidationError } from '@/lib/validate'
 import { checkMediaCompatibility, formatCompatibilityIssue } from '@/services/social/media-compatibility'
 import { canWrite } from '@/lib/authz'
 import { isApprovalOverdue } from '@/services/notifications/approval-sla'
+import { resolveCreateStatus } from '@/services/posts/post-lifecycle'
+import { buildApprovalCreateInput } from '@/services/posts/post-approval-bookkeeping'
 
 export const dynamic = 'force-dynamic'
 
@@ -174,10 +176,7 @@ export async function POST(req: Request) {
     // papered over by the UI (components/lyra/calendar/*) only ever
     // offering the "correct" status transition to a thoughtful human;
     // nothing server-side enforced it.
-    const finalStatus: PostStatus =
-      resolvedStatus === 'SCHEDULED' && access.workspace.clientAccessLevel === 'APPROVE'
-        ? 'PENDING_APPROVAL'
-        : resolvedStatus
+    const finalStatus = resolveCreateStatus(resolvedStatus, access.workspace.clientAccessLevel)
 
     // Find connected social accounts for the requested platforms
     const socialAccounts = await prisma.socialAccount.findMany({
@@ -195,17 +194,16 @@ export async function POST(req: Request) {
 
     // A post created straight into PENDING_APPROVAL needs its PostApproval row
     // here. PATCH /api/posts/[id] creates one on the "Submit for approval"
-    // transition, but nothing did for a post that lands in approval at
-    // creation time -- and the SLA cron filters on the related approval row,
-    // so those posts were invisible to approval-overdue alerting entirely
-    // (confirmed against production: every pending post had no approval row).
-    // The overdue *badge* still showed, since it derives from scheduledAt, so
-    // the badge and the alert silently disagreed.
+    // transition (see upsertApprovalOnTransition in
+    // services/posts/post-approval-bookkeeping.ts), but nothing did for a post
+    // that lands in approval at creation time -- and the SLA cron filters on
+    // the related approval row, so those posts were invisible to
+    // approval-overdue alerting entirely (confirmed against production: every
+    // pending post had no approval row). The overdue *badge* still showed,
+    // since it derives from scheduledAt, so the badge and the alert silently
+    // disagreed.
     const submittedAt = new Date()
-    const approvalCreate =
-      finalStatus === 'PENDING_APPROVAL'
-        ? { approval: { create: { status: ApprovalStatus.PENDING, submittedAt } } }
-        : {}
+    const approvalCreate = buildApprovalCreateInput(finalStatus, submittedAt)
 
     // Create one Post per social account
     const posts = await prisma.$transaction(

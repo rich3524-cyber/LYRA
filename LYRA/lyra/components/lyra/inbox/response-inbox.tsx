@@ -1,5 +1,6 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
+import useSWR from 'swr'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CommentCard } from './comment-card'
 
@@ -14,6 +15,8 @@ import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
+import type { Platform } from '@prisma/client'
+import { getPlatformShortLabel } from '@/lib/platform-labels'
 
 interface CommentData {
   id:                string
@@ -27,11 +30,6 @@ interface CommentData {
   escalationReason?: string | null
   createdAt:         string
   socialAccount:     { platform: string; name: string }
-}
-
-const PLATFORM_LABELS: Record<string, string> = {
-  FACEBOOK: 'FB', INSTAGRAM: 'IG', LINKEDIN: 'LI',
-  TIKTOK: 'TT', TWITTER: 'X', GOOGLE_BUSINESS: 'GBP',
 }
 
 function CountBadge({ count, variant }: { count: number; variant?: 'warning' | 'default' }) {
@@ -64,11 +62,29 @@ export function ResponseInbox({
   aiResponseMode:  'OFF' | 'DRAFT_APPROVE' | 'FULL'
   plan:            'STARTER' | 'PRO' | 'AGENCY'
 }) {
-  const [comments, setComments]             = useState<CommentData[]>([])
-  const [loading, setLoading]               = useState(true)
-  const [error, setError]                   = useState<string | null>(null)
   const [platformFilter, setPlatformFilter] = useState<string>('ALL')
   const [syncing, setSyncing] = useState(false)
+
+  // useSWR replaces the previous fetch-on-mount effect. Comments are keyed on
+  // workspaceId the same way the old effect's dependency array was, and
+  // revalidateOnFocus (SWRConfig default, see swr-provider.tsx) means
+  // tabbing back into the browser now refreshes the inbox for free, which
+  // the old effect never did on its own.
+  const {
+    data: comments = [],
+    isLoading: loading,
+    error,
+    mutate,
+  } = useSWR<CommentData[]>(
+    `/api/comments?workspaceId=${workspaceId}`,
+    async (url: string) => {
+      const r = await fetch(url)
+      if (!r.ok) throw new Error('Failed to load comments')
+      const data: unknown = await r.json()
+      if (!Array.isArray(data)) throw new Error('Unexpected response shape')
+      return data as CommentData[]
+    },
+  )
 
   async function handleSync() {
     setSyncing(true)
@@ -81,11 +97,20 @@ export function ResponseInbox({
       const data = await res.json() as { synced?: number; error?: string }
       if (!res.ok) throw new Error(data.error ?? 'Sync failed')
       toast.success(data.synced ? `${data.synced} new comment${data.synced !== 1 ? 's' : ''} synced.` : 'No new comments.')
-      // Reload comments
-      const r2 = await fetch(`/api/comments?workspaceId=${workspaceId}`)
-      if (r2.ok) {
-        const d2 = await r2.json() as unknown
-        if (Array.isArray(d2)) setComments(d2 as CommentData[])
+      // Reload comments straight into the SWR cache (mutate with an explicit
+      // value, no revalidation) rather than `mutate()`'s revalidate-via-fetcher
+      // -- a failed reload here should silently keep showing the list from
+      // before the sync, exactly like the original's plain `if (r2.ok)` check,
+      // not surface the "Comments failed to load" error banner over data
+      // that's still perfectly valid.
+      try {
+        const r2 = await fetch(`/api/comments?workspaceId=${workspaceId}`)
+        if (r2.ok) {
+          const d2 = await r2.json() as unknown
+          if (Array.isArray(d2)) await mutate(d2 as CommentData[], false)
+        }
+      } catch {
+        // Silently ignore -- keep showing the list from before the sync
       }
     } catch (err) {
       // Was a hardcoded "check your Facebook connection" regardless of what
@@ -100,22 +125,6 @@ export function ResponseInbox({
     }
   }
 
-  useEffect(() => {
-    setLoading(true)
-    setError(null)
-    fetch(`/api/comments?workspaceId=${workspaceId}`)
-      .then(r => {
-        if (!r.ok) throw new Error('Failed to load comments')
-        return r.json()
-      })
-      .then((data: unknown) => {
-        if (!Array.isArray(data)) throw new Error('Unexpected response shape')
-        setComments(data as CommentData[])
-      })
-      .catch(() => setError('Comments failed to load. Refresh to try again.'))
-      .finally(() => setLoading(false))
-  }, [workspaceId])
-
   const platforms = [...new Set(comments.map(c => c.socialAccount.platform))]
   const filtered  = platformFilter === 'ALL'
     ? comments
@@ -125,14 +134,21 @@ export function ResponseInbox({
   const escalated = filtered.filter(c => c.status === 'ESCALATED')
   const responded = filtered.filter(c => c.status === 'RESPONDED')
 
+  // Local-only cache patch (no revalidation) when a child CommentCard finishes
+  // an action -- same as the original's setComments updater, just against the
+  // SWR cache instead of local state so this list and any other reader of the
+  // same `/api/comments?workspaceId=...` key stay in sync.
   const handleUpdate = useCallback((id: string, newStatus: string) => {
-    setComments(prev => prev.map(c => c.id === id ? { ...c, status: newStatus } : c))
-  }, [])
+    mutate(
+      (current) => current?.map(c => c.id === id ? { ...c, status: newStatus } : c),
+      false,
+    )
+  }, [mutate])
 
   return (
     <div className="space-y-4">
       {error && (
-        <p role="alert" className="text-sm text-status-error text-center py-6">{error}</p>
+        <p role="alert" className="text-sm text-status-error text-center py-6">Comments failed to load. Refresh to try again.</p>
       )}
 
       {/* Platform filter + sync */}
@@ -153,7 +169,7 @@ export function ResponseInbox({
                     : 'bg-background-secondary border-background-border text-text-secondary hover:border-background-border-mid'
                 }`}
               >
-                {p === 'ALL' ? 'All' : (PLATFORM_LABELS[p] ?? p)}
+                {p === 'ALL' ? 'All' : getPlatformShortLabel(p as Platform)}
               </button>
             ))}
           </div>
