@@ -1,0 +1,169 @@
+name: Config Drift Check
+
+# Detects when a Railway service's dashboard-configured Start Command has
+# silently diverged from LYRA/lyra/railway.toml.
+#
+# Why this exists: on 2026-08-13, the main `LYRA` Railway service's Start
+# Command was accidentally overwritten in the Railway dashboard (a paste
+# landed on the wrong service while configuring the 5 cron-* services next
+# to it). It crash-looped for ~15 minutes before a human happened to notice
+# -- there was no automated alert. See LYRA-Handover.md's "Cron jobs
+# migrated from cron-job.org to Railway" entry for the full story. This
+# workflow is the automated check that incident was missing.
+#
+# Scope (v1): only the main `LYRA` service's startCommand, which is the one
+# value that's genuinely comparable today (declared in railway.toml AND
+# live-readable from Railway). The 5 separate cron-* services' schedules are
+# configured only in the Railway dashboard's Cron Schedule field today, with
+# no repo-side declaration to diff against yet -- see
+# LYRA/lyra/railway-cron-services.json for a scaffold to extend this check
+# once those schedules are confirmed and recorded for real.
+
+on:
+  schedule:
+    # Daily. Offset a few minutes past the hour (rather than exactly on the
+    # hour, like crons.yml's own hourly job) to avoid piling onto GitHub's
+    # scheduling load at :00 -- this workflow isn't time-sensitive.
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-main-service-start-command:
+    name: Check LYRA service Start Command vs railway.toml
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify RAILWAY_TOKEN secret is configured
+        env:
+          TOKEN_CHECK: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          if [ -z "$TOKEN_CHECK" ]; then
+            echo "::error::RAILWAY_TOKEN repository secret is not set."
+            echo "::error::This workflow needs a Railway Account (or Team) API token with read access, to query the live service config via Railway's GraphQL API (https://backboard.railway.com/graphql/v2)."
+            echo "::error::Create one at https://railway.com/account/tokens, then add it as a repository secret named RAILWAY_TOKEN under this repo's Settings -> Secrets and variables -> Actions -> New repository secret."
+            echo "::error::(A project-scoped token will NOT work here -- this check needs to look up the project/service/environment by name first, which requires an account- or team-level token.)"
+            exit 1
+          fi
+          echo "RAILWAY_TOKEN is set."
+
+      - name: Extract declared startCommand from railway.toml
+        id: declared
+        run: |
+          set -euo pipefail
+          FILE="LYRA/lyra/railway.toml"
+          if [ ! -f "$FILE" ]; then
+            echo "::error::$FILE not found -- cannot compare against a declared value. Did the file move?"
+            exit 1
+          fi
+
+          VALUE=$(grep -E '^\s*startCommand\s*=' "$FILE" | head -1 | sed -E 's/^[^"]*"([^"]*)".*$/\1/')
+          if [ -z "$VALUE" ]; then
+            echo "::error::No startCommand line found in $FILE (expected a line like startCommand = \"...\" under [deploy]). Check the file's format hasn't changed."
+            exit 1
+          fi
+
+          echo "value=$VALUE" >> "$GITHUB_OUTPUT"
+          echo "Declared startCommand ($FILE): $VALUE"
+
+      - name: Fetch actual startCommand from Railway
+        id: actual
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          # Override these via repo Settings -> Secrets and variables ->
+          # Actions -> Variables if the Railway project/service/environment
+          # names differ from what's assumed here.
+          RAILWAY_PROJECT_NAME: ${{ vars.RAILWAY_PROJECT_NAME || 'LYRA' }}
+          RAILWAY_SERVICE_NAME: ${{ vars.RAILWAY_SERVICE_NAME || 'LYRA' }}
+          RAILWAY_ENVIRONMENT_NAME: ${{ vars.RAILWAY_ENVIRONMENT_NAME || 'production' }}
+        run: |
+          set -euo pipefail
+          API="https://backboard.railway.com/graphql/v2"
+
+          # Step 1: resolve the project/service/environment IDs by name.
+          # (Railway's serviceInstance query needs IDs, not names, and IDs
+          # aren't recorded anywhere in this repo -- so we look them up by
+          # name every run rather than hardcoding IDs that could themselves
+          # go stale.)
+          RESOLVE_QUERY='query { projects { edges { node { id name environments { edges { node { id name } } } services { edges { node { id name } } } } } } }'
+          RESOLVE_BODY=$(jq -n --arg q "$RESOLVE_QUERY" '{query: $q}')
+          RESOLVE_RESP=$(curl -sS -X POST "$API" \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$RESOLVE_BODY")
+
+          if echo "$RESOLVE_RESP" | jq -e '.errors' >/dev/null 2>&1; then
+            echo "::error::Railway API returned an error while resolving project/service/environment IDs:"
+            echo "$RESOLVE_RESP" | jq -c '.errors'
+            exit 1
+          fi
+
+          PROJECT_NODE=$(echo "$RESOLVE_RESP" | jq -c --arg name "$RAILWAY_PROJECT_NAME" \
+            '[.data.projects.edges[].node | select(.name == $name)][0]')
+          if [ -z "$PROJECT_NODE" ] || [ "$PROJECT_NODE" = "null" ]; then
+            echo "::error::No Railway project named '$RAILWAY_PROJECT_NAME' was visible to this token."
+            echo "::error::If the project has a different name, set a repository variable RAILWAY_PROJECT_NAME (Settings -> Secrets and variables -> Actions -> Variables) to match. Otherwise confirm the token's account has access to this project."
+            exit 1
+          fi
+
+          SERVICE_ID=$(echo "$PROJECT_NODE" | jq -r --arg name "$RAILWAY_SERVICE_NAME" \
+            '[.services.edges[].node | select(.name == $name) | .id][0] // empty')
+          ENVIRONMENT_ID=$(echo "$PROJECT_NODE" | jq -r --arg name "$RAILWAY_ENVIRONMENT_NAME" \
+            '[.environments.edges[].node | select(.name == $name) | .id][0] // empty')
+
+          if [ -z "$SERVICE_ID" ]; then
+            echo "::error::No service named '$RAILWAY_SERVICE_NAME' found in Railway project '$RAILWAY_PROJECT_NAME'."
+            echo "::error::Available services: $(echo "$PROJECT_NODE" | jq -c '[.services.edges[].node.name]')"
+            echo "::error::Set the RAILWAY_SERVICE_NAME repository variable if it's named differently."
+            exit 1
+          fi
+          if [ -z "$ENVIRONMENT_ID" ]; then
+            echo "::error::No environment named '$RAILWAY_ENVIRONMENT_NAME' found in Railway project '$RAILWAY_PROJECT_NAME'."
+            echo "::error::Available environments: $(echo "$PROJECT_NODE" | jq -c '[.environments.edges[].node.name]')"
+            echo "::error::Set the RAILWAY_ENVIRONMENT_NAME repository variable if it's named differently."
+            exit 1
+          fi
+
+          # Step 2: fetch the live startCommand for that service+environment.
+          INSTANCE_QUERY='query serviceInstance($serviceId: String!, $environmentId: String!) { serviceInstance(serviceId: $serviceId, environmentId: $environmentId) { startCommand } }'
+          INSTANCE_BODY=$(jq -n --arg q "$INSTANCE_QUERY" --arg sid "$SERVICE_ID" --arg eid "$ENVIRONMENT_ID" \
+            '{query: $q, variables: {serviceId: $sid, environmentId: $eid}}')
+          INSTANCE_RESP=$(curl -sS -X POST "$API" \
+            -H "Authorization: Bearer $RAILWAY_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$INSTANCE_BODY")
+
+          if echo "$INSTANCE_RESP" | jq -e '.errors' >/dev/null 2>&1; then
+            echo "::error::Railway API returned an error while fetching the service instance:"
+            echo "$INSTANCE_RESP" | jq -c '.errors'
+            exit 1
+          fi
+
+          ACTUAL=$(echo "$INSTANCE_RESP" | jq -r '.data.serviceInstance.startCommand // empty')
+          if [ -z "$ACTUAL" ]; then
+            echo "::error::Railway returned an empty startCommand for service '$RAILWAY_SERVICE_NAME'."
+            echo "::error::This can mean Railway is relying on an auto-detected start command rather than an explicit one, or the query above no longer matches Railway's schema -- check Settings -> Deploy for this service in the Railway dashboard manually."
+            exit 1
+          fi
+
+          echo "value=$ACTUAL" >> "$GITHUB_OUTPUT"
+          echo "Actual startCommand (Railway, live): $ACTUAL"
+
+      - name: Compare declared vs actual
+        run: |
+          DECLARED="${{ steps.declared.outputs.value }}"
+          ACTUAL="${{ steps.actual.outputs.value }}"
+
+          if [ "$DECLARED" != "$ACTUAL" ]; then
+            echo "::error::CONFIG DRIFT DETECTED on the main LYRA Railway service's Start Command."
+            echo "::error::  railway.toml declares:        $DECLARED"
+            echo "::error::  Railway's live dashboard has:  $ACTUAL"
+            echo "::error::This is the same class of drift that caused a ~15 minute production crash-loop on 2026-08-13 (see LYRA-Handover.md). Fix by resetting the Start Command in Railway's dashboard (service -> Settings -> Deploy) to match railway.toml, or by updating railway.toml if the dashboard value is the intended one."
+            exit 1
+          fi
+
+          echo "No drift: railway.toml and Railway's live config agree on startCommand: $DECLARED"
