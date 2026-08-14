@@ -67,5 +67,16 @@ Return ONLY valid JSON — no markdown, no commentary:
   })
 
   const text = extractClaudeText(response)
-  return JSON.parse(text) as GeneratedSeoContent
+  const parsed = JSON.parse(text) as GeneratedSeoContent
+
+  if (
+    typeof parsed.metaTitle !== 'string' ||
+    typeof parsed.metaDescription !== 'string' ||
+    typeof parsed.h1 !== 'string' ||
+    typeof parsed.intro !== 'string'
+  ) {
+    throw new Error('Invalid SEO content response shape')
+  }
+
+  return parsed
 }
