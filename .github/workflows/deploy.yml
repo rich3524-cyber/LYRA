@@ -1,16 +1,23 @@
 name: Deploy LYRA
 
+# Path filter widened from a single 'deploy.yml' entry to the whole
+# '.github/workflows/**' directory (2026-08-14): branch protection requires
+# this workflow's 3 jobs to pass before merge, but a PR that only adds/edits
+# OTHER workflow files (e.g. secret-scan.yml, config-drift.yml) previously
+# never triggered this file at all -- the required checks would simply never
+# appear, permanently blocking merge with no failure to fix. Discovered via
+# PR #24 (adding secret-scan.yml) getting stuck exactly this way.
 on:
   push:
     branches: [main]
     paths:
       - 'LYRA/lyra/**'
-      - '.github/workflows/deploy.yml'
+      - '.github/workflows/**'
   pull_request:
     branches: [main]
     paths:
       - 'LYRA/lyra/**'
-      - '.github/workflows/deploy.yml'
+      - '.github/workflows/**'
 
 env:
   # Bumped from 20 -> 22 (2026-08-14): several dependencies now declare
