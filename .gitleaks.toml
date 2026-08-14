@@ -1,0 +1,17 @@
+title = "LYRA gitleaks config"
+
+# Extends gitleaks' own default ruleset (the same one that ran with no config
+# file present before this was added) rather than replacing it.
+[extend]
+useDefault = true
+
+# .gitleaksignore's own content is self-referential: each fingerprint line
+# names the rule it suppresses (e.g. "...:stripe-access-token:67"), and that
+# rule name sitting next to a 40-char commit hash is itself enough to trip
+# the same rule against the ignore file -- gitleaks scans .gitleaksignore as
+# an ordinary tracked file, and only its ENTRIES suppress OTHER findings, not
+# its own literal content. Excluding it here is the standard fix.
+[allowlist]
+paths = [
+  '''\.gitleaksignore$''',
+]
