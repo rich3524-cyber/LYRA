@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { decrypt } from '@/lib/encrypt'
-import { createBoost, cancelBoost } from '@/services/social/meta-ads'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
+import {
+  validateBoostRequest,
+  checkBoostEligibility,
+  createPostBoost,
+  checkCancelEligibility,
+  cancelPostBoost,
+} from '@/services/posts/boost'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,24 +32,12 @@ export async function POST(req: Request, { params }: RouteContext) {
       durationDays: number
       audience: 'followers' | 'followers_lookalike' | 'broad'
     }
-    const { budget, durationDays, audience } = body
 
-    const VALID_BUDGETS   = [1000, 2500, 5000, 10000]
-    const VALID_DURATIONS = [3, 7, 14, 30]
-    const VALID_AUDIENCES = ['followers', 'followers_lookalike', 'broad']
-
-    if (!budget || !durationDays || !audience) {
-      return NextResponse.json({ error: 'budget, durationDays, and audience required' }, { status: 400 })
+    const validation = validateBoostRequest(body)
+    if (!validation.valid) {
+      return NextResponse.json({ error: validation.error }, { status: 400 })
     }
-    if (!VALID_BUDGETS.includes(budget)) {
-      return NextResponse.json({ error: 'Invalid budget. Choose $10, $25, $50, or $100.' }, { status: 400 })
-    }
-    if (!VALID_DURATIONS.includes(durationDays)) {
-      return NextResponse.json({ error: 'Invalid duration. Choose 3, 7, 14, or 30 days.' }, { status: 400 })
-    }
-    if (!VALID_AUDIENCES.includes(audience)) {
-      return NextResponse.json({ error: 'Invalid audience option.' }, { status: 400 })
-    }
+    const { budget, durationDays, audience } = validation
 
     // Fetch and authorize in one scoped query so there's never an unscoped
     // post object in scope that a future edit could act on before an access
@@ -65,65 +58,22 @@ export async function POST(req: Request, { params }: RouteContext) {
       return NextResponse.json({ error: exists ? 'Forbidden' : 'Post not found' }, { status: exists ? 403 : 404 })
     }
 
-    // Plan gate — STARTER cannot boost
-    if (post.workspace.plan === 'STARTER') {
-      return NextResponse.json({ error: 'Boosting requires Pro or Agency plan' }, { status: 403 })
+    const eligibility = checkBoostEligibility(post)
+    if (!eligibility.eligible) {
+      return NextResponse.json({ error: eligibility.error }, { status: eligibility.status })
     }
-
-    // Post must be published with a platformPostId
-    if (post.status !== 'PUBLISHED' || !post.platformPostId) {
-      return NextResponse.json({ error: 'Post must be published to boost' }, { status: 400 })
-    }
-
-    // Platform must be Facebook or Instagram
-    const platform = post.socialAccount.platform
-    if (platform !== 'FACEBOOK' && platform !== 'INSTAGRAM') {
-      return NextResponse.json({ error: 'Boosting is only available for Facebook and Instagram posts' }, { status: 400 })
-    }
-
-    // Must have an ad account configured
-    if (!post.socialAccount.adAccountId) {
-      return NextResponse.json({ error: 'No Facebook Ad Account connected. Connect one in Facebook Business Manager.' }, { status: 400 })
-    }
-
-    if (!post.socialAccount.accessToken) {
-      return NextResponse.json({ error: 'This account has no access token.' }, { status: 400 })
-    }
-    const accessToken = decrypt(post.socialAccount.accessToken)
-    const endsAt = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000)
 
     // Call Meta — this may throw if the post is ineligible or ad account is suspended
-    const { adCampaignId, adSetId, adId } = await createBoost({
+    const boost = await createPostBoost({
+      postId,
+      platform: post.socialAccount.platform,
+      platformPostId: post.platformPostId!,
       pageId: post.socialAccount.platformId,
-      platformPostId: post.platformPostId,
-      adAccountId: post.socialAccount.adAccountId,
-      accessToken,
+      adAccountId: post.socialAccount.adAccountId!,
+      encryptedAccessToken: post.socialAccount.accessToken!,
       budget,
       durationDays,
       audience,
-    })
-
-    // Remove any existing ended/cancelled boost for this post before creating the new one
-    await prisma.postBoost.deleteMany({
-      where: {
-        postId,
-        status: { in: ['ENDED', 'CANCELLED', 'FAILED'] },
-      },
-    })
-
-    const boost = await prisma.postBoost.create({
-      data: {
-        postId,
-        platform,
-        adCampaignId,
-        adSetId,
-        adId,
-        budget,
-        durationDays,
-        audience,
-        status: 'ACTIVE',
-        endsAt,
-      },
     })
 
     return NextResponse.json(boost, { status: 201 })
@@ -160,24 +110,13 @@ export async function DELETE(req: Request, { params }: RouteContext) {
       return NextResponse.json({ error: exists ? 'Forbidden' : 'Post not found' }, { status: exists ? 403 : 404 })
     }
 
-    if (!post.boost || post.boost.status !== 'ACTIVE') {
-      return NextResponse.json({ error: 'No active boost to cancel' }, { status: 400 })
+    const eligibility = checkCancelEligibility(post)
+    if (!eligibility.eligible) {
+      return NextResponse.json({ error: eligibility.error }, { status: eligibility.status })
     }
-
-    if (!post.socialAccount.accessToken) {
-      return NextResponse.json({ error: 'This account has no access token.' }, { status: 400 })
-    }
-
-    // Decrypt after confirming there is something to cancel
-    const accessToken = decrypt(post.socialAccount.accessToken)
 
     // Delete campaign on Meta — if this fails, we return an error and leave status as ACTIVE
-    await cancelBoost({ adCampaignId: post.boost.adCampaignId, accessToken })
-
-    const updated = await prisma.postBoost.update({
-      where: { id: post.boost.id },
-      data: { status: 'CANCELLED' },
-    })
+    const updated = await cancelPostBoost(post.boost!.id, post.boost!.adCampaignId, post.socialAccount.accessToken!)
 
     return NextResponse.json(updated)
   } catch (error) {
