@@ -13,7 +13,11 @@ on:
       - '.github/workflows/deploy.yml'
 
 env:
-  NODE_VERSION: '20'
+  # Bumped from 20 -> 22 (2026-08-14): several dependencies now declare
+  # engines.node >=22 in their own package.json (react-dropzone@20.1.0,
+  # @sparticuz/chromium-min@149.0.0, puppeteer-core@25.x, @puppeteer/browsers@3.x),
+  # and Node 20 was producing npm-install/lockfile inconsistencies as a result.
+  NODE_VERSION: '22'
 
 jobs:
   lint-and-typecheck:
