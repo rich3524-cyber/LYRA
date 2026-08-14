@@ -4,6 +4,26 @@ import { prisma } from '@/lib/prisma'
 import { generateNarrative } from '@/services/reports/narrative-generator'
 import { renderReport, ReportData } from '@/services/reports/report-renderer'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
+import { getCachedBuffer, setCachedBuffer } from '@/lib/cache'
+
+// Short TTL cache for the rendered PDF -- this route re-queries the full
+// post history for the period, makes an LLM call for the narrative, and
+// renders a PDF via headless Chromium on every request, none of which is
+// cheap. 120s (vs. 60s on /api/analytics) since this is a heavier pipeline
+// and reports are explicitly framed as not needing to be second-fresh.
+// Cached bytes are the PDF body only -- the Content-Disposition filename is
+// rebuilt fresh on every response (see below) so a cache hit never serves a
+// stale-looking download timestamp.
+const REPORT_CACHE_TTL_SECONDS = 120
+
+function pdfResponse(period: '7d' | '30d', buffer: Buffer): Response {
+  return new Response(new Uint8Array(buffer), {
+    headers: {
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="lyra-report-${period}-${Date.now()}.pdf"`,
+    },
+  })
+}
 
 export async function POST(req: Request) {
   try {
@@ -30,6 +50,17 @@ export async function POST(req: Request) {
     if (workspace.plan === 'STARTER') {
       return NextResponse.json({ error: 'Reports require PRO or AGENCY plan.' }, { status: 403 })
     }
+
+    // Cache key must be scoped to every input that changes the rendered PDF:
+    // workspaceId (a collision here would hand one customer's report PDF --
+    // narrative, metrics, everything -- to another customer) and period,
+    // the only other request-varying input this route takes. Auth, rate
+    // limiting, and the workspace/plan checks above always run for real on
+    // every request, cache hit or not -- only the expensive query+LLM+PDF
+    // pipeline below is cached.
+    const cacheKey = `report-pdf:${workspaceId}:${validPeriod}`
+    const cachedPdf = await getCachedBuffer(cacheKey)
+    if (cachedPdf) return pdfResponse(validPeriod, cachedPdf)
 
     const days = validPeriod === '7d' ? 7 : 30
     const periodStart = new Date()
@@ -107,12 +138,9 @@ export async function POST(req: Request) {
 
     const pdfBuffer = await renderReport(reportData)
 
-    return new Response(new Uint8Array(pdfBuffer), {
-      headers: {
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename="lyra-report-${validPeriod}-${Date.now()}.pdf"`,
-      },
-    })
+    await setCachedBuffer(cacheKey, pdfBuffer, REPORT_CACHE_TTL_SECONDS)
+
+    return pdfResponse(validPeriod, pdfBuffer)
   } catch (error) {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
