@@ -1,10 +1,3 @@
-// Forced dynamic as part of the CSP nonce migration (2026-08-14) -- the root layout
-// reads a per-request nonce via headers(), which already cascades dynamic rendering
-// to every page it wraps; this export makes that explicit for this specific page
-// rather than relying only on the cascade, since this was previously this app's only
-// other statically-generated page (alongside app/legal/terms).
-export const dynamic = 'force-dynamic'
-
 export const metadata = {
   title: 'Privacy Policy — LYRA',
   description: 'How LYRA collects, uses, and protects your personal information.',
