@@ -2,6 +2,11 @@ import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { OnboardingFlow } from '@/components/lyra/onboarding/onboarding-flow'
 
+// Nonce-based CSP (middleware.ts) requires dynamic rendering on every page that
+// renders it -- static generation has no per-request nonce to inject. (Already
+// implicitly dynamic via the uncached Prisma call below; explicit for clarity.)
+export const dynamic = 'force-dynamic'
+
 export default async function OnboardPage({
   params,
 }: {

@@ -11,6 +11,10 @@ import { AnalyticsSection } from '@/components/lyra/help/section-09-analytics'
 import { SettingsSection } from '@/components/lyra/help/section-10-settings'
 import { BillingSection } from '@/components/lyra/help/section-11-billing'
 
+// Nonce-based CSP (middleware.ts) requires dynamic rendering on every page that
+// renders it -- static generation has no per-request nonce to inject.
+export const dynamic = 'force-dynamic'
+
 export default function HelpPrintPage() {
   return (
     <div className="bg-background-primary min-h-screen">

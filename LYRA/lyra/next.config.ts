@@ -1,38 +1,14 @@
 import type { NextConfig } from "next";
 import path from "path";
+import { buildCsp } from "./lib/csp";
 
-// script-src/frame-src allow GTM, Meta Pixel, and Stripe.js -- the GTM bootstrap,
-// GA4 init, and Meta Pixel init snippets in app/layout.tsx are truly inline
-// (dangerouslySetInnerHTML, no src attribute), hence 'unsafe-inline' (no nonce
-// plumbing exists yet). js.stripe.com is allowlisted for Stripe.js/Elements even
-// though today's billing flow only redirects to Stripe-hosted Checkout via
-// /api/stripe/create-checkout -- @stripe/stripe-js is a declared dependency and
-// this keeps the CSP consistent if client-side Elements are wired in later.
-// img-src stays broad (https:) because post previews and avatars are fetched live
-// from whichever platform CDN Zernio proxies (fbcdn, cdninstagram, licdn, ytimg,
-// twimg, ...) across 9+ social platforms -- an exhaustive allowlist would silently
-// break those and isn't derivable from this codebase (Zernio returns the URLs).
-// connect-src is an explicit allowlist, not "https:", so an XSS can't exfiltrate
-// data to an arbitrary host: api.stripe.com (Stripe.js tokenization calls, see
-// js.stripe.com note above), googletagmanager.com + google-analytics.com (GTM
-// container runtime + GA4 gtag.js measurement hits -- GA_ID is configured
-// directly via gtag(), not only through the GTM container), and facebook.com
-// (Meta Pixel's /tr tracking beacon -- confirmed by the noscript <img> fallback
-// below, which hits the same https://www.facebook.com/tr endpoint).
-const CSP = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://connect.facebook.net https://js.stripe.com",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https:",
-  "media-src 'self' blob: https:",
-  "font-src 'self' data:",
-  "connect-src 'self' https://api.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.facebook.com",
-  "frame-src 'self' https://js.stripe.com https://www.googletagmanager.com",
-  "frame-ancestors 'none'",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-].join('; ')
+// Fallback CSP (no nonce -- 'unsafe-inline') for the handful of paths middleware.ts's
+// matcher excludes (_next/static, _next/image, favicon.ico, brand). None of those
+// serve HTML so 'unsafe-inline' never actually permits anything there, but every
+// response needs SOME Content-Security-Policy header. Every route middleware.ts
+// covers gets the real nonce-based CSP from there instead -- see lib/csp.ts for the
+// full policy and why 'strict-dynamic' is deliberately not used.
+const CSP = buildCsp()
 
 const nextConfig: NextConfig = {
   // Stray package-lock.json files elsewhere in this OneDrive folder (at the
@@ -60,6 +36,12 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        // CSP excluded here -- middleware.ts sets the real nonce-based CSP on every
+        // path except the ones matched below, which never reach middleware.ts at all.
+        // Setting it here too (unscoped) would add a second Content-Security-Policy
+        // header on every other response; browsers intersect multiple CSP headers
+        // per-directive, so a script would then need to satisfy BOTH the nonce policy
+        // and this unsafe-inline one simultaneously -- easy to get subtly wrong.
         source: '/:path*',
         headers: [
           { key: 'X-Content-Type-Options', value: 'nosniff' },
@@ -67,13 +49,22 @@ const nextConfig: NextConfig = {
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
           { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
-          { key: 'Content-Security-Policy', value: CSP },
           // No window.open/window.opener usage anywhere in the app (verified) --
           // safe to isolate the browsing context group without risking a
           // popup-based OAuth/payment flow.
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
           { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
         ],
+      },
+      {
+        // Mirrors middleware.ts's matcher exclusions exactly -- these paths never run
+        // middleware.ts, so they'd otherwise ship with no CSP header at all.
+        source: '/(_next/static|_next/image|brand)/:path*',
+        headers: [{ key: 'Content-Security-Policy', value: CSP }],
+      },
+      {
+        source: '/favicon.ico',
+        headers: [{ key: 'Content-Security-Policy', value: CSP }],
       },
       {
         // Prevent Netlify CDN from caching any authenticated dashboard pages
