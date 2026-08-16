@@ -7,10 +7,6 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
-// Nonce-based CSP (middleware.ts) requires dynamic rendering on every page that
-// renders it -- static generation has no per-request nonce to inject.
-export const dynamic = 'force-dynamic'
-
 function FacebookIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

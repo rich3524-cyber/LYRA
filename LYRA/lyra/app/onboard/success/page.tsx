@@ -1,10 +1,6 @@
 import Link from 'next/link'
 import { CheckCircle } from 'lucide-react'
 
-// Nonce-based CSP (middleware.ts) requires dynamic rendering on every page that
-// renders it -- static generation has no per-request nonce to inject.
-export const dynamic = 'force-dynamic'
-
 export default function OnboardSuccessPage() {
   return (
     <div className="min-h-screen bg-background-primary flex items-center justify-center px-6">
