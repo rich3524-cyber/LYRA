@@ -18,6 +18,10 @@ export const metadata = {
   description: 'Complete guide to using the LYRA platform.',
 }
 
+// Nonce-based CSP (middleware.ts) requires dynamic rendering on every page that
+// renders it -- static generation has no per-request nonce to inject.
+export const dynamic = 'force-dynamic'
+
 export default function HelpPage() {
   return (
     <div className="space-y-20">
