@@ -3,10 +3,6 @@ export const metadata = {
   description: 'How LYRA collects, uses, and protects your personal information.',
 }
 
-// Nonce-based CSP (middleware.ts) requires dynamic rendering on every page that
-// renders it -- static generation has no per-request nonce to inject.
-export const dynamic = 'force-dynamic'
-
 export default function PrivacyPage() {
   return (
     <div className="space-y-10">
