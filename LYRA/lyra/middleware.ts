@@ -2,54 +2,41 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 import { isAllowedBearerRoute, isRestrictedBearerRoute } from './lib/mcp-bearer-allowlist'
 
-// CSP nonce (script-src 'unsafe-inline' removal). Implemented 2026-08-14, replacing
-// the "evaluated, not implemented" plan that lived here. Both risks the plan flagged
-// were resolved deliberately, not just coded around:
+// --- CSP nonce (script-src 'unsafe-inline' removal) -- evaluated, NOT implemented ---
+// next.config.ts's script-src currently needs 'unsafe-inline' for the 4 truly-inline
+// <script>/dangerouslySetInnerHTML tags in app/layout.tsx (GTM bootstrap, GA4 init,
+// Meta Pixel init, JSON-LD). Verified against Next.js 16.2 docs
+// (nextjs.org/docs/app/guides/content-security-policy, fetched 2026-08-02) that a
+// nonce CAN be plumbed through this file exactly like today's x-pathname pattern:
+// generate `Buffer.from(crypto.randomUUID()).toString('base64')`, set it as BOTH a
+// `x-nonce` request header (for Server Components to read via `(await headers()).get
+// ('x-nonce')`) and the `Content-Security-Policy` response header (with
+// `'nonce-${nonce}'` replacing 'unsafe-inline' in script-src), then thread `nonce={nonce}`
+// onto every <Script>/<script> tag in app/layout.tsx.
 //
-// 1. Nonce-based CSP requires dynamic rendering on every page under the root layout.
-//    app/legal/terms/page.tsx and app/legal/privacy/page.tsx were the only two pages
-//    without a `dynamic` export -- both now have `export const dynamic = 'force-dynamic'`.
-//    Accepted tradeoff: those two pages lose static generation. Low traffic, infrequent
-//    content changes, not worth a parallel "skip the nonce on this one route" carve-out.
-//
-// 2. Two CSP headers would otherwise collide: this file now sets a per-request nonce
-//    CSP for every path except the 4 file-serving prefixes middleware's matcher below
-//    excludes (_next/static, _next/image, favicon.ico, brand) -- next.config.ts's static
-//    `headers()` CSP entry was narrowed to serve ONLY those 4 excluded prefixes, so
-//    nothing serves two Content-Security-Policy headers for the same response. Keep
-//    these two definitions in sync by hand if the policy ever changes -- see the
-//    buildCsp() comment below for why the policy string isn't just imported from
-//    next.config.ts (that file isn't importable at the Edge runtime this file executes in).
-//
-// A third risk surfaced during implementation, not anticipated by the original plan:
-// GTM's bootstrap snippet and the Meta Pixel init snippet both call
-// `document.createElement('script')` to inject a SECOND script tag at runtime (loading
-// gtm.js / fbevents.js). Under a nonce-only CSP with no `strict-dynamic`, a
-// dynamically-inserted script has no nonce attribute and the browser silently blocks it
-// -- GTM/GA/Meta Pixel would appear to work (no console error on load) but never
-// actually fire. `'strict-dynamic'` is added to script-src specifically for this
-// exact "a nonce-trusted script goes on to load more scripts" pattern (CSP Level 3) --
-// browsers that support it trust anything a nonce-carrying script injects; browsers that
-// don't fall back to the nonce + explicit host allowlist already in place. Verified live
-// in a browser (Network tab + console, zero CSP violations) on the marketing home page,
-// a legal page, and a logged-in dashboard page before this shipped -- see the PR
-// description for the verification notes.
-function buildCsp(nonce: string): string {
-  return [
-    "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://www.googletagmanager.com https://connect.facebook.net https://js.stripe.com`,
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https:",
-    "media-src 'self' blob: https:",
-    "font-src 'self' data:",
-    "connect-src 'self' https://api.stripe.com https://www.googletagmanager.com https://www.google-analytics.com https://www.facebook.com",
-    "frame-src 'self' https://js.stripe.com https://www.googletagmanager.com",
-    "frame-ancestors 'none'",
-    "object-src 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-  ].join('; ')
-}
+// Not implemented here because of two risks that need a human decision + live-browser
+// verification, not just a code read:
+//  1. Next 16's nonce mechanism REQUIRES dynamic rendering on every page that renders
+//     the nonce (root layout wraps the whole app). Docs state static generation, ISR,
+//     and PPR are all incompatible with nonce-based CSP. app/page.tsx is already
+//     `force-dynamic`, but app/legal/terms/page.tsx (and presumably legal/privacy) have
+//     no dynamic export today and may currently be statically generated -- forcing them
+//     dynamic is a rendering-strategy change with real perf/cost implications, not a
+//     pure security tweak, and is outside this task's scope to decide unilaterally.
+//  2. The nonce CSP header must be set here (in middleware/proxy) and next.config.ts's
+//     static `headers()` CSP entry must then be removed for the routes this file's
+//     matcher covers, or the browser receives two Content-Security-Policy headers whose
+//     interaction (CSP header intersection semantics) is easy to get subtly wrong. This
+//     file's matcher already excludes /api, _next/static, _next/image, favicon.ico, and
+//     brand -- next.config.ts's headers() would need to keep serving a (non-nonce)
+//     fallback CSP to exactly those excluded paths so they don't lose the header
+//     entirely, which means keeping two CSP definitions in sync by hand.
+// A nonce mismatch from either of these fails silently (no build error) and would
+// break GTM/GA/Meta Pixel loading, or Stripe redirect analytics, in production with
+// only a browser console CSP violation to reveal it. If this is picked up: implement
+// per the plan above, then verify in a real browser (Network tab + console) on the
+// marketing home page, a legal page, and a logged-in dashboard page before shipping.
+// --------------------------------------------------------------------------------
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -67,21 +54,11 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  // Every path reaching here (this file's matcher already excludes the 4 file-serving
-  // prefixes next.config.ts's static CSP fallback covers instead) gets a fresh
-  // per-request nonce -- API routes included, since a nonce CSP header on a JSON
-  // response is inert but harmless, and branching around that isn't worth the
-  // complexity. `crypto.randomUUID()` runs fine in the Edge runtime middleware executes in.
-  const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
-
-  // Pass the current pathname and nonce to server components via request headers
+  // Pass the current pathname to server components via request headers
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-pathname', pathname)
-  requestHeaders.set('x-nonce', nonce)
 
-  const response = NextResponse.next({ request: { headers: requestHeaders } })
-  response.headers.set('Content-Security-Policy', buildCsp(nonce))
-  return response
+  return NextResponse.next({ request: { headers: requestHeaders } })
 }
 
 export const config = {
