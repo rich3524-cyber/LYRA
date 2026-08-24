@@ -1,12 +1,33 @@
 import { NextResponse } from 'next/server'
+import type { UserRole } from '@prisma/client'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { stripe } from '@/lib/stripe'
 
-const OWNER_ROLES: readonly string[] = ['AGENCY_ADMIN', 'SMB_OWNER']
+const OWNER_ROLES: readonly UserRole[] = ['AGENCY_ADMIN', 'SMB_OWNER']
 
 export async function DELETE() {
   try {
     const user = await requireAuth()
+
+    // If this user is an owner-role member of an Agency with a live Stripe
+    // subscription, and no other owner-role member remains to manage it,
+    // cancel it before deleting anything -- otherwise the Agency row survives
+    // (nothing else in the codebase deletes Agency rows) as an orphan with a
+    // subscription that bills forever with no LYRA user left to stop it.
+    if (user.agency && OWNER_ROLES.includes(user.role) && user.agency.stripeSubId) {
+      const otherOwners = await prisma.user.count({
+        // EnumUserRoleFilter.in expects UserRole[], and OWNER_ROLES is
+        // readonly -- spread it into a fresh mutable array to satisfy Prisma's type.
+        where: { agencyId: user.agency.id, id: { not: user.id }, role: { in: [...OWNER_ROLES] } },
+      })
+      if (otherOwners === 0) {
+        const subscription = await stripe.subscriptions.retrieve(user.agency.stripeSubId)
+        if (subscription.status !== 'canceled') {
+          await stripe.subscriptions.cancel(user.agency.stripeSubId)
+        }
+      }
+    }
 
     // Only workspaces this user owns/administers get destroyed. Workspaces
     // they merely have shared access to (team member, client) instead just
