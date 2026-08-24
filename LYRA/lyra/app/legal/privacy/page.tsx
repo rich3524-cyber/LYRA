@@ -108,10 +108,10 @@ export default function PrivacyPage() {
           <li>Anonymised, aggregated usage data may be retained indefinitely</li>
         </ul>
         <p>
-          LYRA cannot revoke the underlying platform authorisation Zernio holds when your account is
-          deleted. To fully disconnect your social accounts at the platform level, use each platform&apos;s
-          own connected-apps settings (e.g. Facebook Settings → Security and Login → Business Integrations,
-          or X&apos;s connected apps).
+          LYRA cannot revoke the underlying platform authorisation Zernio holds — neither when you
+          disconnect a social account in LYRA, nor when your account is deleted. To fully disconnect your
+          social accounts at the platform level, use each platform&apos;s own connected-apps settings
+          (e.g. Facebook Settings → Security and Login → Business Integrations, or X&apos;s connected apps).
         </p>
       </Section>
 
