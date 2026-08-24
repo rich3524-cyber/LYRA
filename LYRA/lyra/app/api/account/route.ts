@@ -20,19 +20,34 @@ function isSubscriptionMissing(error: unknown): boolean {
 
 // Cancels a subscription unless it's already canceled or no longer exists in
 // Stripe at all. Any other retrieve/cancel error propagates to the caller.
-async function cancelSubscriptionIfLive(subId: string): Promise<void> {
+// Returns true only when `cancel` was actually invoked, so the caller can
+// distinguish "genuinely cancelled" from "already gone/canceled" for logging.
+async function cancelSubscriptionIfLive(subId: string): Promise<boolean> {
   let subscription: Stripe.Subscription
   try {
     subscription = await stripe.subscriptions.retrieve(subId)
   } catch (error) {
     if (isSubscriptionMissing(error)) {
-      console.warn(`[DELETE /api/account] Stripe subscription ${subId} not found (resource_missing) -- treating as already gone`)
-      return
+      console.warn(`[DELETE /api/account] Stripe subscription ${subId} not found (resource_missing) on retrieve -- treating as already gone`)
+      return false
     }
     throw error
   }
-  if (subscription.status !== 'canceled') {
+  if (subscription.status === 'canceled') return false
+
+  try {
     await stripe.subscriptions.cancel(subId)
+    return true
+  } catch (error) {
+    // A subscription can be in a genuinely non-cancellable state (e.g.
+    // incomplete_expired) that still isn't 'canceled', or it can vanish
+    // between the retrieve above and this call -- either way, resource_missing
+    // here means "nothing left to cancel," same as on retrieve.
+    if (isSubscriptionMissing(error)) {
+      console.warn(`[DELETE /api/account] Stripe subscription ${subId} not found (resource_missing) on cancel -- treating as already gone`)
+      return false
+    }
+    throw error
   }
 }
 
@@ -54,12 +69,17 @@ export async function DELETE() {
     const ownedWorkspaceAccess = user.workspaceAccess.filter((wa) => OWNER_ROLES.includes(wa.role))
     const ownedWorkspaceIds = ownedWorkspaceAccess.map((wa) => wa.workspaceId)
 
-    // Agency-level subscriptions (main plan + Crisis Aware add-on) only get
-    // cancelled when this user genuinely owns at least one workspace AND is
-    // the last owner-role member of the Agency -- an agency with other
-    // admins shouldn't lose its subscription just because one admin account
-    // is deleted.
-    if (user.agency && ownedWorkspaceIds.length > 0) {
+    // Agency-level subscriptions (main plan + Crisis Aware add-on) get
+    // cancelled whenever this user belongs to an Agency and is the last
+    // owner-role member of it -- an agency with other admins shouldn't lose
+    // its subscription just because one admin account is deleted. This is
+    // NOT gated on ownedWorkspaceIds: a user can belong to an agency with a
+    // live subscription while currently owning zero workspaces (e.g. they
+    // already deleted their last workspace via the workspace DELETE route,
+    // which doesn't touch Agency.stripeSubId) -- gating on workspace
+    // ownership here would silently skip cancellation and reopen the
+    // orphaned-billing bug this whole fix exists to close.
+    if (user.agency) {
       // NB: relies on agencies being effectively single-owner today (nothing
       // in this codebase currently populates a second User.agencyId against
       // the same agency). If/when team invites let multiple users share an
@@ -69,18 +89,19 @@ export async function DELETE() {
         where: {
           agencyId: user.agency.id,
           id: { not: user.id },
-          // WorkspaceAccessListRelationFilter.some.role.in expects UserRole[],
-          // and OWNER_ROLES is readonly -- spread into a fresh mutable array.
-          workspaceAccess: { some: { role: { in: [...OWNER_ROLES] } } },
+          // Scoped to THIS agency's workspaces specifically -- an owner-role
+          // grant on some other agency's workspace shouldn't count as an
+          // owner of this one. WorkspaceAccessListRelationFilter.some.role.in
+          // expects UserRole[], and OWNER_ROLES is readonly -- spread into a
+          // fresh mutable array.
+          workspaceAccess: { some: { role: { in: [...OWNER_ROLES] }, workspace: { agencyId: user.agency.id } } },
         },
       })
       if (otherOwners === 0) {
-        if (user.agency.stripeSubId) {
-          await cancelSubscriptionIfLive(user.agency.stripeSubId)
+        if (user.agency.stripeSubId && await cancelSubscriptionIfLive(user.agency.stripeSubId)) {
           cancelledSubIds.push(user.agency.stripeSubId)
         }
-        if (user.agency.crisisAwareSubId) {
-          await cancelSubscriptionIfLive(user.agency.crisisAwareSubId)
+        if (user.agency.crisisAwareSubId && await cancelSubscriptionIfLive(user.agency.crisisAwareSubId)) {
           cancelledSubIds.push(user.agency.crisisAwareSubId)
         }
       }
@@ -94,8 +115,7 @@ export async function DELETE() {
     // each one unconditionally before the transaction destroys the workspace.
     for (const wa of ownedWorkspaceAccess) {
       const trendSubId = wa.workspace.trendSubId
-      if (trendSubId) {
-        await cancelSubscriptionIfLive(trendSubId)
+      if (trendSubId && await cancelSubscriptionIfLive(trendSubId)) {
         cancelledSubIds.push(trendSubId)
       }
     }

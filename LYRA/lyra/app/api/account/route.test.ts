@@ -78,7 +78,7 @@ describe('DELETE /api/account', () => {
       where: {
         agencyId: 'agency-1',
         id: { not: 'user-1' },
-        workspaceAccess: { some: { role: { in: ['AGENCY_ADMIN', 'SMB_OWNER'] } } },
+        workspaceAccess: { some: { role: { in: ['AGENCY_ADMIN', 'SMB_OWNER'] }, workspace: { agencyId: 'agency-1' } } },
       },
     })
     expect(stripe.subscriptions.retrieve).toHaveBeenCalledWith('sub_123')
@@ -133,13 +133,17 @@ describe('DELETE /api/account', () => {
     expect(res.status).toBe(401)
   })
 
-  it('does not trigger any Stripe calls for a user who owns zero workspaces, even if user.agency exists', async () => {
+  it('still cancels the agency-level subscription for a user who owns zero workspaces, as long as no other owner remains', async () => {
+    // This user already deleted their last workspace via the workspace DELETE
+    // route (which doesn't touch Agency.stripeSubId), but the agency's
+    // subscription is still live and this user is still its last owner --
+    // cancellation must not be skipped just because ownedWorkspaceIds is empty.
     vi.mocked(requireAuth).mockResolvedValue(baseUser({ workspaceAccess: [] }) as any)
     const res = await DELETE()
     expect(res.status).toBe(204)
-    expect(prisma.user.count).not.toHaveBeenCalled()
-    expect(stripe.subscriptions.retrieve).not.toHaveBeenCalled()
-    expect(stripe.subscriptions.cancel).not.toHaveBeenCalled()
+    expect(prisma.user.count).toHaveBeenCalled()
+    expect(stripe.subscriptions.retrieve).toHaveBeenCalledWith('sub_123')
+    expect(stripe.subscriptions.cancel).toHaveBeenCalledWith('sub_123')
   })
 
   it('cancels crisisAwareSubId under the same last-owner gate as the main subscription', async () => {
@@ -182,6 +186,19 @@ describe('DELETE /api/account', () => {
     vi.mocked(requireAuth).mockResolvedValue(baseUser() as any)
     vi.mocked(stripe.subscriptions.retrieve).mockRejectedValue(
       new Stripe.errors.StripeAPIError({ message: 'Stripe is down', type: 'api_error' })
+    )
+    const res = await DELETE()
+    expect(res.status).toBe(500)
+    expect(prisma.user.delete).not.toHaveBeenCalled()
+    expect(prisma.workspace.deleteMany).not.toHaveBeenCalled()
+  })
+
+  it('treats a StripeInvalidRequestError with a code other than resource_missing as fatal and aborts deletion', async () => {
+    // Same error class as the non-fatal case, but a different .code --
+    // pins the boundary on .code specifically, not just on error class.
+    vi.mocked(requireAuth).mockResolvedValue(baseUser() as any)
+    vi.mocked(stripe.subscriptions.retrieve).mockRejectedValue(
+      new Stripe.errors.StripeInvalidRequestError({ message: 'Invalid parameter', code: 'parameter_invalid_empty', type: 'invalid_request_error' })
     )
     const res = await DELETE()
     expect(res.status).toBe(500)
