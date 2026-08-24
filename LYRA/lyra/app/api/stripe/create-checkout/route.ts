@@ -61,13 +61,36 @@ export async function POST(req: Request) {
     // price ID -- omitting it would make the webhook silently revert this.
     if (agency.stripeSubId) {
       const subscription = await stripe.subscriptions.retrieve(agency.stripeSubId)
-      const itemId = subscription.items.data[0].id
-      await stripe.subscriptions.update(agency.stripeSubId, {
-        items: [{ id: itemId, price: PLANS[plan].priceId }],
-        proration_behavior: 'create_prorations',
-        metadata: { agencyId: agency.id, plan, userId: user.id },
-      })
-      return NextResponse.json({ success: true })
+
+      // A canceled or fully-expired subscription can't be revived with
+      // subscriptions.update() -- Stripe rejects it. Treat this the same as
+      // agency.stripeSubId being unset and fall through to Checkout below,
+      // which starts a fresh subscription. Without this, an agency stuck
+      // with a stale stripeSubId (missed webhook, or the account-deletion
+      // cancellation path) would have its upgrade path permanently broken.
+      if (subscription.status !== 'canceled' && subscription.status !== 'incomplete_expired') {
+        // Single-item assumption: an agency subscription in this codebase
+        // only ever carries the one plan-tier item -- add-ons are separate
+        // Stripe subscriptions, not additional items here. Guard instead of
+        // blindly indexing [0] so an unexpected empty `items.data` fails
+        // with a diagnosable error rather than an opaque TypeError -> 500.
+        const item = subscription.items.data[0]
+        if (!item) throw new Error(`Subscription ${agency.stripeSubId} has no items`)
+
+        // Preserve the subscriber's current billing interval. Switching an
+        // annual subscriber to the monthly price here would combine with
+        // create_prorations to generate a large unwanted credit for their
+        // unused annual term -- silently converting them to monthly billing.
+        const isAnnual = item.price?.recurring?.interval === 'year'
+        const priceId  = isAnnual ? PLANS[plan].annualPriceId : PLANS[plan].priceId
+
+        await stripe.subscriptions.update(agency.stripeSubId, {
+          items: [{ id: item.id, price: priceId }],
+          proration_behavior: 'create_prorations',
+          metadata: { agencyId: agency.id, plan, userId: user.id },
+        })
+        return NextResponse.json({ success: true })
+      }
     }
 
     // No existing subscription yet -- Checkout collects a payment method.

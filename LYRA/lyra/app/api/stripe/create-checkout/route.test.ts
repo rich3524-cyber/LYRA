@@ -7,12 +7,15 @@ vi.mock('@/lib/prisma', () => ({
   },
 }))
 // vi.hoisted runs before vi.mock's factory below (which reads PLANS off the
-// real module via vi.importActual) -- PLANS.AGENCY.priceId is computed once,
-// at that import, straight from process.env, so setting it in beforeEach
-// would be too late. Only needed here because the new in-place-update tests
-// assert on the price value; the pre-existing tests never did.
+// real module via vi.importActual) -- PLANS.<KEY>.priceId/annualPriceId are
+// computed once, at that import, straight from process.env, so setting them
+// in beforeEach would be too late. Only needed here because the new
+// in-place-update tests assert on which exact price ID gets sent; the
+// pre-existing tests never did.
 vi.hoisted(() => {
-  process.env.STRIPE_AGENCY_PRICE_ID ||= 'price_test_agency'
+  process.env.STRIPE_AGENCY_PRICE_ID        ||= 'price_test_agency'
+  process.env.STRIPE_AGENCY_ANNUAL_PRICE_ID ||= 'price_test_agency_annual'
+  process.env.STRIPE_PRO_PRICE_ID           ||= 'price_test_pro'
 })
 vi.mock('@/lib/stripe', async () => {
   const actual = await vi.importActual<typeof import('@/lib/stripe')>('@/lib/stripe')
@@ -27,7 +30,7 @@ vi.mock('@/lib/stripe', async () => {
 
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { stripe } from '@/lib/stripe'
+import { stripe, PLANS } from '@/lib/stripe'
 import { POST } from './route'
 
 function req(body: unknown) {
@@ -36,6 +39,16 @@ function req(body: unknown) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
+}
+
+// A subscription with a single plan item, matching the codebase's
+// single-item-per-plan-subscription assumption. `interval` controls whether
+// it looks like a monthly or annual subscriber.
+function activeSubscription(interval: 'month' | 'year' = 'month') {
+  return {
+    status: 'active',
+    items: { data: [{ id: 'si_789', price: { recurring: { interval } } }] },
+  } as any
 }
 
 describe('POST /api/stripe/create-checkout', () => {
@@ -56,7 +69,7 @@ describe('POST /api/stripe/create-checkout', () => {
 
   it('modifies the existing subscription in place when the agency already has one, instead of creating a new checkout session', async () => {
     vi.mocked(prisma.agency.findFirst).mockResolvedValue({ id: 'agency-1', stripeCustomerId: 'cus_123', stripeSubId: 'sub_456' } as any)
-    vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue({ items: { data: [{ id: 'si_789' }] } } as any)
+    vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue(activeSubscription())
     vi.mocked(stripe.subscriptions.update).mockResolvedValue({} as any)
 
     const res = await POST(req({ plan: 'AGENCY' }))
@@ -65,14 +78,44 @@ describe('POST /api/stripe/create-checkout', () => {
     expect(stripe.checkout.sessions.create).not.toHaveBeenCalled()
     expect(stripe.subscriptions.retrieve).toHaveBeenCalledWith('sub_456')
     expect(stripe.subscriptions.update).toHaveBeenCalledWith('sub_456', expect.objectContaining({
-      items: [{ id: 'si_789', price: expect.any(String) }],
+      // The exact price ID matters here, not just its type -- a wrong plan
+      // or wrong billing-interval price silently double-charges or
+      // undercharges the subscriber. expect.any(String) would pass even if
+      // the wrong plan's price were sent.
+      items: [{ id: 'si_789', price: PLANS.AGENCY.priceId }],
       proration_behavior: 'create_prorations',
+    }))
+  })
+
+  it('maps a different requested plan to its own distinct price ID, not the previous test plan\'s', async () => {
+    vi.mocked(prisma.agency.findFirst).mockResolvedValue({ id: 'agency-1', stripeCustomerId: 'cus_123', stripeSubId: 'sub_456' } as any)
+    vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue(activeSubscription())
+    vi.mocked(stripe.subscriptions.update).mockResolvedValue({} as any)
+
+    await POST(req({ plan: 'PRO' }))
+
+    expect(PLANS.PRO.priceId).not.toBe(PLANS.AGENCY.priceId)
+    expect(stripe.subscriptions.update).toHaveBeenCalledWith('sub_456', expect.objectContaining({
+      items: [{ id: 'si_789', price: PLANS.PRO.priceId }],
+    }))
+  })
+
+  it('keeps an annual subscriber on the annual price when upgrading in place, instead of silently switching them to monthly', async () => {
+    vi.mocked(prisma.agency.findFirst).mockResolvedValue({ id: 'agency-1', stripeCustomerId: 'cus_123', stripeSubId: 'sub_456' } as any)
+    vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue(activeSubscription('year'))
+    vi.mocked(stripe.subscriptions.update).mockResolvedValue({} as any)
+
+    await POST(req({ plan: 'AGENCY' }))
+
+    expect(PLANS.AGENCY.annualPriceId).not.toBe(PLANS.AGENCY.priceId)
+    expect(stripe.subscriptions.update).toHaveBeenCalledWith('sub_456', expect.objectContaining({
+      items: [{ id: 'si_789', price: PLANS.AGENCY.annualPriceId }],
     }))
   })
 
   it('sets metadata.plan on the in-place subscription update to the requested plan, so the webhook syncs correctly', async () => {
     vi.mocked(prisma.agency.findFirst).mockResolvedValue({ id: 'agency-1', stripeCustomerId: 'cus_123', stripeSubId: 'sub_456' } as any)
-    vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue({ items: { data: [{ id: 'si_789' }] } } as any)
+    vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue(activeSubscription())
     vi.mocked(stripe.subscriptions.update).mockResolvedValue({} as any)
 
     await POST(req({ plan: 'AGENCY' }))
@@ -84,7 +127,7 @@ describe('POST /api/stripe/create-checkout', () => {
 
   it('returns a success response with no url when modifying an existing subscription in place', async () => {
     vi.mocked(prisma.agency.findFirst).mockResolvedValue({ id: 'agency-1', stripeCustomerId: 'cus_123', stripeSubId: 'sub_456' } as any)
-    vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue({ items: { data: [{ id: 'si_789' }] } } as any)
+    vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue(activeSubscription())
     vi.mocked(stripe.subscriptions.update).mockResolvedValue({} as any)
 
     const res = await POST(req({ plan: 'AGENCY' }))
@@ -92,6 +135,40 @@ describe('POST /api/stripe/create-checkout', () => {
 
     expect(body.url).toBeUndefined()
     expect(body.success).toBe(true)
+  })
+
+  // Regression: a stripeSubId pointing at a subscription that's already
+  // canceled or fully expired (a missed webhook, or the account-deletion
+  // cancellation path) can't be revived with subscriptions.update() -- Stripe
+  // rejects it. The route must fall through to Checkout instead of leaving
+  // the agency's upgrade path permanently broken.
+  it.each(['canceled', 'incomplete_expired'])(
+    'falls through to a fresh Checkout session when the existing subscription status is "%s"',
+    async (status) => {
+      vi.mocked(prisma.agency.findFirst).mockResolvedValue({ id: 'agency-1', stripeCustomerId: 'cus_123', stripeSubId: 'sub_456' } as any)
+      vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue({ ...activeSubscription(), status } as any)
+
+      const res = await POST(req({ plan: 'AGENCY' }))
+      const body = await res.json()
+
+      expect(res.status).toBe(200)
+      expect(body.url).toBe('https://checkout.stripe.com/xyz')
+      expect(stripe.subscriptions.update).not.toHaveBeenCalled()
+      expect(stripe.checkout.sessions.create).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  // Regression: subscription.items.data[0] was indexed without a guard --
+  // an unexpected empty items array should fail with a diagnosable error,
+  // not throw an opaque TypeError.
+  it('fails clearly instead of throwing an opaque TypeError when the existing subscription has no items', async () => {
+    vi.mocked(prisma.agency.findFirst).mockResolvedValue({ id: 'agency-1', stripeCustomerId: 'cus_123', stripeSubId: 'sub_456' } as any)
+    vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue({ status: 'active', items: { data: [] } } as any)
+
+    const res = await POST(req({ plan: 'AGENCY' }))
+
+    expect(res.status).toBe(500)
+    expect(stripe.subscriptions.update).not.toHaveBeenCalled()
   })
 
   it('rejects an unrecognised plan value', async () => {
