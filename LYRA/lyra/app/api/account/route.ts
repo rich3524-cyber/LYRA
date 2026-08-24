@@ -1,10 +1,58 @@
 import { NextResponse } from 'next/server'
+import type { UserRole } from '@prisma/client'
+import Stripe from 'stripe'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { stripe } from '@/lib/stripe'
 
-const OWNER_ROLES: readonly string[] = ['AGENCY_ADMIN', 'SMB_OWNER']
+const OWNER_ROLES: readonly UserRole[] = ['AGENCY_ADMIN', 'SMB_OWNER']
+
+// Stripe's signal for "this ID doesn't exist in Stripe at all" (stale DB
+// pointer, a dashboard-side deletion, a restored DB snapshot) -- distinct
+// from a network/auth/rate-limit failure. The design intent here is that a
+// subscription already in the state we want (gone, same as canceled) must
+// not block account deletion/GDPR erasure; any OTHER retrieve failure still
+// has to abort, since silently proceeding past an unrelated failure risks
+// orphaning a subscription that might genuinely still be live.
+function isSubscriptionMissing(error: unknown): boolean {
+  return error instanceof Stripe.errors.StripeInvalidRequestError && error.code === 'resource_missing'
+}
+
+// Cancels a subscription unless it's already canceled or no longer exists in
+// Stripe at all. Any other retrieve/cancel error propagates to the caller.
+// Returns true only when `cancel` was actually invoked, so the caller can
+// distinguish "genuinely cancelled" from "already gone/canceled" for logging.
+async function cancelSubscriptionIfLive(subId: string): Promise<boolean> {
+  let subscription: Stripe.Subscription
+  try {
+    subscription = await stripe.subscriptions.retrieve(subId)
+  } catch (error) {
+    if (isSubscriptionMissing(error)) {
+      console.warn(`[DELETE /api/account] Stripe subscription ${subId} not found (resource_missing) on retrieve -- treating as already gone`)
+      return false
+    }
+    throw error
+  }
+  if (subscription.status === 'canceled') return false
+
+  try {
+    await stripe.subscriptions.cancel(subId)
+    return true
+  } catch (error) {
+    // A subscription can be in a genuinely non-cancellable state (e.g.
+    // incomplete_expired) that still isn't 'canceled', or it can vanish
+    // between the retrieve above and this call -- either way, resource_missing
+    // here means "nothing left to cancel," same as on retrieve.
+    if (isSubscriptionMissing(error)) {
+      console.warn(`[DELETE /api/account] Stripe subscription ${subId} not found (resource_missing) on cancel -- treating as already gone`)
+      return false
+    }
+    throw error
+  }
+}
 
 export async function DELETE() {
+  const cancelledSubIds: string[] = []
   try {
     const user = await requireAuth()
 
@@ -12,9 +60,65 @@ export async function DELETE() {
     // they merely have shared access to (team member, client) instead just
     // have their own WorkspaceAccess row removed below -- deleting your own
     // account must not be able to destroy a workspace other people share.
-    const ownedWorkspaceIds = user.workspaceAccess
-      .filter((wa) => OWNER_ROLES.includes(wa.role))
-      .map((wa) => wa.workspaceId)
+    //
+    // This is also the real "does this user actually own something" signal:
+    // User.role is never written by any code path in this codebase (every
+    // user sits on the schema default, SMB_OWNER), so OWNER_ROLES.includes
+    // against a per-workspace WorkspaceAccess.role -- which IS populated --
+    // is used instead of the always-true global role field.
+    const ownedWorkspaceAccess = user.workspaceAccess.filter((wa) => OWNER_ROLES.includes(wa.role))
+    const ownedWorkspaceIds = ownedWorkspaceAccess.map((wa) => wa.workspaceId)
+
+    // Agency-level subscriptions (main plan + Crisis Aware add-on) get
+    // cancelled whenever this user belongs to an Agency and is the last
+    // owner-role member of it -- an agency with other admins shouldn't lose
+    // its subscription just because one admin account is deleted. This is
+    // NOT gated on ownedWorkspaceIds: a user can belong to an agency with a
+    // live subscription while currently owning zero workspaces (e.g. they
+    // already deleted their last workspace via the workspace DELETE route,
+    // which doesn't touch Agency.stripeSubId) -- gating on workspace
+    // ownership here would silently skip cancellation and reopen the
+    // orphaned-billing bug this whole fix exists to close.
+    if (user.agency) {
+      // NB: relies on agencies being effectively single-owner today (nothing
+      // in this codebase currently populates a second User.agencyId against
+      // the same agency). If/when team invites let multiple users share an
+      // agencyId, this count-then-cancel has a narrow TOCTOU window against a
+      // concurrent deletion by another owner of the same agency.
+      const otherOwners = await prisma.user.count({
+        where: {
+          agencyId: user.agency.id,
+          id: { not: user.id },
+          // Scoped to THIS agency's workspaces specifically -- an owner-role
+          // grant on some other agency's workspace shouldn't count as an
+          // owner of this one. WorkspaceAccessListRelationFilter.some.role.in
+          // expects UserRole[], and OWNER_ROLES is readonly -- spread into a
+          // fresh mutable array.
+          workspaceAccess: { some: { role: { in: [...OWNER_ROLES] }, workspace: { agencyId: user.agency.id } } },
+        },
+      })
+      if (otherOwners === 0) {
+        if (user.agency.stripeSubId && await cancelSubscriptionIfLive(user.agency.stripeSubId)) {
+          cancelledSubIds.push(user.agency.stripeSubId)
+        }
+        if (user.agency.crisisAwareSubId && await cancelSubscriptionIfLive(user.agency.crisisAwareSubId)) {
+          cancelledSubIds.push(user.agency.crisisAwareSubId)
+        }
+      }
+    }
+
+    // Workspace-level Trend add-on subscriptions: NOT gated on "last owner".
+    // Every owned workspace here is about to be hard-deleted in the
+    // transaction below regardless of who else remains in the agency, so
+    // its trendSubId is about to become permanently unrecoverable -- unlike
+    // the Agency row, which survives and could be fixed up later. Cancel
+    // each one unconditionally before the transaction destroys the workspace.
+    for (const wa of ownedWorkspaceAccess) {
+      const trendSubId = wa.workspace.trendSubId
+      if (trendSubId && await cancelSubscriptionIfLive(trendSubId)) {
+        cancelledSubIds.push(trendSubId)
+      }
+    }
 
     await prisma.$transaction([
       prisma.commentResponse.deleteMany({ where: { comment: { workspaceId: { in: ownedWorkspaceIds } } } }),
@@ -45,7 +149,15 @@ export async function DELETE() {
     if (error instanceof Error && error.message === 'Unauthorized') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    console.error('DELETE /api/account error:', error)
+    // If subscriptions were already cancelled before the transaction failed,
+    // that cancellation is not rolled back (Stripe isn't part of the DB
+    // transaction) and the user isn't told which ones -- so log it clearly
+    // at error level here, for an operator to find.
+    if (cancelledSubIds.length > 0) {
+      console.error(`DELETE /api/account error after cancelling Stripe subscription(s) [${cancelledSubIds.join(', ')}]:`, error)
+    } else {
+      console.error('DELETE /api/account error:', error)
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

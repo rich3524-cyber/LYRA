@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import { CheckCircle2, Loader2, ExternalLink, Zap } from 'lucide-react'
 import type { PLANS, PlanKey } from '@/lib/stripe'
@@ -14,6 +15,7 @@ interface Props {
 
 export function BillingClient({ currentPlan, hasStripeAccount, plans }: Props) {
   const [loading, setLoading] = useState<string | null>(null)
+  const router = useRouter()
 
   async function handleUpgrade(plan: PlanKey) {
     setLoading(plan)
@@ -23,9 +25,15 @@ export function BillingClient({ currentPlan, hasStripeAccount, plans }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ plan }),
       })
-      const data = await res.json() as { url?: string; error?: string }
+      const data = await res.json() as { url?: string; success?: boolean; error?: string }
       if (data.url) {
         window.location.assign(data.url)
+      } else if (data.success) {
+        // Agency already had a subscription -- the route updated it in
+        // place instead of returning a Checkout url. Refresh so the server
+        // component above re-fetches agency.plan and "Current plan" updates.
+        toast.success(`Upgraded to ${plans[plan].name}`)
+        router.refresh()
       } else {
         toast.error(data.error ?? 'Could not start checkout')
       }
