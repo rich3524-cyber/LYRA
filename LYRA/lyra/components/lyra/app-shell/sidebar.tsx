@@ -20,7 +20,6 @@ import {
   Search,
   Crosshair,
   Scissors,
-  Sparkles,
   TrendingUp,
   X,
 } from 'lucide-react'
@@ -37,7 +36,6 @@ const navItems = [
   { href: '/repurpose',    label: 'Repurpose',      icon: Scissors,      proOnly: false },
   { href: '/analytics',    label: 'Analytics',      icon: BarChart3,     proOnly: false },
   { href: '/seo',          label: 'SEO',            icon: Search,        proOnly: false },
-  { href: '/assistant',    label: 'LYRA Assistant', icon: Sparkles,      proOnly: false },
 ]
 
 interface SidebarProps {
@@ -102,7 +100,6 @@ export function Sidebar({
   function renderNavItems(isCollapsed: boolean) {
     return navItems.map(({ href, label, icon: Icon, proOnly }) => {
       const isBrandAI   = href === '/brand'
-      const isAssistant = href === '/assistant'
       const locked = proOnly && plan === 'STARTER'
 
       if (locked) {
@@ -136,37 +133,6 @@ export function Sidebar({
 
       const fullHref = `${base}${href}`
       const isActive = pathname === fullHref || (href !== '' && pathname.startsWith(fullHref))
-
-      if (isAssistant) {
-        return (
-          <div key={label} className="pt-3">
-            <Link
-              href={fullHref}
-              className={cn(
-                'flex items-center gap-3 px-3 py-3 rounded-lg text-sm transition-all duration-150 group border',
-                isActive
-                  ? 'bg-purple-500/10 border-purple-500/70 text-purple-300'
-                  : 'border-purple-500/30 text-purple-400 hover:bg-purple-500/10 hover:border-purple-500/60 hover:text-purple-300',
-              )}
-              aria-label={isCollapsed ? label : undefined}
-            >
-              <Icon size={16} className="shrink-0" strokeWidth={isActive ? 2 : 1.5} />
-              <AnimatePresence>
-                {!isCollapsed && (
-                  <motion.span
-                    initial={{ opacity: 0, width: 0 }}
-                    animate={{ opacity: 1, width: 'auto' }}
-                    exit={{ opacity: 0, width: 0 }}
-                    className="overflow-hidden whitespace-nowrap tracking-wide"
-                  >
-                    {label}
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </Link>
-          </div>
-        )
-      }
 
       const isInbox = href === '/inbox'
       const hasUnread = isInbox && (liveUnreadCount ?? 0) > 0
