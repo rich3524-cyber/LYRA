@@ -98,10 +98,6 @@ export function ComposeSection() {
           not need to close and restart the composer.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          For Instagram carousel posts, drag the uploaded images to reorder them before scheduling.
-          The first image is the cover shown in the feed.
-        </p>
-        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
           Once media is attached and platforms are selected, a <Strong>Customise per platform</Strong>
           button appears below the media strip. Click it to open a tab per selected platform —
           useful when one file genuinely doesn&apos;t work everywhere (e.g. a 9:16 TikTok video

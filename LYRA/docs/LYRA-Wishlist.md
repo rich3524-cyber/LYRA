@@ -13,7 +13,7 @@ These items were on the original Phase 2 plan. Most are built; the ones below ar
 | # | Feature | Notes |
 |---|---|---|
 | 13 | ✅ **Stripe billing integration** | Fully built and verified live 29 Jul 2026 — a real test-mode purchase confirmed checkout → webhook → plan unlocked → UI reflects it. Found and fixed a genuine billing-integrity bug along the way (workspaces weren't syncing plan on purchase, and a duplicate workspace was silently created — both root-caused to resolving "this agency's workspaces" via an unpopulated FK instead of the real `WorkspaceAccess` relation). |
-| 14 | **Analytics dashboard — depth** | Partially there now: platform breakdown, top posts (by reach/views), and an engagement trend chart all exist and are verified live. Still missing: follower growth over time (no `followerCount` field in the schema yet — nothing to chart) and true reach *estimates* vs. actual reach. |
+| 14 | **Analytics dashboard — depth** | Partially there now: platform breakdown, top posts (by reach/views), and an engagement trend chart all exist and are verified live. Still missing: follower growth over time (no `followerCount` field in the schema yet — nothing to chart) and true reach *estimates* vs. actual reach. Sequenced as Phase 5 in `lyra/docs/superpowers/specs/2026-08-24-metricool-gap-roadmap-design.md`, expanded to include basic demographics. |
 
 ---
 
@@ -70,11 +70,17 @@ Sorted by importance — prerequisites first, differentiators second, polish las
 **1. Notifications** — *partially built*
 The crisis piece of this shipped 23 Jul 2026: every workspace owner/admin now gets a real email the moment Crisis Aware triggers, via Resend, with the triggering comment and a link into the Inbox — confirmed live. As of 11 Aug 2026, Slack team notifications (item 8, Agency plan or Pro with Crisis Aware) now also cover a post failing to publish, an approval being needed, and — as of the same evening — a comment being escalated for a non-crisis reason (the AI declining to answer itself, via a guardrail or its own judgment; fires from both the autonomous AI path and the manual Escalate button). These are Slack-only, gated to eligible plans, not the universal email-to-everyone alerting the item originally envisioned. Still missing: the daily/weekly digest (its own item, 6) and push notifications (browser/mobile), both still untouched.
 
-**2. Client portal**
-The client approval workflow was built (Session 38) but clients have no interface to use it from. Agencies need a stripped-down client-facing view where clients can see their content calendar, approve or reject pending posts, and read AI draft responses — without accessing the full LYRA dashboard. The data model (`ClientAccess`, `WorkspaceAccess`, `PostApproval`) is already in place. This is the UI layer that makes the approval workflow usable in the real world.
+**2. Client portal** — *rescoped, see note*
+The client approval workflow was built (Session 38) but clients have no interface to use it from. The data model (`ClientAccess`, `WorkspaceAccess`, `PostApproval`) is already in place.
+
+*Original full-portal scope (demoted, not deleted):* Agencies need a stripped-down client-facing view where clients can see their content calendar, approve or reject pending posts, and read AI draft responses — without accessing the full LYRA dashboard.
+
+**Rescoped 24 Aug 2026:** `lyra/docs/superpowers/specs/2026-08-24-metricool-gap-roadmap-design.md` (Phase 3) replaces this full-portal design with a cheaper email-link approval flow — reviewers approve/reject directly from the review email using the existing `OnboardingToken` model, no LYRA account needed (matching Metricool's own design). The original full-portal scope described above is demoted to a later upsell, not deleted.
 
 **3. Team member invitations**
 The schema supports roles (`AGENCY_ADMIN`, `CLIENT_APPROVE`, `SMB_OWNER`) and `WorkspaceAccess` records, but there is no UI to invite someone to a workspace or grant them a role. Currently the only way to add a team member is a direct database insert. Agencies have teams. This needs an invite-by-email flow with role selection.
+
+Sequenced as Phase 2 in `lyra/docs/superpowers/specs/2026-08-24-metricool-gap-roadmap-design.md`, after Post Types (Phase 1) — design unchanged from the description above.
 
 ---
 
@@ -92,6 +98,8 @@ Agencies plan content in spreadsheets. Every post previously had to be created i
 
 **6.** 📄 **Email digest** — *not yet designed*
 Weekly (or configurable) summary email per workspace sent to the workspace owner: posts published, comments responded to by AI, drafts waiting for review, crisis events, and the top-performing post of the week. Keeps agency owners and their clients informed without requiring a login. Pairs directly with the autonomous mode value proposition — if LYRA is working while you sleep, you need a morning report. Also unblocks the Slack "weekly digest" event, dropped from item 8's build specifically because this didn't exist yet. Brainstorming for this had just started (11 Aug 2026) when the session paused for a laptop switch — no design questions asked yet.
+
+Sequenced as Phase 4 in `lyra/docs/superpowers/specs/2026-08-24-metricool-gap-roadmap-design.md`. Its brainstorm resumes from where it left off — no new design decisions introduced by that roadmap doc.
 
 **7. Agency HQ — cross-client command centre**
 A dedicated "Agency mode" that sits above the workspace level — a separate top-level context in the nav (alongside individual client workspaces) with its own sidebar and distinct visual treatment. Purpose: agency admins manage their entire client portfolio without navigating in and out of individual workspaces.
@@ -307,7 +315,8 @@ Ideas from a dedicated feature brainstorm session. Not yet prioritised. None of 
 
 ---
 
-*Last updated: 11 Aug 2026 (evening) — asked which items to tackle next; recommended (and Richard picked) item 2 (Client portal), item 3 (Team invitations), and item 6 (Email digest) as the highest-leverage picks, with item 5 (CSV import) as an honorable mention Richard also wanted to move on. Item 5 fully designed and planned this session — spec + a 5-task TDD implementation plan, not yet built (see item 5's own note for paths). Item 6 brainstorming had just begun, no design decisions made yet, when the session paused for a laptop switch.*
+*Last updated: 24 Aug 2026 — pointed items 2, 3, 6, and 14 at the new Metricool gap-closure roadmap (`lyra/docs/superpowers/specs/2026-08-24-metricool-gap-roadmap-design.md`); item 2 (Client portal) rescoped from a full portal UI to an email-link approval flow, full-portal scope demoted to a later upsell rather than built now.*
+*Previous update (11 Aug 2026, evening) — asked which items to tackle next; recommended (and Richard picked) item 2 (Client portal), item 3 (Team invitations), and item 6 (Email digest) as the highest-leverage picks, with item 5 (CSV import) as an honorable mention Richard also wanted to move on. Item 5 fully designed and planned this session — spec + a 5-task TDD implementation plan, not yet built (see item 5's own note for paths). Item 6 brainstorming had just begun, no design decisions made yet, when the session paused for a laptop switch.*
 *Previous update (11 Aug 2026) — item 8, Slack/Microsoft Teams notifications, given a full scope doc (`Scope Docs - Future projects/LYRA-Slack-Teams-Scope.docx`). Along the way, corrected a real inaccuracy in the original note: Microsoft fully retired Teams' classic Incoming Webhook connector in May 2026, so "the same webhook mechanism works for both platforms" is no longer true — Teams now needs a Power Automate Workflow instead, with no LYRA branding on messages (a real, confirmed platform limitation, not a build gap). Slack's path is still simple but now requires a Slack App rather than a zero-registration webhook, since standalone legacy webhooks are deprecated there too.*
 *Previous update (8 Aug 2026, later) — item 4, Best time to post, marked ✅: found the Composer half was already fully wired up to real data (`postingPatterns` threaded down as a prop) but silently unused — the prop was declared and passed but never destructured or rendered in `PostComposer`. Finished it: a "Best time for {platform}" hint with a one-click apply button, using the same workspace-specific data that already informs the AI Schedule Generator.*
 *Previous update (8 Aug 2026) — added item 18, SOC 2 / ISO 27001 certification, to the Compliance section (renamed from "Needed Before Scaling to Europe" since this item's trigger is enterprise procurement, not geography) — parked as not currently needed, with cost/trigger notes for when it's worth revisiting.*

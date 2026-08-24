@@ -55,7 +55,7 @@ export function SocialConnectionsSection() {
           </PlatformRow>
           <PlatformRow name="Instagram" availability="Full">
             Instagram Business and Creator accounts connected to a Facebook Page are fully
-            supported. Scheduling feed posts, reels, carousels, and stories; reading and
+            supported. Scheduling feed posts and multi-image carousels; reading and
             responding to comments; and accessing insights. Instagram is connected through the
             same Facebook Graph API connection — you connect Facebook first, and Instagram pages
             linked to that account become available automatically.

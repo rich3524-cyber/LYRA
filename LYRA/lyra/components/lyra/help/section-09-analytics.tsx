@@ -42,10 +42,6 @@ export function AnalyticsSection() {
             way to compare performance across different audience sizes. Industry benchmarks
             typically range from 1–3% on Facebook, 3–6% on Instagram, and 1–2% on LinkedIn.
           </MetricRow>
-          <MetricRow metric="Net New Followers">
-            Followers gained minus followers lost in the selected period, per platform.
-            A positive number indicates audience growth.
-          </MetricRow>
           <MetricRow metric="Posts Published">
             Count of posts that were published via LYRA in the selected period, across all
             connected platforms.
@@ -85,7 +81,7 @@ export function AnalyticsSection() {
           posts from the period, ranked by total engagements by default. Each row shows:
         </p>
         <ul className="space-y-1 font-sans text-sm text-text-secondary list-disc list-inside pl-2">
-          <li>Platform icon and post type (feed, reel, story, etc.)</li>
+          <li>Platform icon</li>
           <li>Caption snippet and thumbnail if available</li>
           <li>Publish date and time</li>
           <li>Reach, impressions, engagements, and engagement rate for that post</li>
