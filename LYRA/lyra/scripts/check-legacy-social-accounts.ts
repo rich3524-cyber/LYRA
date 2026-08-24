@@ -25,6 +25,8 @@ async function main() {
       workspaceId: true,
       isActive: true,
       createdAt: true,
+      accessToken: true,
+      refreshToken: true,
     },
   })
 
@@ -39,11 +41,18 @@ async function main() {
     console.log(`  Active (live, currently in use): ${active.length}`)
     console.log(`  Inactive (disconnected/dead rows): ${inactive.length}\n`)
 
+    // Dispatch-eligible (provider/zernioAccountId) is only inference -- confirm
+    // against the stored token fields themselves, since a nativeProvider dispatch
+    // with a null accessToken throws at call time rather than proving a secret
+    // is actually held.
+    const withToken = legacyAccounts.filter((a) => a.accessToken !== null || a.refreshToken !== null)
+    console.log(`  Of which LYRA actually stores an OAuth token for: ${withToken.length}`)
+
     const byPlatform = new Map<string, number>()
     for (const a of legacyAccounts) {
       byPlatform.set(a.platform, (byPlatform.get(a.platform) ?? 0) + 1)
     }
-    console.log('  By platform:')
+    console.log('\n  By platform:')
     for (const [platform, count] of byPlatform) {
       console.log(`    ${platform}: ${count}`)
     }
@@ -54,6 +63,26 @@ async function main() {
         console.log(`    ${a.id} -- platform ${a.platform} -- workspace ${a.workspaceId} -- provider ${a.provider} -- connected ${a.createdAt.toISOString()}`)
       }
     }
+  }
+
+  // Separate cross-check: services/social/oauth-connect.ts and
+  // app/api/social/facebook/complete/route.ts's native `update` branches write
+  // accessToken WITHOUT resetting provider/zernioAccountId. That means a row can
+  // show provider='ZERNIO' with a non-null zernioAccountId (excluded from the
+  // query above entirely) while still carrying a real, unused accessToken/
+  // refreshToken left over from before it was migrated to Zernio custody. This
+  // checks for that population directly, since it answers a different question
+  // than "does getProvider() dispatch to the native path."
+  const strayTokensOnZernioAccounts = await prisma.socialAccount.count({
+    where: {
+      provider: 'ZERNIO',
+      zernioAccountId: { not: null },
+      OR: [{ accessToken: { not: null } }, { refreshToken: { not: null } }],
+    },
+  })
+  console.log(`\nCross-check: Zernio-custody accounts that ALSO still carry a stored token: ${strayTokensOnZernioAccounts}`)
+  if (strayTokensOnZernioAccounts > 0) {
+    console.log('  >>> These accounts show as Zernio-custody but LYRA still holds a leftover token from before migration. <<<')
   }
 
   await prisma.$disconnect()
