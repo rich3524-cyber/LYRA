@@ -12,7 +12,7 @@ export default function PrivacyPage() {
         </p>
         <h1 className="font-display text-4xl text-text-primary">Privacy Policy</h1>
         <p className="font-sans text-sm text-text-tertiary">
-          Last updated: 18 May 2026
+          Last updated: 25 Aug 2026 (draft — pending review)
         </p>
       </div>
 
@@ -32,7 +32,7 @@ export default function PrivacyPage() {
         <ul>
           <li><strong>Account information</strong> — your name and email address, collected when you sign up via Google or email.</li>
           <li><strong>Workspace data</strong> — the name, website URL, and industry of your connected clients or workspaces.</li>
-          <li><strong>Social media credentials</strong> — OAuth access tokens for connected social platforms (Facebook, Instagram, LinkedIn, Google Business, X, TikTok). These tokens are encrypted at rest using AES-256-GCM and are never exposed in API responses or logs.</li>
+          <li><strong>Social media credentials</strong> — LYRA connects your social accounts through Zernio, a third-party social media API provider. Zernio establishes and holds the platform connection (Facebook, Instagram, LinkedIn, Google Business, X, TikTok, YouTube) on our behalf. We never receive or store the platform access tokens themselves.</li>
           <li><strong>Content data</strong> — social media posts you create or schedule through LYRA, comments retrieved from connected platforms, and AI-generated captions and responses.</li>
           <li><strong>Usage data</strong> — pages visited, features used, and actions taken within the platform, used to improve the service.</li>
           <li><strong>Payment information</strong> — billing details are handled entirely by Stripe. We do not store payment card numbers. We receive and store your Stripe customer ID and subscription status.</li>
@@ -65,8 +65,10 @@ export default function PrivacyPage() {
           <li><strong>Anthropic</strong> — to power AI caption, response, and SEO content generation.</li>
           <li><strong>Auth0</strong> — to manage authentication and user sessions.</li>
           <li><strong>Stripe</strong> — to process subscription payments.</li>
+          <li><strong>Resend</strong> — to send transactional emails (e.g. account notifications, billing receipts).</li>
           <li><strong>Supabase / AWS</strong> — to store your data securely (database and file storage).</li>
-          <li><strong>Social platforms</strong> — when you instruct us to publish content or retrieve data on your behalf.</li>
+          <li><strong>Zernio</strong> — to establish and manage your connections to social media platforms. Zernio holds the underlying platform access credentials on our behalf and carries out the publishing, comment retrieval, and related actions LYRA instructs it to perform.</li>
+          <li><strong>Social platforms</strong> — indirectly, via Zernio, when you instruct us to publish content or retrieve data on your behalf.</li>
           <li><strong>Google</strong> — when you connect Google Search Console, to retrieve your site performance data.</li>
         </ul>
         <p>
@@ -77,13 +79,15 @@ export default function PrivacyPage() {
 
       <Section title="4. Data Storage and Security">
         <p>
-          Your data is stored in the Asia-Pacific (Sydney) region. We implement the following security measures:
+          Your data is stored in the Asia-Pacific (Sydney) region. Some third-party providers we use,
+          including Zernio, may process data outside Australia as part of delivering their service.
+          We implement the following security measures:
         </p>
         <ul>
-          <li>AES-256-GCM encryption for all stored social media access tokens</li>
+          <li>AES-256-GCM encryption for any OAuth tokens we store directly, such as your Google Search Console connection</li>
           <li>TLS encryption for all data in transit</li>
           <li>Row-level access controls — your data is isolated from other users&apos; data</li>
-          <li>Access tokens are never logged or returned in API responses</li>
+          <li>OAuth tokens we store directly are never logged or returned in API responses</li>
         </ul>
         <p>
           No method of transmission over the Internet is 100% secure. While we take commercially reasonable
@@ -98,10 +102,17 @@ export default function PrivacyPage() {
         </p>
         <ul>
           <li>Your account data and workspace data are deleted within 30 days</li>
-          <li>Social media access tokens are deleted immediately</li>
+          <li>Social media connection records are deleted (Zernio holds the underlying platform connection separately, governed by their own retention practices)</li>
+          <li>Disconnecting a social account deactivates it within LYRA immediately, but LYRA&apos;s own record is only fully deleted when your account or workspace is deleted (see above); the underlying Zernio-managed platform connection follows Zernio&apos;s own retention practices</li>
           <li>Billing records are retained for 7 years as required by Australian tax law</li>
           <li>Anonymised, aggregated usage data may be retained indefinitely</li>
         </ul>
+        <p>
+          LYRA cannot revoke the underlying platform authorisation Zernio holds — neither when you
+          disconnect a social account in LYRA, nor when your account is deleted. To fully disconnect your
+          social accounts at the platform level, use each platform&apos;s own connected-apps settings
+          (e.g. Facebook Settings → Security and Login → Business Integrations, or X&apos;s connected apps).
+        </p>
       </Section>
 
       <Section title="6. Your Rights">
