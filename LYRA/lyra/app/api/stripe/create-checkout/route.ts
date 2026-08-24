@@ -54,7 +54,23 @@ export async function POST(req: Request) {
     })
     if (!agency) return NextResponse.json({ error: 'No agency found' }, { status: 404 })
 
-    // Reuse existing Stripe customer or let Checkout create one
+    // Existing subscription -- modify it in place rather than creating a
+    // second concurrent one. metadata.plan must be set here too: the webhook's
+    // customer.subscription.updated handler (app/api/stripe/webhook/route.ts)
+    // reads sub.metadata.plan to decide what to sync to agency.plan, not the
+    // price ID -- omitting it would make the webhook silently revert this.
+    if (agency.stripeSubId) {
+      const subscription = await stripe.subscriptions.retrieve(agency.stripeSubId)
+      const itemId = subscription.items.data[0].id
+      await stripe.subscriptions.update(agency.stripeSubId, {
+        items: [{ id: itemId, price: PLANS[plan].priceId }],
+        proration_behavior: 'create_prorations',
+        metadata: { agencyId: agency.id, plan, userId: user.id },
+      })
+      return NextResponse.json({ success: true })
+    }
+
+    // No existing subscription yet -- Checkout collects a payment method.
     const session = await stripe.checkout.sessions.create({
       mode:               'subscription',
       payment_method_types: ['card'],
