@@ -46,8 +46,8 @@ export function BillingSection() {
               'Post scheduling across 7 social platforms',
               'Content calendar with drag-to-reschedule',
               'AI caption generation',
-              'AI comment reply drafts (Draft + Approve mode can be turned on, though the approval screen isn&apos;t available on this plan — see the note below)',
-              'Basic brand profile',
+              'Brand profile (website crawl, pasted guidelines, and LYRA post history)',
+              "AI comment reply drafts (Draft + Approve mode can be turned on, though the approval screen isn't available on this plan — see the note below)",
               'Social media analytics',
             ]}
           />
@@ -58,11 +58,9 @@ export function BillingSection() {
             features={[
               'Up to 5 workspaces',
               'Everything in Starter',
-              'Full brand intelligence (social feed analysis + document upload)',
               'AI comment response drafts with an approval screen (Draft + Approve mode)',
               'Full AI autonomy available (AI replies to comments automatically, with no review)',
               'Crisis Aware available as a paid add-on, which unlocks the Crisis Keywords guardrail panel',
-              'Client approval workflows',
             ]}
           />
           <PlanCard
@@ -127,16 +125,22 @@ export function BillingSection() {
           </Step>
           <Step n={4}>
             If you already have an active subscription, LYRA updates it in place — there is no
-            redirect to a Stripe checkout page and no new card details are requested. The change
-            applies immediately and your plan updates within a few seconds.
+            redirect to a Stripe checkout page and no new card details are requested. The plan
+            change applies immediately; the plan shown on this page updates once Stripe confirms
+            the change back to LYRA, which is usually within moments but can occasionally lag a
+            little behind — refresh the page if it doesn&apos;t update right away. (The one
+            exception: if your existing subscription is canceled or fully expired, LYRA can&apos;t
+            update it in place and instead sends you through a Stripe checkout page to start a new
+            one, the same as a first-time subscriber.)
           </Step>
         </Steps>
         <Note>
-          Upgrading mid-cycle is pro-rated immediately: Stripe charges (or credits) the difference
-          for the remainder of the current billing period as soon as the change is applied, and
-          your next regular charge is the full new plan price on your usual billing date. Your
-          billing interval (monthly or annual) is preserved — an annual subscriber upgrading plans
-          stays on annual billing rather than being switched to monthly.
+          Upgrading mid-cycle doesn&apos;t charge you anything at that moment. Instead, Stripe adds
+          proration line items — a prorated charge for the new plan and a credit for your unused
+          time on the old plan — to your <em>next</em> regular invoice. So your next invoice is the
+          new plan&apos;s price plus or minus that proration adjustment, not simply the plan price
+          on its own. Your billing interval (monthly or annual) is preserved — an annual subscriber
+          upgrading plans stays on annual billing rather than being switched to monthly.
         </Note>
       </Subsection>
 
@@ -193,13 +197,12 @@ export function BillingSection() {
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
           There is no free read-only mode. Once the billing period ends, your account
-          doesn&apos;t lock or go read-only — it downgrades to the paid <Strong>Starter</Strong>{' '}
-          plan ($49/month) and continues billing at that rate. Starter still gives you scheduling,
-          AI caption generation, and most write access to your workspace; you simply lose whatever
-          was exclusive to your previous plan (extra workspaces beyond the Starter limit, full
-          brand intelligence, the approval screen for Draft + Approve replies, Full AI autonomy,
-          and Crisis Aware). If you don&apos;t want to be billed at all going forward, cancel the
-          Starter subscription as well from the same portal.
+          doesn&apos;t lock or go read-only — it drops to the <Strong>Starter</Strong> feature set,
+          and this is free: no new subscription is created, and you are not billed anything further.
+          You keep scheduling, AI caption generation, and most write access to your workspace at no
+          cost; you simply lose whatever was exclusive to your previous plan (extra workspaces
+          beyond the Starter limit, the approval screen for Draft + Approve replies, Full AI
+          autonomy, and Crisis Aware).
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
           If you change your mind before the billing period ends, reopen the Stripe Billing Portal
