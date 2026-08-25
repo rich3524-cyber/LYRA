@@ -8,6 +8,8 @@ CREATE TABLE "Review" (
     "authorName" TEXT,
     "text" TEXT,
     "sentiment" "Sentiment",
+    "isEscalated" BOOLEAN NOT NULL DEFAULT false,
+    "escalationReason" TEXT,
     "status" "CommentStatus" NOT NULL DEFAULT 'PENDING',
     "aiDraftResponse" TEXT,
     "finalResponse" TEXT,
