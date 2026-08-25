@@ -43,12 +43,12 @@ export function BillingSection() {
             description="For solo operators and small businesses managing their own presence."
             features={[
               '1 workspace',
-              'Post scheduling across 6 social platforms',
+              'Post scheduling across 7 social platforms',
               'Content calendar with drag-to-reschedule',
-              'Basic brand intelligence profile',
-              'Manual inbox management (no AI responses)',
+              'AI caption generation',
+              'AI comment reply drafts (Draft + Approve mode can be turned on, though the approval screen isn&apos;t available on this plan — see the note below)',
+              'Basic brand profile',
               'Social media analytics',
-              'Google Search Console SEO integration',
             ]}
           />
           <PlanCard
@@ -59,10 +59,10 @@ export function BillingSection() {
               'Up to 5 workspaces',
               'Everything in Starter',
               'Full brand intelligence (social feed analysis + document upload)',
-              'AI caption generation',
-              'AI comment response drafts (Draft + Approve mode)',
+              'AI comment response drafts with an approval screen (Draft + Approve mode)',
+              'Full AI autonomy available (AI auto-responds to comments, with confirmation)',
+              'Crisis Aware available as a paid add-on, which unlocks the Crisis Keywords guardrail panel',
               'Client approval workflows',
-              'Crisis Aware available as a paid add-on',
             ]}
           />
           <PlanCard
@@ -72,94 +72,116 @@ export function BillingSection() {
             features={[
               'Unlimited workspaces',
               'Everything in Pro',
-              'Full AI autonomy (AI responds to comments automatically)',
-              'Guardrail controls (Never discuss, Never use word, Always escalate, Approved answers)',
               'Crisis Aware included at no extra cost',
               'Priority support',
             ]}
           />
         </div>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-4">
-          All prices are in USD and exclusive of any applicable taxes. Annual billing (at a
-          discount) is offered when you first sign up through the public pricing page.
-          Upgrading an existing plan from within LYRA (via the <Strong>Upgrade</Strong> button)
-          is monthly billing only for now.
+          Prices shown are exclusive of any applicable taxes. Annual billing (at a discount) is
+          offered when you first sign up through the public pricing page. Upgrading an existing
+          plan from within LYRA (via the <Strong>Upgrade</Strong> button on the Billing page)
+          keeps your current billing interval — it does not switch an annual subscriber to
+          monthly.
         </p>
+        <Note>
+          Full AI autonomy (the AI replies to comments with no review) is available on both Pro
+          and Agency — it is not an Agency-exclusive feature. On Starter, you can turn on Draft +
+          Approve mode in Settings and it will generate drafted replies, but the approval screen
+          in the Inbox that lets you review and send them isn&apos;t shown on Starter, so those
+          drafts have nowhere to be approved from. Upgrade to Pro or Agency to use Draft + Approve
+          in practice.
+        </Note>
       </Subsection>
 
       <Subsection title="Crisis Aware add-on (Pro plan)">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
           Crisis Aware is bundled at no extra cost on the Agency plan. On Pro, it&apos;s available
           as a monthly (or annual) add-on subscription, purchased separately from your main plan.
-          Go to <Strong>Settings → Crisis Aware</Strong> in the workspace and click{' '}
+          Go to <Strong>Settings → Add-ons</Strong> in the workspace and click{' '}
           <Strong>Activate</Strong> — this opens a Stripe checkout for the add-on specifically.
-          Starter plans don&apos;t have access to Crisis Aware; the settings page shows a locked
-          card with an upgrade prompt instead.
+          Starter workspaces don&apos;t have access to Crisis Aware; the Add-ons card on Starter
+          shows a locked icon with no way to activate it from that screen — upgrade to Pro or
+          Agency first, then activate the add-on from there.
+        </p>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
+          Turning on Crisis Aware also unlocks the <Strong>Crisis Keywords</Strong> panel on the
+          Brand AI page, where you can add phrases that automatically escalate a matching comment
+          for manual review instead of letting the AI respond to it.
         </p>
       </Subsection>
 
       <Subsection title="Upgrading your plan">
         <Steps>
           <Step n={1}>
-            Click the <Strong>Upgrade</Strong> button in the top navigation bar (visible to
-            Starter and Pro subscribers), or go to <Strong>Account → Billing</Strong> and click
-            <Strong> Change plan</Strong>.
+            Go to <Strong>Account → Billing</Strong> and find the plan you want to move to.
           </Step>
           <Step n={2}>
-            The upgrade panel shows the next available plan with a full list of what you gain.
-            Review the features and price.
+            Each plan card shows its price and feature list. If a plan is higher than your
+            current one, its card has an <Strong>Upgrade to [plan]</Strong> button.
           </Step>
           <Step n={3}>
-            Click <Strong>Upgrade to [plan]</Strong>. You are redirected to a Stripe-hosted
-            checkout page.
+            Click <Strong>Upgrade to [plan]</Strong>.
           </Step>
           <Step n={4}>
-            Enter your payment details (card number, expiry, CVC, and billing address).
-            Stripe handles all payment security — LYRA never sees your card number.
-          </Step>
-          <Step n={5}>
-            Click <Strong>Subscribe</Strong>. The payment is processed immediately and you are
-            redirected back to LYRA. The new plan features are active within 30 seconds.
+            If you already have an active subscription, LYRA updates it in place — there is no
+            redirect to a Stripe checkout page and no new card details are requested. The change
+            applies immediately and your plan updates within a few seconds.
           </Step>
         </Steps>
         <Note>
-          When upgrading mid-cycle, Stripe calculates a pro-rated charge for the remainder of
-          the current billing period. Your next regular charge will be the full new plan price
-          on your regular billing date.
+          Upgrading mid-cycle is pro-rated immediately: Stripe charges (or credits) the difference
+          for the remainder of the current billing period as soon as the change is applied, and
+          your next regular charge is the full new plan price on your usual billing date. Your
+          billing interval (monthly or annual) is preserved — an annual subscriber upgrading plans
+          stays on annual billing rather than being switched to monthly.
         </Note>
       </Subsection>
 
       <Subsection title="Managing your subscription">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Go to <Strong>Account → Billing</Strong> and click <Strong>Manage subscription</Strong>.
-          This opens the <Strong>Stripe Billing Portal</Strong> — a Stripe-hosted page where you can:
+          On <Strong>Account → Billing</Strong>, if you have an active Stripe subscription
+          you&apos;ll see a <Strong>Manage billing</Strong> button next to your current plan.
+          Click it to open the <Strong>Stripe Billing Portal</Strong> — a Stripe-hosted page where
+          you can:
         </p>
         <ul className="space-y-1.5 font-sans text-sm text-text-secondary list-disc list-inside pl-2">
           <li>View your current plan and next renewal date</li>
-          <li>Update your payment method (card or bank account)</li>
+          <li>Update your payment method (card)</li>
           <li>Update your billing address</li>
           <li>Download past invoices as PDF</li>
           <li>Cancel your subscription</li>
         </ul>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          All changes made in the Stripe portal take effect immediately and are reflected
-          in LYRA within a few minutes.
+          Card is the only payment method LYRA&apos;s checkout accepts today — bank account
+          payment isn&apos;t offered. The <Strong>Manage billing</Strong> button only appears once
+          you have a Stripe customer record (i.e. you&apos;ve completed checkout at least once);
+          if you don&apos;t see it, you don&apos;t yet have billing set up. All changes made in
+          the Stripe portal take effect immediately and are reflected in LYRA within a few
+          minutes.
         </p>
       </Subsection>
 
       <Subsection title="Cancelling your subscription">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Open the Stripe Billing Portal (via <Strong>Account → Billing → Manage subscription</Strong>)
-          and click <Strong>Cancel plan</Strong>. Cancellation takes effect at the end of your
-          current billing period. You retain full access to all paid features until then.
-          After the period ends, your account downgrades to a free read-only state — you
-          can still log in and view your data, but scheduling, AI features, and new
-          social connections are disabled.
+          Open the Stripe Billing Portal (via <Strong>Account → Billing → Manage billing</Strong>)
+          and cancel your plan there. Cancellation takes effect at the end of your current billing
+          period, and you retain full access to your current plan&apos;s features until then.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          If you change your mind before the billing period ends, open the portal again and
-          click <Strong>Resume plan</Strong> to reactivate. No charge is needed — your next
-          regular billing cycle continues as normal.
+          There is no free read-only mode. Once the billing period ends, your account
+          doesn&apos;t lock or go read-only — it downgrades to the paid <Strong>Starter</Strong>{' '}
+          plan ($49/month) and continues billing at that rate. Starter still gives you scheduling,
+          AI caption generation, and most write access to your workspace; you simply lose whatever
+          was exclusive to your previous plan (extra workspaces beyond the Starter limit, full
+          brand intelligence, the approval screen for Draft + Approve replies, Full AI autonomy,
+          and Crisis Aware). If you don&apos;t want to be billed at all going forward, cancel the
+          Starter subscription as well from the same portal.
+        </p>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
+          If you change your mind before the billing period ends, reopen the Stripe Billing Portal
+          and resume your plan there. No charge is needed — your next regular billing cycle
+          continues as normal.
         </p>
       </Subsection>
 
