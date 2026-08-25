@@ -67,25 +67,32 @@ export function SocialConnectionsSection() {
             Comment response via API is available but subject to LinkedIn rate limits.
             Requires admin access to the company Page. Personal profiles are not supported.
           </PlatformRow>
-          <PlatformRow name="Google Business" availability="Full">
-            Google Business Profile (formerly Google My Business) is fully supported for
-            review reading and response. Responding to Google reviews is one of LYRA&apos;s most
-            impactful features — reviews have a significant effect on local SEO. Requires a
-            verified Google Business Profile and admin access.
+          <PlatformRow name="Google Business" availability="Available">
+            Google Business Profile (formerly Google My Business) connections can be used to
+            publish posts/updates the same way as any other connected platform. Review reading
+            and response — historically Google Business&apos;s flagship use case — is
+            <Strong> not currently functional</Strong>: LYRA has no database record for storing
+            reviews, the code path that would fetch or reply to them is never called from
+            anywhere in the app, and Google Business accounts are explicitly excluded from
+            LYRA&apos;s automated comment/review sync. Requires a verified Google Business
+            Profile and admin access.
           </PlatformRow>
           <PlatformRow name="X (Twitter)" availability="Available">
-            X (formerly Twitter) is supported for post scheduling and timeline publishing.
-            Comment/reply monitoring is available but at reduced frequency due to elevated
-            API costs on X&apos;s current pricing model. Rate limits apply per workspace.
+            X (formerly Twitter) is supported for post scheduling and timeline publishing, and
+            for reading and replying to comments through LYRA&apos;s automated monitoring.
           </PlatformRow>
           <PlatformRow name="TikTok" availability="Available">
-            TikTok Business accounts are supported for post scheduling, and for reading and
-            replying to comments where TikTok&apos;s API access allows it. Availability may be
-            subject to TikTok&apos;s own API approval process for your account.
+            TikTok Business accounts are supported for post scheduling.
+            <Strong> Comment reading and replying is not currently functional</Strong> — TikTok
+            comments are not supported through LYRA&apos;s current connection, and this is a
+            known, permanent condition rather than a temporary API limitation.
           </PlatformRow>
           <PlatformRow name="YouTube" availability="Available">
-            YouTube channels are supported for publishing videos and monitoring comments.
-            Requires you to be the owner or a manager of the connected channel.
+            YouTube channels are supported for publishing videos, and are included in LYRA&apos;s
+            automated comment monitoring the same way as other platforms. Unlike TikTok (see
+            above), this hasn&apos;t produced a known failure — but it also hasn&apos;t been
+            independently confirmed to work end-to-end for YouTube specifically. Requires you to
+            be the owner or a manager of the connected channel.
           </PlatformRow>
         </div>
       </Subsection>
@@ -115,9 +122,8 @@ export function SocialConnectionsSection() {
           </Step>
           <Step n={5}>
             You are redirected back to LYRA&apos;s Settings page. The account appears in the list
-            with a
-            <StatusBadge color="text-status-success border-status-success/30">Connected</StatusBadge>
-            indicator and its name.
+            with a small green dot next to its name and platform label — there&apos;s no
+            &ldquo;Connected&rdquo; text badge on the row itself, just the dot indicator.
           </Step>
         </Steps>
         <Note>
@@ -154,7 +160,9 @@ export function SocialConnectionsSection() {
             Used to publish to and read company Pages. LYRA does not read personal profile data.
           </PermRow>
           <PermRow platform="Google Business" permission="Set by Zernio's app, not LYRA's code">
-            Used to read and reply to Google reviews on your Business Profile listings.
+            Used to publish posts/updates to your Business Profile. Review reading and response
+            is not currently functional in LYRA (see Supported platforms above), so this
+            connection is not used for reviews today regardless of what&apos;s granted.
           </PermRow>
           <PermRow platform="X (Twitter)" permission="Set by Zernio's app, not LYRA's code">
             Used to post and read replies. May also include offline/refresh-token access, needed
@@ -204,11 +212,18 @@ export function SocialConnectionsSection() {
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
           Disconnecting does <Strong>not</Strong> revoke or delete the stored access token. It
-          only marks the account inactive in LYRA&apos;s database. LYRA immediately stops
-          publishing, reading, or replying to anything on that account, but the underlying
-          encrypted token record — held by Zernio for accounts connected through the current
-          flow — is retained indefinitely, not deleted.
+          only marks the account inactive in LYRA&apos;s database — the token itself, held by
+          Zernio for accounts connected through the current flow, is retained indefinitely, not
+          deleted. Marking the account inactive immediately stops LYRA&apos;s comment/review
+          monitoring and blocks scheduling any <Strong>new</Strong> post to that account.
         </p>
+        <Note>
+          Disconnecting does <Strong>not</Strong> stop a post that was already scheduled before
+          you disconnected — LYRA&apos;s publish step does not check whether the account is
+          still active, so an already-scheduled post will still go out at its scheduled time,
+          even to a disconnected account. If you disconnect an account, also cancel or
+          reschedule anything already queued for it from the content calendar.
+        </Note>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
           Disconnecting in LYRA does not revoke anything on the platform&apos;s side either. To
           fully cut off access, remove the connected app from the platform&apos;s own
@@ -217,12 +232,6 @@ export function SocialConnectionsSection() {
           registered under Zernio&apos;s name rather than LYRA&apos;s, since Zernio is the
           service that actually completes the OAuth connection today.
         </p>
-        <Note>
-          Any scheduled posts targeting a disconnected account will move to
-          <StatusBadge color="text-status-error border-status-error/30">Failed</StatusBadge> status
-          at their scheduled publish time. They are not deleted — you can reconnect the account
-          and reschedule them.
-        </Note>
       </Subsection>
 
       <Subsection title="Troubleshooting: Facebook says no Page was found">
