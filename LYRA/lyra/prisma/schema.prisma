@@ -112,6 +112,7 @@ model Workspace {
   competitors        Competitor[]
   emailIntegrations  EmailIntegration[]
   notificationChannel NotificationChannel?
+  reviews            Review[]
 }
 
 // A Slack (or, later, Teams) channel that LYRA posts event alerts into.
@@ -221,6 +222,7 @@ model SocialAccount {
 
   posts    Post[]
   comments Comment[]
+  reviews  Review[]
 
   @@unique([workspaceId, platform, platformId])
   @@index([zernioAccountId])
@@ -384,6 +386,35 @@ model CommentResponse {
   aiGenerated Boolean   @default(true)
   publishedAt DateTime?
   createdAt   DateTime  @default(now())
+}
+
+// Google Business review ingestion. Parallel to Comment but deliberately its
+// own model rather than merged with it -- a review has rating/authorName
+// fields Comment doesn't, and lives on its own ingestion path from Zernio.
+// Reuses CommentStatus rather than a separate ReviewStatus enum: a review's
+// status lifecycle (PENDING -> AI_DRAFTED/ESCALATED -> RESPONDED) is
+// functionally the same shape as a comment's.
+model Review {
+  id                String        @id @default(cuid())
+  workspaceId       String
+  workspace         Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  socialAccountId   String
+  socialAccount     SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  zernioReviewId    String
+  rating            Int?
+  authorName        String?
+  text              String?
+  sentiment         Sentiment?
+  status            CommentStatus @default(PENDING)
+  aiDraftResponse   String?
+  finalResponse     String?
+  respondedAt       DateTime?
+  platformCreatedAt DateTime
+  createdAt         DateTime      @default(now())
+
+  @@unique([socialAccountId, zernioReviewId])
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, status])
 }
 
 model BrandProfile {
