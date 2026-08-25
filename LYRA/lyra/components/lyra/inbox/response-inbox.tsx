@@ -122,13 +122,13 @@ export function ResponseInbox({
       })
       const data = await res.json() as { synced?: number; error?: string }
       if (!res.ok) throw new Error(data.error ?? 'Sync failed')
-      toast.success(data.synced ? `${data.synced} new comment${data.synced !== 1 ? 's' : ''} synced.` : 'No new comments.')
+      toast.success(data.synced ? `${data.synced} new item${data.synced !== 1 ? 's' : ''} synced.` : 'No new activity.')
       // Reload comments straight into the SWR cache (mutate with an explicit
       // value, no revalidation) rather than `mutate()`'s revalidate-via-fetcher
       // -- a failed reload here should silently keep showing the list from
       // before the sync, exactly like the original's plain `if (r2.ok)` check,
-      // not surface the "Comments failed to load" error banner over data
-      // that's still perfectly valid.
+      // not surface the "Comments and reviews failed to load" error banner
+      // over data that's still perfectly valid.
       try {
         const r2 = await fetch(`/api/comments?workspaceId=${workspaceId}`)
         if (r2.ok) {
@@ -174,7 +174,7 @@ export function ResponseInbox({
   return (
     <div className="space-y-4">
       {error && (
-        <p role="alert" className="text-sm text-status-error text-center py-6">Comments failed to load. Refresh to try again.</p>
+        <p role="alert" className="text-sm text-status-error text-center py-6">Comments and reviews failed to load. Refresh to try again.</p>
       )}
 
       {/* Platform filter + sync */}
@@ -206,7 +206,7 @@ export function ResponseInbox({
         type="button"
         onClick={handleSync}
         disabled={syncing}
-        aria-label="Sync comments from connected accounts"
+        aria-label="Sync comments and reviews from connected accounts"
         className="inline-flex items-center gap-1.5 text-xs text-text-tertiary hover:text-text-primary transition-colors disabled:opacity-50 shrink-0"
       >
         <RefreshCw size={13} strokeWidth={1.5} className={syncing ? 'animate-spin' : ''} />
@@ -272,7 +272,7 @@ export function ResponseInbox({
               <div key={i} className="h-24 rounded-xl bg-background-secondary border border-background-border animate-pulse" />
             ))
           ) : escalated.length === 0 ? (
-            <p className="text-sm text-text-secondary text-center py-12">No escalated comments.</p>
+            <p className="text-sm text-text-secondary text-center py-12">Nothing escalated.</p>
           ) : (
             <AnimatePresence>
               {escalated.map(c => (

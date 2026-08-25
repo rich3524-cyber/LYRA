@@ -38,12 +38,17 @@ function StarRating({ rating }: { rating: number | null }) {
   if (rating == null) return null
   const clamped = Math.max(0, Math.min(5, rating))
   return (
-    <span className="flex items-center gap-0.5" aria-label={`${clamped} out of 5 stars`}>
+    <span
+      className="flex items-center gap-0.5"
+      role="img"
+      aria-label={`${clamped} out of 5 stars`}
+    >
       {Array.from({ length: 5 }).map((_, i) => (
         <Star
           key={i}
           size={12}
           strokeWidth={1.5}
+          aria-hidden="true"
           className={i < clamped ? 'fill-status-warning text-status-warning' : 'text-text-tertiary'}
         />
       ))}
