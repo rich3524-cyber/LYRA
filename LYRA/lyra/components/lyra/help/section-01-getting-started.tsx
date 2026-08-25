@@ -1,4 +1,4 @@
-import { Divider, SectionHeader, Subsection, Strong, Steps, Step, Note } from './primitives'
+import { SectionHeader, Subsection, Strong, Steps, Step, Note } from './primitives'
 
 export function GettingStartedSection() {
   return (
@@ -87,7 +87,7 @@ export function GettingStartedSection() {
           The left sidebar is the primary navigation on larger screens. Below that breakpoint, it
           is replaced entirely by a hamburger menu that opens a full slide-out drawer — it does
           not shrink to icon-only at smaller widths. On larger screens, a chevron toggle next to
-          the sidebar lets you manually collapse it to icon-only at any screen size.
+          the sidebar lets you manually collapse it to icon-only.
         </p>
         <ul className="space-y-2 font-sans text-sm text-text-secondary">
           <li>
@@ -96,7 +96,11 @@ export function GettingStartedSection() {
             It is hidden when the sidebar is collapsed to icon-only.
           </li>
           <li>
-            <Strong>Dashboard</Strong> — the cross-workspace overview described above.
+            <Strong>Dashboard</Strong> — despite the shared name, this is <em>not</em> the
+            cross-workspace overview described above. It opens the active workspace&apos;s own
+            overview page — the same page you land on by picking a workspace from the switcher —
+            with workspace-scoped stats (Scheduled this week, Pending responses, Connected
+            accounts) and that workspace&apos;s recent posts.
           </li>
           <li>
             <Strong>Calendar</Strong> — the monthly content calendar for the active workspace.
@@ -124,7 +128,12 @@ export function GettingStartedSection() {
             <Strong>SEO</Strong> — Google Search Console performance data for the active workspace.
           </li>
           <li>
-            <Strong>Trends</Strong> — shown only for workspaces with the Trends add-on enabled.
+            <Strong>Trends</Strong> — intended to appear only for workspaces with the Trends
+            add-on enabled, but currently a wiring gap means it doesn&apos;t render in the sidebar
+            for any workspace. The add-on itself is real and purchasable from{' '}
+            <Strong>Settings → Add-ons</Strong>; if you&apos;ve bought it, the feature is still
+            reachable directly at the workspace&apos;s <Strong>/trends</Strong> URL, just not
+            linked from the nav.
           </li>
           <li>
             <Strong>Settings</Strong> — pinned by itself at the bottom of the sidebar, separate
