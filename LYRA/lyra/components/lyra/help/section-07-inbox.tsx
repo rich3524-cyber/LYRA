@@ -97,9 +97,9 @@ export function InboxSection() {
             it hits an <Strong>Always escalate</Strong> guardrail or decides it can&apos;t respond safely.
             Escalated comments move to their own <Strong>Escalated</Strong> tab rather than staying in
             the main list; the AI will not auto-respond to them. You can still write a manual reply
-            or click <Strong>Ignore</Strong> from that tab. If a Slack or Teams channel is connected
-            for this workspace and the Escalated event is enabled for it, escalating a comment can
-            also post an alert there.
+            or click <Strong>Ignore</Strong> from that tab. If a Slack channel is connected for this
+            workspace and the Escalated event is enabled for it, escalating a comment can also post
+            an alert there.
           </StatusRow>
           <StatusRow status="Ignored" color="text-text-tertiary border-background-border-mid">
             The comment has been manually dismissed. It will not receive a response. This is
@@ -157,8 +157,11 @@ export function InboxSection() {
           </Step>
           <Step n={3}>
             Edit the text if you want to. When there is text in the box, click <Strong>Approve
-            &amp; send</Strong> (shown when an AI draft was available) or <Strong>Send reply</Strong> (shown
-            otherwise, e.g. on Starter or in No reply mode) to post it to the platform immediately.
+            &amp; send</Strong> or <Strong>Send reply</Strong> to post it to the platform immediately —
+            which label you see depends on whether AI drafting is available for this comment.
+            Approve &amp; send appears for AI-drafting-eligible comments (not on Starter, not in No
+            reply mode); Send reply appears everywhere else, including for an escalated comment
+            that already has a draft sitting in the box.
           </Step>
           <Step n={4}>
             If the comment doesn&apos;t need a response, click <Strong>Ignore</Strong>. It&apos;s marked
@@ -195,12 +198,20 @@ export function InboxSection() {
       <Subsection title="Guardrails">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
           Guardrails are constraints the AI checks when generating comment responses for a
-          workspace. They are not restricted to any plan — every plan can have guardrails.
-          However, there is currently no settings screen to configure most of them. The only
-          guardrail you can actually create or remove today is <Strong>Always escalate</Strong>,
-          managed through the <Strong>Crisis Keywords</Strong> panel on the Brand AI page (see
-          the Brand AI section of this guide) — approving a suggested keyword there, or adding
-          your own, creates a live Always escalate guardrail immediately.
+          workspace. Enforcement itself is not restricted to any plan — any workspace that has a
+          guardrail can have it enforced. However, there is currently no settings screen to
+          configure most of them. The only guardrail you can actually create or remove today is
+          <Strong> Always escalate</Strong>, managed through the <Strong>Crisis Keywords</Strong> panel
+          on the Brand AI page (see the Brand Intelligence section of this guide) — approving a
+          suggested keyword there, or adding your own, creates a live Always escalate guardrail
+          immediately.
+        </p>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          That panel only appears once <Strong>Crisis Aware</Strong> is turned on for the
+          workspace, and Crisis Aware itself requires a Pro or Agency plan — it can&apos;t be
+          enabled on Starter. In practice, that means a Starter workspace has no way to create a
+          guardrail of any kind, even though nothing about guardrail enforcement is plan-gated in
+          the code.
         </p>
         <div className="space-y-3 mt-3">
           <GuardrailRow type="Always escalate">
