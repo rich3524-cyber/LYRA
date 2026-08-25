@@ -17,6 +17,66 @@ export async function queueBrandSync(workspaceId: string) {
   )
 }
 
+// Exported (rather than left as an anonymous closure passed to `new Worker(...)`)
+// so it's directly unit-testable -- see brand-sync.worker.test.ts.
+export async function processBrandSyncJob(workspaceId: string): Promise<void> {
+  const workspace = await prisma.workspace.findUnique({
+    where:   { id: workspaceId },
+    include: { brandProfile: true },
+  })
+  if (!workspace) return
+
+  // Preserve any client-pasted guidelines already saved on the brand profile --
+  // this weekly refresh never re-derives them (unlike the manual build route),
+  // so without this the upsert below would silently wipe them on every run.
+  const savedUserGuidelines = (workspace.brandProfile?.postingPatterns as Record<string, unknown> | null)?.userGuidelines as string | undefined
+
+  let websiteData = { title: '', description: '', bodyText: '', headings: [] as string[], metaKeywords: [] as string[] }
+  if (workspace.websiteUrl) {
+    try {
+      websiteData = await scrapeWebsite(workspace.websiteUrl)
+    } catch {
+      console.warn(`brand-sync: failed to scrape ${workspace.websiteUrl}`)
+    }
+  }
+
+  const guidelinesText = workspace.brandProfile?.guidelineUrls?.length
+    ? await parseWorkspaceGuidelines(workspace.brandProfile.guidelineUrls)
+    : ''
+
+  const socialPosts: string[] = []
+  const insights = analyzeSocialPosts(socialPosts)
+
+  const profileData = await buildBrandProfile(websiteData, guidelinesText, socialPosts)
+
+  await prisma.brandProfile.upsert({
+    where:  { workspaceId },
+    create: {
+      workspaceId,
+      voiceSummary:    profileData.voiceSummary,
+      toneAttributes:  profileData.toneAttributes,
+      contentThemes:   profileData.contentThemes,
+      audienceProfile: JSON.parse(JSON.stringify(profileData.audienceProfile)),
+      postingPatterns: JSON.parse(JSON.stringify({ guidelines: profileData.postingGuidelines, socialInsights: insights, userGuidelines: savedUserGuidelines || undefined })),
+      websiteData:     JSON.parse(JSON.stringify(websiteData)),
+      lastScrapedAt:   new Date(),
+      lastUpdatedAt:   new Date(),
+    },
+    update: {
+      voiceSummary:    profileData.voiceSummary,
+      toneAttributes:  profileData.toneAttributes,
+      contentThemes:   profileData.contentThemes,
+      audienceProfile: JSON.parse(JSON.stringify(profileData.audienceProfile)),
+      postingPatterns: JSON.parse(JSON.stringify({ guidelines: profileData.postingGuidelines, socialInsights: insights, userGuidelines: savedUserGuidelines || undefined })),
+      websiteData:     JSON.parse(JSON.stringify(websiteData)),
+      lastScrapedAt:   new Date(),
+      lastUpdatedAt:   new Date(),
+    },
+  })
+
+  console.log(`brand-sync: completed for workspace ${workspaceId}`)
+}
+
 const worker = new Worker(
   'brand-sync',
   async (job) => {
@@ -39,56 +99,7 @@ const worker = new Worker(
       return
     }
 
-    const workspace = await prisma.workspace.findUnique({
-      where:   { id: workspaceId },
-      include: { brandProfile: true },
-    })
-    if (!workspace) return
-
-    let websiteData = { title: '', description: '', bodyText: '', headings: [] as string[], metaKeywords: [] as string[] }
-    if (workspace.websiteUrl) {
-      try {
-        websiteData = await scrapeWebsite(workspace.websiteUrl)
-      } catch {
-        console.warn(`brand-sync: failed to scrape ${workspace.websiteUrl}`)
-      }
-    }
-
-    const guidelinesText = workspace.brandProfile?.guidelineUrls?.length
-      ? await parseWorkspaceGuidelines(workspace.brandProfile.guidelineUrls)
-      : ''
-
-    const socialPosts: string[] = []
-    const insights = analyzeSocialPosts(socialPosts)
-
-    const profileData = await buildBrandProfile(websiteData, guidelinesText, socialPosts)
-
-    await prisma.brandProfile.upsert({
-      where:  { workspaceId },
-      create: {
-        workspaceId,
-        voiceSummary:    profileData.voiceSummary,
-        toneAttributes:  profileData.toneAttributes,
-        contentThemes:   profileData.contentThemes,
-        audienceProfile: JSON.parse(JSON.stringify(profileData.audienceProfile)),
-        postingPatterns: JSON.parse(JSON.stringify({ guidelines: profileData.postingGuidelines, socialInsights: insights })),
-        websiteData:     JSON.parse(JSON.stringify(websiteData)),
-        lastScrapedAt:   new Date(),
-        lastUpdatedAt:   new Date(),
-      },
-      update: {
-        voiceSummary:    profileData.voiceSummary,
-        toneAttributes:  profileData.toneAttributes,
-        contentThemes:   profileData.contentThemes,
-        audienceProfile: JSON.parse(JSON.stringify(profileData.audienceProfile)),
-        postingPatterns: JSON.parse(JSON.stringify({ guidelines: profileData.postingGuidelines, socialInsights: insights })),
-        websiteData:     JSON.parse(JSON.stringify(websiteData)),
-        lastScrapedAt:   new Date(),
-        lastUpdatedAt:   new Date(),
-      },
-    })
-
-    console.log(`brand-sync: completed for workspace ${workspaceId}`)
+    await processBrandSyncJob(workspaceId)
   },
   { connection: redis, concurrency: 3 }
 )
