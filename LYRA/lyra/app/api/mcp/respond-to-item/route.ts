@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
+import type { Sentiment } from '@prisma/client'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { parseBody, ValidationError } from '@/lib/validate'
@@ -144,6 +145,12 @@ export async function POST(req: Request) {
     // instead of a hard failure. Revisit if callers report this as
     // surprising rather than convenient.
     let finalText = responseText?.trim()
+    // Tracks the AI-classified sentiment so it can be persisted alongside
+    // finalText below. Only ever set inside the AI-generation branch --
+    // stays null on the caller-supplied responseText path, where no
+    // classification ever happened, and on the pre-generation
+    // ALWAYS_ESCALATE write above (which has no AI result at all).
+    let generatedSentiment: Sentiment | null = null
     if (!finalText) {
       const brandProfile = await prisma.brandProfile.findUnique({ where: { workspaceId } })
       const result = await generateCommentResponse(comment, brandProfile, guardrails)
@@ -153,7 +160,7 @@ export async function POST(req: Request) {
         // request was mid-generation.
         const escalated = await prisma.comment.updateMany({
           where: { id: commentId, status: { notIn: ['RESPONDED'] } },
-          data: { status: 'ESCALATED', isEscalated: true, escalationReason: result.escalationReason },
+          data: { status: 'ESCALATED', isEscalated: true, escalationReason: result.escalationReason, sentiment: result.sentiment },
         })
         if (escalated.count === 0) {
           return NextResponse.json({ error: 'Already responded.' }, { status: 400 })
@@ -168,6 +175,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Generated response was empty.' }, { status: 400 })
       }
       finalText = result.response
+      generatedSentiment = result.sentiment
     }
 
     // Guarded the same way as the send-path claim further down (same
@@ -185,7 +193,7 @@ export async function POST(req: Request) {
     // silent overwrite.
     const draftClaimed = await prisma.comment.updateMany({
       where: { id: commentId, status: { notIn: ['RESPONDED', 'ESCALATED'] } },
-      data:  { status: 'AI_DRAFTED', aiDraftResponse: finalText },
+      data:  { status: 'AI_DRAFTED', aiDraftResponse: finalText, sentiment: generatedSentiment },
     })
     if (draftClaimed.count === 0) {
       return NextResponse.json({ error: 'Already responded.' }, { status: 400 })
@@ -227,7 +235,7 @@ export async function POST(req: Request) {
     // A losing request (count === 0) treats it as already handled, not a 500.
     const claimed = await prisma.comment.updateMany({
       where: { id: commentId, status: { notIn: ['RESPONDED', 'ESCALATED'] } },
-      data:  { status: 'RESPONDED', finalResponse: finalText, respondedAt: new Date() },
+      data:  { status: 'RESPONDED', finalResponse: finalText, respondedAt: new Date(), sentiment: generatedSentiment },
     })
     if (claimed.count === 0) {
       return NextResponse.json({ error: 'Already responded.' }, { status: 400 })

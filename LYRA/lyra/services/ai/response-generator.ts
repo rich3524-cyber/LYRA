@@ -1,5 +1,5 @@
 import { anthropic, CLAUDE_MODEL, extractClaudeText, neutralizeFenceCloser } from '@/lib/anthropic'
-import { BrandProfile, Guardrail, Comment } from '@prisma/client'
+import { BrandProfile, Guardrail, Comment, Sentiment } from '@prisma/client'
 
 export interface GuardrailViolation {
   rule: 'NEVER_USE_WORD' | 'NEVER_DISCUSS'
@@ -59,9 +59,9 @@ export async function generateCommentResponse(
   comment: Comment,
   brandProfile: BrandProfile | null,
   guardrails: Guardrail[]
-): Promise<{ response: string | null; shouldEscalate: boolean; escalationReason?: string }> {
+): Promise<{ sentiment: Sentiment | null; response: string | null; shouldEscalate: boolean; escalationReason?: string }> {
   if (!brandProfile) {
-    return { response: null, shouldEscalate: true, escalationReason: 'No brand profile configured' }
+    return { sentiment: null, response: null, shouldEscalate: true, escalationReason: 'No brand profile configured' }
   }
 
   const neverDiscuss    = guardrails.filter(g => g.type === 'NEVER_DISCUSS').map(g => g.value)
@@ -71,7 +71,7 @@ export async function generateCommentResponse(
   // Check hard escalation triggers before calling Claude
   const escalateTrigger = checkAlwaysEscalate(comment.content, guardrails)
   if (escalateTrigger) {
-    return { response: null, shouldEscalate: true, escalationReason: `Contains escalation trigger: "${escalateTrigger.trigger}"` }
+    return { sentiment: null, response: null, shouldEscalate: true, escalationReason: `Contains escalation trigger: "${escalateTrigger.trigger}"` }
   }
 
   // voiceSummary is writable via the unauthenticated PATCH /api/onboarding
@@ -121,9 +121,15 @@ Posted by: ${neutralizeFenceCloser(comment.authorName, 'untrusted_comment')}
 ${safeCommentContent}
 </untrusted_comment>
 
-If you cannot respond appropriately without breaking any rules, respond with exactly: ESCALATE
+Classify the sentiment of the comment above as exactly one of: POSITIVE, NEUTRAL,
+NEGATIVE, URGENT ("URGENT" means it needs a human's attention regardless of tone --
+e.g. a safety issue, a legal threat, a time-critical complaint).
 
-Write only the response — no explanation.`
+If you cannot respond appropriately without breaking any rules above, set "response"
+to null.
+
+Return ONLY valid JSON, no markdown, no explanation, in exactly this shape:
+{"sentiment": "POSITIVE|NEUTRAL|NEGATIVE|URGENT", "response": "the reply text, or null"}`
 
   const apiResponse = await anthropic.messages.create({
     model:      CLAUDE_MODEL,
@@ -132,21 +138,32 @@ Write only the response — no explanation.`
   })
 
   const text = extractClaudeText(apiResponse)
+  const parsed = JSON.parse(text) as { sentiment: Sentiment; response: string | null }
 
-  if (text === 'ESCALATE') {
-    return { response: null, shouldEscalate: true, escalationReason: 'AI determined escalation required' }
+  // parsed.sentiment is untrusted model output -- the bare `as` cast above gives
+  // no runtime guarantee it's actually one of the enum values. In particular, if
+  // Claude ever omits the "sentiment" key, parsed.sentiment is `undefined`, and
+  // Prisma treats `undefined` in a `data` object as "don't update this field" --
+  // a SILENT no-op with no error. Normalizing anything outside the enum to `null`
+  // here means every caller only ever has to handle the same `null` case the two
+  // pre-call early-return paths above already produce.
+  const VALID_SENTIMENTS: Sentiment[] = ['POSITIVE', 'NEUTRAL', 'NEGATIVE', 'URGENT']
+  const sentiment = VALID_SENTIMENTS.includes(parsed.sentiment) ? parsed.sentiment : null
+
+  if (parsed.response === null) {
+    return { sentiment, response: null, shouldEscalate: true, escalationReason: 'AI determined escalation required' }
   }
 
   // Re-check the guardrails against the model's OUTPUT, not just the input comment.
   // A successful prompt injection would show up here even if it slipped past the
   // pre-call alwaysEscalate scan (which only ever looked at the comment text).
-  const violation = checkGuardrailViolation(text, guardrails)
+  const violation = checkGuardrailViolation(parsed.response, guardrails)
   if (violation) {
     const reason = violation.rule === 'NEVER_USE_WORD'
       ? `Generated response contained a forbidden word/phrase: "${violation.value}"`
       : `Generated response touched a forbidden topic: "${violation.value}"`
-    return { response: null, shouldEscalate: true, escalationReason: reason }
+    return { sentiment, response: null, shouldEscalate: true, escalationReason: reason }
   }
 
-  return { response: text, shouldEscalate: false }
+  return { sentiment, response: parsed.response, shouldEscalate: false }
 }

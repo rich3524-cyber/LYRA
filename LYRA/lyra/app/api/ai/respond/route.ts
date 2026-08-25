@@ -102,6 +102,7 @@ export async function POST(req: Request) {
           status:           'ESCALATED',
           isEscalated:      true,
           escalationReason: result.escalationReason,
+          sentiment:        result.sentiment,
         },
       })
       if (escalated.count === 0) {
@@ -112,7 +113,7 @@ export async function POST(req: Request) {
 
     const drafted = await prisma.comment.updateMany({
       where: { id: commentId, status: { notIn: ['RESPONDED', 'ESCALATED'] } },
-      data: { status: 'AI_DRAFTED', aiDraftResponse: result.response },
+      data: { status: 'AI_DRAFTED', aiDraftResponse: result.response, sentiment: result.sentiment },
     })
     if (drafted.count === 0) {
       return alreadyResolvedResponse(commentId)

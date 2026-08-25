@@ -111,6 +111,7 @@ export async function processAiResponseJob(jobData: AiResponseJobData, deps: AiR
         status:           'ESCALATED',
         isEscalated:      true,
         escalationReason: result.escalationReason,
+        sentiment:        result.sentiment,
       },
     })
     if (escalated.count === 0) {
@@ -171,7 +172,7 @@ export async function processAiResponseJob(jobData: AiResponseJobData, deps: AiR
     // respond-to-item) refuses them; see that route's own comments.
     const claimed = await deps.prisma.comment.updateMany({
       where: { id: commentId, status: { notIn: ['RESPONDED', 'ESCALATED'] } },
-      data:  { status: 'RESPONDED', finalResponse: result.response, respondedAt: new Date() },
+      data:  { status: 'RESPONDED', finalResponse: result.response, respondedAt: new Date(), sentiment: result.sentiment },
     })
     if (claimed.count === 0) {
       // Someone else -- a stalled/re-delivered attempt of this job, or a
@@ -232,7 +233,7 @@ export async function processAiResponseJob(jobData: AiResponseJobData, deps: AiR
     // this function and this write, and this must not silently overwrite it.
     const drafted = await deps.prisma.comment.updateMany({
       where: { id: commentId, status: { notIn: ['RESPONDED', 'ESCALATED'] } },
-      data: { status: 'AI_DRAFTED', aiDraftResponse: result.response },
+      data: { status: 'AI_DRAFTED', aiDraftResponse: result.response, sentiment: result.sentiment },
     })
     if (drafted.count === 0) {
       console.log(`Comment ${commentId} already resolved by a concurrent process -- skipping draft write`)

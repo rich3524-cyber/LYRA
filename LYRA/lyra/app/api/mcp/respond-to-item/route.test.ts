@@ -85,7 +85,7 @@ describe('POST /api/mcp/respond-to-item', () => {
     vi.mocked(prisma.comment.findFirst).mockResolvedValue(baseComment() as any)
     vi.mocked(prisma.brandProfile.findUnique).mockResolvedValue({} as any)
     vi.mocked(prisma.guardrail.findMany).mockResolvedValue([])
-    vi.mocked(generateCommentResponse).mockResolvedValue({ response: 'Thanks!', shouldEscalate: false })
+    vi.mocked(generateCommentResponse).mockResolvedValue({ sentiment: 'POSITIVE', response: 'Thanks!', shouldEscalate: false })
 
     const res = await POST(req({ commentId: 'c1' }))
 
@@ -96,9 +96,11 @@ describe('POST /api/mcp/respond-to-item', () => {
     // The intermediate AI_DRAFTED write is now the guarded updateMany (Fix A),
     // not a plain unconditional update.
     expect(prisma.comment.update).not.toHaveBeenCalled()
+    // Sentiment fix: the AI-classified sentiment from generateCommentResponse
+    // must carry through to the draft-claim write.
     expect(prisma.comment.updateMany).toHaveBeenCalledWith({
       where: draftClaimWhere('c1'),
-      data: { status: 'AI_DRAFTED', aiDraftResponse: 'Thanks!' },
+      data: { status: 'AI_DRAFTED', aiDraftResponse: 'Thanks!', sentiment: 'POSITIVE' },
     })
     // Guards against a wrong-argument regression (e.g. passing finalText
     // instead of the comment's own content) that unit tests mocking
@@ -113,7 +115,7 @@ describe('POST /api/mcp/respond-to-item', () => {
     )
     vi.mocked(prisma.brandProfile.findUnique).mockResolvedValue({} as any)
     vi.mocked(prisma.guardrail.findMany).mockResolvedValue([])
-    vi.mocked(generateCommentResponse).mockResolvedValue({ response: 'Thanks!', shouldEscalate: false })
+    vi.mocked(generateCommentResponse).mockResolvedValue({ sentiment: 'NEGATIVE', response: 'Thanks!', shouldEscalate: false })
     vi.mocked(checkGuardrailViolation).mockReturnValue(null)
     const replyToComment = vi.fn().mockResolvedValue(undefined)
     vi.mocked(getProvider).mockReturnValue({ replyToComment } as any)
@@ -130,13 +132,15 @@ describe('POST /api/mcp/respond-to-item', () => {
     // Two guarded writes happen on this path: the draft claim, then the
     // final RESPONDED claim -- both via updateMany, never a plain update.
     expect(prisma.comment.update).not.toHaveBeenCalled()
+    // Sentiment fix: the AI-classified sentiment must carry through to both
+    // the draft-claim write AND the final send-claim write.
     expect(prisma.comment.updateMany).toHaveBeenCalledWith({
       where: draftClaimWhere('c1'),
-      data: { status: 'AI_DRAFTED', aiDraftResponse: 'Thanks!' },
+      data: { status: 'AI_DRAFTED', aiDraftResponse: 'Thanks!', sentiment: 'NEGATIVE' },
     })
     expect(prisma.comment.updateMany).toHaveBeenCalledWith({
       where: draftClaimWhere('c1'),
-      data: { status: 'RESPONDED', finalResponse: 'Thanks!', respondedAt: expect.any(Date) },
+      data: { status: 'RESPONDED', finalResponse: 'Thanks!', respondedAt: expect.any(Date), sentiment: 'NEGATIVE' },
     })
   })
 
@@ -161,9 +165,12 @@ describe('POST /api/mcp/respond-to-item', () => {
     // refusal happens before the final send-claim, so updateMany fires
     // exactly once here -- not twice.
     expect(prisma.comment.updateMany).toHaveBeenCalledTimes(1)
+    // Sentiment fix: no AI classification ran on this caller-supplied-text
+    // path, so the draft-claim write must record sentiment: null, not the
+    // sentiment of some unrelated prior classification.
     expect(prisma.comment.updateMany).toHaveBeenCalledWith({
       where: draftClaimWhere('c1'),
-      data: { status: 'AI_DRAFTED', aiDraftResponse: 'our pricing is $99' },
+      data: { status: 'AI_DRAFTED', aiDraftResponse: 'our pricing is $99', sentiment: null },
     })
   })
 
@@ -173,7 +180,7 @@ describe('POST /api/mcp/respond-to-item', () => {
     vi.mocked(prisma.brandProfile.findUnique).mockResolvedValue({} as any)
     vi.mocked(prisma.guardrail.findMany).mockResolvedValue([])
     vi.mocked(generateCommentResponse).mockResolvedValue({
-      response: null, shouldEscalate: true, escalationReason: 'Contains escalation trigger: "refund"',
+      sentiment: 'URGENT', response: null, shouldEscalate: true, escalationReason: 'Contains escalation trigger: "refund"',
     })
 
     const res = await POST(req({ commentId: 'c1' }))
@@ -184,9 +191,13 @@ describe('POST /api/mcp/respond-to-item', () => {
     // between the top-of-function guard and this write, so it's a
     // predicated updateMany, never a plain unconditional update.
     expect(prisma.comment.update).not.toHaveBeenCalled()
+    // Sentiment fix: this is the POST-generation escalation write (a real
+    // generateCommentResponse call happened), so result.sentiment must carry
+    // through -- unlike the PRE-generation ALWAYS_ESCALATE write, which has
+    // no AI result available at all and must never gain a sentiment field.
     expect(prisma.comment.updateMany).toHaveBeenCalledWith({
       where: { id: 'c1', status: { notIn: ['RESPONDED'] } },
-      data: { status: 'ESCALATED', isEscalated: true, escalationReason: 'Contains escalation trigger: "refund"' },
+      data: { status: 'ESCALATED', isEscalated: true, escalationReason: 'Contains escalation trigger: "refund"', sentiment: 'URGENT' },
     })
   })
 
@@ -237,7 +248,7 @@ describe('POST /api/mcp/respond-to-item', () => {
     vi.mocked(prisma.comment.findFirst).mockResolvedValue(baseComment() as any)
     vi.mocked(prisma.brandProfile.findUnique).mockResolvedValue({} as any)
     vi.mocked(prisma.guardrail.findMany).mockResolvedValue([])
-    vi.mocked(generateCommentResponse).mockResolvedValue({ response: 'Thanks!', shouldEscalate: false })
+    vi.mocked(generateCommentResponse).mockResolvedValue({ sentiment: 'POSITIVE', response: 'Thanks!', shouldEscalate: false })
 
     const res = await POST(req({ commentId: 'c1', workspaceId: 'ws-1' }))
 
@@ -278,7 +289,7 @@ describe('POST /api/mcp/respond-to-item', () => {
     vi.mocked(prisma.comment.findFirst).mockResolvedValue(baseComment() as any)
     vi.mocked(prisma.brandProfile.findUnique).mockResolvedValue({} as any)
     vi.mocked(prisma.guardrail.findMany).mockResolvedValue([])
-    vi.mocked(generateCommentResponse).mockResolvedValue({ response: 'Thanks!', shouldEscalate: false })
+    vi.mocked(generateCommentResponse).mockResolvedValue({ sentiment: 'POSITIVE', response: 'Thanks!', shouldEscalate: false })
 
     const res = await POST(req({ commentId: 'c1' }))
 
@@ -316,7 +327,7 @@ describe('POST /api/mcp/respond-to-item', () => {
     vi.mocked(prisma.comment.findFirst).mockResolvedValue(baseComment() as any)
     vi.mocked(prisma.brandProfile.findUnique).mockResolvedValue({} as any)
     vi.mocked(prisma.guardrail.findMany).mockResolvedValue([])
-    vi.mocked(generateCommentResponse).mockResolvedValue({ response: '', shouldEscalate: false })
+    vi.mocked(generateCommentResponse).mockResolvedValue({ sentiment: 'NEUTRAL', response: '', shouldEscalate: false })
 
     const res = await POST(req({ commentId: 'c1' }))
 
@@ -386,7 +397,7 @@ describe('POST /api/mcp/respond-to-item', () => {
     )
     vi.mocked(prisma.brandProfile.findUnique).mockResolvedValue({} as any)
     vi.mocked(prisma.guardrail.findMany).mockResolvedValue([])
-    vi.mocked(generateCommentResponse).mockResolvedValue({ response: 'Thanks!', shouldEscalate: false })
+    vi.mocked(generateCommentResponse).mockResolvedValue({ sentiment: 'NEUTRAL', response: 'Thanks!', shouldEscalate: false })
     vi.mocked(checkGuardrailViolation).mockReturnValue(null)
     vi.mocked(prisma.comment.updateMany)
       .mockResolvedValueOnce({ count: 1 } as any) // this request's own draft write succeeds
@@ -417,7 +428,7 @@ describe('POST /api/mcp/respond-to-item', () => {
     )
     vi.mocked(prisma.brandProfile.findUnique).mockResolvedValue({} as any)
     vi.mocked(prisma.guardrail.findMany).mockResolvedValue([])
-    vi.mocked(generateCommentResponse).mockResolvedValue({ response: 'Thanks!', shouldEscalate: false })
+    vi.mocked(generateCommentResponse).mockResolvedValue({ sentiment: 'NEUTRAL', response: 'Thanks!', shouldEscalate: false })
     vi.mocked(checkGuardrailViolation).mockReturnValue(null)
     const replyToComment = vi.fn().mockResolvedValue(undefined)
     vi.mocked(getProvider).mockReturnValue({ replyToComment } as any)
@@ -448,7 +459,7 @@ describe('POST /api/mcp/respond-to-item', () => {
     )
     vi.mocked(prisma.brandProfile.findUnique).mockResolvedValue({} as any)
     vi.mocked(prisma.guardrail.findMany).mockResolvedValue([])
-    vi.mocked(generateCommentResponse).mockResolvedValue({ response: 'Thanks!', shouldEscalate: false })
+    vi.mocked(generateCommentResponse).mockResolvedValue({ sentiment: 'POSITIVE', response: 'Thanks!', shouldEscalate: false })
     vi.mocked(checkGuardrailViolation).mockReturnValue(null)
     const replyToComment = vi.fn().mockRejectedValue(new Error('platform timeout'))
     vi.mocked(getProvider).mockReturnValue({ replyToComment } as any)
@@ -480,7 +491,7 @@ describe('POST /api/mcp/respond-to-item', () => {
     )
     vi.mocked(prisma.brandProfile.findUnique).mockResolvedValue({} as any)
     vi.mocked(prisma.guardrail.findMany).mockResolvedValue([])
-    vi.mocked(generateCommentResponse).mockResolvedValue({ response: 'Thanks!', shouldEscalate: false })
+    vi.mocked(generateCommentResponse).mockResolvedValue({ sentiment: 'POSITIVE', response: 'Thanks!', shouldEscalate: false })
     vi.mocked(checkGuardrailViolation).mockReturnValue(null)
     const replyToComment = vi.fn().mockRejectedValue(new Error('platform timeout'))
     vi.mocked(getProvider).mockReturnValue({ replyToComment } as any)

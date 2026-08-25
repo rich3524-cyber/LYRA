@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { Guardrail, BrandProfile, Comment } from '@prisma/client'
 
 vi.mock('@/lib/anthropic', async () => {
@@ -9,8 +9,25 @@ vi.mock('@/lib/anthropic', async () => {
 import { anthropic } from '@/lib/anthropic'
 import { checkGuardrailViolation, checkAlwaysEscalate, generateCommentResponse } from './response-generator'
 
+// The mocked anthropic.messages.create is shared module state across every
+// test in this file (there's no global clearMocks config), so call-count
+// assertions (e.g. "never called Claude") need a clean slate each time.
+beforeEach(() => {
+  vi.mocked(anthropic.messages.create).mockClear()
+})
+
 function guardrail(type: Guardrail['type'], value: string): Guardrail {
   return { id: 'g1', workspaceId: 'ws-1', type, value } as Guardrail
+}
+
+// Mocks anthropic.messages.create to return the new structured JSON output
+// shape ({ sentiment, response }) that generateCommentResponse now asks
+// Claude to produce, serialized the same way the real API would return it --
+// as a single text block containing a JSON string.
+function mockClaudeJson(payload: { sentiment: string; response: string | null }) {
+  vi.mocked(anthropic.messages.create).mockResolvedValue({
+    content: [{ type: 'text', text: JSON.stringify(payload) }],
+  } as never)
 }
 
 describe('checkGuardrailViolation', () => {
@@ -62,9 +79,7 @@ describe('checkAlwaysEscalate', () => {
 
 describe('generateCommentResponse prompt construction', () => {
   it('fences voiceSummary the same way it fences comment content, so a literal closing tag inside it cannot break out of its fence', async () => {
-    vi.mocked(anthropic.messages.create).mockResolvedValue({
-      content: [{ type: 'text', text: 'A safe on-brand reply' }],
-    } as never)
+    mockClaudeJson({ sentiment: 'POSITIVE', response: 'A safe on-brand reply' })
 
     // voiceSummary is writable via the unauthenticated onboarding PATCH token --
     // this simulates a brief that tries to prematurely close its own fence and
@@ -85,5 +100,106 @@ describe('generateCommentResponse prompt construction', () => {
     // emits to close the fence.
     expect(prompt.match(/<\/brand_voice>/g)).toHaveLength(1)
     expect(prompt).toContain('</_brand_voice>')
+  })
+
+  it('returns the classified sentiment and response for a normal case', async () => {
+    mockClaudeJson({ sentiment: 'NEUTRAL', response: 'Thanks for your comment!' })
+
+    const brandProfile = { voiceSummary: 'Professional', toneAttributes: ['friendly'] } as BrandProfile
+    const comment = { content: 'How does this work?', authorName: 'Bob' } as Comment
+
+    const result = await generateCommentResponse(comment, brandProfile, [])
+
+    expect(result).toEqual({ sentiment: 'NEUTRAL', response: 'Thanks for your comment!', shouldEscalate: false })
+  })
+
+  it('normalizes an out-of-enum sentiment to null rather than passing it through', async () => {
+    // Simulates Claude emitting a value outside the Sentiment enum, e.g. "MIXED".
+    mockClaudeJson({ sentiment: 'MIXED', response: 'Thanks for your comment!' })
+
+    const brandProfile = { voiceSummary: 'Professional', toneAttributes: ['friendly'] } as BrandProfile
+    const comment = { content: 'How does this work?', authorName: 'Bob' } as Comment
+
+    const result = await generateCommentResponse(comment, brandProfile, [])
+
+    expect(result).toEqual({ sentiment: null, response: 'Thanks for your comment!', shouldEscalate: false })
+  })
+
+  it('normalizes a missing sentiment key to null instead of returning undefined -- Prisma treats undefined as "skip this field," which would otherwise be a silent no-op write', async () => {
+    // Simulates Claude's JSON omitting the "sentiment" key entirely.
+    vi.mocked(anthropic.messages.create).mockResolvedValue({
+      content: [{ type: 'text', text: JSON.stringify({ response: 'Thanks for your comment!' }) }],
+    } as never)
+
+    const brandProfile = { voiceSummary: 'Professional', toneAttributes: ['friendly'] } as BrandProfile
+    const comment = { content: 'How does this work?', authorName: 'Bob' } as Comment
+
+    const result = await generateCommentResponse(comment, brandProfile, [])
+
+    expect(result.sentiment).toBeNull()
+    expect(result).toEqual({ sentiment: null, response: 'Thanks for your comment!', shouldEscalate: false })
+  })
+
+  it('escalates when Claude sets response to null, while still carrying the classified sentiment', async () => {
+    mockClaudeJson({ sentiment: 'URGENT', response: null })
+
+    const brandProfile = { voiceSummary: 'Professional', toneAttributes: ['friendly'] } as BrandProfile
+    const comment = { content: 'This is a legal threat', authorName: 'Carol' } as Comment
+
+    const result = await generateCommentResponse(comment, brandProfile, [])
+
+    expect(result).toEqual({
+      sentiment:         'URGENT',
+      response:          null,
+      shouldEscalate:    true,
+      escalationReason:  'AI determined escalation required',
+    })
+  })
+
+  it('short-circuits on checkAlwaysEscalate before calling Claude, with sentiment: null', async () => {
+    const brandProfile = { voiceSummary: 'Professional', toneAttributes: ['friendly'] } as BrandProfile
+    const comment = { content: 'I want a REFUND now', authorName: 'Dan' } as Comment
+    const guardrails = [guardrail('ALWAYS_ESCALATE', 'refund')]
+
+    const result = await generateCommentResponse(comment, brandProfile, guardrails)
+
+    expect(result).toEqual({
+      sentiment:        null,
+      response:         null,
+      shouldEscalate:   true,
+      escalationReason: 'Contains escalation trigger: "refund"',
+    })
+    expect(anthropic.messages.create).not.toHaveBeenCalled()
+  })
+
+  it('returns sentiment: null before any Claude call when there is no brand profile', async () => {
+    const comment = { content: 'Great post!', authorName: 'Eve' } as Comment
+
+    const result = await generateCommentResponse(comment, null, [])
+
+    expect(result).toEqual({
+      sentiment:        null,
+      response:         null,
+      shouldEscalate:   true,
+      escalationReason: 'No brand profile configured',
+    })
+    expect(anthropic.messages.create).not.toHaveBeenCalled()
+  })
+
+  it('re-checks the parsed response against guardrails and preserves the classified sentiment on that escalation', async () => {
+    mockClaudeJson({ sentiment: 'NEUTRAL', response: 'Our pricing is very competitive!' })
+
+    const brandProfile = { voiceSummary: 'Professional', toneAttributes: ['friendly'] } as BrandProfile
+    const comment = { content: 'What does it cost?', authorName: 'Frank' } as Comment
+    const guardrails = [guardrail('NEVER_DISCUSS', 'pricing')]
+
+    const result = await generateCommentResponse(comment, brandProfile, guardrails)
+
+    expect(result).toEqual({
+      sentiment:         'NEUTRAL',
+      response:          null,
+      shouldEscalate:    true,
+      escalationReason:  'Generated response touched a forbidden topic: "pricing"',
+    })
   })
 })
