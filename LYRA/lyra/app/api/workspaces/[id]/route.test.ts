@@ -105,4 +105,39 @@ describe('PATCH /api/workspaces/[id]', () => {
     expect(res.status).toBe(400)
     expect(prisma.workspace.update).not.toHaveBeenCalled()
   })
+
+  it('returns 403 when enabling Draft + Approve on a STARTER plan', async () => {
+    vi.mocked(prisma.workspace.findFirst).mockResolvedValue({ id: 'ws-1', plan: 'STARTER' } as any)
+    const res = await PATCH(req({ aiResponseMode: 'DRAFT_APPROVE' }), ctx('ws-1'))
+    expect(res.status).toBe(403)
+    expect(prisma.workspace.update).not.toHaveBeenCalled()
+  })
+
+  it('still returns 403 when enabling Full Automatic on a STARTER plan (regression)', async () => {
+    vi.mocked(prisma.workspace.findFirst).mockResolvedValue({ id: 'ws-1', plan: 'STARTER' } as any)
+    const res = await PATCH(req({ aiResponseMode: 'FULL' }), ctx('ws-1'))
+    expect(res.status).toBe(403)
+    expect(prisma.workspace.update).not.toHaveBeenCalled()
+  })
+
+  it('allows Draft + Approve on a PRO plan', async () => {
+    const res = await PATCH(req({ aiResponseMode: 'DRAFT_APPROVE' }), ctx('ws-1'))
+    expect(res.status).toBe(200)
+    expect(prisma.workspace.update).toHaveBeenCalledWith({
+      where: { id: 'ws-1' },
+      data: { aiResponseMode: 'DRAFT_APPROVE' },
+    })
+  })
+
+  it('allows Draft + Approve on an AGENCY plan', async () => {
+    vi.mocked(prisma.workspace.findFirst).mockResolvedValue({ id: 'ws-1', plan: 'AGENCY' } as any)
+    const res = await PATCH(req({ aiResponseMode: 'DRAFT_APPROVE' }), ctx('ws-1'))
+    expect(res.status).toBe(200)
+  })
+
+  it('still allows OFF on a STARTER plan (regression)', async () => {
+    vi.mocked(prisma.workspace.findFirst).mockResolvedValue({ id: 'ws-1', plan: 'STARTER' } as any)
+    const res = await PATCH(req({ aiResponseMode: 'OFF' }), ctx('ws-1'))
+    expect(res.status).toBe(200)
+  })
 })
