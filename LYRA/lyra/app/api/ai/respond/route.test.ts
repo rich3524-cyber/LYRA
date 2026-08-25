@@ -57,7 +57,7 @@ describe('POST /api/ai/respond', () => {
     vi.mocked(prisma.comment.findFirst).mockResolvedValue(baseComment() as any)
     vi.mocked(prisma.brandProfile.findUnique).mockResolvedValue({} as any)
     vi.mocked(prisma.guardrail.findMany).mockResolvedValue([])
-    vi.mocked(generateCommentResponse).mockResolvedValue({ response: 'Thanks!', shouldEscalate: false } as any)
+    vi.mocked(generateCommentResponse).mockResolvedValue({ sentiment: 'POSITIVE', response: 'Thanks!', shouldEscalate: false } as any)
 
     const res = await POST(req({ commentId: 'c1' }))
 
@@ -68,7 +68,7 @@ describe('POST /api/ai/respond', () => {
     expect(prisma.comment.update).not.toHaveBeenCalled()
     expect(prisma.comment.updateMany).toHaveBeenCalledWith({
       where: draftClaimWhere('c1'),
-      data: { status: 'AI_DRAFTED', aiDraftResponse: 'Thanks!' },
+      data: { status: 'AI_DRAFTED', aiDraftResponse: 'Thanks!', sentiment: 'POSITIVE' },
     })
   })
 
@@ -78,7 +78,7 @@ describe('POST /api/ai/respond', () => {
     vi.mocked(prisma.brandProfile.findUnique).mockResolvedValue({} as any)
     vi.mocked(prisma.guardrail.findMany).mockResolvedValue([])
     vi.mocked(generateCommentResponse).mockResolvedValue({
-      response: null, shouldEscalate: true, escalationReason: 'Contains escalation trigger: "refund"',
+      sentiment: null, response: null, shouldEscalate: true, escalationReason: 'Contains escalation trigger: "refund"',
     } as any)
 
     const res = await POST(req({ commentId: 'c1' }))
@@ -89,7 +89,45 @@ describe('POST /api/ai/respond', () => {
     expect(prisma.comment.update).not.toHaveBeenCalled()
     expect(prisma.comment.updateMany).toHaveBeenCalledWith({
       where: draftClaimWhere('c1'),
-      data: { status: 'ESCALATED', isEscalated: true, escalationReason: 'Contains escalation trigger: "refund"' },
+      data: { status: 'ESCALATED', isEscalated: true, escalationReason: 'Contains escalation trigger: "refund"', sentiment: null },
+    })
+  })
+
+  // generateCommentResponse now classifies sentiment alongside the draft/
+  // escalation decision (see services/ai/response-generator.ts) -- these two
+  // tests confirm that classified value is actually threaded through to the
+  // Prisma write rather than silently dropped, independent of the two happy
+  // -path tests above (which already cover the full data shape but could
+  // pass even if sentiment were hardcoded rather than read from `result`).
+  it('persists the classified sentiment on the draft write', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.comment.findFirst).mockResolvedValue(baseComment() as any)
+    vi.mocked(prisma.brandProfile.findUnique).mockResolvedValue({} as any)
+    vi.mocked(prisma.guardrail.findMany).mockResolvedValue([])
+    vi.mocked(generateCommentResponse).mockResolvedValue({ sentiment: 'NEGATIVE', response: 'Sorry to hear that!', shouldEscalate: false } as any)
+
+    await POST(req({ commentId: 'c1' }))
+
+    expect(prisma.comment.updateMany).toHaveBeenCalledWith({
+      where: draftClaimWhere('c1'),
+      data: { status: 'AI_DRAFTED', aiDraftResponse: 'Sorry to hear that!', sentiment: 'NEGATIVE' },
+    })
+  })
+
+  it('persists the classified sentiment on the escalation write', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.comment.findFirst).mockResolvedValue(baseComment() as any)
+    vi.mocked(prisma.brandProfile.findUnique).mockResolvedValue({} as any)
+    vi.mocked(prisma.guardrail.findMany).mockResolvedValue([])
+    vi.mocked(generateCommentResponse).mockResolvedValue({
+      sentiment: 'URGENT', response: null, shouldEscalate: true, escalationReason: 'Sentiment classified as URGENT',
+    } as any)
+
+    await POST(req({ commentId: 'c1' }))
+
+    expect(prisma.comment.updateMany).toHaveBeenCalledWith({
+      where: draftClaimWhere('c1'),
+      data: { status: 'ESCALATED', isEscalated: true, escalationReason: 'Sentiment classified as URGENT', sentiment: 'URGENT' },
     })
   })
 
@@ -105,7 +143,7 @@ describe('POST /api/ai/respond', () => {
     vi.mocked(prisma.comment.findFirst).mockResolvedValue(baseComment() as any)
     vi.mocked(prisma.brandProfile.findUnique).mockResolvedValue({} as any)
     vi.mocked(prisma.guardrail.findMany).mockResolvedValue([])
-    vi.mocked(generateCommentResponse).mockResolvedValue({ response: 'Thanks!', shouldEscalate: false } as any)
+    vi.mocked(generateCommentResponse).mockResolvedValue({ sentiment: 'POSITIVE', response: 'Thanks!', shouldEscalate: false } as any)
     vi.mocked(prisma.comment.updateMany).mockResolvedValue({ count: 0 } as any)
     vi.mocked(prisma.comment.findUnique).mockResolvedValue({ status: 'RESPONDED' } as any)
 
@@ -135,7 +173,7 @@ describe('POST /api/ai/respond', () => {
     vi.mocked(prisma.comment.findFirst).mockResolvedValue(baseComment() as any)
     vi.mocked(prisma.brandProfile.findUnique).mockResolvedValue({} as any)
     vi.mocked(prisma.guardrail.findMany).mockResolvedValue([])
-    vi.mocked(generateCommentResponse).mockResolvedValue({ response: 'Thanks!', shouldEscalate: false } as any)
+    vi.mocked(generateCommentResponse).mockResolvedValue({ sentiment: 'POSITIVE', response: 'Thanks!', shouldEscalate: false } as any)
     vi.mocked(prisma.comment.updateMany).mockResolvedValue({ count: 0 } as any)
     vi.mocked(prisma.comment.findUnique).mockResolvedValue({ status: 'ESCALATED' } as any)
 
@@ -156,7 +194,7 @@ describe('POST /api/ai/respond', () => {
     vi.mocked(prisma.brandProfile.findUnique).mockResolvedValue({} as any)
     vi.mocked(prisma.guardrail.findMany).mockResolvedValue([])
     vi.mocked(generateCommentResponse).mockResolvedValue({
-      response: null, shouldEscalate: true, escalationReason: 'Contains escalation trigger: "refund"',
+      sentiment: null, response: null, shouldEscalate: true, escalationReason: 'Contains escalation trigger: "refund"',
     } as any)
     vi.mocked(prisma.comment.updateMany).mockResolvedValue({ count: 0 } as any)
     vi.mocked(prisma.comment.findUnique).mockResolvedValue({ status: 'RESPONDED' } as any)
