@@ -30,19 +30,29 @@ export function InboxSection() {
       <p className="font-sans text-sm text-text-secondary leading-relaxed">
         The inbox is the nerve centre of LYRA&apos;s core differentiator: AI-powered comment
         responses. Comments from your connected <Strong>Facebook</Strong>, <Strong>Instagram</Strong>,
-        and <Strong>LinkedIn</Strong> accounts are pulled into a unified inbox by a background
-        worker that polls roughly every 5 minutes. LYRA&apos;s AI can then — depending on your AI
-        Response Mode — draft a response for your review or post one automatically.
+        and <Strong>LinkedIn</Strong> accounts — and reviews from your connected
+        <Strong> Google Business</Strong> accounts — are pulled into a unified inbox by a
+        background worker that polls roughly every 5 minutes. LYRA&apos;s AI can then — depending
+        on your AI Response Mode — draft a response for your review or post one automatically.
       </p>
 
       <Subsection title="How comments are collected">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Only three platforms are currently ingested into the inbox:
+          Four platforms are currently ingested into the inbox:
         </p>
         <ul className="space-y-1.5 font-sans text-sm text-text-secondary">
           <li><PlatformBadge>Facebook</PlatformBadge> — comments on Page posts</li>
           <li><PlatformBadge>Instagram</PlatformBadge> — comments on feed posts and reels</li>
           <li><PlatformBadge>LinkedIn</PlatformBadge> — comments on company page posts</li>
+          <li><PlatformBadge>Google Business</PlatformBadge> — reviews left on your Business
+            Profile. A review is a different content type from a comment (it carries a star
+            rating, and the author name and text can both be blank), but it lands in the same
+            inbox, moves through the same Pending/Escalated/Done flow, and can be answered with
+            an AI draft, a fully automatic AI response, or a manual reply, using the same
+            guardrails as comments — there is no separate reviews-only settings screen. This is a
+            newly shipped capability: the automatic poll runs roughly every 5 minutes, so if a
+            connected Google Business account isn&apos;t showing reviews yet, wait a few cycles
+            or try the manual Sync button before assuming something&apos;s wrong</li>
         </ul>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
           The other platforms LYRA connects to are <Strong>not</Strong> ingested here today:
@@ -51,24 +61,23 @@ export function InboxSection() {
           <li><PlatformBadge>X (Twitter)</PlatformBadge> — no comment/mention polling exists for this platform yet</li>
           <li><PlatformBadge>TikTok</PlatformBadge> — comment access isn&apos;t available through LYRA&apos;s
             connection provider for this platform, so TikTok comments never reach the inbox</li>
-          <li><PlatformBadge>Google Business</PlatformBadge> — reviews are not ingested at all; there is
-            no review data model in LYRA and nothing fetches them. If you need to manage Google
-            reviews today, do it directly in Google Business Profile</li>
         </ul>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
           A manual <Strong>Sync</Strong> button above the inbox list re-checks your Facebook,
-          Instagram, and LinkedIn accounts on demand — useful if you don&apos;t want to wait for
-          the next automatic poll. Comments brought in this way land as <Strong>Pending</Strong> and
-          are not automatically queued for an AI draft; the automatic drafting/auto-posting
-          pipeline only runs off the background poll (and, for Zernio-connected accounts, a
-          real-time webhook). You can still request a draft for any individual comment at any
-          time with the <Strong>Generate</Strong> button on its card.
+          Instagram, LinkedIn, and Google Business accounts on demand — useful if you
+          don&apos;t want to wait for the next automatic poll. Comments and reviews brought in
+          this way land as <Strong>Pending</Strong> and are not automatically queued for an AI
+          draft; the automatic drafting/auto-posting pipeline only runs off the background poll
+          (and, for Zernio-connected accounts, a real-time webhook). You can still request a
+          draft for any individual comment or review at any time with the
+          <Strong> Generate</Strong> button on its card.
         </p>
         <Note>
           If a workspace&apos;s AI Response Mode is set to <Strong>No reply</Strong>, the automatic
           background poll does not run for that workspace&apos;s accounts at all — only the manual
-          Sync button brings comments in. This means a workspace that never opens the inbox and
-          never clicks Sync won&apos;t see new comments appear on their own while autonomy is off.
+          Sync button brings comments and reviews in. This means a workspace that never opens the
+          inbox and never clicks Sync won&apos;t see new comments or reviews appear on their own
+          while autonomy is off.
         </Note>
       </Subsection>
 
