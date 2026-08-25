@@ -6,19 +6,23 @@ export function DataDeletionSection() {
       <SectionHeader n="14" title="Data Deletion" />
 
       <p className="font-sans text-sm text-text-secondary leading-relaxed">
-        When you connect a Facebook or Instagram account to LYRA, LYRA stores an encrypted access
-        token, a refresh token, the token&apos;s expiry, a webhook subscription ID, and the metadata
-        returned during the connection flow (Page name, Page ID, and account type). This data is
-        used to publish posts and read and respond to comments on your behalf.
+        When you connect a Facebook or Instagram account to LYRA today, the connection goes through
+        Zernio: LYRA stores a reference ID for the Zernio-held account plus connection metadata
+        (Page/account name, Page ID, and adAccountId where applicable), but the platform access
+        token itself is held by Zernio, not LYRA. This data is used to publish posts and read and
+        respond to comments on your behalf.
       </p>
 
       <Subsection title="Disconnect a social account">
         <p>
-          Disconnecting a social account stops LYRA from publishing to it or monitoring its comments,
-          but it does <Strong>not</Strong> delete the account&apos;s stored data. The connection is
-          marked inactive; the encrypted access token, refresh token, token expiry, and webhook
-          subscription ID all remain in LYRA&apos;s database. There is also no confirmation step —
-          clicking Disconnect takes effect immediately.
+          Disconnecting a social account stops LYRA from monitoring its comments and prevents you
+          from scheduling new posts to it, but it does <Strong>not</Strong> delete the account&apos;s
+          stored connection data, and it does <Strong>not</Strong> stop posts that were already
+          scheduled to that account before you disconnected — those will still publish, since the
+          underlying connection to Zernio (or, for older accounts, the stored access token) still
+          works. The connection row is simply marked inactive; its stored reference ID and metadata
+          remain in LYRA&apos;s database. There is also no confirmation step — clicking Disconnect
+          takes effect immediately.
         </p>
         <Steps>
           <Step n={1}>
@@ -35,9 +39,9 @@ export function DataDeletionSection() {
         <Note>
           To fully revoke LYRA&apos;s access at the platform level, also remove the app from
           Facebook Settings → Security and Login → Business Integrations. This is currently the
-          only way to fully revoke access, since disconnecting inside LYRA does not call Facebook
-          to revoke the token, and requesting data deletion (below) does not remove the token
-          from LYRA&apos;s database either.
+          only way to fully revoke access, since neither disconnecting inside LYRA nor requesting
+          data deletion (below) calls Facebook to revoke the underlying access — the Zernio
+          connection (or, for older accounts, the stored access token) is left intact either way.
         </Note>
       </Subsection>
 
