@@ -69,7 +69,7 @@ export async function GET(req: Request) {
       where: { workspaceId, createdAt: { gte: since }, status: 'RESPONDED' },
     })
     const pendingCount = await prisma.comment.count({
-      where: { workspaceId, createdAt: { gte: since }, status: { in: ['PENDING', 'AI_DRAFTED', 'AWAITING_APPROVAL', 'ESCALATED'] } },
+      where: { workspaceId, createdAt: { gte: since }, status: { in: ['PENDING', 'AI_DRAFTED', 'ESCALATED'] } },
     })
 
     // Aggregate totals

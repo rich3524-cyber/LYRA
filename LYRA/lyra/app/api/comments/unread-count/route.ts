@@ -19,7 +19,7 @@ export async function GET(req: Request) {
     const count = await prisma.comment.count({
       where: {
         workspaceId,
-        status: { in: ['PENDING', 'AI_DRAFTED', 'AWAITING_APPROVAL', 'ESCALATED'] },
+        status: { in: ['PENDING', 'AI_DRAFTED', 'ESCALATED'] },
       },
     })
 
