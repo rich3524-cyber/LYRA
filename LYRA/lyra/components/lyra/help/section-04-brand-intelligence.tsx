@@ -77,11 +77,11 @@ export function BrandIntelligenceSection() {
             Open the workspace and click <Strong>Brand AI</Strong> in the sidebar.
           </Step>
           <Step n={2}>
-            Brand AI only becomes available once the workspace has a website URL and at least one
-            connected social account — this is a hard requirement, not an optional tip. Social
-            accounts are connected from <Strong>Settings</Strong>. The website URL (like the
-            workspace name) is set once when the workspace is created and has no edit path
-            anywhere afterward, including Settings — so get it right at setup time.
+            The profile panels on this page stay behind a setup checklist until the workspace has
+            both a website URL and at least one connected social account. Social accounts are
+            connected from <Strong>Settings</Strong>. The website URL, like the workspace name, is
+            set once when the workspace is created — there is no way to change it from Settings
+            afterward, so get it right at setup time.
           </Step>
           <Step n={3}>
             Optionally, paste brand guidelines into the text box shown on this page — tone of
@@ -145,9 +145,10 @@ export function BrandIntelligenceSection() {
             blog post or another page won&apos;t be picked up.
           </li>
           <li>
-            A connected social account is required before Brand AI unlocks at all, but connecting
-            one doesn&apos;t by itself feed the profile any voice data — LYRA only analyses posts
-            that have actually been created through LYRA for that workspace.
+            A connected social account (alongside a website URL) is what unlocks the profile
+            panels on this page — but connecting one doesn&apos;t by itself feed the profile any
+            voice data. LYRA only analyses posts that have actually been created through LYRA for
+            that workspace.
           </li>
           <li>
             If the profile reads incorrectly, try pasting more detailed guidelines and rebuilding.
