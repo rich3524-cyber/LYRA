@@ -22,7 +22,7 @@ export function ContentCalendarSection() {
           Each post chip shows:
         </p>
         <ul className="space-y-1.5 font-sans text-sm text-text-secondary list-disc list-inside pl-2">
-          <li>A small coloured dot for the platform (not a platform logo/icon)</li>
+          <li>A small coloured dot for the platform (not a platform logo/icon), next to the platform&apos;s short text label</li>
           <li>A status badge in the top-right corner of the chip (not a coloured border)</li>
           <li>A snippet of the caption, clamped to two lines — how much text that shows depends on how long each line wraps, not a fixed character count</li>
         </ul>
@@ -47,12 +47,16 @@ export function ContentCalendarSection() {
             with approval permissions on the workspace — agency staff, or on workspaces with
             client review turned on, the client too. Click the post chip to open its detail
             panel, where an <Strong>Approve</Strong> and <Strong>Request changes</Strong> button
-            appear for anyone authorized to decide. If a post sits past its approval deadline,
-            its badge switches to an amber <Strong>Approval overdue</Strong> label instead.
+            appear for anyone authorized to decide. If the post&apos;s own author is the one
+            viewing it and another approver exists on the workspace, they see{' '}
+            <Strong>Recall for editing</Strong> instead — self-approval is blocked whenever a
+            genuine second reviewer is available. If a post sits past its approval deadline, its
+            badge switches to an amber <Strong>Approval overdue</Strong> label instead.
           </StatusRow>
           <StatusRow status="Approved" color="text-text-tertiary border-background-border-mid">
-            The post was approved but hasn&apos;t been scheduled yet — it renders with the same
-            neutral badge as Draft, <Strong>not</Strong> the amber warning colour, unless it&apos;s
+            The post was approved but hasn&apos;t been scheduled yet — it renders with a similar
+            neutral grey badge to Draft&apos;s (not an identical one — it&apos;s a slightly
+            different shade), <Strong>not</Strong> the amber warning colour, unless it&apos;s
             also missing media (see below). It does <Strong>not</Strong> move to Scheduled on its
             own. Once the post has both media and a scheduled time, open its detail panel and
             click <Strong>Schedule post</Strong> — that transition is always a manual click, never
@@ -157,8 +161,10 @@ export function ContentCalendarSection() {
           There is no platform filter. The calendar filters by status only, via a single-select
           row of tabs above the grid: <Strong>All</Strong>, <Strong>Scheduled</Strong>,{' '}
           <Strong>Drafts</Strong>, <Strong>Pending</Strong>, <Strong>Published</Strong>, and{' '}
-          <Strong>Failed</Strong>. Each tab shows a count and only one can be active at a time —
-          selecting one replaces the previous filter rather than adding to it.
+          <Strong>Failed</Strong>. Each tab shows a count next to its label when it has at least
+          one matching post (a tab with zero matches shows no number at all), and only one tab
+          can be active at a time — selecting one replaces the previous filter rather than
+          adding to it.
         </p>
       </Subsection>
 
@@ -198,8 +204,11 @@ export function ContentCalendarSection() {
       <Subsection title="Bulk import">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
           Click <Strong>Bulk import</Strong> in the calendar page header (visible to anyone with
-          write access) to schedule many posts at once from a spreadsheet. Download the CSV
-          template, fill in one row per post, and upload it. Each row is parsed and shown as{' '}
+          write access) to schedule many posts at once from a spreadsheet. Download the Excel
+          (<Strong>.xlsx</Strong>) template — this is not a CSV file, and the upload only accepts
+          <Strong> .xlsx</Strong>; a renamed <Strong>.csv</Strong> is rejected. Fill in one row
+          per platform, not one row per post — a post going out to both Facebook and Instagram
+          needs two rows — and upload it. Each row is parsed and shown as{' '}
           <Strong>ready</Strong>, <Strong>warning</Strong> (the post itself is valid but there&apos;s
           a media issue — these rows are pre-selected anyway), or <Strong>error</Strong> (blocked
           from import and not selectable). Confirming the import creates the selected rows
