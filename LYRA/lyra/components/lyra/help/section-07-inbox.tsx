@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { SectionHeader, Subsection, Strong, Steps, Step, PlatformBadge, StatusBadge, StatusRow, Note } from './primitives'
+import { SectionHeader, Subsection, Strong, Steps, Step, PlatformBadge, StatusRow, Note } from './primitives'
 
 function AutonomyCard({ name, plan, children }: { name: string; plan: string; children: ReactNode }) {
   return (
