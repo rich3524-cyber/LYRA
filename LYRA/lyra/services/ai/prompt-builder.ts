@@ -13,7 +13,7 @@ export function buildCaptionPrompt(
   const contentThemes   = (brandProfile.contentThemes  as string[] | null)?.join(', ') ?? 'Not specified'
   const audienceProfile = brandProfile.audienceProfile as Record<string, unknown> | null
   const audience = audienceProfile
-    ? `Demographics: ${audienceProfile.demographics ?? 'Unknown'}. Language style: ${audienceProfile.language ?? 'conversational'}.`
+    ? `Demographics: ${audienceProfile.demographics ?? 'Unknown'}. Language style: ${audienceProfile.languageLevel ?? 'conversational'}.`
     : 'Not specified'
 
   const platformList = platforms.join(', ')
