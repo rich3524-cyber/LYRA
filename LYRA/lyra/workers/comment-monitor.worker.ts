@@ -269,19 +269,43 @@ export async function processCommentMonitorJob(
 
   // Same createManyAndReturn + skipDuplicates pattern as comments above, keyed
   // on the Review model's own @@unique([socialAccountId, zernioReviewId]).
-  const createdReviews = normalizedReviews.length === 0 ? [] : await deps.prisma.review.createManyAndReturn({
-    data: normalizedReviews.map((r) => ({
-      workspaceId:       account.workspaceId,
-      socialAccountId:   account.id,
-      zernioReviewId:    r.externalId,
-      rating:            r.rating,
-      authorName:        r.authorName,
-      text:              r.text,
-      platformCreatedAt: r.createdAt,
-      status:            'PENDING' as const,
-    })),
-    skipDuplicates: true,
-  })
+  //
+  // Wrapped in its own try/catch -- independent from the comment-persistence
+  // call above, which is intentionally left unguarded since a comment write
+  // failure should still abort the job (there's nothing meaningful left to
+  // do without persisted comments). Reviews are different: by this point
+  // `createdComments`/`savedComments` are already durably persisted, and
+  // enqueueAiResponses/checkAndTriggerCrisis below depend on them, not on
+  // reviews. If this insert throws (DB blip, connection reset -- anything
+  // not already covered by skipDuplicates) and is left to propagate, the
+  // exception would abort the job before those calls run. BullMQ retries
+  // the job (attempts: 3), but on retry skipDuplicates would silently
+  // exclude the already-inserted comments from createdComments, permanently
+  // excluding them from AI-response enqueueing and crisis detection for a
+  // failure that had nothing to do with comments. Degrading to
+  // createdReviews = [] here isolates that failure to "no reviews persisted
+  // from this batch" instead, mirroring the review-FETCH try/catch's
+  // philosophy one step further downstream.
+  let createdReviews: Awaited<ReturnType<typeof deps.prisma.review.createManyAndReturn>> = []
+  if (normalizedReviews.length > 0) {
+    try {
+      createdReviews = await deps.prisma.review.createManyAndReturn({
+        data: normalizedReviews.map((r) => ({
+          workspaceId:       account.workspaceId,
+          socialAccountId:   account.id,
+          zernioReviewId:    r.externalId,
+          rating:            r.rating,
+          authorName:        r.authorName,
+          text:              r.text,
+          platformCreatedAt: r.createdAt,
+          status:            'PENDING' as const,
+        })),
+        skipDuplicates: true,
+      })
+    } catch (err) {
+      console.error(`Comment monitor: failed to persist reviews for account ${socialAccountId}:`, err)
+    }
+  }
 
   const mode = account.workspace.aiResponseMode
   if (mode === 'FULL' || mode === 'DRAFT_APPROVE') {

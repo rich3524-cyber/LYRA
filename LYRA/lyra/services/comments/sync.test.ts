@@ -188,6 +188,20 @@ describe('syncAccountReviews', () => {
     errSpy.mockRestore()
   })
 
+  it('returns 0 and logs without throwing when review persistence throws', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const fetchReviews = vi.fn().mockResolvedValue([
+      { externalId: 'rev-1', rating: 5, text: 'Excellent', authorName: 'Sam', createdAt: new Date() },
+    ])
+    vi.mocked(getProvider).mockReturnValue({ fetchReviews } as never)
+    vi.mocked(prisma.review.createManyAndReturn).mockRejectedValue(new Error('connection reset'))
+
+    const count = await syncAccountReviews(googleBusinessAccount() as never, 'ws-1')
+
+    expect(count).toBe(0)
+    errSpy.mockRestore()
+  })
+
   it('returns 0 without a DB call when there are no new reviews', async () => {
     vi.mocked(getProvider).mockReturnValue({ fetchReviews: vi.fn().mockResolvedValue([]) } as never)
 
@@ -309,6 +323,44 @@ describe('syncWorkspaceComments', () => {
     vi.mocked(prisma.socialAccount.findMany).mockResolvedValue([])
     const total = await syncWorkspaceComments('ws-1')
     expect(total).toBe(0)
+  })
+
+  it('continues to subsequent accounts when one account\'s review persistence throws', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(prisma.socialAccount.findMany).mockResolvedValue([
+      googleBusinessAccount({ id: 'acc-1' }),
+      zernioAccount({ id: 'acc-2', platform: 'INSTAGRAM' }),
+    ] as never)
+    vi.mocked(getProvider).mockImplementation(((account: { platform: string }) => {
+      if (account.platform === 'GOOGLE_BUSINESS') {
+        return {
+          fetchRecentComments: vi.fn().mockResolvedValue([]),
+          fetchReviews: vi.fn().mockResolvedValue([
+            { externalId: 'rev-1', rating: 5, text: 'Excellent', authorName: 'Sam', createdAt: new Date() },
+          ]),
+        }
+      }
+      return {
+        fetchRecentComments: vi.fn().mockResolvedValue([
+          { externalId: 'c-1', postExternalId: 'p1', authorName: 'Someone', text: 'hi', createdAt: new Date() },
+        ]),
+        fetchReviews: vi.fn(),
+      }
+    }) as never)
+    // Review persistence throws for acc-1 -- must not abort the loop before
+    // acc-2 is processed. If syncWorkspaceComments' loop lacked a try/catch
+    // around this (or syncAccountReviews left it unguarded), this uncaught
+    // rejection would propagate out of syncWorkspaceComments entirely,
+    // and acc-2's comment would never be counted.
+    vi.mocked(prisma.review.createManyAndReturn).mockRejectedValue(new Error('connection reset'))
+
+    const total = await syncWorkspaceComments('ws-1')
+
+    // acc-1 contributes 0 (review persistence failed, no comments), acc-2
+    // contributes 1 (its comment synced normally) -- proving the loop
+    // reached and fully processed the second account.
+    expect(total).toBe(1)
+    errSpy.mockRestore()
   })
 
   it('folds newly-created review counts into the total alongside comments', async () => {

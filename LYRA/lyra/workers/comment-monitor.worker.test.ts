@@ -288,6 +288,49 @@ describe('processCommentMonitorJob', () => {
     expect(deps.prisma.review.createManyAndReturn).not.toHaveBeenCalled()
   })
 
+  it('still enqueues AI responses and runs crisis detection for comments from the same job when review persistence throws', async () => {
+    vi.mocked(aiRespondQueue.add).mockResolvedValue({} as never)
+    const fetchRecentComments = vi.fn().mockResolvedValue([
+      { externalId: 'c-ext-1', postExternalId: 'p-1', authorName: 'A Commenter', text: 'Nice!', createdAt: new Date() },
+    ])
+    const fetchReviews = vi.fn().mockResolvedValue([
+      { externalId: 'rev-ext-1', rating: 5, text: 'Love it', authorName: 'Jo', createdAt: new Date() },
+    ])
+    const { deps } = makeDeps({
+      account: makeAccount({ workspace: { aiResponseMode: 'DRAFT_APPROVE' } }),
+      fetchRecentComments,
+      fetchReviews,
+      createdComments: [{ id: 'comment-1', content: 'Nice!' }],
+    })
+    deps.prisma.review.createManyAndReturn.mockRejectedValue(new Error('connection reset'))
+
+    const { checkAndTriggerCrisis } = await import('@/services/ai/crisis-detector')
+
+    await expect(
+      processCommentMonitorJob({ socialAccountId: 'acc-1' }, deps)
+    ).resolves.toBeUndefined()
+
+    // The review insert threw, but that must not have prevented the
+    // already-persisted comments from this same job from getting an
+    // AI response enqueued or a crisis check -- this is the exact
+    // regression this fix guards against.
+    expect(deps.prisma.comment.createManyAndReturn).toHaveBeenCalled()
+    expect(aiRespondQueue.add).toHaveBeenCalledWith(
+      'generate-response',
+      { commentId: 'comment-1', autoPost: false },
+      { jobId: 'respond-comment-1' }
+    )
+    expect(checkAndTriggerCrisis).toHaveBeenCalledWith('ws-1', [{ id: 'comment-1', content: 'Nice!' }])
+
+    // No review AI response should have been enqueued since nothing was
+    // actually persisted (createdReviews degraded to []).
+    expect(aiRespondQueue.add).not.toHaveBeenCalledWith(
+      'generate-review-response',
+      expect.anything(),
+      expect.anything()
+    )
+  })
+
   it('does not call fetchReviews or persist reviews when the account is inactive', async () => {
     const fetchReviews = vi.fn().mockResolvedValue([{ externalId: 'x', rating: 1, text: null, authorName: null, createdAt: new Date() }])
     const { deps } = makeDeps({

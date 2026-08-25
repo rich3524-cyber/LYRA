@@ -187,20 +187,33 @@ export async function syncAccountReviews(account: SocialAccount, workspaceId: st
   }
   if (normalized.length === 0) return 0
 
-  const created = await prisma.review.createManyAndReturn({
-    data: normalized.map((r) => ({
-      workspaceId,
-      socialAccountId:   account.id,
-      zernioReviewId:    r.externalId,
-      rating:            r.rating,
-      authorName:        r.authorName,
-      text:              r.text,
-      platformCreatedAt: r.createdAt,
-      status:            'PENDING' as const,
-    })),
-    skipDuplicates: true,
-  })
-  return created.length
+  // Wrapped in its own try/catch, same as the fetch above -- otherwise a
+  // persistence failure here would throw uncaught out of this function.
+  // syncWorkspaceComments' loop below has no try/catch around its call to
+  // this function, so an uncaught throw wouldn't just fail this one
+  // account (as the docstring above promises) -- it would abort the entire
+  // workspace sync, skipping every remaining account. Logging + returning 0
+  // instead keeps persistence failures behaving exactly like fetch failures
+  // already do: isolated to this one account.
+  try {
+    const created = await prisma.review.createManyAndReturn({
+      data: normalized.map((r) => ({
+        workspaceId,
+        socialAccountId:   account.id,
+        zernioReviewId:    r.externalId,
+        rating:            r.rating,
+        authorName:        r.authorName,
+        text:              r.text,
+        platformCreatedAt: r.createdAt,
+        status:            'PENDING' as const,
+      })),
+      skipDuplicates: true,
+    })
+    return created.length
+  } catch (err) {
+    console.error(`Failed to persist reviews for account ${account.id}:`, err)
+    return 0
+  }
 }
 
 /**
