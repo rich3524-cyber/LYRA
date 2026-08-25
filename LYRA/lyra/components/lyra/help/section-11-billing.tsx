@@ -140,6 +140,27 @@ export function BillingSection() {
         </Note>
       </Subsection>
 
+      <Subsection title="Downgrading your plan">
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          On <Strong>Account → Billing</Strong>, any plan below your current one shows a{' '}
+          <Strong>Downgrade</Strong> button in place of an Upgrade button. This works differently
+          from upgrading: clicking it does not change your plan directly within LYRA. Instead it
+          opens the same <Strong>Stripe Billing Portal</Strong> used by <Strong>Manage billing</Strong>{' '}
+          — LYRA itself never sends the lower plan to Stripe for an in-place switch the way the
+          upgrade flow does.
+        </p>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
+          Whether the portal lets you switch directly to the lower-tier price — and whether that
+          change lands immediately or waits until the end of your current billing period — is
+          controlled by Stripe&apos;s own Customer Portal configuration rather than by anything in
+          LYRA, so it can&apos;t be documented precisely here. If the portal doesn&apos;t offer a
+          direct plan switch, the reliable way to move to a lower tier is to cancel your current
+          subscription there; per <Strong>Cancelling your subscription</Strong> below, once the
+          billing period ends this downgrades you to the Starter plan rather than removing access
+          entirely.
+        </p>
+      </Subsection>
+
       <Subsection title="Managing your subscription">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
           On <Strong>Account → Billing</Strong>, if you have an active Stripe subscription
