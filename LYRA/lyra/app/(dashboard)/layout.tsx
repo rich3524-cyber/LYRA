@@ -63,7 +63,7 @@ export default async function DashboardLayout({
     unreadCount = await prisma.comment.count({
       where: {
         workspaceId,
-        status: { in: ['PENDING', 'AI_DRAFTED', 'AWAITING_APPROVAL', 'ESCALATED'] },
+        status: { in: ['PENDING', 'AI_DRAFTED', 'ESCALATED'] },
       },
     }).catch(() => 0)
   }

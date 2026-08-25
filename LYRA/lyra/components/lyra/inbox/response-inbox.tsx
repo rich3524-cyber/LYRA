@@ -130,7 +130,7 @@ export function ResponseInbox({
     ? comments
     : comments.filter(c => c.socialAccount.platform === platformFilter)
 
-  const pending   = filtered.filter(c => ['PENDING', 'AI_DRAFTED', 'AWAITING_APPROVAL'].includes(c.status))
+  const pending   = filtered.filter(c => ['PENDING', 'AI_DRAFTED'].includes(c.status))
   const escalated = filtered.filter(c => c.status === 'ESCALATED')
   const responded = filtered.filter(c => c.status === 'RESPONDED')
 

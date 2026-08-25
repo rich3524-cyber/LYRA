@@ -112,9 +112,14 @@ export async function PATCH(
       return NextResponse.json({ error: 'Crisis Aware requires Pro or Agency plan.' }, { status: 403 })
     }
 
-    // Plan gate: Starter users cannot enable Full Automatic AI replies
-    if (aiResponseMode === 'FULL' && existing.plan === 'STARTER') {
-      return NextResponse.json({ error: 'Full Automatic requires Pro or Agency plan.' }, { status: 403 })
+    // Plan gate: Starter users cannot enable Full Automatic or Draft + Approve
+    // AI replies -- both generate real, billed AI drafts/replies, and the
+    // Inbox UI that would let a Starter user see/edit/send Draft + Approve
+    // drafts is hidden for Starter (showAiControls), so leaving this mode
+    // reachable server-side created a billable, unusable combination.
+    if ((aiResponseMode === 'FULL' || aiResponseMode === 'DRAFT_APPROVE') && existing.plan === 'STARTER') {
+      const modeLabel = aiResponseMode === 'FULL' ? 'Full Automatic' : 'Draft + Approve'
+      return NextResponse.json({ error: `${modeLabel} requires Pro or Agency plan.` }, { status: 403 })
     }
 
     const workspace = await prisma.workspace.update({

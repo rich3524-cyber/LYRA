@@ -100,7 +100,8 @@ export function AutonomySelector({ workspaceId, currentMode, isPro }: AutonomySe
       <div className="space-y-2 pt-1">
         {OPTIONS.map((option) => {
           const selected = option.mode === mode
-          const disabled = option.mode === 'FULL' && !isPro
+          const requiresPro = option.mode === 'FULL' || option.mode === 'DRAFT_APPROVE'
+          const disabled = requiresPro && !isPro
 
           return (
             <button
@@ -128,7 +129,7 @@ export function AutonomySelector({ workspaceId, currentMode, isPro }: AutonomySe
                 <span className="block text-xs font-sans text-text-tertiary leading-relaxed">
                   {option.description}
                 </span>
-                {option.mode === 'FULL' && !isPro && (
+                {requiresPro && !isPro && (
                   <span className="block text-xs font-sans text-text-tertiary mt-1">
                     Requires Pro or Agency plan.
                   </span>
