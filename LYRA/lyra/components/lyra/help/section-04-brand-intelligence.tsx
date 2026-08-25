@@ -78,9 +78,10 @@ export function BrandIntelligenceSection() {
           </Step>
           <Step n={2}>
             Brand AI only becomes available once the workspace has a website URL and at least one
-            connected social account — this is a hard requirement, not an optional tip. Both are
-            set from <Strong>Settings</Strong>; neither the website URL nor the workspace name can
-            be edited later, so double-check it at setup time.
+            connected social account — this is a hard requirement, not an optional tip. Social
+            accounts are connected from <Strong>Settings</Strong>. The website URL (like the
+            workspace name) is set once when the workspace is created and has no edit path
+            anywhere afterward, including Settings — so get it right at setup time.
           </Step>
           <Step n={3}>
             Optionally, paste brand guidelines into the text box shown on this page — tone of
