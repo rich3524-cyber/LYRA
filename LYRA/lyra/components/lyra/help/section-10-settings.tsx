@@ -13,122 +13,137 @@ export function SettingsSection() {
         top-right corner of any page.
       </p>
 
-      <Subsection title="Workspace settings — General">
+      <Subsection title="Workspace settings — what&apos;s actually here">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Covers the core workspace configuration:
+          There is no general workspace-editing screen. Of the fields set when a workspace is
+          created — name, website URL, industry — none can be changed afterwards from Settings.
+          <Strong> Industry</Strong> in particular is a display-only field: it is shown on the
+          agency&apos;s Clients list and in the workspace dashboard header, but no service reads
+          it when building an AI prompt, so it has no effect on caption tone, comment replies, or
+          anything else the AI generates.
         </p>
-        <ul className="space-y-2 font-sans text-sm text-text-secondary">
-          <li>
-            <Strong>Workspace name</Strong> — the internal name used in the workspace switcher
-            and throughout the app. Not shown to the client unless you share the screen.
-          </li>
-          <li>
-            <Strong>Website URL</Strong> — the client&apos;s primary website, used for brand
-            intelligence crawling and for the SEO module. Changing this and saving will prompt
-            you to rebuild the brand profile.
-          </li>
-          <li>
-            <Strong>Industry</Strong> — helps the AI contextualise tone and content angle.
-            Choose the most specific match available.
-          </li>
-          <li>
-            <Strong>Timezone</Strong> — the client&apos;s local timezone. All post scheduling times
-            displayed in the composer and calendar use this timezone. Analytics also display
-            daily breakpoints in this timezone.
-          </li>
-        </ul>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          What Settings actually contains: Social Accounts, <Strong>Timezone</Strong> (the one
+          creation-time field that is editable afterwards), <Strong>AI Response Mode</Strong>{' '}
+          (autonomy), the <Strong>LYRA Trend</Strong> and <Strong>Crisis Aware</Strong> add-ons,
+          Approval deadlines (once client approval is on), Team Notifications, Email Marketing,
+          and Danger Zone. Each is covered below.
+        </p>
       </Subsection>
 
       <Subsection title="Workspace settings — Social Accounts">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Lists all connected social accounts for this workspace. For each account you can see:
+          Lists each supported platform (Facebook, Instagram, LinkedIn, Google Business,
+          X (Twitter), TikTok, YouTube) with a <Strong>Connect</Strong> button. For a platform with
+          at least one connected account, each one shows its <Strong>name</Strong> and{' '}
+          <Strong>platform label</Strong> — nothing else. There is no status badge, no token
+          expiry date, and no connection date shown here.
         </p>
-        <ul className="space-y-1 font-sans text-sm text-text-secondary list-disc list-inside pl-2">
-          <li>Platform and page/account name</li>
-          <li>Connection status (Connected, Token expired, Disconnected)</li>
-          <li>Token expiry date</li>
-          <li>Date the account was connected</li>
-        </ul>
-        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          From here you can Connect new accounts, Reconnect expired ones, and Disconnect
-          existing ones. See the <Strong>Social Connections</Strong> section for full details.
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          A connected account also gets a <Strong>Reconnect</Strong> button and a{' '}
+          <Strong>Disconnect</Strong> link. Disconnect is a single click with no confirmation
+          dialog — it deactivates the account immediately, removing it from this list. It does
+          not revoke or delete the underlying access token, but that doesn&apos;t make Reconnect
+          any faster: Reconnect runs the exact same authorization flow as a fresh Connect, and a
+          fresh token replaces the stored one every time — for Facebook it explicitly forces the
+          platform&apos;s consent screen to show again. There is no shortcut that skips
+          re-authorizing on the platform side. See the <Strong>Social Connections</Strong> section
+          for the connect flow itself.
         </p>
       </Subsection>
 
-      <Subsection title="Workspace settings — AI Autonomy">
+      <Subsection title="Workspace settings — Timezone">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Sets the AI response mode for this workspace&apos;s inbox. Three options are available
-          depending on your plan: Off, Draft + Approve, and Full Autonomy. See the
-          <Strong> Inbox</Strong> section for a full explanation of each mode.
+          The one field carried over from workspace creation that stays editable. Despite the
+          description shown next to it in the app, it is not currently used by the manual
+          composer or by dragging posts on the calendar — those scheduling times are not
+          converted through this setting. It does have two real uses elsewhere: when scheduling
+          posts from a CSV via <Strong>bulk import</Strong>, each row&apos;s date and time is read
+          and converted using this timezone; and the &quot;Scheduled&quot; timestamp shown in
+          every <Strong>Team Notifications</Strong> Slack message is formatted in it too. Analytics
+          does not use it at all; daily breakdowns there are bucketed by{' '}
+          <Strong>your own browser&apos;s</Strong> local timezone, which means two people viewing
+          the same workspace&apos;s analytics from different time zones can see different daily
+          totals for the same day.
         </p>
-        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          Changes to the autonomy setting take effect immediately. Any existing comments
-          in the inbox that are Awaiting Approval will remain unchanged — only new
-          incoming comments are affected.
+      </Subsection>
+
+      <Subsection title="Workspace settings — AI Response Mode">
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          Sets how the AI responds to comments on this workspace&apos;s connected accounts. Three
+          options:
+        </p>
+        <ul className="space-y-2 font-sans text-sm text-text-secondary">
+          <li>
+            <Strong>No reply</Strong> — comments aren&apos;t answered automatically. Review and
+            respond manually in the Inbox.
+          </li>
+          <li>
+            <Strong>Post with approval</Strong> — the AI drafts a reply for each comment, but
+            nothing goes live until you approve it in the Inbox.
+          </li>
+          <li>
+            <Strong>Full Automatic</Strong> — the AI replies to comments instantly with no review.
+            Requires Pro or Agency; on Starter this option is shown but disabled. Switching to it
+            asks for confirmation first, since replies go live with no review from that point on.
+          </li>
+        </ul>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          Changing modes takes effect immediately for new incoming comments. See the{' '}
+          <Strong>Inbox</Strong> section for what each mode looks like day to day.
         </p>
       </Subsection>
 
       <Subsection title="Workspace settings — Crisis Aware">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Available on Pro and Agency plans. A single toggle that turns on real-time
-          monitoring for reputational risk. When on, LYRA watches every incoming comment for:
+          Included on the Agency plan, or available on Pro as a paid add-on. A single toggle
+          (or, on Pro without the add-on, an <Strong>Activate</Strong> button that starts
+          checkout) that turns on real-time monitoring for reputational risk. When on, LYRA
+          watches incoming comments and, on a match, auto-pauses scheduled posts for the workspace
+          and alerts you.
         </p>
-        <ul className="space-y-2 font-sans text-sm text-text-secondary">
-          <li>
-            <Strong>A sentiment spike</Strong> — 3 or more genuinely negative comments
-            landing close together.
-          </li>
-          <li>
-            <Strong>A keyword match</Strong> — any comment containing a word from the
-            workspace&apos;s escalation keyword list. Brand Intelligence suggests this list
-            automatically, tailored to the business — see the <Strong>Brand Intelligence</Strong> section
-            for how to review and approve suggestions.
-          </li>
-        </ul>
-        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          Either trigger pauses all scheduled posts for the workspace immediately — nothing
-          publishes while a crisis is active — and shows a red banner across the dashboard
-          with the trigger time. Click <Strong>Resolve</Strong> on the banner once the
-          situation is handled; scheduled posts resume automatically.
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          The only way to add to what Crisis Aware watches for is the{' '}
+          <Strong>Crisis Keywords</Strong> panel on the <Strong>Brand AI</Strong> page — see the
+          next subsection. There is no configuration screen inside Settings itself for this.
         </p>
-        <Note>
-          Crisis Aware sends an email alert — with the trigger reason and a link to the
-          workspace — to every workspace owner/admin, in addition to the in-app banner.
-          See <Strong>Account settings → Notifications</Strong> below for details.
-        </Note>
       </Subsection>
 
-      <Subsection title="Workspace settings — Guardrails">
+      <Subsection title="Guardrails — there is no Guardrails settings screen">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Available on Agency plan. Lets you define constraints for the AI&apos;s response behaviour.
-          Four guardrail types: Never discuss, Never use word, Always escalate, and Approved answers.
-          See the <Strong>Inbox</Strong> section for a full explanation of each type.
+          LYRA does not have a dedicated Guardrails configuration page, and guardrail enforcement
+          is not gated by plan. The one real guardrail-adjacent control that exists is{' '}
+          <Strong>Crisis Keywords</Strong>, on the <Strong>Brand AI</Strong> page (not Settings).
+          It creates only one guardrail type — <Strong>Always escalate</Strong> — for specific
+          words or phrases: a comment containing one instantly escalates to a human instead of
+          being auto-replied to. Brand AI suggests candidate keywords automatically; you approve
+          or dismiss each suggestion, or add your own directly.
         </p>
-        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          Guardrails are applied workspace-wide. If you need different guardrails for different
-          campaigns or post types, use the Approved Answers guardrail to create specific
-          pre-approved responses that override the general AI generation.
-        </p>
+        <Note>
+          The Crisis Keywords panel only renders once Crisis Aware is turned on for the workspace,
+          and Crisis Aware itself requires Pro (with the add-on) or Agency. In practice this means
+          a Starter workspace has no way to create any guardrail at all, even though nothing in
+          the enforcement logic itself checks plan.
+        </Note>
       </Subsection>
 
       <Subsection title="Workspace settings — Client Access">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Available on Pro and Agency plans. Controls what your client can see and do:
+          Client Access is not a Settings-page control — it is chosen once, when the workspace is
+          created, and there is currently no screen to change it afterwards. The levels are{' '}
+          <Strong>None</Strong> (client has no access), <Strong>View</Strong> (client can view the
+          calendar and analytics), and <Strong>Approve</Strong> (client can approve or reject
+          posts submitted for approval).
         </p>
-        <ul className="space-y-2 font-sans text-sm text-text-secondary">
-          <li>
-            <Strong>Access level</Strong> — None (client has no access), View (client can
-            view the calendar and analytics), or Approve (client can approve or reject posts
-            submitted for approval).
-          </li>
-        </ul>
         <Note>
-          There is still no self-service client onboarding link, and email never notifies
-          anyone that a post is waiting for approval — see <Strong>Social Connections →
-          Connecting accounts on a client&apos;s behalf</Strong> and the <Strong>Compose</Strong>{' '}
-          section for how those work today. On Agency plan (or Pro with Crisis Aware), a
-          connected <Strong>Team Notifications</Strong> Slack channel below does cover this —
-          see that subsection.
+          LYRA does have a real, token-based client onboarding link (opens a short form for
+          website URL, industry, and a brand brief) — but it is a separate, narrower flow from
+          Client Access above: completing it doesn&apos;t grant any dashboard access, calendar
+          view, or approval rights. Email also still never notifies anyone that a post is waiting
+          for approval — see the <Strong>Compose</Strong> section for how that works today. On
+          Agency plan, or Pro with the Crisis Aware add-on, a connected{' '}
+          <Strong>Team Notifications</Strong> Slack channel below does cover this — see that
+          subsection.
         </Note>
         <Note>
           A post&apos;s own author normally can&apos;t approve it themselves. The one
@@ -148,45 +163,39 @@ export function SettingsSection() {
         <ul className="space-y-2 font-sans text-sm text-text-secondary">
           <li>
             <Strong>Hours before a post&apos;s scheduled time</Strong> — for a post with a
-            scheduled date, the deadline counts back from that time. Defaults to 4 hours.
+            scheduled date, the deadline counts back from that time.
           </li>
           <li>
             <Strong>Hours since submission, if no time is set</Strong> — for a post with no
-            scheduled date, the deadline counts forward from when it was submitted. Defaults
-            to 24 hours.
+            scheduled date, the deadline counts forward from when it was submitted.
           </li>
         </ul>
-        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          An overdue post shows an <Strong>Approval overdue</Strong> badge in the calendar and
-          post detail panel immediately — this is calculated live, not on a delay. An hourly
-          check separately fires one <Strong>Approval overdue</Strong> alert per post to the
-          workspace&apos;s connected Slack channel (see <Strong>Team Notifications</Strong>{' '}
-          below), if one is connected and that event is enabled. Approving, rejecting, or
-          resubmitting the post resets its deadline.
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          A post past its deadline is flagged in the calendar, and alerts your connected
+          notification channel once (see <Strong>Team Notifications</Strong> below, if one is
+          connected and that event is enabled). Only a workspace owner or agency admin can change
+          these values.
         </p>
       </Subsection>
 
       <Subsection title="Workspace settings — Team Notifications">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Available on Agency plan, or Pro with the Crisis Aware add-on. Sends alerts to a
-          shared Slack channel so the whole team sees them at once, instead of relying on one
-          person to check email or forward a message. Email stays on regardless — this is an
-          addition, not a replacement.
+          Included on the Agency plan, or available on Pro with the Crisis Aware add-on. Sends
+          alerts to a shared Slack channel so the whole team sees them at once, instead of relying
+          on one person to check email or forward a message. Email stays on regardless — this is
+          an addition, not a replacement.
         </p>
         <ul className="space-y-2 font-sans text-sm text-text-secondary">
           <li>
             <Strong>Connect Slack</Strong> — one click, no Slack App to create and no webhook
             URL to paste in. One channel per workspace. Public channels are joined
             automatically; for a private channel, run <code className="font-mono text-xs text-accent-silver bg-background-secondary px-1.5 py-0.5 rounded-md">/invite @Zernio</code>{' '}
-            in it first, since an app cannot add itself to a private channel.
+            in it first, since an app cannot add itself to a private channel. Only a workspace
+            owner or agency admin can connect or manage the channel.
           </li>
           <li>
-            <Strong>Events</Strong> — six are configurable per workspace, each with its own
-            on/off toggle: Crisis detected, Comment escalated, Post failed to publish, New post
-            pending approval, and Approval overdue (all on by default), plus Post published (off
-            by default — the noisiest one). Comment escalated covers a comment the AI declines to
-            answer itself (a guardrail match, or its own judgment) — separate from Crisis
-            detected, which is Crisis Aware specifically.
+            <Strong>Events</Strong> — each event has its own on/off toggle, configured per
+            workspace.
           </li>
           <li>
             <Strong>Send test</Strong> — sends a real message immediately so you can confirm
@@ -198,42 +207,58 @@ export function SettingsSection() {
           </li>
         </ul>
         <Note>
-          Messages arrive under LYRA&apos;s own name and icon in Slack, not a generic bot
-          identity. If a channel logs several failed deliveries in a row, a warning appears
-          here with the error — reconnect, or confirm the channel still exists. Crisis alerts
-          keep working over email throughout, since email never depends on Slack being up.
+          If a channel logs several failed deliveries in a row, a warning appears here with the
+          error — reconnect, or confirm the channel still exists. Email alerts keep working
+          throughout, since they don&apos;t depend on Slack being up.
         </Note>
       </Subsection>
 
-      <Subsection title="Workspace settings — Integrations">
+      <Subsection title="Workspace settings — Email Marketing">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Shows the status of third-party integrations for this workspace. Currently includes:
+          A read-only integration with your email platform — <Strong>Klaviyo</Strong>,{' '}
+          <Strong>Mailchimp</Strong>, or <Strong>Customer.io</Strong>. Connect by pasting an API
+          key from that platform (Settings shows where to find it for each). Once connected,
+          scheduled email campaigns from that platform appear in the Content Calendar alongside
+          your social posts, so you can see everything going out to an audience in one place.
         </p>
-        <ul className="space-y-1 font-sans text-sm text-text-secondary list-disc list-inside pl-2">
-          <li>
-            <Strong>Google Search Console</Strong> — connect or disconnect the GSC property.
-            Shows the connected property URL and last sync timestamp.
-          </li>
-        </ul>
-        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          Additional integrations will appear here as they are added in future LYRA updates.
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          Each connected provider shows its account name and last sync time, with a{' '}
+          <Strong>Sync</Strong> button to refresh on demand and a <Strong>Disconnect</Strong>{' '}
+          link to remove it. LYRA does not send or schedule email campaigns itself through this
+          integration — it only reads what already exists in the connected platform.
+        </p>
+      </Subsection>
+
+      <Subsection title="Workspace settings — Add-ons">
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          Alongside Crisis Aware, Settings shows a <Strong>LYRA Trend</Strong> card — daily
+          AI-scored trend intelligence matched to your brand. For every workspace today it reads
+          &quot;Coming soon&quot; rather than offering anything to activate — there is no checkout
+          flow wired up for it yet, so this is not reachable in practice.
         </p>
       </Subsection>
 
       <Subsection title="Workspace settings — Danger Zone">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Contains the <Strong>Delete workspace</Strong> action. This is irreversible. You must
-          type the workspace name to confirm. All data associated with the workspace — posts,
-          comments, brand profile, analytics, social tokens — is permanently deleted within
-          30 seconds of confirmation.
+          Contains the <Strong>Delete workspace</Strong> action. Clicking it opens a confirmation
+          dialog describing what will be deleted — there is no type-the-workspace-name field, just
+          Cancel and a second, explicit <Strong>Delete workspace</Strong> button. Confirming
+          deletes the workspace and all its data — social accounts, posts, comments, brand
+          profile — synchronously, in that same request; there is no delay or grace window
+          afterwards. Only a workspace owner can actually complete the deletion — the button
+          itself is visible to anyone who can see this page, but a non-owner who clicks through
+          gets a generic error rather than a permission message.
         </p>
       </Subsection>
 
       <Subsection title="Account settings — Profile">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Update your display name, profile photo, and email address. If you signed up with
-          Google, your name and photo are pulled from your Google account automatically, but
-          you can override them here. Email address changes require a verification step.
+          The account page shows your name, email, and avatar, but none of it is editable here —
+          profile details are managed through your login provider (Google, or whichever method
+          you signed up with). This page also shows your current plan and, for a founding member,
+          that badge and the locked-in pricing note, with a link out to Manage billing. Its own
+          Danger Zone at the bottom has a <Strong>Delete account</Strong> action, separate from
+          deleting an individual workspace above.
         </p>
       </Subsection>
 
@@ -246,12 +271,14 @@ export function SettingsSection() {
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
           The one email LYRA sends today is a <Strong>Crisis Aware alert</Strong> — automatically,
           with no on/off setting — to every workspace owner/admin when Crisis Aware triggers
-          (see <Strong>Workspace settings → Crisis Aware</Strong> below). It comes from{' '}
+          (see <Strong>Workspace settings → Crisis Aware</Strong> above). It comes from{' '}
           <code className="font-mono text-xs text-accent-silver bg-background-secondary px-1.5 py-0.5 rounded-md">notifications@lyraonline.ai</code>.
-          No other event (a failed post, an expired token, a client approval decision) triggers
-          an email today — check the relevant screen in LYRA directly instead, or connect a
-          Slack channel under <Strong>Workspace settings → Team Notifications</Strong> above,
-          which does cover those events on Agency plan or Pro with Crisis Aware.
+          No other event triggers an email today. A connected Slack channel (Agency plan, or Pro
+          with the Crisis Aware add-on — see <Strong>Workspace settings → Team Notifications</Strong>{' '}
+          above) adds a failed-post alert and a few others, but not everything you might expect:
+          there is currently no notification anywhere, email or Slack, for a token expiring or for
+          a client&apos;s approve/reject decision on a post — check the relevant screen in LYRA
+          directly for those instead.
         </p>
       </Subsection>
     </section>

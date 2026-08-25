@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { SectionHeader, Subsection, Strong, Steps, Step, PlatformBadge, StatusBadge, StatusRow } from './primitives'
+import { SectionHeader, Subsection, Strong, Steps, Step, PlatformBadge, StatusRow, Note } from './primitives'
 
 function AutonomyCard({ name, plan, children }: { name: string; plan: string; children: ReactNode }) {
   return (
@@ -28,187 +28,219 @@ export function InboxSection() {
       <SectionHeader n="07" title="Inbox" />
 
       <p className="font-sans text-sm text-text-secondary leading-relaxed">
-        The inbox is the nerve centre of LYRA&apos;s core differentiator: AI-powered comment and
-        review responses. Comments, replies, and reviews from all connected social platforms
-        are pulled into a unified inbox every 5 minutes. LYRA&apos;s AI analyses each one and —
-        depending on your autonomy setting — either drafts a response for your review or posts
-        one automatically.
+        The inbox is the nerve centre of LYRA&apos;s core differentiator: AI-powered comment
+        responses. Comments from your connected <Strong>Facebook</Strong>, <Strong>Instagram</Strong>,
+        and <Strong>LinkedIn</Strong> accounts are pulled into a unified inbox by a background
+        worker that polls roughly every 5 minutes. LYRA&apos;s AI can then — depending on your AI
+        Response Mode — draft a response for your review or post one automatically.
       </p>
 
       <Subsection title="How comments are collected">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          LYRA&apos;s comment monitoring worker polls all connected social platforms every 5 minutes.
-          New comments are pulled in, de-duplicated, and added to the inbox. The following
-          interaction types are supported:
+          Only three platforms are currently ingested into the inbox:
         </p>
         <ul className="space-y-1.5 font-sans text-sm text-text-secondary">
-          <li><PlatformBadge>Facebook</PlatformBadge> — comments and replies on Page posts</li>
+          <li><PlatformBadge>Facebook</PlatformBadge> — comments on Page posts</li>
           <li><PlatformBadge>Instagram</PlatformBadge> — comments on feed posts and reels</li>
           <li><PlatformBadge>LinkedIn</PlatformBadge> — comments on company page posts</li>
-          <li><PlatformBadge>Google Business</PlatformBadge> — all reviews (star rating + text)</li>
-          <li><PlatformBadge>X (Twitter)</PlatformBadge> — mentions and direct replies</li>
-          <li><PlatformBadge>TikTok</PlatformBadge> — comments on video posts</li>
         </ul>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
+          The other platforms LYRA connects to are <Strong>not</Strong> ingested here today:
+        </p>
+        <ul className="space-y-1.5 font-sans text-sm text-text-secondary">
+          <li><PlatformBadge>X (Twitter)</PlatformBadge> — no comment/mention polling exists for this platform yet</li>
+          <li><PlatformBadge>TikTok</PlatformBadge> — comment access isn&apos;t available through LYRA&apos;s
+            connection provider for this platform, so TikTok comments never reach the inbox</li>
+          <li><PlatformBadge>Google Business</PlatformBadge> — reviews are not ingested at all; there is
+            no review data model in LYRA and nothing fetches them. If you need to manage Google
+            reviews today, do it directly in Google Business Profile</li>
+        </ul>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
+          A manual <Strong>Sync</Strong> button above the inbox list re-checks your Facebook,
+          Instagram, and LinkedIn accounts on demand — useful if you don&apos;t want to wait for
+          the next automatic poll. Comments brought in this way land as <Strong>Pending</Strong> and
+          are not automatically queued for an AI draft; the automatic drafting/auto-posting
+          pipeline only runs off the background poll (and, for Zernio-connected accounts, a
+          real-time webhook). You can still request a draft for any individual comment at any
+          time with the <Strong>Generate</Strong> button on its card.
+        </p>
+        <Note>
+          If a workspace&apos;s AI Response Mode is set to <Strong>No reply</Strong>, the automatic
+          background poll does not run for that workspace&apos;s accounts at all — only the manual
+          Sync button brings comments in. This means a workspace that never opens the inbox and
+          never clicks Sync won&apos;t see new comments appear on their own while autonomy is off.
+        </Note>
       </Subsection>
 
       <Subsection title="Comment statuses explained">
         <div className="space-y-3">
           <StatusRow status="Pending" color="text-text-tertiary border-background-border-mid">
-            The comment has been received but not yet processed by the AI. This status
-            is brief — the AI usually processes new comments within 30 seconds of them
-            arriving in the inbox.
+            The comment has been received but has no response yet. With <Strong>No reply</Strong> mode,
+            comments stay Pending indefinitely until someone writes a manual reply — there is no
+            automatic timeout or reminder. With <Strong>Post with approval</Strong> or <Strong>Full
+            Automatic</Strong> mode, new comments are queued for an AI draft in the background;
+            how long that takes depends on queue load, not a fixed SLA.
           </StatusRow>
           <StatusRow status="AI Drafted" color="text-status-info border-status-info/30">
-            The AI has generated a draft response. The response is ready for your review
-            if you are on Draft + Approve mode, or will be queued for auto-posting if you
-            are on Full Autonomy.
-          </StatusRow>
-          <StatusRow status="Awaiting Approval" color="text-status-warning border-status-warning/30">
-            (Draft + Approve mode only) The AI draft is ready and waiting for a human to
-            approve it before it is posted to the platform.
+            The AI has generated a draft response, shown directly in the reply box on the comment
+            card. This is also the status a comment sits in while it&apos;s waiting for a human to
+            review and send it under <Strong>Post with approval</Strong> mode — there is no separate
+            &ldquo;Awaiting Approval&rdquo; status in the product, despite the name suggesting otherwise.
           </StatusRow>
           <StatusRow status="Responded" color="text-status-success border-status-success/30">
-            A response has been successfully posted to the platform. The timestamp shows
-            when it was posted.
+            A response has been sent to the platform — either an AI response under Full Automatic,
+            or a reply you sent (AI-drafted or written from scratch) under any mode. Responded
+            comments move to the <Strong>Done</Strong> tab.
           </StatusRow>
           <StatusRow status="Escalated" color="text-status-error border-status-error/30">
-            The comment has been flagged for immediate human attention. The AI will not
-            auto-respond to escalated comments regardless of autonomy setting — it stays
-            pinned at the top of the inbox until you act on it. Write a manual reply, or
-            click <Strong>Ignore</Strong> if no response is needed. There is no email
-            notification for this yet — check the inbox directly.
+            The comment has been flagged for human attention — either by you, or by the AI when
+            it hits an <Strong>Always escalate</Strong> guardrail or decides it can&apos;t respond safely.
+            Escalated comments move to their own <Strong>Escalated</Strong> tab rather than staying in
+            the main list; the AI will not auto-respond to them. You can still write a manual reply
+            or click <Strong>Ignore</Strong> from that tab. If a Slack channel is connected for this
+            workspace and the Escalated event is enabled for it, escalating a comment can also post
+            an alert there.
           </StatusRow>
           <StatusRow status="Ignored" color="text-text-tertiary border-background-border-mid">
-            The comment has been manually dismissed. It will not receive a response.
-            This is appropriate for spam, bot activity, or comments that don&apos;t require
-            a response (e.g. a simple &ldquo;❤️&rdquo;).
+            The comment has been manually dismissed. It will not receive a response. This is
+            appropriate for spam, bot activity, or comments that don&apos;t require a response
+            (e.g. a simple &ldquo;❤️&rdquo;).
           </StatusRow>
         </div>
       </Subsection>
 
-      <Subsection title="AI autonomy settings">
+      <Subsection title="AI Response Mode">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          The autonomy setting is configured per workspace in <Strong>Settings → AI Autonomy</Strong>.
-          It controls the degree to which LYRA acts without human review.
+          The mode is configured per workspace in <Strong>Settings → AI Response Mode</Strong>. It
+          controls how LYRA&apos;s AI responds to comments on your connected accounts.
         </p>
         <div className="space-y-4 mt-3">
-          <AutonomyCard name="Off" plan="All plans">
-            LYRA collects comments and displays them in the inbox but does not draft or post any
-            AI responses. You handle all responses manually. The inbox is still a useful unified
-            view — you can write manual responses from within LYRA and they will be posted to
-            the platform on your behalf.
+          <AutonomyCard name="No reply" plan="All plans">
+            Comments aren&apos;t answered automatically. You review and respond manually in the
+            Inbox — the same reply box is available for every comment, whether or not an AI
+            draft ever existed for it.
           </AutonomyCard>
-          <AutonomyCard name="Draft + Approve" plan="Pro and Agency">
-            LYRA generates a draft response for every new comment using the brand&apos;s voice profile
-            and any applicable guardrails. The draft appears in the inbox with
-            <StatusBadge color="text-status-warning border-status-warning/30">Awaiting Approval</StatusBadge> status.
-            You review and optionally edit each response, then click <Strong>Approve &amp; Post</Strong>
-            to publish it. No response goes live without a human having seen it. This is the
-            recommended setting for most agencies starting with AI responses.
+          <AutonomyCard name="Post with approval" plan="All plans (see note below)">
+            AI drafts a reply for each new comment using the brand&apos;s voice profile and any
+            configured guardrails. Nothing goes live until you review it in the Inbox and click
+            <Strong> Approve &amp; send</Strong>. This mode can be turned on for a Starter
+            workspace, and drafts will genuinely be generated (and billed) — but the inbox UI
+            that shows the &ldquo;AI draft&rdquo; label, the Generate/Re-generate button, and the
+            Approve &amp; send label is hidden for Starter plans. A Starter workspace with this
+            mode on will see the draft text sitting in a plain, unlabelled reply box instead.
           </AutonomyCard>
-          <AutonomyCard name="Full Autonomy" plan="Agency only">
-            LYRA generates and posts responses automatically without any human review step.
-            Responses are live within approximately 2 minutes of the comment appearing. You can
-            review posted responses at any time in the inbox. Guardrails (see below) are
-            especially important in Full Autonomy mode — configure them carefully before
-            enabling this setting.
+          <AutonomyCard name="Full Automatic" plan="Pro and Agency">
+            AI generates and sends responses automatically with no human review step. Guardrails
+            (see below) are especially important in this mode — review them before enabling it.
+            This mode is available on <Strong>Pro and Agency</Strong> plans, not Agency only.
           </AutonomyCard>
         </div>
       </Subsection>
 
-      <Subsection title="Reviewing and approving a response">
+      <Subsection title="Reviewing and responding to a comment">
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          There is no separate review panel or split comment/draft view — every comment card in
+          the Inbox is shown fully expanded, in a single column, with the comment text, an
+          optional sentiment label if one has been set, and a reply box directly beneath it.
+        </p>
         <Steps>
           <Step n={1}>
-            Open the inbox. Responses awaiting approval are shown at the top of the list with
-            an amber border. Click any comment card to open the review panel.
+            Open the Inbox. The <Strong>Pending</Strong> tab shows comments that haven&apos;t been
+            responded to yet; <Strong>Escalated</Strong> and <Strong>Done</Strong> are separate tabs.
           </Step>
           <Step n={2}>
-            The panel shows the original comment (left) and the AI-drafted response (right),
-            with the commenter&apos;s name, platform, and timestamp.
+            On plans and modes where AI drafting is available, click <Strong>Generate</Strong> to
+            have the AI write a draft into the reply box (or <Strong>Re-generate</Strong> if a
+            draft is already there). This is optional — you can also just type directly into the
+            box without generating anything first. There is no separate &ldquo;Write manually&rdquo;
+            control; it&apos;s the same editable text field either way.
           </Step>
           <Step n={3}>
-            Read the response. If it looks good, click <Strong>Approve &amp; Post</Strong>.
-            The response is posted to the platform immediately.
+            Edit the text if you want to. When there is text in the box, click <Strong>Approve
+            &amp; send</Strong> or <Strong>Send reply</Strong> to post it to the platform immediately —
+            which label you see depends on whether AI drafting is available for this comment.
+            Approve &amp; send appears for AI-drafting-eligible comments (not on Starter, not in No
+            reply mode); Send reply appears everywhere else, including for an escalated comment
+            that already has a draft sitting in the box.
           </Step>
           <Step n={4}>
-            If you want to edit the response first, click directly in the response text field.
-            It is fully editable. Make your changes, then click <Strong>Approve &amp; Post</Strong>.
+            If the comment doesn&apos;t need a response, click <Strong>Ignore</Strong>. It&apos;s marked
+            Ignored and won&apos;t receive a reply.
           </Step>
           <Step n={5}>
-            If the comment should not receive a response, click <Strong>Ignore</Strong>.
-            The comment is marked as Ignored and removed from the approval queue.
-          </Step>
-          <Step n={6}>
-            If the comment requires special attention (a complaint, a crisis, a factual dispute),
-            click <Strong>Escalate</Strong> instead. The comment stays pinned at the top of the
-            inbox and the AI will not respond to it automatically — write a manual reply or
-            dismiss it when you&apos;re ready.
+            If the comment needs human attention (a complaint, a crisis, a factual dispute), click
+            <Strong> Escalate</Strong> instead. It moves to the Escalated tab; the AI will not
+            respond to it automatically. You can still reply manually or ignore it from there.
           </Step>
         </Steps>
       </Subsection>
 
-      <Subsection title="Writing a manual response">
-        <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          You are never required to use the AI draft. For any comment in any status, you can
-          write a fully manual response. Open the comment card and click <Strong>Write manually</Strong>
-          to dismiss the AI draft and open a blank response editor. Type your response and click
-          <Strong> Post response</Strong>.
-        </p>
-      </Subsection>
-
       <Subsection title="Filtering the inbox">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          The inbox can be filtered by:
+          The inbox has one real filter today: a row of platform pills (All, plus one per
+          platform present in the current comments) above the list, shown only when more than
+          one platform has comments. There is no date-range filter and no sentiment filter.
         </p>
-        <ul className="space-y-1 font-sans text-sm text-text-secondary list-disc list-inside pl-2">
-          <li><Strong>Status</Strong> — show only Awaiting Approval, Escalated, Responded, etc.</li>
-          <li><Strong>Platform</Strong> — show only Facebook comments, only Google reviews, etc.</li>
-          <li><Strong>Date range</Strong> — focus on a specific time window</li>
-          <li><Strong>Sentiment</Strong> — filter to show only negative or positive comments
-            (AI-classified during processing)</li>
-        </ul>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          Status isn&apos;t a filter either — it&apos;s the three fixed tabs (Pending, Escalated,
+          Done) described above. Comments in each tab are grouped by status, not by a filter you
+          can toggle on or off.
+        </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          By default, the inbox shows comments from the last 30 days, sorted by most recent first.
-          Escalated comments are always shown at the top regardless of date.
+          The inbox loads your <Strong>100 most recent comments</Strong> across all connected
+          platforms, most recent first — it is not scoped to the last 30 days or any other date
+          window. Sentiment can be shown on a comment card (Positive/Neutral/Negative/Urgent),
+          but nothing in LYRA currently classifies it — in practice this field is always empty
+          and the label never appears.
         </p>
       </Subsection>
 
-      <Subsection title="Guardrails (Agency plan)">
+      <Subsection title="Guardrails">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Guardrails define hard constraints that the AI must respect when generating responses
-          for a workspace. They are especially important for Full Autonomy mode. Configure them
-          in <Strong>Settings → Guardrails</Strong>.
+          Guardrails are constraints the AI checks when generating comment responses for a
+          workspace. Enforcement itself is not restricted to any plan — any workspace that has a
+          guardrail can have it enforced. However, there is currently no settings screen to
+          configure most of them. The only guardrail you can actually create or remove today is
+          <Strong> Always escalate</Strong>, managed through the <Strong>Crisis Keywords</Strong> panel
+          on the Brand AI page (see the Brand Intelligence section of this guide) — approving a
+          suggested keyword there, or adding your own, creates a live Always escalate guardrail
+          immediately.
+        </p>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          That panel only appears once <Strong>Crisis Aware</Strong> is turned on for the
+          workspace, and Crisis Aware itself requires a Pro or Agency plan — it can&apos;t be
+          enabled on Starter. In practice, that means a Starter workspace has no way to create a
+          guardrail of any kind, even though nothing about guardrail enforcement is plan-gated in
+          the code.
         </p>
         <div className="space-y-3 mt-3">
-          <GuardrailRow type="Never discuss">
-            Topics or subjects the AI must never engage with in responses. Examples: competitor
-            names, pricing, pending litigation, specific people, religion, politics. The AI will
-            deflect any comment on these topics and escalate if necessary.
-          </GuardrailRow>
-          <GuardrailRow type="Never use word">
-            Specific words, phrases, or expressions the AI must never use. Useful for brands
-            that have internal language standards — e.g. a brand that says &ldquo;partners&rdquo; not
-            &ldquo;customers&rdquo;, or wants to avoid words like &ldquo;cheap&rdquo; or &ldquo;deal&rdquo;.
-          </GuardrailRow>
           <GuardrailRow type="Always escalate">
-            Comment patterns or keywords that should always trigger an escalation regardless of
-            autonomy setting. Examples: &ldquo;refund&rdquo;, &ldquo;lawyer&rdquo;, &ldquo;disgusting&rdquo;, any mention of
-            allergic reactions for a food brand. The AI will not respond and will flag immediately.
-            This is the same keyword list <Strong>Crisis Aware</Strong> watches — if Crisis Aware
-            is on, Brand Intelligence suggests these keywords automatically and they&apos;re managed
-            from the Brand Intelligence page, not this Guardrails screen.
+            Keywords that trigger an automatic escalation. Checked against the incoming
+            comment&apos;s text <Strong>before</Strong> the AI generates anything — a match skips
+            generation entirely and the comment is escalated straight away, so no AI call is
+            made (and nothing is billed) for a comment that matches. Managed from the Crisis
+            Keywords panel on the Brand AI page, not from a Guardrails settings screen.
           </GuardrailRow>
-          <GuardrailRow type="Approved answers">
-            Pre-written responses for common recurring questions — opening hours, delivery times,
-            pricing, FAQs. When a comment matches an approved answer&apos;s trigger pattern, the AI
-            uses the pre-written response verbatim rather than generating a new one. This ensures
-            factual accuracy for questions with definitive answers.
+          <GuardrailRow type="Never discuss / Never use word">
+            Topics or specific words the AI should avoid in its responses. These exist in
+            LYRA&apos;s response-generation logic — if the AI&apos;s generated reply contains a
+            restricted word, or mentions a restricted topic, the reply is discarded and the
+            comment is escalated instead of being sent. This check runs <Strong>after</Strong> the
+            AI has already generated a response (and the API call has already been billed), as a
+            substring match against the generated text — it is not a check of what the incoming
+            comment is about, and it is not a topic classifier. There is currently no screen
+            anywhere in LYRA to create a guardrail of either type, so in practice this check
+            never has anything to match against.
+          </GuardrailRow>
+          <GuardrailRow type="Approved answer">
+            Pre-written text for common questions. If any exist for a workspace, they&apos;re
+            included in the prompt as a hint the AI can draw on — the model may use one
+            verbatim, paraphrase it, ignore it, or write something else entirely. There is no
+            trigger-matching that forces an approved answer to be used for a specific question,
+            and no factual-accuracy guarantee. As with Never discuss/Never use word, there is
+            currently no screen to create one, so this has no practical effect today.
           </GuardrailRow>
         </div>
-        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-4">
-          Guardrails are checked before any response is generated. If a guardrail triggers,
-          the response is blocked and the comment is escalated automatically.
-        </p>
       </Subsection>
     </section>
   )

@@ -6,16 +6,23 @@ export function DataDeletionSection() {
       <SectionHeader n="14" title="Data Deletion" />
 
       <p className="font-sans text-sm text-text-secondary leading-relaxed">
-        When you connect a Facebook or Instagram account to LYRA, LYRA stores an OAuth access token
-        and the metadata returned during the connection flow (Page name, Page ID, and account type).
-        This data is used exclusively to publish posts and read and respond to comments on your behalf.
-        You can remove this data at any time.
+        When you connect a Facebook or Instagram account to LYRA today, the connection goes through
+        Zernio: LYRA stores a reference ID for the Zernio-held account plus connection metadata
+        (Page/account name, Page ID, and adAccountId where applicable), but the platform access
+        token itself is held by Zernio, not LYRA. This data is used to publish posts and read and
+        respond to comments on your behalf.
       </p>
 
       <Subsection title="Disconnect a social account">
         <p>
-          Disconnecting removes the stored access token and stops all publishing and monitoring for
-          that account immediately.
+          Disconnecting a social account stops LYRA from monitoring its comments and prevents you
+          from scheduling new posts to it, but it does <Strong>not</Strong> delete the account&apos;s
+          stored connection data, and it does <Strong>not</Strong> stop posts that were already
+          scheduled to that account before you disconnected — those will still publish, since the
+          underlying connection to Zernio (or, for older accounts, the stored access token) still
+          works. The connection row is simply marked inactive; its stored reference ID and metadata
+          remain in LYRA&apos;s database. There is also no confirmation step — clicking Disconnect
+          takes effect immediately.
         </p>
         <Steps>
           <Step n={1}>
@@ -25,47 +32,64 @@ export function DataDeletionSection() {
             Find the Facebook or Instagram account you want to remove.
           </Step>
           <Step n={3}>
-            Click the three-dot menu next to the account and select <Strong>Disconnect</Strong>.
-          </Step>
-          <Step n={4}>
-            Confirm the disconnection. The stored token is deleted immediately.
+            Click <Strong>Disconnect</Strong> next to the account. This runs immediately —
+            there is no confirmation dialog.
           </Step>
         </Steps>
         <Note>
           To fully revoke LYRA&apos;s access at the platform level, also remove the app from
-          Facebook Settings → Security and Login → Business Integrations.
+          Facebook Settings → Security and Login → Business Integrations. This is currently the
+          only way to fully revoke access, since neither disconnecting inside LYRA nor requesting
+          data deletion (below) calls Facebook to revoke the underlying access — the Zernio
+          connection (or, for older accounts, the stored access token) is left intact either way.
         </Note>
       </Subsection>
 
       <Subsection title="Request complete data deletion">
         <p>
-          To request deletion of all data LYRA holds that originated from your Facebook or Instagram
-          connection — including stored tokens, Page metadata, post records, and comment history
-          associated with that account — send a request to{' '}
+          LYRA does not have a way to delete a single connected account&apos;s data on its own —
+          every deletion path removes an entire workspace at a time, connected accounts included.
+          To request deletion of a specific account&apos;s data, send a request to{' '}
           <Strong>hello@lyraonline.ai</Strong> with the subject line{' '}
-          <Strong>Data deletion request</Strong>.
+          <Strong>Data deletion request</Strong>, and include the email address associated with
+          your LYRA account and the name of the Facebook Page or Instagram account you want removed.
+          LYRA does not currently expose a Meta Data Deletion Request Callback endpoint; this manual,
+          email-based process is how such requests are handled today.
         </p>
         <p>
-          Include the email address associated with your LYRA account and the name of the
-          Facebook Page or Instagram account you want removed. LYRA will complete the deletion
-          within 30 days and send a confirmation to your email address.
+          LYRA will complete the deletion within 30 days and send a confirmation to your email
+          address.
         </p>
         <Note>
-          Deleting a social account&apos;s data will also remove any posts, comments, and AI response
-          records associated with that account. This action cannot be undone.
+          Deleting a workspace&apos;s data also removes its posts, comments, and AI response
+          records. One exception: pending Facebook Page-selection data (created while a connection
+          is in progress and normally short-lived) is not included in this deletion process. This
+          action cannot be undone.
         </Note>
       </Subsection>
 
       <Subsection title="Delete your LYRA account">
         <p>
-          To delete your entire LYRA account and all associated data — including all workspaces,
-          posts, brand profiles, and connected social accounts — go to{' '}
-          <Strong>Account → Billing → Delete account</Strong>, or send a request to{' '}
-          <Strong>hello@lyraonline.ai</Strong>.
+          To delete your entire LYRA account, go to{' '}
+          <Strong>Account → Danger Zone</Strong> and use <Strong>Delete account</Strong>, or send
+          a request to <Strong>hello@lyraonline.ai</Strong>. This permanently deletes your user
+          record and every workspace you own — including their posts, brand profiles, and
+          connected social accounts. Workspaces you only have shared access to (as a team member
+          or client, rather than an owner) are not deleted; LYRA only removes your access to them.
         </p>
         <p>
-          Account deletion is permanent. All data is removed within 30 days of the request.
-          Active subscriptions are cancelled immediately with no further charges.
+          If you have authored posts in a shared workspace you don&apos;t own, account deletion can
+          currently fail, since those posts are not removed by this process and block the deletion
+          of your user record. If this happens, contact <Strong>hello@lyraonline.ai</Strong> for
+          manual assistance.
+        </p>
+        <p>
+          Account deletion is permanent. All data from the deleted workspaces is removed within 30
+          days of the request. If you are the last owner of your agency, its subscription (including
+          the Crisis Aware add-on, if active) is cancelled as part of the deletion — no further
+          charges apply. If your agency has other owners, its shared subscription is left active for
+          them, and only your own owned workspaces and their add-on subscriptions are cancelled and
+          removed.
         </p>
       </Subsection>
     </section>

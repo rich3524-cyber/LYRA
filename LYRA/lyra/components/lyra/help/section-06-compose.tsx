@@ -6,212 +6,199 @@ export function ComposeSection() {
       <SectionHeader n="06" title="Compose" />
 
       <p className="font-sans text-sm text-text-secondary leading-relaxed">
-        The composer is where you create, edit, and schedule posts. It is designed for speed —
-        write once and post across all your connected platforms simultaneously, or customise
-        each platform&apos;s caption independently. The AI suggestion panel is always available
-        on the right to generate caption ideas, rewrite drafts, or suggest hashtags.
+        The composer is where you create, edit, and schedule posts. Write your caption once and
+        it goes out to every platform you select — LYRA sends the same caption text to all of
+        them; there is no per-platform caption editor. An <Strong>AI Generate</Strong> button in
+        the toolbar can produce a single caption in the workspace&apos;s brand voice as a
+        starting point.
       </p>
 
       <Subsection title="Selecting platforms">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          At the top of the composer, the <Strong>Platform selector</Strong> shows all social
-          accounts connected to the active workspace. Click any platform icon to toggle it on
-          or off for this post. You can post to one platform or all of them at once.
+          At the top of the composer, the <Strong>Platform selector</Strong> shows the platforms
+          this workspace has connected. Click a platform icon to toggle it on or off for this
+          post — you can select just one or several at once.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          When multiple platforms are selected, the composer uses the same caption for all of
-          them by default. To write a custom caption for a specific platform, click the
-          platform tab that appears below the editor and edit independently. A lock icon
-          indicates the caption is shared; an unlock icon means it has been customised.
+          The caption is shared across every platform you select — there is no way to write a
+          different caption per platform. Media works differently: see{' '}
+          <Strong>Customise per platform</Strong> under Adding media below.
         </p>
       </Subsection>
 
       <Subsection title="Writing your caption">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          The editor is a rich text area that supports:
-        </p>
-        <ul className="space-y-1 font-sans text-sm text-text-secondary list-disc list-inside pl-2">
-          <li>Bold and italic formatting (where the target platform supports it)</li>
-          <li>Line breaks and paragraph spacing</li>
-          <li>Hashtag and @mention highlighting</li>
-          <li>Emoji insertion via the emoji picker</li>
-          <li>Link insertion — LYRA will show a preview of the linked URL</li>
-        </ul>
-        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          A live character counter appears at the bottom right of the editor, showing the
-          character count for the currently active platform tab. Text that exceeds the
-          platform limit turns red.
-        </p>
-      </Subsection>
-
-      <Subsection title="Platform character limits">
-        <div className="rounded-xl border border-background-border overflow-hidden">
-          <table className="w-full font-sans text-sm">
-            <thead>
-              <tr className="border-b border-background-border bg-background-secondary">
-                <th className="px-4 py-3 text-left text-xs font-medium text-text-tertiary uppercase tracking-[0.08em]">Platform</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-text-tertiary uppercase tracking-[0.08em]">Limit</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-text-tertiary uppercase tracking-[0.08em]">Notes</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-background-border">
-              {[
-                ['X (Twitter)', '280', 'Each tweet. Threads allow sequential tweets.'],
-                ['LinkedIn', '3,000', 'Company page posts. Articles have no limit.'],
-                ['Facebook', '63,206', 'In practice, 80–250 chars performs best.'],
-                ['Instagram', '2,200', 'First 3 lines visible before "more" truncation.'],
-                ['TikTok', '2,200', 'Video caption only.'],
-                ['Google Business', '1,500', 'Google Posts (offers, updates, events).'],
-              ].map(([platform, limit, note]) => (
-                <tr key={platform}>
-                  <td className="px-4 py-3 text-text-secondary">{platform}</td>
-                  <td className="px-4 py-3 text-right font-mono text-xs text-accent-silver">{limit}</td>
-                  <td className="px-4 py-3 text-text-tertiary text-xs">{note}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Subsection>
-
-      <Subsection title="Adding media">
-        <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Click <Strong>Add media</Strong> (or drag and drop files onto the composer) to attach
-          images or video. Accepted formats and limits by platform:
-        </p>
-        <ul className="space-y-1.5 font-sans text-sm text-text-secondary">
-          <li><Strong>Images:</Strong> JPG, PNG, GIF, WEBP — up to 20 MB per image, up to 10 images per post</li>
-          <li><Strong>Video:</Strong> MP4, MOV, AVI — up to 512 MB, length limits vary by platform</li>
-        </ul>
-        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          As soon as media is attached and a platform is selected, LYRA checks the file against
-          that platform&apos;s known format restrictions and shows a warning immediately in the
-          composer — you do not need to schedule or submit the post to find out. For example,
-          Instagram and Threads only accept JPEG and PNG images; a GIF or WebP attached to a post
-          targeting either platform is flagged right away, with a clear note that it will fail to
-          publish there if left unchanged. The same check also runs again on the server when you
-          schedule, as a backstop.
+          The editor supports real formatting while you type — bold and italic (including via
+          Ctrl+B / Ctrl+I or markdown shortcuts like <Strong>**bold**</Strong>), headings, and
+          bullet/numbered lists all render visibly in the editor. There is no hashtag or @mention
+          highlighting, emoji picker, or link preview.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          To remove an attached file, hover over its thumbnail and click the <Strong>×</Strong>
-          button in the corner. This is the only way to remove a wrongly-attached file — you do
-          not need to close and restart the composer.
+          This matters: none of that formatting survives publishing. LYRA extracts plain text from
+          the editor before sending it anywhere, so a bullet list or bolded phrase that looks
+          correct on screen goes out as plain text with the formatting silently stripped — a line
+          typed as &ldquo;- Item one&rdquo; publishes as &ldquo;Item one&rdquo; with no bullet.
+          Don&apos;t rely on visual formatting in the editor to mean anything once the post is
+          scheduled.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          Once media is attached and platforms are selected, a <Strong>Customise per platform</Strong>
-          button appears below the media strip. Click it to open a tab per selected platform —
-          useful when one file genuinely doesn&apos;t work everywhere (e.g. a 9:16 TikTok video
-          vs. a 1:1 Instagram square). Each tab shows the shared media dimmed as a fallback;
-          uploading to a tab overrides the shared media for that platform only, and tabs left
-          empty just use the shared file. A dot on a tab&apos;s label shows it has an override set.
+          A live character count appears only in the preview panel next to the composer, and only
+          for two of the platforms you can post to: <Strong>Instagram</Strong> (2,200 characters)
+          and <Strong>X</Strong> (280 characters) — it turns red past the limit as a warning. For
+          every other platform, including LinkedIn, Facebook, TikTok, and Google Business, there
+          is no character count shown anywhere in the composer. Either way, LYRA does not block
+          scheduling or trim your caption if it runs over a platform&apos;s limit — that&apos;s on
+          you to check.
         </p>
       </Subsection>
 
       <Subsection title="AI caption generation">
-        <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          The AI suggestion panel on the right side of the composer is always available when
-          Brand Intelligence has been built for the workspace.
-        </p>
         <Steps>
           <Step n={1}>
-            Click <Strong>Generate with AI</Strong> in the suggestion panel. Optionally, type a
-            brief prompt — a topic, an angle, a specific campaign message, or a description of
-            any attached media. The more context you provide, the more targeted the output.
-            Example prompts:
-            <ul className="mt-1.5 ml-4 space-y-1 font-sans text-xs text-text-tertiary list-disc">
-              <li>&ldquo;Our new winter menu launches Friday — build excitement&rdquo;</li>
-              <li>&ldquo;This is a before/after renovation photo — keep it professional&rdquo;</li>
-              <li>&ldquo;Motivational Monday post for our gym audience&rdquo;</li>
-            </ul>
+            Click <Strong>AI Generate</Strong> in the toolbar above the editor. This requires a
+            completed Brand AI profile for the workspace — if one hasn&apos;t been built yet, LYRA
+            shows an error instead of generating anything.
           </Step>
           <Step n={2}>
-            The AI generates 3 caption variations, each calibrated to the brand voice profile.
-            Each variation is shown with a character count for the active platform.
+            LYRA writes a single caption in the brand&apos;s voice and drops it straight into the
+            editor, replacing whatever was already there. There is no prompt box to add a topic or
+            brief from inside the composer, and no set of variations to pick from — it&apos;s one
+            caption, inserted directly. The instruction sent to the model explicitly asks for the
+            caption text only, with no alternatives.
           </Step>
           <Step n={3}>
-            Click <Strong>Use this</Strong> under any variation to insert it into the editor.
-            The existing draft is replaced.
+            There is no separate Regenerate or Refine control. To try again, click{' '}
+            <Strong>AI Generate</Strong> a second time — it produces another single caption and
+            overwrites the editor&apos;s contents again.
           </Step>
           <Step n={4}>
-            Click <Strong>Regenerate</Strong> to get a fresh set of 3 variations with different
-            angles, or click <Strong>Refine</Strong> to adjust the current output (e.g.
-            &ldquo;Make it shorter&rdquo;, &ldquo;Add a call to action&rdquo;, &ldquo;More formal tone&rdquo;).
-          </Step>
-          <Step n={5}>
-            Always review and edit the AI output before scheduling. The AI writes in the brand&apos;s
-            voice, but you know the client best — adjust anything that doesn&apos;t feel right.
+            Always review and edit the AI output before scheduling. The prompt asks the model to
+            include relevant hashtags directly in the caption where appropriate for the platform —
+            there is no separate hashtag-suggestion tool, so if you want hashtags and the AI
+            didn&apos;t add the ones you need, add them yourself.
           </Step>
         </Steps>
       </Subsection>
 
-      <Subsection title="Hashtag suggestions">
+      <Subsection title="Adding media">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          After generating or writing a caption, click <Strong>Suggest hashtags</Strong> in the
-          suggestion panel. LYRA recommends a mix of high-volume and niche hashtags relevant to
-          the caption content and the client&apos;s industry. Click any hashtag to add it to the
-          caption, or click <Strong>Add all</Strong> to append the full set.
+          Click <Strong>Media</Strong> in the toolbar (or drag and drop files onto the composer)
+          to attach images or video.
+        </p>
+        <ul className="space-y-1.5 font-sans text-sm text-text-secondary">
+          <li><Strong>Images:</Strong> JPG, PNG, GIF, WEBP</li>
+          <li><Strong>Video:</Strong> MP4, MOV, WEBM — AVI is not on the accepted list and is rejected by the upload endpoint</li>
+        </ul>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
+          Every file — image or video — shares one flat <Strong>50 MB</Strong> size cap; there is
+          no separate, larger limit for video. There is also no limit on how many images you can
+          attach to a single post.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          Hashtag suggestions are only shown for platforms where hashtags are effective —
-          Instagram, X, LinkedIn, and TikTok. They are suppressed for Facebook and Google
-          Business by default.
+          As soon as media is attached and a platform is selected, LYRA checks the file against
+          that platform&apos;s known format restrictions and shows a warning immediately in the
+          composer — you do not need to schedule or submit the post to find out. Right now that
+          check only covers Instagram: it accepts JPEG and PNG images only, so a GIF or WebP
+          attached to a post targeting Instagram is flagged right away, with a note that it will
+          fail to publish there if left unchanged. The same check runs again on the server when
+          you schedule, as a backstop.
+        </p>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
+          To remove an attached file, hover over its thumbnail and click the <Strong>×</Strong>
+          button in the corner.
+        </p>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
+          Once platforms are selected and at least one shared file is attached, a{' '}
+          <Strong>Customise per platform</Strong> button appears below the media strip — this is
+          real, but it only applies to media, not captions. Turning it on replaces the shared
+          media thumbnails with one tab per selected platform, useful when one file genuinely
+          doesn&apos;t work everywhere (e.g. a 9:16 TikTok video vs. a 1:1 Instagram square). Each
+          tab shows the shared media dimmed as a fallback; uploading to a tab overrides the shared
+          media for that platform only, and a small dot on a tab&apos;s label marks that it has an
+          override set.
         </p>
       </Subsection>
 
       <Subsection title="Scheduling a post">
         <Steps>
           <Step n={1}>
-            Click the <Strong>Schedule</Strong> button at the bottom right of the composer.
+            Click the date/time control at the bottom right of the composer (it reads{' '}
+            <Strong>Pick date &amp; time</Strong> until you set one) to open the picker.
           </Step>
           <Step n={2}>
-            The date and time picker opens. Select the date and set the exact time in the
-            client&apos;s timezone (displayed in the picker).
+            Pick a date on the calendar and set the time in the field below it. The picker does
+            not display a timezone, and despite the timezone setting on the workspace&apos;s
+            Settings page, that setting is not used here — the time you enter is interpreted in
+            your own browser&apos;s local timezone. Two team members in different timezones
+            picking &ldquo;3:00 PM&rdquo; for the same post are scheduling it for two different
+            moments.
           </Step>
           <Step n={3}>
-            Optionally, click <Strong>Best time to post</Strong>. LYRA suggests an optimal
-            time based on the historical engagement patterns for this workspace&apos;s connected accounts.
+            If LYRA has enough posting history for the first platform you&apos;ve selected (at
+            least 12 published posts on that platform), a <Strong>Best time for…</Strong> hint
+            appears above the buttons with a suggested day and time, plus a{' '}
+            <Strong>Use this time</Strong> link that fills the picker with it. This is an inline
+            hint next to the toolbar, not a button inside the date picker — and it simply
+            doesn&apos;t appear at all until there is enough history behind it.
           </Step>
           <Step n={4}>
-            Click <Strong>Schedule</Strong>. The post is added to the calendar and queued
-            for automatic publishing. You will see a confirmation and a link back to the calendar.
+            Click <Strong>Schedule</Strong>. The post is queued and a confirmation toast appears;
+            the composer then clears itself, ready for the next post. A separate{' '}
+            <Strong>Post now</Strong> button next to it schedules the post for immediate
+            publishing without opening the date picker at all.
           </Step>
         </Steps>
         <Note>
-          Posts can be scheduled up to 6 months in advance. The minimum scheduling lead time
-          is 5 minutes from now. Posts cannot be backdated.
+          LYRA does not currently enforce a scheduling window, a minimum lead time, or a rule
+          against backdating — the picker lets you select any date and time, including one in the
+          past, and nothing blocks submission if you do.
         </Note>
       </Subsection>
 
       <Subsection title="Saving as draft">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Click <Strong>Save draft</Strong> instead of Schedule to save the post without queuing it.
-          Drafts appear on the calendar on the date you set, but with a grey Draft status.
+          Click <Strong>Save draft</Strong> instead of Schedule to save the post without queuing
+          it. Drafts appear on the calendar on the date you set, but with a grey Draft status.
           They will not be published automatically — you must return and schedule them manually.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          Unsaved changes are auto-saved every 30 seconds while the composer is open.
-          If you close the composer without saving, a browser confirmation prompt appears.
+          There is no autosave. Unsaved changes live only in the browser tab while the composer is
+          open — LYRA does not save them in the background, on a timer, or before you navigate
+          away, and there is no confirmation prompt if you close the tab or leave the page with
+          unsaved changes. Click <Strong>Save draft</Strong> or <Strong>Schedule</Strong>{' '}
+          explicitly before leaving, or your changes are lost.
         </p>
       </Subsection>
 
       <Subsection title="Sending for client approval">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          On Pro and Agency plans, if the workspace has client approval enabled, you will see a
-          <Strong> Send for approval</Strong> option instead of (or alongside) Schedule.
-          Clicking it saves the post with a <StatusBadge color="text-status-warning border-status-warning/30">Pending Approval</StatusBadge> status.
-          Anyone with approval permissions on the workspace can approve it from their own
-          login — usually the client, but agency staff can too if the client isn&apos;t the one
-          reviewing that day.
+          There is no separate <Strong>Send for approval</Strong> button. If the workspace has
+          client approval enabled, clicking the ordinary <Strong>Schedule</Strong> button routes
+          the post through approval automatically: LYRA checks the workspace&apos;s client-approval
+          setting on the server and, if it&apos;s on, saves the post with a{' '}
+          <StatusBadge color="text-status-warning border-status-warning/30">Pending Approval</StatusBadge>{' '}
+          status instead of Scheduled. You do not choose between the two when submitting — the
+          request looks identical either way. Anyone with approval permissions on the workspace
+          can approve it from their own login — usually the client, but agency staff can too if
+          the client isn&apos;t the one reviewing that day.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          Approving a post that already has media and a scheduled time takes it straight to
-          <Strong> Scheduled</Strong> — there&apos;s no separate step to trigger afterward. If
-          either is still missing, it stays at <Strong>Approved</Strong> until you add what&apos;s
-          missing, at which point it schedules itself automatically.
+          Approving a post created from the composer takes it straight to{' '}
+          <Strong>Scheduled</Strong> as long as it has a scheduled time — a normal composer post
+          isn&apos;t required to have media before it can be approved and scheduled (that
+          requirement only applies to posts generated by the AI Schedule Generator without
+          artwork). If it&apos;s missing a scheduled time, it stays at <Strong>Approved</Strong>{' '}
+          and nothing moves it further on its own — there&apos;s no automatic transition once
+          you add what was missing. You need to open the post and click{' '}
+          <Strong>Schedule post</Strong> yourself to move it to Scheduled.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          There is currently no email notification when a post is waiting for approval — the
-          approver needs to check LYRA directly to see what&apos;s pending.
+          No notification currently fires when a post scheduled from the composer lands in Pending
+          Approval — not email, and not Slack either, even on a workspace with a Slack channel
+          connected and its &ldquo;New post pending approval&rdquo; toggle turned on. That
+          notification exists in LYRA and does fire for approval status changes made from the
+          calendar&apos;s post detail panel, but the composer&apos;s own Schedule button doesn&apos;t
+          trigger it today. The approver needs to check LYRA directly to see what&apos;s pending.
         </p>
       </Subsection>
     </section>

@@ -1,4 +1,4 @@
-import { SectionHeader, Subsection, Strong, MetricRow } from './primitives'
+import { SectionHeader, Subsection, MetricRow } from './primitives'
 
 export function AnalyticsSection() {
   return (
@@ -13,116 +13,135 @@ export function AnalyticsSection() {
       </p>
 
       <p className="font-sans text-sm text-text-secondary leading-relaxed">
-        Analytics data is synced hourly from each connected platform. The dashboard
-        reflects data as of the last successful sync, shown in the top right of the page.
+        Metrics update automatically in the background on a periodic cycle. You can also
+        trigger an on-demand refresh at any time using the <em>Sync</em> button next to the
+        date-range buttons at the top of the dashboard.
       </p>
 
       <Subsection title="Overview metrics">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          The overview row shows aggregate totals across all connected platforms for the
+          The top row shows five aggregate totals across all connected platforms for the
           selected date range:
         </p>
         <div className="space-y-3 mt-3">
-          <MetricRow metric="Reach">
-            The total number of unique accounts that saw any content from this workspace in
-            the period. This is a deduplicated count per platform — the same person seeing
-            content on both Facebook and Instagram counts as two reach instances.
-          </MetricRow>
-          <MetricRow metric="Impressions">
-            Total number of times any piece of content was displayed, including repeat views
-            by the same account. Impressions are always equal to or greater than reach.
-          </MetricRow>
-          <MetricRow metric="Engagements">
-            Sum of all meaningful interactions across all platforms: likes, reactions,
-            comments, shares, saves, reposts, retweets, and link clicks. Impressions (passive
-            views) are not counted as engagements.
-          </MetricRow>
-          <MetricRow metric="Engagement Rate">
-            Engagements divided by reach, expressed as a percentage. The most platform-neutral
-            way to compare performance across different audience sizes. Industry benchmarks
-            typically range from 1–3% on Facebook, 3–6% on Instagram, and 1–2% on LinkedIn.
-          </MetricRow>
           <MetricRow metric="Posts Published">
             Count of posts that were published via LYRA in the selected period, across all
             connected platforms.
           </MetricRow>
+          <MetricRow metric="Total Reach">
+            Sum, across every post published in the period, of the reach figure each platform
+            reports for that post.
+          </MetricRow>
+          <MetricRow metric="Total Views">
+            Sum of the views figure each platform reports for each post in the period. Shown
+            alongside reach (not instead of it) because platforms often report reach more
+            slowly than views — a post can show real view activity while its reach is still 0
+            in the hours after publishing.
+          </MetricRow>
+          <MetricRow metric="Total Likes">
+            Sum of likes across every post published in the period.
+          </MetricRow>
+          <MetricRow metric="Response Rate">
+            Responded comments as a percentage of responded-plus-still-open comments from the
+            period (open meaning pending, AI-drafted, awaiting approval, or escalated). Comments
+            that were approved or ignored aren&apos;t counted in either side of that ratio, so
+            this isn&apos;t the share of every comment received — it&apos;s the share of the
+            ones still in play that have been answered. The card also shows the number still
+            pending a reply.
+          </MetricRow>
         </div>
       </Subsection>
 
-      <Subsection title="Platform breakdown">
+      <Subsection title="Posts by platform">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Below the overview metrics, each connected platform has its own card showing the
-          same set of metrics for that platform only. This lets you immediately see which
-          platforms are driving the most engagement and identify any underperforming channels
-          that may need a strategy change.
-        </p>
-        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          Click any platform card to drill into a full platform-level view with trend charts
-          showing daily or weekly metric movement over the selected period.
+          Below the overview metrics, a Posts by platform panel lists each platform you
+          published to during the selected period, with the number of posts published to it,
+          alongside a bar scaled relative to whichever platform published the most. A connected platform with
+          no posts in the selected period doesn&apos;t appear in the list, and multiple accounts
+          on the same platform are combined into a single row. This reflects post volume only,
+          not reach, views, or engagement per platform — and the list is not interactive; there
+          is no drill-down view behind it.
         </p>
       </Subsection>
 
       <Subsection title="Engagement chart">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          The engagement chart in the middle of the dashboard shows daily engagement over the
-          selected period, with each platform rendered as a distinct coloured line. Hover over
-          any data point to see the exact figure for that day.
+          The Engagement over time chart plots five lines — Reach, Views, Likes, Comments, and
+          Shares — one point per day in the selected period, combined across every connected
+          platform, each a distinct colour identified in the legend below the chart. Each day&apos;s
+          value is the total metrics (to date) of the posts published that day, not new activity
+          generated on that day — a post&apos;s engagement keeps counting toward the day it was
+          published, however long ago that was. Hover over any point to see the exact figures.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          Click any platform name in the chart legend to toggle its line on or off. This is
-          useful when one platform&apos;s numbers dwarf the others and you want to zoom in on
-          smaller-scale trends.
+          The legend labels each line by colour but is not interactive — clicking a legend
+          entry does not hide or isolate that line.
         </p>
       </Subsection>
 
       <Subsection title="Top posts">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          The Top Posts table at the bottom of the analytics page lists the highest-performing
-          posts from the period, ranked by total engagements by default. Each row shows:
+          The Top posts by reach panel lists up to five posts from the period, ranked by reach
+          (ties are broken by views). Each entry shows:
         </p>
         <ul className="space-y-1 font-sans text-sm text-text-secondary list-disc list-inside pl-2">
-          <li>Platform icon</li>
-          <li>Caption snippet and thumbnail if available</li>
-          <li>Publish date and time</li>
-          <li>Reach, impressions, engagements, and engagement rate for that post</li>
+          <li>Platform badge</li>
+          <li>Reach, views, likes, and comment counts</li>
+          <li>A two-line snippet of the post&apos;s content</li>
         </ul>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          Click any post row to open a full post analytics panel with a complete breakdown of
-          all available metrics for that post, including reactions by type (Facebook), saves
-          (Instagram), and profile visits generated.
+          Entries are not clickable — there is no expanded per-post analytics view, publish
+          timestamp, thumbnail, or engagement-rate figure shown here.
         </p>
       </Subsection>
 
       <Subsection title="Changing the date range">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Use the date range picker at the top right of the analytics page. Options:
+          Use the three buttons at the top of the dashboard to switch periods:
         </p>
         <ul className="space-y-1 font-sans text-sm text-text-secondary list-disc list-inside pl-2">
-          <li>Last 7 days</li>
-          <li>Last 28 days (default)</li>
-          <li>Last 3 months</li>
-          <li>Last 6 months</li>
-          <li>Last 12 months</li>
-          <li>Custom range</li>
+          <li>7d — last 7 days</li>
+          <li>30d — last 30 days (default)</li>
+          <li>90d — last 90 days</li>
         </ul>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          When you change the range, all cards, charts, and tables update simultaneously.
-          The comparison badge on each metric card shows the percentage change versus the
-          equivalent prior period (e.g. changing the last 28 days compares it to the 28 days
-          before that).
+          There is no custom date-range option. When you switch periods, the overview metrics,
+          engagement chart, platform list, and top posts all update together; switching back to
+          a period you&apos;ve already viewed shows its cached numbers instantly while a
+          background refresh brings them up to date (the same happens when you return to the
+          browser tab after switching away).
         </p>
       </Subsection>
 
       <Subsection title="Data availability">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          LYRA can only show analytics for posts published while the social account was connected.
-          If an account was connected last month, you will see data from last month onwards.
-          Historical data prior to the connection date is not available.
+          LYRA can only show analytics for posts that were scheduled or published through LYRA
+          itself — it has no way to pull in historical performance data for content that
+          existed on a platform before the account was connected.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          Platform APIs have varying data retention windows. Facebook and Instagram provide
-          up to 2 years of post-level metrics. LinkedIn provides 12 months. X (Twitter)
-          provides 30 days via the standard API.
+          Metric syncing only covers accounts connected through LYRA&apos;s current publishing
+          integration. Accounts connected through the older direct-OAuth path never receive
+          metric updates from either the automatic background sync or the manual Sync button —
+          their posts still count toward Posts Published and appear in Posts by platform (which
+          only counts posts), but their reach, views, and likes stay permanently at zero and
+          they can never appear in Top Posts. If a connected account is showing unexplained
+          zeros across every post, this is the most likely reason.
+        </p>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
+          For accounts that do sync, both paths also look only at posts published within the
+          last 30 days, and each sync run only processes a batch of the posts due for a refresh
+          (skipping anything already synced within roughly the last hour or day) — so a large
+          backlog of due posts may take more than one sync cycle to fully catch up. A post older
+          than 30 days stops receiving new metric updates; the 90-day view will still show it,
+          but with whatever numbers were last synced before it aged out of that window.
+        </p>
+      </Subsection>
+
+      <Subsection title="Generating a report">
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          The Generate report button above the dashboard opens a dialog to download a PDF
+          summary for either the last 7 or 30 days.
         </p>
       </Subsection>
     </section>

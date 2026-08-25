@@ -9,145 +9,232 @@ export function ContentCalendarSection() {
         The content calendar gives you a visual overview of all scheduled and published posts
         for the active workspace. It is a planning and review tool — from here you can see what
         is going out, when, and on which platforms. You can reschedule posts by dragging them
-        between days, preview any post before it goes out, or jump straight into the composer
-        to write new content.
+        between days, open a post to see its full details, or jump into the composer to write
+        new content.
       </p>
 
       <Subsection title="Reading the calendar">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
           The calendar shows one full month at a time. Each day cell may contain zero or more
-          post chips. Each chip shows:
+          post chips, plus any email campaigns scheduled that day (see{' '}
+          <Strong>Email campaigns on the calendar</Strong> below). There is no per-day limit or
+          &quot;show more&quot; control — a busy day simply grows the cell to fit everything in it.
+          Each post chip shows:
         </p>
         <ul className="space-y-1.5 font-sans text-sm text-text-secondary list-disc list-inside pl-2">
-          <li>A small platform icon (Facebook, Instagram, etc.)</li>
-          <li>The first 30–40 characters of the caption</li>
-          <li>A coloured left border indicating the post&apos;s status</li>
-          <li>The scheduled time in the client&apos;s timezone</li>
+          <li>A small coloured dot for the platform (not a platform logo/icon), next to the platform&apos;s short text label</li>
+          <li>A status badge in the top-right corner of the chip (not a coloured border)</li>
+          <li>A snippet of the caption, clamped to two lines — how much text that shows depends on how long each line wraps, not a fixed character count</li>
         </ul>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          If a day has more posts than can fit in the cell, a
-          <code className="font-mono text-xs text-accent-silver bg-background-secondary px-1.5 py-0.5 rounded-md mx-1">+N more</code>
-          label appears. Click it to expand the day and see all posts.
+          The desktop chip does <Strong>not</Strong> show the scheduled time. If you need the
+          time at a glance, use the mobile agenda view (below) or open the post&apos;s detail
+          panel. Each day header also shows a small coloured dot per platform that has a post on
+          that day, so you can scan the month for platform coverage without opening anything.
         </p>
       </Subsection>
 
       <Subsection title="Post status indicators">
         <div className="space-y-2">
           <StatusRow status="Draft" color="text-text-tertiary border-background-border-mid">
-            The post has been saved but is not yet scheduled. It will not be published automatically.
-            Draft posts appear in the calendar on the date they were last saved, or the target date
-            if you set one.
+            The post has been saved but is not yet scheduled. A draft only appears on the
+            calendar once it has a scheduled date/time set — a draft with no scheduled date does
+            not appear on the calendar at all, on its creation date or otherwise. You can still
+            find it from the composer or the workspace&apos;s post list.
           </StatusRow>
           <StatusRow status="Pending Approval" color="text-status-warning border-status-warning/30">
             The post has been submitted for review and is waiting on a decision from anyone
             with approval permissions on the workspace — agency staff, or on workspaces with
             client review turned on, the client too. Click the post chip to open its detail
             panel, where an <Strong>Approve</Strong> and <Strong>Request changes</Strong> button
-            appear for anyone authorized to decide.
+            appear for anyone authorized to decide. If the post&apos;s own author is the one
+            viewing it and another approver exists on the workspace, they see{' '}
+            <Strong>Recall for editing</Strong> instead — self-approval is blocked whenever a
+            genuine second reviewer is available. If a post sits past its approval deadline, its
+            badge switches to an amber <Strong>Approval overdue</Strong> label instead.
           </StatusRow>
-          <StatusRow status="Approved" color="text-status-warning border-status-warning/30">
-            The post was approved but isn&apos;t queued to publish yet — it&apos;s still either
-            missing media (shown as an amber <Strong>Awaiting media</Strong> badge instead of
-            this one) or missing a scheduled time. It moves to <Strong>Scheduled</Strong>{' '}
-            automatically the moment both are in place — approving a post that&apos;s already
-            fully ready skips this status entirely and goes straight to Scheduled.
+          <StatusRow status="Approved" color="text-text-tertiary border-background-border-mid">
+            The post was approved but hasn&apos;t been scheduled yet — it renders with a similar
+            neutral grey badge to Draft&apos;s (not an identical one — it&apos;s a slightly
+            different shade), <Strong>not</Strong> the amber warning colour, unless it&apos;s
+            also missing media (see below). It does <Strong>not</Strong> move to Scheduled on its
+            own. Once the post has both media and a scheduled time, open its detail panel and
+            click <Strong>Schedule post</Strong> — that transition is always a manual click, never
+            automatic.
           </StatusRow>
           <StatusRow status="Scheduled" color="text-status-info border-status-info/30">
             The post is approved and queued for automatic publishing at the scheduled time.
-            LYRA&apos;s background publishing worker will process it at the exact time shown.
+            LYRA&apos;s background publishing worker picks it up and publishes it; while a
+            publish attempt is in progress the post briefly shows as Publishing before settling
+            into Published or Failed.
           </StatusRow>
           <StatusRow status="Published" color="text-status-success border-status-success/30">
-            The post was successfully published to the platform. Click it to see the publish
-            timestamp and a link to the live post.
+            The post was successfully published to the platform. Its detail panel shows the
+            same scheduled date/time as before publishing — there is currently no separate
+            publish timestamp shown, and no link back to the live post on the platform.
           </StatusRow>
           <StatusRow status="Failed" color="text-status-error border-status-error/30">
-            An error occurred during publishing. The most common causes are: expired social
-            account token, the post was deleted from the queue, or the platform API returned
-            an error. Click the post to see the specific error message and a Retry option.
+            An error occurred during publishing — the underlying error message from the
+            platform is shown on the chip and in the detail panel. The only action available
+            on a failed post is <Strong>Move back to draft</Strong>. There is no Retry option
+            and no dedicated &quot;edit and reschedule&quot; flow; to try again, move it back to
+            draft, fix whatever needs fixing, and resubmit it.
           </StatusRow>
           <StatusRow status="Cancelled" color="text-text-tertiary border-background-border-mid">
-            The post was manually cancelled before its scheduled publish time, or was cancelled
-            automatically when the target social account was disconnected.
+            The post was manually cancelled before its scheduled publish time (from the
+            <Strong> Cancel post</Strong> action on a Scheduled post). Disconnecting the social
+            account a post targets does <Strong>not</Strong> cancel it — a disconnected account
+            only stops being usable for new posts; posts already scheduled against it are left
+            as-is and will fail at publish time rather than being auto-cancelled.
           </StatusRow>
         </div>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          Separately, a Draft or Approved post that still needs media shows an amber{' '}
+          <Strong>Awaiting media</Strong> badge in place of its normal status colour.
+        </p>
       </Subsection>
 
       <Subsection title="Navigating between months">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Click the left and right arrows flanking the month name to move backwards and forwards
-          through the calendar. Click <Strong>Today</Strong> to jump back to the current month
-          with today&apos;s date highlighted. You can navigate freely through past months to review
-          historical post activity.
+          The month name sits on the left of the calendar header; <Strong>Today</Strong> and the
+          left/right chevron buttons are grouped together on the right — the chevrons don&apos;t
+          flank the month name itself. Click <Strong>Today</Strong> to jump back to the current
+          month (it&apos;s disabled while you&apos;re already viewing it). You can navigate
+          freely through past and future months to review historical or upcoming post activity.
         </p>
       </Subsection>
 
       <Subsection title="Rescheduling posts by dragging">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Any post in <Strong>Draft</Strong>, <Strong>Pending Approval</Strong>,
-          <Strong> Approved</Strong>, or <Strong> Scheduled</Strong> status can be rescheduled by
-          dragging it from one day cell to another. The post time (hour and minute) is
-          preserved — only the date changes.
+          Any post chip can be dragged from one day cell to another, regardless of its status —
+          there is no restriction based on Draft, Pending Approval, Approved, Scheduled,
+          Published, or Failed. The post time (hour and minute) is preserved — only the date
+          changes.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          To change the time as well, click the post chip to open it in the composer, update
-          the date/time picker, and save.
+          To change the time as well, click the post chip to open its detail panel, then click{' '}
+          <Strong>Edit in Composer</Strong> and update the date/time picker there.
         </p>
         <Note>
-          Published and Failed posts cannot be dragged. If a failed post needs to be republished,
-          click it, select <Strong>Edit &amp; Reschedule</Strong>, set a new time, and click
-          <Strong> Schedule</Strong>.
+          Because dragging has no status guard, dragging a <Strong>Published</Strong> or{' '}
+          <Strong>Failed</Strong> post only changes the date shown on the calendar and stored on
+          the post — it does not re-publish it, undo the original publish, or change its status.
+          Drag those with care; the safer path for a failed post is to move it back to draft
+          first.
         </Note>
       </Subsection>
 
-      <Subsection title="Previewing a post">
+      <Subsection title="Opening a post's details">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Click any post chip on the calendar to open a preview panel on the right side of
-          the screen. The preview shows the full caption, all attached media, the target
-          platform(s), the scheduled time, and the current status. From the preview panel
-          you can:
+          Click any post chip on the calendar to open a detail panel on the right side of the
+          screen. It shows the status (plus an AI badge if the post was AI-generated), the full
+          caption, the scheduled date/time, and — if media is attached — a count of how many
+          files, not thumbnails or previews of the media itself. From here:
         </p>
         <ul className="space-y-1 font-sans text-sm text-text-secondary list-disc list-inside pl-2">
-          <li>Click <Strong>Edit</Strong> to open the post in the full composer</li>
-          <li>Click <Strong>Duplicate</Strong> to create a copy (useful for cross-posting)</li>
-          <li>Click <Strong>Cancel post</Strong> to cancel a scheduled post before it publishes</li>
-          <li>Click <Strong>View on platform</Strong> (published posts only) to open the live post</li>
+          <li>Click <Strong>Edit in Composer</Strong> to open the post in the full composer</li>
+          <li>Click <Strong>Delete post</Strong> to remove it permanently</li>
+          <li>
+            Depending on the post&apos;s status and your role, an <Strong>Actions</Strong>{' '}
+            section offers the relevant next step — Approve / Request changes, Submit for
+            approval, Schedule post, Move back to draft, or Cancel post
+          </li>
         </ul>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
+          There is no <Strong>Duplicate</Strong> button and no <Strong>View on platform</Strong>{' '}
+          link, even for published posts.
+        </p>
       </Subsection>
 
       <Subsection title="Creating a post from the calendar">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Click any empty day cell to show a <Strong>+ New post</Strong> button for that date.
-          Clicking it opens the composer with the date pre-filled. Alternatively, click the
-          global <Strong>Compose</Strong> link in the sidebar at any time to open the composer
-          without a pre-set date.
+          Clicking an empty day cell does nothing — there is no per-day &quot;+ New post&quot;
+          entry point. To compose a post, use the <Strong>New post</Strong> link in the calendar
+          page header (it opens the composer with no date pre-filled), or use the{' '}
+          <Strong>Generate schedule</Strong> or <Strong>Bulk import</Strong> tools described
+          below to get a batch of posts onto the calendar at once.
         </p>
       </Subsection>
 
       <Subsection title="Filtering the calendar">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Use the platform filter buttons above the calendar grid to show only posts for
-          specific platforms. For example, click the Instagram filter to hide all non-Instagram
-          posts and focus your review on Instagram content. Click it again to show all platforms.
-          Multiple platform filters can be active simultaneously.
+          There is no platform filter. The calendar filters by status only, via a single-select
+          row of tabs above the grid: <Strong>All</Strong>, <Strong>Scheduled</Strong>,{' '}
+          <Strong>Drafts</Strong>, <Strong>Pending</Strong>, <Strong>Published</Strong>, and{' '}
+          <Strong>Failed</Strong>. Each tab shows a count next to its label when it has at least
+          one matching post (a tab with zero matches shows no number at all), and only one tab
+          can be active at a time — selecting one replaces the previous filter rather than
+          adding to it.
         </p>
       </Subsection>
 
       <Subsection title="AI Schedule Generator">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Click <Strong>Generate schedule</Strong> in the calendar toolbar to have LYRA plan and
-          write a batch of posts in one pass — pick a duration (3 or 6 weeks), choose which
-          connected platforms to include, and set how many posts per week for each. LYRA
-          generates on-brand captions for every post, one platform at a time, and streams them
-          into a review screen as they&apos;re ready.
+          Click <Strong>Generate schedule</Strong> in the calendar page header to have LYRA plan
+          and write a batch of posts — pick a duration (3 or 6 weeks), choose which connected
+          platforms to include, and set how many posts per week for each. Generation runs one
+          week at a time; within each week, every selected platform is generated concurrently
+          rather than one platform after another, and a progress bar tracks which week is
+          currently running.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          On the review screen, click <Strong>Export captions (CSV)</Strong> to download the
-          whole batch (date, time, platform, topic, caption) before committing anything to the
-          calendar — useful for a client sign-off pass. Click <Strong>Add all to calendar</Strong>
-          to schedule the batch. Generated posts have no media attached yet, so they show an
-          amber <Strong>Awaiting media</Strong> badge instead of a normal Draft/Scheduled status
-          and won&apos;t publish until you attach media to each one from the calendar or the
-          composer — this prevents an AI-written, image-less post from accidentally going out.
+          When generation finishes, click <Strong>Review posts</Strong> to open a separate
+          review screen listing every generated post grouped by week — posts aren&apos;t
+          streamed into that screen as they&apos;re generated; you only see it once the whole
+          batch is done. From there you can edit or delete individual posts and attach media to
+          each one before committing anything to the calendar.
+        </p>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
+          Click <Strong>Export captions (CSV)</Strong> to download a caption sheet (date, time,
+          platform, topic, caption) — useful for a client sign-off pass. This export only
+          includes posts that still have <Strong>no</Strong> media attached; posts you&apos;ve
+          already attached media to are silently left out of the file, and if every post already
+          has media, the export fails with a &quot;No posts without media to export&quot; error
+          instead of downloading anything.
+        </p>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
+          Click <Strong>Add all to calendar</Strong> to save the whole batch — this creates every
+          post as a <Strong>Draft</Strong>, not a Scheduled post, regardless of whether media is
+          attached. A post that still has no media is marked as requiring it, so it shows the
+          amber <Strong>Awaiting media</Strong> badge and won&apos;t offer a{' '}
+          <Strong>Schedule post</Strong> action until you attach media to it from the composer.
+        </p>
+      </Subsection>
+
+      <Subsection title="Bulk import">
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          Click <Strong>Bulk import</Strong> in the calendar page header (visible to anyone with
+          write access) to schedule many posts at once from a spreadsheet. Download the Excel
+          (<Strong>.xlsx</Strong>) template — this is not a CSV file, and the upload only accepts
+          <Strong> .xlsx</Strong>; a renamed <Strong>.csv</Strong> is rejected. Fill in one row
+          per platform, not one row per post — a post going out to both Facebook and Instagram
+          needs two rows — and upload it. Each row is parsed and shown as{' '}
+          <Strong>ready</Strong>, <Strong>warning</Strong> (the post itself is valid but there&apos;s
+          a media issue — these rows are pre-selected anyway), or <Strong>error</Strong> (blocked
+          from import and not selectable). Confirming the import creates the selected rows
+          directly as <Strong>Scheduled</Strong> posts (or Pending Approval, on workspaces that
+          require client review) — unlike the AI Schedule Generator&apos;s batch, nothing from a
+          bulk import lands as a Draft.
+        </p>
+      </Subsection>
+
+      <Subsection title="Mobile agenda view">
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          Below a certain screen width, the month grid is replaced by an agenda list: each day
+          that has posts or email campaigns gets its own heading, with the posts for that day
+          listed underneath showing a platform dot, the scheduled time, and a line of caption
+          text. Tapping a post opens the same detail panel used on desktop.
+        </p>
+      </Subsection>
+
+      <Subsection title="Email campaigns on the calendar">
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          If the workspace has an email integration connected (Klaviyo, Mailchimp, or
+          Customer.io), scheduled email campaigns appear on the calendar alongside social posts,
+          styled in indigo to keep them visually distinct from social platform chips. Each
+          campaign chip shows the provider, its status, and its subject line. These chips are
+          read-only — clicking one does nothing; campaigns are managed in the connected email
+          platform, not from LYRA.
         </p>
       </Subsection>
     </section>

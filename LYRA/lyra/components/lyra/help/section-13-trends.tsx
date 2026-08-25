@@ -12,8 +12,8 @@ export function TrendsSection() {
       </p>
 
       <Note>
-        LYRA Trend is not yet available. Checkout for the add-on is currently disabled so no
-        one is charged for it before it launches. There is no Trend Hub, no trend discovery
+        LYRA Trend is not yet available. Checkout for the add-on is currently disabled to
+        prevent new sign-ups before it launches. There is no Trend Hub, no trend discovery
         sync, and no composer integration today. This section will be filled in once the
         feature ships.
       </Note>
