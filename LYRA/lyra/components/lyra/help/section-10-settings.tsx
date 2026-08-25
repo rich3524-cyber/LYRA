@@ -258,7 +258,7 @@ export function SettingsSection() {
           you signed up with). This page also shows your current plan and, for a founding member,
           that badge and the locked-in pricing note, with a link out to Manage billing. Its own
           Danger Zone at the bottom has a <Strong>Delete account</Strong> action, separate from
-          deleting an individual workspace below.
+          deleting an individual workspace above.
         </p>
       </Subsection>
 
