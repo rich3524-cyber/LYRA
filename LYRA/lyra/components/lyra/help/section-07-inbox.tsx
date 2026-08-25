@@ -50,8 +50,9 @@ export function InboxSection() {
             inbox, moves through the same Pending/Escalated/Done flow, and can be answered with
             an AI draft, a fully automatic AI response, or a manual reply, using the same
             guardrails as comments — there is no separate reviews-only settings screen. This is a
-            newly shipped capability: if a connected Google Business account isn&apos;t showing
-            reviews yet, give it a little time before assuming something&apos;s wrong</li>
+            newly shipped capability: the automatic poll runs roughly every 5 minutes, so if a
+            connected Google Business account isn&apos;t showing reviews yet, wait a few cycles
+            or try the manual Sync button before assuming something&apos;s wrong</li>
         </ul>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
           The other platforms LYRA connects to are <Strong>not</Strong> ingested here today:

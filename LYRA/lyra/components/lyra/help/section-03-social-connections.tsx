@@ -74,9 +74,10 @@ export function SocialConnectionsSection() {
             background sync poll and the manual Sync button — and can be answered with an AI
             draft, a fully automatic AI response, or a manual reply, using the same guardrails as
             comments (see the Inbox section for how review sync, statuses, and guardrails work).
-            This is a newly shipped capability: if a connected account isn&apos;t showing reviews
-            yet, give it a little time before assuming something&apos;s wrong. Requires a
-            verified Google Business Profile and admin access.
+            This is a newly shipped capability: the automatic poll runs roughly every 5 minutes,
+            so if a connected account isn&apos;t showing reviews yet, wait a few cycles or try
+            the manual Sync button before assuming something&apos;s wrong. Requires a verified
+            Google Business Profile and admin access.
           </PlatformRow>
           <PlatformRow name="X (Twitter)" availability="Available">
             X (formerly Twitter) is supported for post scheduling and timeline publishing, and
