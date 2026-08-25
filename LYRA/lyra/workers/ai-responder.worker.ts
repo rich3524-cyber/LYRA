@@ -6,6 +6,7 @@ import { getProvider } from '@/services/social/provider'
 import { notifyChannel } from '@/services/notifications/channel-notifier'
 import { getPlatformLabel } from '@/lib/platform-labels'
 import { rollbackCommentClaim } from '@/lib/comment-rollback'
+import { processAiReviewResponseJob, type AiReviewResponseJobData } from './ai-review-responder.worker'
 
 interface AiResponseJobData {
   commentId: string
@@ -241,14 +242,37 @@ export async function processAiResponseJob(jobData: AiResponseJobData, deps: AiR
   }
 }
 
+// One Worker instance for the whole 'ai-responding' queue -- deliberately not
+// two independent `new Worker('ai-responding', ...)` calls (one here, one in
+// ai-review-responder.worker.ts). Both comment jobs (job name
+// 'generate-response', enqueued by enqueueAiResponses) and review jobs (job
+// name 'generate-review-response', enqueued by enqueueReviewAiResponses --
+// see workers/comment-monitor.worker.ts) land on this SAME queue. BullMQ has
+// no built-in per-job-name routing across multiple Workers listening to one
+// queue: two generic Workers there would simply race for every job
+// regardless of type, risking a comment job being silently picked up by a
+// processor that only knows how to handle reviews (or vice versa). Routing
+// by `job.name` inside this single Worker's processor is what actually keeps
+// each job type going to its own, separately-defined, separately-tested
+// processing function -- processAiResponseJob's own atomic-claim/rollback
+// logic below is untouched by this change.
 const worker = new Worker(
   'ai-responding',
-  (job) => processAiResponseJob(job.data as AiResponseJobData),
+  (job) => {
+    if (job.name === 'generate-review-response') {
+      return processAiReviewResponseJob(job.data as AiReviewResponseJobData)
+    }
+    return processAiResponseJob(job.data as AiResponseJobData)
+  },
   { connection: redis, concurrency: 5 }
 )
 
 worker.on('failed', (job, err) => {
-  console.error(`AI responder failed for comment ${job?.data.commentId}:`, err)
+  if (job?.name === 'generate-review-response') {
+    console.error(`AI responder failed for review ${job?.data.reviewId}:`, err)
+  } else {
+    console.error(`AI responder failed for comment ${job?.data.commentId}:`, err)
+  }
 })
 
 // Without this, an error the Worker can't attribute to a specific job (a lost
