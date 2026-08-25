@@ -27,7 +27,7 @@ function makeDeps(overrides: {
   comment?: Partial<Record<string, unknown>>
   account?: Partial<Record<string, unknown>> | null
   claimCount?: number
-  generateResult?: { response: string | null; shouldEscalate: boolean; escalationReason?: string }
+  generateResult?: { sentiment: string | null; response: string | null; shouldEscalate: boolean; escalationReason?: string }
   replyToComment?: ReturnType<typeof vi.fn>
 } = {}) {
   const comment = {
@@ -59,7 +59,7 @@ function makeDeps(overrides: {
 
   const replyToComment = overrides.replyToComment ?? vi.fn().mockResolvedValue(undefined)
 
-  const generateResult = overrides.generateResult ?? { response: 'Thanks so much!', shouldEscalate: false }
+  const generateResult = overrides.generateResult ?? { sentiment: 'POSITIVE', response: 'Thanks so much!', shouldEscalate: false }
 
   const deps = {
     prisma: {
@@ -111,7 +111,7 @@ describe('processAiResponseJob', () => {
 
   it('claims ESCALATED with the guarded predicate when the AI decides to escalate', async () => {
     const { deps } = makeDeps({
-      generateResult: { response: null, shouldEscalate: true, escalationReason: 'Contains a legal threat' },
+      generateResult: { sentiment: null, response: null, shouldEscalate: true, escalationReason: 'Contains a legal threat' },
     })
 
     await processAiResponseJob({ commentId: 'comment-1', autoPost: true }, deps)
@@ -122,6 +122,7 @@ describe('processAiResponseJob', () => {
         status: 'ESCALATED',
         isEscalated: true,
         escalationReason: 'Contains a legal threat',
+        sentiment: null,
       },
     })
     expect(deps.prisma.comment.updateMany).toHaveBeenCalledTimes(1)
@@ -143,9 +144,27 @@ describe('processAiResponseJob', () => {
     )
   })
 
+  it('persists the classified sentiment alongside the ESCALATED claim when the AI decides to escalate', async () => {
+    const { deps } = makeDeps({
+      generateResult: { sentiment: 'URGENT', response: null, shouldEscalate: true, escalationReason: 'Contains a legal threat' },
+    })
+
+    await processAiResponseJob({ commentId: 'comment-1', autoPost: true }, deps)
+
+    expect(deps.prisma.comment.updateMany).toHaveBeenCalledWith({
+      where: { id: 'comment-1', status: { notIn: ['RESPONDED', 'ESCALATED'] } },
+      data: {
+        status:           'ESCALATED',
+        isEscalated:      true,
+        escalationReason: 'Contains a legal threat',
+        sentiment:        'URGENT',
+      },
+    })
+  })
+
   it('does not notify when the account lookup for the escalation alert comes back empty', async () => {
     const { deps } = makeDeps({
-      generateResult: { response: null, shouldEscalate: true, escalationReason: 'Contains a legal threat' },
+      generateResult: { sentiment: null, response: null, shouldEscalate: true, escalationReason: 'Contains a legal threat' },
       account: null,
     })
 
@@ -156,7 +175,7 @@ describe('processAiResponseJob', () => {
 
   it('does not perform any additional writes or sends when the escalation claim loses the race (count: 0)', async () => {
     const { deps } = makeDeps({
-      generateResult: { response: null, shouldEscalate: true, escalationReason: 'Contains a legal threat' },
+      generateResult: { sentiment: null, response: null, shouldEscalate: true, escalationReason: 'Contains a legal threat' },
       claimCount: 0,
     })
 
@@ -183,7 +202,7 @@ describe('processAiResponseJob', () => {
     expect(callOrder).toEqual(['claim', 'send'])
     expect(deps.prisma.comment.updateMany).toHaveBeenCalledWith({
       where: { id: 'comment-1', status: { notIn: ['RESPONDED', 'ESCALATED'] } },
-      data: { status: 'RESPONDED', finalResponse: 'Thanks so much!', respondedAt: expect.any(Date) },
+      data: { status: 'RESPONDED', finalResponse: 'Thanks so much!', respondedAt: expect.any(Date), sentiment: 'POSITIVE' },
     })
     expect(replyToComment).toHaveBeenCalledWith(
       { id: 'acc-1', provider: 'NATIVE', zernioAccountId: null, platform: 'FACEBOOK', workspace: { name: 'Acme Co' } },
@@ -193,6 +212,19 @@ describe('processAiResponseJob', () => {
     )
     // The claim already set RESPONDED/finalResponse/respondedAt -- no second write.
     expect(deps.prisma.comment.updateMany).toHaveBeenCalledTimes(1)
+  })
+
+  it('persists the classified sentiment alongside the RESPONDED claim on a normal successful auto-post run', async () => {
+    const { deps } = makeDeps({
+      generateResult: { sentiment: 'NEGATIVE', response: 'Sorry to hear that', shouldEscalate: false },
+    })
+
+    await processAiResponseJob({ commentId: 'comment-1', autoPost: true }, deps)
+
+    expect(deps.prisma.comment.updateMany).toHaveBeenCalledWith({
+      where: { id: 'comment-1', status: { notIn: ['RESPONDED', 'ESCALATED'] } },
+      data: { status: 'RESPONDED', finalResponse: 'Sorry to hear that', respondedAt: expect.any(Date), sentiment: 'NEGATIVE' },
+    })
   })
 
   it('never calls the provider when the auto-post claim loses the race (count: 0) -- the core regression test for the double-send bug', async () => {
@@ -215,7 +247,7 @@ describe('processAiResponseJob', () => {
     expect(deps.prisma.comment.updateMany).toHaveBeenCalledTimes(2)
     expect(deps.prisma.comment.updateMany).toHaveBeenNthCalledWith(1, {
       where: { id: 'comment-1', status: { notIn: ['RESPONDED', 'ESCALATED'] } },
-      data: { status: 'RESPONDED', finalResponse: 'Thanks so much!', respondedAt: expect.any(Date) },
+      data: { status: 'RESPONDED', finalResponse: 'Thanks so much!', respondedAt: expect.any(Date), sentiment: 'POSITIVE' },
     })
     expect(deps.prisma.comment.updateMany).toHaveBeenNthCalledWith(2, {
       where: { id: 'comment-1', status: 'RESPONDED' },
@@ -250,9 +282,22 @@ describe('processAiResponseJob', () => {
 
     expect(deps.prisma.comment.updateMany).toHaveBeenCalledWith({
       where: { id: 'comment-1', status: { notIn: ['RESPONDED', 'ESCALATED'] } },
-      data: { status: 'AI_DRAFTED', aiDraftResponse: 'Thanks so much!' },
+      data: { status: 'AI_DRAFTED', aiDraftResponse: 'Thanks so much!', sentiment: 'POSITIVE' },
     })
     expect(deps.getProvider).not.toHaveBeenCalled()
+  })
+
+  it('persists the classified sentiment alongside the AI_DRAFTED status on the draft-only path', async () => {
+    const { deps } = makeDeps({
+      generateResult: { sentiment: 'POSITIVE', response: 'Thanks so much!', shouldEscalate: false },
+    })
+
+    await processAiResponseJob({ commentId: 'comment-1', autoPost: false }, deps)
+
+    expect(deps.prisma.comment.updateMany).toHaveBeenCalledWith({
+      where: { id: 'comment-1', status: { notIn: ['RESPONDED', 'ESCALATED'] } },
+      data: { status: 'AI_DRAFTED', aiDraftResponse: 'Thanks so much!', sentiment: 'POSITIVE' },
+    })
   })
 
   it('is a clean no-op with no further writes when the draft-only claim loses the race (count: 0)', async () => {
