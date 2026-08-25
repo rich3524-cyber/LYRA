@@ -97,9 +97,11 @@ export function BillingSection() {
       <Subsection title="Crisis Aware add-on (Pro plan)">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
           Crisis Aware is bundled at no extra cost on the Agency plan. On Pro, it&apos;s available
-          as a monthly (or annual) add-on subscription, purchased separately from your main plan.
-          Go to <Strong>Settings → Add-ons</Strong> in the workspace and click{' '}
-          <Strong>Activate</Strong> — this opens a Stripe checkout for the add-on specifically.
+          as a paid add-on subscription, purchased separately from your main plan. Go to{' '}
+          <Strong>Settings → Add-ons</Strong> in the workspace and click <Strong>Activate</Strong>{' '}
+          — this opens a Stripe checkout for the add-on specifically, billed monthly. (An annual
+          billing option for this add-on exists on the backend but isn&apos;t currently reachable
+          from any screen in LYRA — activating always starts a monthly add-on subscription.)
           Starter workspaces don&apos;t have access to Crisis Aware; the Add-ons card on Starter
           shows a locked icon with no way to activate it from that screen — upgrade to Pro or
           Agency first, then activate the add-on from there.
