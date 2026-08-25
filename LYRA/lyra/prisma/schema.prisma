@@ -370,7 +370,6 @@ enum Sentiment {
 enum CommentStatus {
   PENDING
   AI_DRAFTED
-  AWAITING_APPROVAL
   APPROVED
   RESPONDED
   ESCALATED
