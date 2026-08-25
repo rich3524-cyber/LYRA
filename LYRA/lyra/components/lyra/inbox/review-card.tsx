@@ -1,16 +1,24 @@
 'use client'
 import { memo, useState } from 'react'
 import { toast } from 'sonner'
-import { AlertTriangle, CheckCheck, EyeOff, Sparkles, Loader2 } from 'lucide-react'
+import { AlertTriangle, CheckCheck, EyeOff, Sparkles, Loader2, Star } from 'lucide-react'
 import type { Platform } from '@prisma/client'
 import { getPlatformShortLabel } from '@/lib/platform-labels'
 import { SENTIMENT_COLOURS, SENTIMENT_LABELS } from './sentiment'
 
-interface CommentData {
+// Mirrors comment-card.tsx's CommentData/CommentCard exactly, substituted for
+// Review -- see prisma/schema.prisma's Review model for the field source of
+// truth. Review differs from Comment in three ways that matter here:
+//  - `text` (not `content`) and `authorName` are both nullable -- Google
+//    Business reviews can be star-only with no written text, and Zernio
+//    doesn't always resolve a reviewer's display name.
+//  - `rating` (Int | null) has no Comment equivalent at all.
+//  - there is no `authorHandle` field on Review.
+interface ReviewData {
   id:                string
-  authorName:        string
-  authorHandle?:     string | null
-  content:           string
+  authorName:        string | null
+  text:              string | null
+  rating:            number | null
   sentiment?:        string | null
   status:            string
   aiDraftResponse:   string | null
@@ -20,41 +28,63 @@ interface CommentData {
   socialAccount:     { platform: string; name: string }
 }
 
-export const CommentCard = memo(function CommentCard({
-  comment,
+// Renders `rating` stars filled out of 5, using lucide's Star icon (matches
+// this codebase's existing icon usage, e.g. comment-card.tsx's Sparkles/
+// AlertTriangle) rather than literal '★'/'☆' characters, which render
+// inconsistently across fonts/platforms. `rating: null` (a Google review can
+// arrive without a star rating resolved) renders nothing rather than 0 or 5
+// filled stars, either of which would misrepresent an actually-unknown value.
+function StarRating({ rating }: { rating: number | null }) {
+  if (rating == null) return null
+  const clamped = Math.max(0, Math.min(5, rating))
+  return (
+    <span className="flex items-center gap-0.5" aria-label={`${clamped} out of 5 stars`}>
+      {Array.from({ length: 5 }).map((_, i) => (
+        <Star
+          key={i}
+          size={12}
+          strokeWidth={1.5}
+          className={i < clamped ? 'fill-status-warning text-status-warning' : 'text-text-tertiary'}
+        />
+      ))}
+    </span>
+  )
+}
+
+export const ReviewCard = memo(function ReviewCard({
+  review,
   onUpdate,
   aiResponseMode,
   plan,
 }: {
-  comment:        CommentData
-  // Takes the comment id rather than closing over it so parents can pass a
+  review:         ReviewData
+  // Takes the review id rather than closing over it so parents can pass a
   // single stable callback (e.g. useCallback'd handleUpdate) instead of a new
   // inline arrow per row per render -- required for memo() below to actually
   // skip re-renders instead of seeing a changed prop on every parent update.
-  onUpdate:       (commentId: string, newStatus: string) => void
+  onUpdate:       (reviewId: string, newStatus: string) => void
   aiResponseMode: 'OFF' | 'DRAFT_APPROVE' | 'FULL'
   plan:           'STARTER' | 'PRO' | 'AGENCY'
 }) {
-  const [draft, setDraft]     = useState(comment.aiDraftResponse ?? '')
+  const [draft, setDraft]     = useState(review.aiDraftResponse ?? '')
   const [generating, setGen]  = useState(false)
   const [sending, setSending] = useState(false)
 
-  // Escalated comments can still be replied to or ignored -- they were only kept
-  // out of AI drafting because the AI itself declined (shouldEscalate), not
-  // because a human can't act on them. Previously the whole reply box and every
-  // action button, including Ignore, were hidden for ESCALATED, leaving no way
-  // to ever clear one out of the Inbox short of direct DB access.
-  const canReply        = comment.status !== 'IGNORED' && comment.status !== 'RESPONDED'
-  const isEscalated     = comment.status === 'ESCALATED'
+  // Same reasoning as comment-card.tsx: escalated reviews can still be
+  // replied to or ignored -- they were only kept out of AI drafting because
+  // the AI itself declined (shouldEscalate), not because a human can't act
+  // on them.
+  const canReply        = review.status !== 'IGNORED' && review.status !== 'RESPONDED'
+  const isEscalated      = review.status === 'ESCALATED'
   const showAiControls  = canReply && !isEscalated && plan !== 'STARTER' && aiResponseMode !== 'OFF'
 
   async function handleGenerate() {
     setGen(true)
     try {
-      const res  = await fetch('/api/ai/respond', {
+      const res  = await fetch('/api/ai/respond-review', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ commentId: comment.id }),
+        body:    JSON.stringify({ reviewId: review.id }),
       })
       const data = await res.json()
       // Checked before touching anything -- a failed request (e.g. a 500) must
@@ -64,13 +94,13 @@ export const CommentCard = memo(function CommentCard({
         if (data.alreadyResolved) {
           // The generate call took long enough that a concurrent path (the
           // auto-responder worker, an MCP respond_to_item call, or another
-          // human's manual Reply) claimed and resolved this comment first --
+          // human's manual Reply) claimed and resolved this review first --
           // the draft this call generated was never persisted. Move the card
           // to wherever it actually landed (data.status) instead of leaving
           // a stale Pending row that would just lose this same race again on
           // the next click.
-          toast.error('This comment was already handled elsewhere.')
-          onUpdate(comment.id, data.status ?? 'RESPONDED')
+          toast.error('This review was already handled elsewhere.')
+          onUpdate(review.id, data.status ?? 'RESPONDED')
         } else {
           toast.error(data.error ?? 'Failed to generate response')
         }
@@ -78,7 +108,7 @@ export const CommentCard = memo(function CommentCard({
       }
       if (data.shouldEscalate) {
         toast.error(`Escalated: ${data.escalationReason}`)
-        onUpdate(comment.id, 'ESCALATED')
+        onUpdate(review.id, 'ESCALATED')
       } else {
         setDraft(data.response ?? '')
         toast.success('AI draft generated')
@@ -94,7 +124,7 @@ export const CommentCard = memo(function CommentCard({
     if (!draft.trim()) return
     setSending(true)
     try {
-      const res  = await fetch(`/api/comments/${comment.id}/reply`, {
+      const res  = await fetch(`/api/reviews/${review.id}/reply`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ response: draft }),
@@ -106,18 +136,18 @@ export const CommentCard = memo(function CommentCard({
           // took long enough (or the card's local state was stale enough)
           // that a concurrent path -- the auto-responder worker, an MCP
           // respond_to_item call, or another human's manual Reply -- already
-          // claimed and resolved this comment first. Move the card to
+          // claimed and resolved this review first. Move the card to
           // wherever it actually landed instead of leaving a stale Pending
           // row that would just lose this same race again on the next click.
-          toast.error('This comment was already handled elsewhere.')
-          onUpdate(comment.id, data.status ?? 'RESPONDED')
+          toast.error('This review was already handled elsewhere.')
+          onUpdate(review.id, data.status ?? 'RESPONDED')
         } else {
           toast.error(data.error ?? 'Failed to send reply')
         }
         return
       }
       toast.success('Reply sent.')
-      onUpdate(comment.id, 'RESPONDED')
+      onUpdate(review.id, 'RESPONDED')
     } catch {
       toast.error('Failed to send reply')
     } finally {
@@ -127,36 +157,38 @@ export const CommentCard = memo(function CommentCard({
 
   async function handleEscalate() {
     try {
-      const res = await fetch(`/api/comments/${comment.id}`, {
+      const res = await fetch(`/api/reviews/${review.id}`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ status: 'ESCALATED', isEscalated: true }),
       })
-      if (!res.ok) { toast.error('Failed to escalate comment'); return }
+      if (!res.ok) { toast.error('Failed to escalate review'); return }
       toast.success('Escalated to team')
-      onUpdate(comment.id, 'ESCALATED')
+      onUpdate(review.id, 'ESCALATED')
     } catch {
-      toast.error('Failed to escalate comment')
+      toast.error('Failed to escalate review')
     }
   }
 
   async function handleIgnore() {
     try {
-      const res = await fetch(`/api/comments/${comment.id}`, {
+      const res = await fetch(`/api/reviews/${review.id}`, {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ status: 'IGNORED' }),
       })
-      if (!res.ok) { toast.error('Failed to ignore comment'); return }
-      onUpdate(comment.id, 'IGNORED')
+      if (!res.ok) { toast.error('Failed to ignore review'); return }
+      onUpdate(review.id, 'IGNORED')
     } catch {
-      toast.error('Failed to ignore comment')
+      toast.error('Failed to ignore review')
     }
   }
 
-  const sentimentClass = comment.sentiment
-    ? (SENTIMENT_COLOURS[comment.sentiment] ?? 'text-text-secondary')
+  const sentimentClass = review.sentiment
+    ? (SENTIMENT_COLOURS[review.sentiment] ?? 'text-text-secondary')
     : 'text-text-secondary'
+
+  const authorInitial = review.authorName?.trim().charAt(0).toUpperCase() || '?'
 
   return (
     <div className="rounded-xl border border-background-border bg-background-secondary p-4 space-y-3">
@@ -164,39 +196,39 @@ export const CommentCard = memo(function CommentCard({
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
           <div className="h-8 w-8 rounded-full bg-background-hover border border-background-border-mid flex items-center justify-center text-xs font-medium text-text-primary shrink-0">
-            {comment.authorName.charAt(0).toUpperCase()}
+            {authorInitial}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-medium text-text-primary truncate">{comment.authorName}</p>
-            {comment.authorHandle && (
-              <p className="text-xs text-text-tertiary truncate">{comment.authorHandle}</p>
-            )}
+            <p className="text-sm font-medium text-text-primary truncate">{review.authorName ?? 'Anonymous'}</p>
+            <StarRating rating={review.rating} />
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {comment.sentiment && (
+          {review.sentiment && (
             <span className={`text-xs font-medium ${sentimentClass}`}>
-              {SENTIMENT_LABELS[comment.sentiment ?? ''] ?? comment.sentiment}
+              {SENTIMENT_LABELS[review.sentiment ?? ''] ?? review.sentiment}
             </span>
           )}
           <span className="text-xs px-1.5 py-0.5 rounded bg-background-hover border border-background-border-mid text-text-secondary font-mono">
-            {getPlatformShortLabel(comment.socialAccount.platform as Platform)}
+            {getPlatformShortLabel(review.socialAccount.platform as Platform)}
           </span>
         </div>
       </div>
 
-      {/* Comment content */}
-      <p className="text-sm text-text-primary leading-relaxed">{comment.content}</p>
+      {/* Review text -- can be null (star-only review, no written text) */}
+      <p className="text-sm text-text-primary leading-relaxed">
+        {review.text ?? <span className="text-text-tertiary italic">(No written review)</span>}
+      </p>
 
       {/* Escalation context — shown above the reply box so a human knows why AI declined to draft one */}
       {isEscalated && (
         <p className="text-xs text-status-warning flex items-center gap-1.5">
           <AlertTriangle size={12} strokeWidth={1.5} />
-          Escalated to team{comment.escalationReason ? ` — ${comment.escalationReason}` : ''}
+          Escalated to team{review.escalationReason ? ` — ${review.escalationReason}` : ''}
         </p>
       )}
 
-      {/* Response textarea — for any comment that can still be replied to */}
+      {/* Response textarea — for any review that can still be replied to */}
       {canReply && (
         <div className="space-y-2">
           {showAiControls && (
@@ -224,12 +256,12 @@ export const CommentCard = memo(function CommentCard({
       )}
 
       {/* Auto-sent response — shown in Done tab for FULL auto mode */}
-      {comment.status === 'RESPONDED' && comment.finalResponse && (
+      {review.status === 'RESPONDED' && review.finalResponse && (
         <div className="rounded-lg bg-background-hover border border-background-border-mid px-3 py-2 space-y-1">
           <span className="text-xs text-text-tertiary flex items-center gap-1">
             <Sparkles size={12} strokeWidth={1.5} /> Auto-sent
           </span>
-          <p className="text-sm text-text-primary">{comment.finalResponse}</p>
+          <p className="text-sm text-text-primary">{review.finalResponse}</p>
         </div>
       )}
 
@@ -277,7 +309,7 @@ export const CommentCard = memo(function CommentCard({
         </div>
       )}
 
-      {comment.status === 'RESPONDED' && !comment.finalResponse && (
+      {review.status === 'RESPONDED' && !review.finalResponse && (
         <p className="text-xs text-status-success flex items-center gap-1.5">
           <CheckCheck size={12} strokeWidth={1.5} /> Response sent
         </p>

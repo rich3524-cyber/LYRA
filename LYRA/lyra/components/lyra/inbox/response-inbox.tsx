@@ -3,6 +3,7 @@ import { useState, useCallback } from 'react'
 import useSWR from 'swr'
 import { motion, AnimatePresence } from 'framer-motion'
 import { CommentCard } from './comment-card'
+import { ReviewCard } from './review-card'
 
 // Stable reference for the Done tab, where CommentCard is genuinely
 // non-actionable and never calls onUpdate -- avoids passing a fresh arrow each
@@ -18,7 +19,14 @@ import { toast } from 'sonner'
 import type { Platform } from '@prisma/client'
 import { getPlatformShortLabel } from '@/lib/platform-labels'
 
-interface CommentData {
+// GET /api/comments (Task 3, this branch) merges Comment and Review rows into
+// one list, each tagged with a `type` discriminant. The two row shapes differ
+// (Comment.content/authorName are non-null; Review.text/authorName are
+// nullable and Review adds `rating`), so this is a discriminated union rather
+// than one shared interface -- CommentRow matches comment-card.tsx's
+// (unexported) CommentData shape and ReviewRow matches review-card.tsx's
+// (unexported) ReviewData shape structurally.
+interface CommentRow {
   id:                string
   authorName:        string
   authorHandle?:     string | null
@@ -30,7 +38,25 @@ interface CommentData {
   escalationReason?: string | null
   createdAt:         string
   socialAccount:     { platform: string; name: string }
+  type:              'comment'
 }
+
+interface ReviewRow {
+  id:                string
+  authorName:        string | null
+  text:              string | null
+  rating:            number | null
+  sentiment?:        string | null
+  status:            string
+  aiDraftResponse:   string | null
+  finalResponse:     string | null
+  escalationReason?: string | null
+  createdAt:         string
+  socialAccount:     { platform: string; name: string }
+  type:              'review'
+}
+
+type CommentData = CommentRow | ReviewRow
 
 function CountBadge({ count, variant }: { count: number; variant?: 'warning' | 'default' }) {
   if (count === 0) {
@@ -219,12 +245,21 @@ export function ResponseInbox({
                   exit={{ opacity: 0, x: -16 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <CommentCard
-                    comment={c}
-                    aiResponseMode={aiResponseMode}
-                    plan={plan}
-                    onUpdate={handleUpdate}
-                  />
+                  {c.type === 'review' ? (
+                    <ReviewCard
+                      review={c}
+                      aiResponseMode={aiResponseMode}
+                      plan={plan}
+                      onUpdate={handleUpdate}
+                    />
+                  ) : (
+                    <CommentCard
+                      comment={c}
+                      aiResponseMode={aiResponseMode}
+                      plan={plan}
+                      onUpdate={handleUpdate}
+                    />
+                  )}
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -246,12 +281,21 @@ export function ResponseInbox({
                   exit={{ opacity: 0, x: -16 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <CommentCard
-                    comment={c}
-                    aiResponseMode={aiResponseMode}
-                    plan={plan}
-                    onUpdate={handleUpdate}
-                  />
+                  {c.type === 'review' ? (
+                    <ReviewCard
+                      review={c}
+                      aiResponseMode={aiResponseMode}
+                      plan={plan}
+                      onUpdate={handleUpdate}
+                    />
+                  ) : (
+                    <CommentCard
+                      comment={c}
+                      aiResponseMode={aiResponseMode}
+                      plan={plan}
+                      onUpdate={handleUpdate}
+                    />
+                  )}
                 </motion.div>
               ))}
             </AnimatePresence>
@@ -273,12 +317,21 @@ export function ResponseInbox({
                   exit={{ opacity: 0, x: -16 }}
                   transition={{ duration: 0.2 }}
                 >
-                  <CommentCard
-                    comment={c}
-                    aiResponseMode={aiResponseMode}
-                    plan={plan}
-                    onUpdate={NOOP_UPDATE}
-                  />
+                  {c.type === 'review' ? (
+                    <ReviewCard
+                      review={c}
+                      aiResponseMode={aiResponseMode}
+                      plan={plan}
+                      onUpdate={NOOP_UPDATE}
+                    />
+                  ) : (
+                    <CommentCard
+                      comment={c}
+                      aiResponseMode={aiResponseMode}
+                      plan={plan}
+                      onUpdate={NOOP_UPDATE}
+                    />
+                  )}
                 </motion.div>
               ))}
             </AnimatePresence>
