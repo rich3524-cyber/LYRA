@@ -17,10 +17,10 @@ export function SettingsSection() {
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
           There is no general workspace-editing screen. Of the fields set when a workspace is
           created — name, website URL, industry — none can be changed afterwards from Settings.
-          <Strong> Industry</Strong> in particular is a display-only field: it is shown in the
-          workspace picker and on the client-facing onboarding form, but no service reads it when
-          building an AI prompt, so it has no effect on caption tone, comment replies, or anything
-          else the AI generates.
+          <Strong> Industry</Strong> in particular is a display-only field: it is shown on the
+          agency&apos;s Clients list and in the workspace dashboard header, but no service reads
+          it when building an AI prompt, so it has no effect on caption tone, comment replies, or
+          anything else the AI generates.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
           What Settings actually contains: Social Accounts, <Strong>Timezone</Strong> (the one
@@ -33,19 +33,22 @@ export function SettingsSection() {
 
       <Subsection title="Workspace settings — Social Accounts">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Lists each supported platform (Facebook, Instagram, LinkedIn, Google Business Profile,
-          X/Twitter, TikTok, YouTube) with a <Strong>Connect</Strong> button. For a platform with
+          Lists each supported platform (Facebook, Instagram, LinkedIn, Google Business,
+          X (Twitter), TikTok, YouTube) with a <Strong>Connect</Strong> button. For a platform with
           at least one connected account, each one shows its <Strong>name</Strong> and{' '}
           <Strong>platform label</Strong> — nothing else. There is no status badge, no token
           expiry date, and no connection date shown here.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          A connected account also gets a <Strong>Reconnect</Strong> button (same OAuth flow as
-          Connect) and a <Strong>Disconnect</Strong> link. Disconnect is a single click with no
-          confirmation dialog — it deactivates the account immediately, removing it from this
-          list. It does not revoke or delete the underlying access token, so if you disconnected
-          by mistake, reconnecting restores it without needing to re-authorize on the platform
-          side. See the <Strong>Social Connections</Strong> section for the connect flow itself.
+          A connected account also gets a <Strong>Reconnect</Strong> button and a{' '}
+          <Strong>Disconnect</Strong> link. Disconnect is a single click with no confirmation
+          dialog — it deactivates the account immediately, removing it from this list. It does
+          not revoke or delete the underlying access token, but that doesn&apos;t make Reconnect
+          any faster: Reconnect runs the exact same authorization flow as a fresh Connect, and a
+          fresh token replaces the stored one every time — for Facebook it explicitly forces the
+          platform&apos;s consent screen to show again. There is no shortcut that skips
+          re-authorizing on the platform side. See the <Strong>Social Connections</Strong> section
+          for the connect flow itself.
         </p>
       </Subsection>
 
@@ -54,9 +57,11 @@ export function SettingsSection() {
           The one field carried over from workspace creation that stays editable. Despite the
           description shown next to it in the app, it is not currently used by the manual
           composer or by dragging posts on the calendar — those scheduling times are not
-          converted through this setting. The one exception is <Strong>bulk import</Strong>: when
-          scheduling posts from a CSV, each row&apos;s date and time is read and converted using
-          this timezone. Analytics does not use it at all; daily breakdowns there are bucketed by{' '}
+          converted through this setting. It does have two real uses elsewhere: when scheduling
+          posts from a CSV via <Strong>bulk import</Strong>, each row&apos;s date and time is read
+          and converted using this timezone; and the &quot;Scheduled&quot; timestamp shown in
+          every <Strong>Team Notifications</Strong> Slack message is formatted in it too. Analytics
+          does not use it at all; daily breakdowns there are bucketed by{' '}
           <Strong>your own browser&apos;s</Strong> local timezone, which means two people viewing
           the same workspace&apos;s analytics from different time zones can see different daily
           totals for the same day.
@@ -227,9 +232,9 @@ export function SettingsSection() {
       <Subsection title="Workspace settings — Add-ons">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
           Alongside Crisis Aware, Settings shows a <Strong>LYRA Trend</Strong> card — daily
-          AI-scored trend intelligence matched to your brand. It is visible on every workspace but
-          is not yet functional; it currently reads &quot;Coming soon&quot; rather than offering
-          anything to activate.
+          AI-scored trend intelligence matched to your brand. For every workspace today it reads
+          &quot;Coming soon&quot; rather than offering anything to activate — there is no checkout
+          flow wired up for it yet, so this is not reachable in practice.
         </p>
       </Subsection>
 
@@ -240,7 +245,9 @@ export function SettingsSection() {
           Cancel and a second, explicit <Strong>Delete workspace</Strong> button. Confirming
           deletes the workspace and all its data — social accounts, posts, comments, brand
           profile — synchronously, in that same request; there is no delay or grace window
-          afterwards.
+          afterwards. Only a workspace owner can actually complete the deletion — the button
+          itself is visible to anyone who can see this page, but a non-owner who clicks through
+          gets a generic error rather than a permission message.
         </p>
       </Subsection>
 
@@ -249,7 +256,9 @@ export function SettingsSection() {
           The account page shows your name, email, and avatar, but none of it is editable here —
           profile details are managed through your login provider (Google, or whichever method
           you signed up with). This page also shows your current plan and, for a founding member,
-          that badge and the locked-in pricing note, with a link out to Manage billing.
+          that badge and the locked-in pricing note, with a link out to Manage billing. Its own
+          Danger Zone at the bottom has a <Strong>Delete account</Strong> action, separate from
+          deleting an individual workspace below.
         </p>
       </Subsection>
 
@@ -264,10 +273,12 @@ export function SettingsSection() {
           with no on/off setting — to every workspace owner/admin when Crisis Aware triggers
           (see <Strong>Workspace settings → Crisis Aware</Strong> above). It comes from{' '}
           <code className="font-mono text-xs text-accent-silver bg-background-secondary px-1.5 py-0.5 rounded-md">notifications@lyraonline.ai</code>.
-          No other event (a failed post, an expired token, a client approval decision) triggers
-          an email today — check the relevant screen in LYRA directly instead, or connect a
-          Slack channel under <Strong>Workspace settings → Team Notifications</Strong> above,
-          which does cover those events on Agency plan or Pro with the Crisis Aware add-on.
+          No other event triggers an email today. A connected Slack channel (Agency plan, or Pro
+          with the Crisis Aware add-on — see <Strong>Workspace settings → Team Notifications</Strong>{' '}
+          above) adds a failed-post alert and a few others, but not everything you might expect:
+          there is currently no notification anywhere, email or Slack, for a token expiring or for
+          a client&apos;s approve/reject decision on a post — check the relevant screen in LYRA
+          directly for those instead.
         </p>
       </Subsection>
     </section>
