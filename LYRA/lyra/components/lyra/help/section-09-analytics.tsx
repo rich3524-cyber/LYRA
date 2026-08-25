@@ -42,28 +42,36 @@ export function AnalyticsSection() {
             Sum of likes across every post published in the period.
           </MetricRow>
           <MetricRow metric="Response Rate">
-            The percentage of the workspace&apos;s comments from the period that have been
-            responded to. The card also shows the number still pending a reply.
+            Responded comments as a percentage of responded-plus-still-open comments from the
+            period (open meaning pending, AI-drafted, awaiting approval, or escalated). Comments
+            that were approved or ignored aren&apos;t counted in either side of that ratio, so
+            this isn&apos;t the share of every comment received — it&apos;s the share of the
+            ones still in play that have been answered. The card also shows the number still
+            pending a reply.
           </MetricRow>
         </div>
       </Subsection>
 
       <Subsection title="Posts by platform">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Below the overview metrics, a Posts by platform panel lists each connected platform
-          with the number of posts published to it during the selected period, alongside a bar
-          scaled relative to whichever platform published the most. This reflects post volume
-          only, not reach, views, or engagement per platform — and the list is not interactive;
-          there is no drill-down view behind it.
+          Below the overview metrics, a Posts by platform panel lists each platform you
+          published to during the selected period, with the number of posts published to it,
+          alongside a bar scaled relative to whichever platform published the most. A connected platform with
+          no posts in the selected period doesn&apos;t appear in the list, and multiple accounts
+          on the same platform are combined into a single row. This reflects post volume only,
+          not reach, views, or engagement per platform — and the list is not interactive; there
+          is no drill-down view behind it.
         </p>
       </Subsection>
 
       <Subsection title="Engagement chart">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          The Engagement over time chart shows daily totals for the selected period, combined
-          across every connected platform. It plots five lines — Reach, Views, Likes, Comments,
-          and Shares — each a distinct colour identified in the legend below the chart. Hover
-          over any point to see the exact figures for that day.
+          The Engagement over time chart plots five lines — Reach, Views, Likes, Comments, and
+          Shares — one point per day in the selected period, combined across every connected
+          platform, each a distinct colour identified in the legend below the chart. Each day&apos;s
+          value is the total metrics (to date) of the posts published that day, not new activity
+          generated on that day — a post&apos;s engagement keeps counting toward the day it was
+          published, however long ago that was. Hover over any point to see the exact figures.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
           The legend labels each line by colour but is not interactive — clicking a legend
@@ -99,7 +107,9 @@ export function AnalyticsSection() {
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
           There is no custom date-range option. When you switch periods, the overview metrics,
           engagement chart, platform list, and top posts all update together; switching back to
-          a period you&apos;ve already viewed loads instantly from cache instead of re-fetching.
+          a period you&apos;ve already viewed shows its cached numbers instantly while a
+          background refresh brings them up to date (the same happens when you return to the
+          browser tab after switching away).
         </p>
       </Subsection>
 
@@ -110,10 +120,28 @@ export function AnalyticsSection() {
           existed on a platform before the account was connected.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          Metric syncing (both the automatic background refresh and the manual Sync button)
-          only looks at posts published within the last 30 days. A post older than that stops
-          receiving new metric updates — the 90-day view will still show it, but with whatever
-          numbers were last synced before it aged out of that window.
+          Metric syncing only covers accounts connected through LYRA&apos;s current publishing
+          integration. Accounts connected through the older direct-OAuth path never receive
+          metric updates from either the automatic background sync or the manual Sync button —
+          their posts still count toward Posts Published and appear in Posts by platform (which
+          only counts posts), but their reach, views, and likes stay permanently at zero and
+          they can never appear in Top Posts. If a connected account is showing unexplained
+          zeros across every post, this is the most likely reason.
+        </p>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
+          For accounts that do sync, both paths also look only at posts published within the
+          last 30 days, and each sync run only processes a batch of the posts due for a refresh
+          (skipping anything already synced within roughly the last hour or day) — so a large
+          backlog of due posts may take more than one sync cycle to fully catch up. A post older
+          than 30 days stops receiving new metric updates; the 90-day view will still show it,
+          but with whatever numbers were last synced before it aged out of that window.
+        </p>
+      </Subsection>
+
+      <Subsection title="Generating a report">
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          The Generate report button above the dashboard opens a dialog to download a PDF
+          summary for either the last 7 or 30 days.
         </p>
       </Subsection>
     </section>
