@@ -60,7 +60,7 @@ export function BillingSection() {
               'Everything in Starter',
               'Full brand intelligence (social feed analysis + document upload)',
               'AI comment response drafts with an approval screen (Draft + Approve mode)',
-              'Full AI autonomy available (AI auto-responds to comments, with confirmation)',
+              'Full AI autonomy available (AI replies to comments automatically, with no review)',
               'Crisis Aware available as a paid add-on, which unlocks the Crisis Keywords guardrail panel',
               'Client approval workflows',
             ]}
