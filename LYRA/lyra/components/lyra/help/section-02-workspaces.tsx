@@ -36,8 +36,8 @@ export function WorkspacesSection() {
           </Step>
           <Step n={4}>
             Optionally select an <Strong>Industry</Strong>. This is descriptive only — it&apos;s shown
-            on the workspace overview page but currently doesn&apos;t feed into AI caption generation
-            or any other AI prompt.
+            as a subtitle on the workspace overview page but currently doesn&apos;t feed into AI
+            caption generation or any other AI prompt.
           </Step>
           <Step n={5}>
             Optionally enter a <Strong>Website URL</Strong>, including
@@ -105,7 +105,9 @@ export function WorkspacesSection() {
 
       <Subsection title="Workspace overview page">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Clicking a workspace in the switcher takes you to its overview page. It shows three stat
+          Clicking a workspace in the switcher takes you to its overview page. The header shows
+          the workspace name, with the Industry shown underneath it as a small subtitle if one was
+          set (this is the only place Industry appears in the app). Below that are three stat
           cards — <Strong>Scheduled this week</Strong> (posts scheduled in the next 7 days),{' '}
           <Strong>Pending responses</Strong> (comments awaiting a reply, highlighted when above
           zero), and <Strong>Connected accounts</Strong> (highlighted when zero) — each linking to
