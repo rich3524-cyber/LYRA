@@ -69,13 +69,14 @@ export function SocialConnectionsSection() {
           </PlatformRow>
           <PlatformRow name="Google Business" availability="Available">
             Google Business Profile (formerly Google My Business) connections can be used to
-            publish posts/updates the same way as any other connected platform. Review reading
-            and response — historically Google Business&apos;s flagship use case — is
-            <Strong> not currently functional</Strong>: LYRA has no database record for storing
-            reviews, the code path that would fetch or reply to them is never called from
-            anywhere in the app, and Google Business accounts are explicitly excluded from
-            LYRA&apos;s automated comment/review sync. Requires a verified Google Business
-            Profile and admin access.
+            publish posts/updates the same way as any other connected platform. Reviews are also
+            pulled into the Inbox now, the same way comments are for other platforms — via the
+            background sync poll and the manual Sync button — and can be answered with an AI
+            draft, a fully automatic AI response, or a manual reply, using the same guardrails as
+            comments (see the Inbox section for how review sync, statuses, and guardrails work).
+            This is a newly shipped capability: if a connected account isn&apos;t showing reviews
+            yet, give it a little time before assuming something&apos;s wrong. Requires a
+            verified Google Business Profile and admin access.
           </PlatformRow>
           <PlatformRow name="X (Twitter)" availability="Available">
             X (formerly Twitter) is supported for post scheduling and timeline publishing, and
@@ -160,9 +161,8 @@ export function SocialConnectionsSection() {
             Used to publish to and read company Pages. LYRA does not read personal profile data.
           </PermRow>
           <PermRow platform="Google Business" permission="Set by Zernio's app, not LYRA's code">
-            Used to publish posts/updates to your Business Profile. Review reading and response
-            is not currently functional in LYRA (see Supported platforms above), so this
-            connection is not used for reviews today regardless of what&apos;s granted.
+            Used to publish posts/updates to your Business Profile, and to read and reply to
+            reviews (see Supported platforms above) — the same connection now covers both.
           </PermRow>
           <PermRow platform="X (Twitter)" permission="Set by Zernio's app, not LYRA's code">
             Used to post and read replies. May also include offline/refresh-token access, needed
