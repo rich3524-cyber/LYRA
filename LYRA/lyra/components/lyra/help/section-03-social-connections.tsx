@@ -39,32 +39,33 @@ export function SocialConnectionsSection() {
       <p className="font-sans text-sm text-text-secondary leading-relaxed">
         LYRA connects to social media platforms using <Strong>OAuth 2.0</Strong> — the same
         industry-standard authorisation protocol used by every major third-party app. You never
-        share passwords. When you connect a platform, the platform asks you to grant specific
-        permissions (such as &ldquo;manage posts&rdquo; or &ldquo;read comments&rdquo;). LYRA stores only the OAuth
-        access token — encrypted at rest using AES-256-GCM — and uses it exclusively to act on
-        your behalf when you initiate an action or when the AI responds to a comment.
+        share your platform passwords with LYRA. When you connect a platform, the connection is
+        brokered through <Strong>Zernio</Strong>, a third-party social-platform integration
+        service LYRA uses to talk to each platform&apos;s API. For every account connected today,
+        Zernio — not LYRA — holds the actual OAuth access token; LYRA stores only a reference id
+        that tells Zernio which of your connected accounts to use. When you initiate an action, or
+        when the AI responds to a comment, LYRA calls Zernio with that reference id, and Zernio
+        calls the platform using the token it holds on your behalf.
       </p>
 
       <Subsection title="Supported platforms">
         <div className="space-y-4">
           <PlatformRow name="Facebook" availability="Full">
             Facebook Pages are fully supported — scheduling posts, reading and responding to
-            comments, and publishing to the page feed. Requires you to be an admin of the Page.
-            Personal profiles are not supported. Facebook is connected via the Facebook Login
-            OAuth flow and uses the Graph API v19.0.
+            comments, and publishing to the Page feed. Requires you to be an admin of the Page.
+            Personal profiles are not supported.
           </PlatformRow>
           <PlatformRow name="Instagram" availability="Full">
-            Instagram Business and Creator accounts connected to a Facebook Page are fully
-            supported. Scheduling feed posts and multi-image carousels; reading and
-            responding to comments; and accessing insights. Instagram is connected through the
-            same Facebook Graph API connection — you connect Facebook first, and Instagram pages
-            linked to that account become available automatically.
+            Instagram Business and Creator accounts are fully supported — scheduling feed posts
+            and multi-image carousels, reading and responding to comments, and accessing
+            insights. Instagram connects independently, with its own Connect button, the same way
+            as every other platform — you don&apos;t need to connect Facebook first, and
+            connecting Facebook doesn&apos;t automatically add your Instagram account.
           </PlatformRow>
           <PlatformRow name="LinkedIn" availability="Full">
             LinkedIn Company Pages are supported for post scheduling and comment reading.
             Comment response via API is available but subject to LinkedIn rate limits.
-            Requires you to be a Super Admin or Content Admin of the company page. Personal
-            profiles are not supported.
+            Requires admin access to the company Page. Personal profiles are not supported.
           </PlatformRow>
           <PlatformRow name="Google Business" availability="Full">
             Google Business Profile (formerly Google My Business) is fully supported for
@@ -78,9 +79,13 @@ export function SocialConnectionsSection() {
             API costs on X&apos;s current pricing model. Rate limits apply per workspace.
           </PlatformRow>
           <PlatformRow name="TikTok" availability="Available">
-            TikTok Business accounts are supported for post scheduling. Comment reading and
-            response is available through the TikTok for Business API, which is still maturing.
-            Availability may be subject to TikTok API access approval for your account.
+            TikTok Business accounts are supported for post scheduling, and for reading and
+            replying to comments where TikTok&apos;s API access allows it. Availability may be
+            subject to TikTok&apos;s own API approval process for your account.
+          </PlatformRow>
+          <PlatformRow name="YouTube" availability="Available">
+            YouTube channels are supported for publishing videos and monitoring comments.
+            Requires you to be the owner or a manager of the connected channel.
           </PlatformRow>
         </div>
       </Subsection>
@@ -88,60 +93,79 @@ export function SocialConnectionsSection() {
       <Subsection title="Connecting an account">
         <Steps>
           <Step n={1}>
-            Open the workspace, then go to <Strong>Settings → Social Accounts</Strong>.
-            You will see a list of all supported platforms with their current connection status.
+            Open the workspace, then go to <Strong>Settings</Strong>. Under
+            <Strong> Social Accounts</Strong>, you&apos;ll see every supported platform with its
+            current connection status.
           </Step>
           <Step n={2}>
-            Click <Strong>Connect</Strong> next to the platform you want to connect.
+            Click <Strong>Connect</Strong> (or <Strong>Reconnect</Strong>, if the platform is
+            already connected) next to the platform you want.
           </Step>
           <Step n={3}>
-            A browser popup or redirect opens to the platform&apos;s OAuth authorisation page.
-            Sign in to the account that owns the Page or profile you want to manage.
+            You&apos;re redirected through Zernio and then to the platform&apos;s own sign-in and
+            OAuth consent screen. Sign in with the account that owns the Page, channel, or
+            profile you want to manage.
           </Step>
           <Step n={4}>
-            The platform will list the specific permissions LYRA is requesting. Review them and
-            click <Strong>Allow</Strong> or <Strong>Authorise</Strong> to proceed.
+            Review the permissions the platform&apos;s consent screen lists and grant access. For
+            Facebook specifically, this consent screen is also where you choose which Page(s) to
+            grant access to — LYRA does not show a separate page-picker afterward, so make sure
+            you explicitly select every Page you want connected before continuing (see
+            Troubleshooting below if a Page you granted still doesn&apos;t show up).
           </Step>
           <Step n={5}>
-            For platforms that support multiple pages (Facebook, Google Business, LinkedIn),
-            LYRA will show a picker listing every page or account associated with that login.
-            Select the specific page you want to connect to this workspace.
-          </Step>
-          <Step n={6}>
-            You are redirected back to LYRA. The account appears in the list with a
+            You are redirected back to LYRA&apos;s Settings page. The account appears in the list
+            with a
             <StatusBadge color="text-status-success border-status-success/30">Connected</StatusBadge>
-            indicator and the page name.
+            indicator and its name.
           </Step>
         </Steps>
         <Note>
-          You can connect the same Facebook page, Instagram account, or LinkedIn company to
-          multiple workspaces — useful if different teams manage different aspects of the
-          same brand. Each workspace maintains independent post queues and inboxes.
+          You can connect the same Facebook Page, Instagram account, or LinkedIn company Page to
+          multiple workspaces — useful if different teams manage different aspects of the same
+          brand. Each workspace maintains independent post queues and inboxes. Each
+          workspace&apos;s connection is a separate account on Zernio&apos;s side, and Zernio
+          bills per connected account rather than per underlying social profile — so connecting
+          the same Page to three workspaces creates three separately billed Zernio accounts, not
+          one shared one.
         </Note>
       </Subsection>
 
-      <Subsection title="Permissions LYRA requests by platform">
+      <Subsection title="Permissions requested at connect time">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          LYRA requests only the minimum permissions needed to operate. Here is what each platform
-          grants and why:
+          LYRA&apos;s own code doesn&apos;t specify which OAuth permissions to request. Every
+          connection today routes through Zernio, and the permissions shown on each
+          platform&apos;s consent screen are configured within Zernio&apos;s own app registration
+          for that platform, not inside LYRA. That means the exact permission list isn&apos;t
+          something LYRA can fully document here, and it may include more than the minimum
+          LYRA&apos;s features need — for example, Facebook/Instagram connections could request
+          business- or ads-management-level access beyond basic Page posting and comments, and X
+          connections could request offline (refresh-token) access beyond simple read/write. The
+          platform&apos;s own consent screen at connect time is the authoritative list of what
+          you&apos;re actually granting — what&apos;s below is only what LYRA&apos;s features use
+          once a connection exists.
         </p>
         <div className="space-y-3 mt-3">
-          <PermRow platform="Facebook / Instagram" permission="pages_manage_posts, pages_read_engagement, instagram_basic, instagram_content_publish, instagram_manage_comments">
-            Required to publish posts, read the post feed, and read and reply to comments on
-            Facebook Pages and connected Instagram accounts.
+          <PermRow platform="Facebook / Instagram" permission="Set by Zernio's app, not LYRA's code">
+            Used to publish posts, read Page and Instagram content, and read and reply to
+            comments.
           </PermRow>
-          <PermRow platform="LinkedIn" permission="r_organization_social, w_organization_social, r_basicprofile">
-            Required to post to company pages and read company page content. LYRA does not
-            read personal profile data.
+          <PermRow platform="LinkedIn" permission="Set by Zernio's app, not LYRA's code">
+            Used to publish to and read company Pages. LYRA does not read personal profile data.
           </PermRow>
-          <PermRow platform="Google Business" permission="business.manage">
-            Required to read and reply to Google Reviews on your Business Profile listings.
+          <PermRow platform="Google Business" permission="Set by Zernio's app, not LYRA's code">
+            Used to read and reply to Google reviews on your Business Profile listings.
           </PermRow>
-          <PermRow platform="X (Twitter)" permission="tweet.read, tweet.write, users.read">
-            Required to post tweets and read replies to managed accounts.
+          <PermRow platform="X (Twitter)" permission="Set by Zernio's app, not LYRA's code">
+            Used to post and read replies. May also include offline/refresh-token access, needed
+            to keep the connection working without you re-authorising frequently.
           </PermRow>
-          <PermRow platform="TikTok" permission="video.publish, video.list, comment.list, comment.post">
-            Required to publish videos and read and reply to comments on TikTok.
+          <PermRow platform="TikTok" permission="Set by Zernio's app, not LYRA's code">
+            Used to publish videos and read and reply to comments where TikTok&apos;s API allows
+            it.
+          </PermRow>
+          <PermRow platform="YouTube" permission="Set by Zernio's app, not LYRA's code">
+            Used to publish videos and read and reply to comments on your channel.
           </PermRow>
         </div>
       </Subsection>
@@ -158,9 +182,11 @@ export function SocialConnectionsSection() {
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
           If you suspect a connection has gone stale (repeated failures on one platform, or it's
           been several months since you last connected it), click <Strong>Reconnect</Strong> next
-          to that account in <Strong>Settings → Social Accounts</Strong> and go through the OAuth
-          flow again — this works at any time, not just after a detected failure. You do not need
-          to reselect the page; LYRA updates the token for the same account automatically.
+          to that account in <Strong>Settings</Strong> and go through the authorisation flow
+          again — this works at any time, not just after a detected failure. Reconnect always
+          runs a full authorisation through Zernio again; there&apos;s no separate
+          &ldquo;refresh permissions only&rdquo; option, so it&apos;s also the way to grant
+          permissions you may have declined the first time.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
           Posts that failed while the connection was broken are not deleted — check the content
@@ -171,15 +197,25 @@ export function SocialConnectionsSection() {
 
       <Subsection title="Disconnecting an account">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          In <Strong>Settings → Social Accounts</Strong>, click the three-dot menu next to any
-          connected account and select <Strong>Disconnect</Strong>. This immediately revokes
-          LYRA&apos;s stored access token for that platform. LYRA will no longer be able to
-          publish posts, read comments, or take any action on that account.
+          In <Strong>Settings</Strong>, click <Strong>Disconnect</Strong> directly next to any
+          connected account under Social Accounts. There is no confirmation dialog and no
+          three-dot or overflow menu — Disconnect is its own button, and it takes effect as soon
+          as you click it.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          Disconnecting does not revoke the token at the platform level — it only removes it from
-          LYRA. To fully revoke LYRA&apos;s access, also remove the app from your connected apps
-          settings on the platform itself (e.g. Facebook Settings → Business Integrations).
+          Disconnecting does <Strong>not</Strong> revoke or delete the stored access token. It
+          only marks the account inactive in LYRA&apos;s database. LYRA immediately stops
+          publishing, reading, or replying to anything on that account, but the underlying
+          encrypted token record — held by Zernio for accounts connected through the current
+          flow — is retained indefinitely, not deleted.
+        </p>
+        <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
+          Disconnecting in LYRA does not revoke anything on the platform&apos;s side either. To
+          fully cut off access, remove the connected app from the platform&apos;s own
+          authorised-apps list (for example, Facebook Settings &amp; Privacy → Settings →
+          Business Integrations). Look for whichever integration is listed there — it may be
+          registered under Zernio&apos;s name rather than LYRA&apos;s, since Zernio is the
+          service that actually completes the OAuth connection today.
         </p>
         <Note>
           Any scheduled posts targeting a disconnected account will move to
@@ -191,43 +227,37 @@ export function SocialConnectionsSection() {
 
       <Subsection title="Troubleshooting: Facebook says no Page was found">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Occasionally a Facebook connection attempt will fail with a message saying no Facebook
-          Page could be found, even though you are an admin of the Page and the consent screen
-          appeared to complete normally. This happens because Facebook&apos;s permissions popup
-          has two separate steps — seeing the Page listed and summarised is not the same as the
-          Page actually being toggled on for access, and on newer Pages (the ones with a
-          <Strong> facebook.com/profile.php?id=... </Strong>
-          URL) the per-Page toggle can silently fail to activate even though the summary shows
-          it as checked.
+          Occasionally a Facebook connection attempt completes the consent screen but LYRA still
+          shows an error saying no Facebook Page could be found, even though you are an admin of
+          the Page and explicitly granted it access.
         </p>
         <Steps>
           <Step n={1}>
-            Remove the existing grant first, to clear any half-applied permission state: on
-            Facebook, go to <Strong>Settings & Privacy → Settings → Business Integrations</Strong>,
-            find LYRA&apos;s connector app, and remove it.
+            Double-check you are signed in as the personal Facebook profile that actually
+            administers the Page, not just viewing it through Meta Business Suite — the Page
+            lookup depends on the logged-in profile granting access.
           </Step>
           <Step n={2}>
-            In LYRA, click <Strong>Connect</Strong> (or <Strong>Reconnect</Strong>) for Facebook
-            again to start a fresh consent flow.
+            On the consent screen, make sure you explicitly selected the Page in Facebook&apos;s
+            own page-permission list, rather than just accepting a summary that already shows it
+            as checked.
           </Step>
           <Step n={3}>
-            On the Meta permissions screen, do not just accept the summary — click
-            <Strong> Edit settings</Strong> (sometimes labelled <Strong>Edit access</Strong>) and
-            explicitly toggle the Page you want to connect <Strong>ON</Strong>. If you manage
-            more than one Page, select all the ones you want available (or choose &ldquo;all
-            current and future Pages&rdquo; if offered) before continuing.
-          </Step>
-          <Step n={4}>
-            Confirm you are completing this as the personal Facebook profile that actually
-            administers the Page, not just viewing it through Meta Business Suite — the Page
-            lookup resolves against the logged-in profile.
+            If it still fails after that, don&apos;t keep repeating a Facebook
+            remove-and-reconnect cycle. LYRA&apos;s own error message for this exact failure
+            already tells you the problem is on Zernio&apos;s side, not fixable from LYRA&apos;s
+            or Facebook&apos;s settings — contact Zernio support directly, referencing error code
+            <Strong> no_facebook_pages</Strong>, and note that the Page was explicitly granted
+            during consent.
           </Step>
         </Steps>
         <Note>
-          This is the fix for the specific &ldquo;no Facebook Page found&rdquo; error. It is
-          unrelated to Business Settings → Integrations, which can correctly show no listed
-          integrations even on a working connection — that screen is not a useful diagnostic
-          for this issue.
+          This is the live wording LYRA shows for this failure: &ldquo;Zernio couldn&apos;t find
+          a Facebook Page to connect, even though you selected the Page and granted access on
+          Facebook&apos;s own consent screen. This is confirmed to be an issue on Zernio&apos;s
+          side, not something fixable from LYRA or your Facebook settings — contact Zernio
+          support and reference error code &lsquo;no_facebook_pages&rsquo; on a connection where
+          the Page was explicitly granted during consent.&rdquo;
         </Note>
       </Subsection>
 
