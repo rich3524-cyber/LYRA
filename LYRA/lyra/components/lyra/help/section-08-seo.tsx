@@ -40,11 +40,12 @@ export function SeoSection() {
             Click <Strong>Connect Search Console</Strong>.
           </Step>
           <Step n={3}>
-            A Google sign-in popup opens. Select the Google account that has access to the
-            client&apos;s Search Console property. There is currently no step in the client
-            onboarding link for the client to connect their own GSC account — someone with
-            access to the Google account (you or the client, over a screen-share or shared
-            login) needs to complete this popup directly.
+            You&apos;re redirected to Google sign-in (not a popup — a full-page navigation).
+            Select the Google account that has access to the client&apos;s Search Console
+            property. There is currently no step in the client onboarding link for the client to
+            connect their own GSC account — someone with access to the Google account (you or
+            the client, over a screen-share or shared login) needs to complete this redirect
+            directly.
           </Step>
           <Step n={4}>
             Google will ask you to grant LYRA permission to view Search Console performance
@@ -56,8 +57,9 @@ export function SeoSection() {
             matches whichever one&apos;s URL contains the workspace&apos;s website URL. If the
             account has no property matching the workspace&apos;s website (or the workspace has
             no website URL set), LYRA silently falls back to the first property returned by
-            Google. If the wrong property gets connected, correct the workspace&apos;s website
-            URL first and reconnect.
+            Google. There is currently no in-app way to fix this if the automatic match picks
+            the wrong property — Settings has no field to edit the workspace&apos;s website URL
+            after creation.
           </Step>
         </Steps>
         <Note>
@@ -105,17 +107,20 @@ export function SeoSection() {
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
           Click <Strong>Generate</Strong> on a tracked page to have Claude draft a replacement{' '}
           <Strong>meta title</Strong>, <Strong>meta description</Strong>, <Strong>H1</Strong>,
-          and a short <Strong>intro line</Strong>, based on the page&apos;s current HTML (fetched
-          fresh, the same way <Strong>Analyse</Strong> does) and the workspace&apos;s Brand AI
-          profile, when one is set — voice, tone attributes, and content themes all feed into
-          the prompt. Without a brand profile, LYRA falls back to a generic professional tone.
+          and a short <Strong>intro line</Strong>, based on the page&apos;s current title tag,
+          meta description, and H1 (fetched fresh, the same way <Strong>Analyse</Strong> does —
+          not the full page body or markup) and the workspace&apos;s Brand AI profile, when one
+          is set — voice, tone attributes, and content themes all feed into the prompt. Without
+          a brand profile, LYRA falls back to a generic professional tone.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          Generating content also re-scores the page, the same as clicking Analyse. Each
-          generated field is shown with its character count and a copy-to-clipboard button —
-          nothing is written back to the live page automatically; you copy the text out and
-          publish it yourself through whatever CMS the site runs on. Generation is rate-limited
-          per user, so running it repeatedly in a short window will eventually be throttled.
+          Generating content also re-scores the page in the background, but the score shown next
+          to the page&apos;s URL won&apos;t reflect that until you click <Strong>Analyse</Strong>{' '}
+          again or reload the page. Each generated field is shown with its character count and a
+          copy-to-clipboard button — nothing is written back to the live page automatically; you
+          copy the text out and publish it yourself through whatever CMS the site runs on.
+          Generation is rate-limited per user, so running it repeatedly in a short window will
+          eventually be throttled.
         </p>
       </Subsection>
 
@@ -137,7 +142,15 @@ export function SeoSection() {
         </ul>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
           If the connection has expired, this section shows a reconnect prompt instead of data —
-          click through it to repeat the Google sign-in popup.
+          click through it to repeat the Google sign-in redirect.
+        </p>
+      </Subsection>
+
+      <Subsection title="Removing a tracked page">
+        <p className="font-sans text-sm text-text-secondary leading-relaxed">
+          Each tracked page has its own trash-can button, next to Analyse and Generate. Deleting
+          a page removes it — and any AI-generated content saved against it — immediately; this
+          doesn&apos;t require disconnecting Search Console or touching the workspace at all.
         </p>
       </Subsection>
 
@@ -145,10 +158,8 @@ export function SeoSection() {
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
           There is currently no standalone way to disconnect Google Search Console from a
           workspace. The stored connection (and encrypted OAuth tokens) is only removed when the
-          workspace or the account is deleted entirely. Tracked pages, their scores, and any
-          AI-generated content also persist in LYRA until then — none of it is fetched fresh on
-          every page load, and none of it is deleted by simply navigating away from the SEO
-          screen.
+          workspace or the account is deleted entirely — deleting individual tracked pages, as
+          above, doesn&apos;t touch the connection itself.
         </p>
       </Subsection>
     </section>
