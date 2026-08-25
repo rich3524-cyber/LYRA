@@ -122,6 +122,20 @@ describe('syncAccountComments — Zernio-routed accounts', () => {
     expect(count).toBe(0)
     expect(prisma.comment.createManyAndReturn).not.toHaveBeenCalled()
   })
+
+  it('returns 0 and logs without throwing when comment persistence throws', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const fetchRecentComments = vi.fn().mockResolvedValue([
+      { externalId: '1', postExternalId: 'p1', authorName: 'Jane', text: 'nice post', createdAt: new Date() },
+    ])
+    vi.mocked(getProvider).mockReturnValue({ fetchRecentComments } as never)
+    vi.mocked(prisma.comment.createManyAndReturn).mockRejectedValue(new Error('connection reset'))
+
+    const count = await syncAccountComments(zernioAccount() as never, 'ws-1')
+
+    expect(count).toBe(0)
+    errSpy.mockRestore()
+  })
 })
 
 function googleBusinessAccount(overrides: Record<string, unknown> = {}) {
@@ -296,6 +310,21 @@ describe('syncAccountComments — direct (non-Zernio) accounts', () => {
     expect(prisma.comment.createManyAndReturn).not.toHaveBeenCalled()
     errSpy.mockRestore()
   })
+
+  it('returns 0 and logs without throwing when comment persistence throws', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    global.fetch = vi.fn().mockResolvedValue({
+      json: async () => ({
+        data: [{ comments: { data: [{ id: 'c1', message: 'hey', from: { name: 'Alice' }, created_time: '2026-01-01T00:00:00Z' }] } }],
+      }),
+    }) as never
+    vi.mocked(prisma.comment.createManyAndReturn).mockRejectedValue(new Error('connection reset'))
+
+    const count = await syncAccountComments(directAccount({ platform: 'FACEBOOK' }) as never, 'ws-1')
+
+    expect(count).toBe(0)
+    errSpy.mockRestore()
+  })
 })
 
 describe('syncWorkspaceComments', () => {
@@ -360,6 +389,35 @@ describe('syncWorkspaceComments', () => {
     // contributes 1 (its comment synced normally) -- proving the loop
     // reached and fully processed the second account.
     expect(total).toBe(1)
+    errSpy.mockRestore()
+  })
+
+  it('continues to subsequent accounts when one account\'s comment persistence throws', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.mocked(prisma.socialAccount.findMany).mockResolvedValue([
+      zernioAccount({ id: 'acc-1', platform: 'INSTAGRAM' }),
+      zernioAccount({ id: 'acc-2', platform: 'INSTAGRAM' }),
+    ] as never)
+    vi.mocked(getProvider).mockImplementation(((account: { id: string }) => ({
+      fetchRecentComments: vi.fn().mockResolvedValue([
+        { externalId: `c-${account.id}`, postExternalId: 'p1', authorName: 'Someone', text: 'hi', createdAt: new Date() },
+      ]),
+      fetchReviews: vi.fn().mockResolvedValue([]),
+    })) as never)
+    // Comment persistence throws for every account -- must not abort the
+    // loop before acc-2 is processed. If syncAccountComments left its
+    // persistence call unguarded, this uncaught rejection would propagate
+    // out of syncWorkspaceComments entirely, and acc-2 would never be
+    // reached at all (not even to contribute 0).
+    vi.mocked(prisma.comment.createManyAndReturn).mockRejectedValue(new Error('connection reset'))
+
+    const total = await syncWorkspaceComments('ws-1')
+
+    // Both accounts contribute 0 (comment persistence failed for both), but
+    // getProvider being called for acc-2 proves the loop reached and fully
+    // processed the second account rather than aborting after acc-1.
+    expect(total).toBe(0)
+    expect(getProvider).toHaveBeenCalledWith(expect.objectContaining({ id: 'acc-2' }))
     errSpy.mockRestore()
   })
 

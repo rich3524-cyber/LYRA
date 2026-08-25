@@ -112,21 +112,34 @@ export async function syncAccountComments(account: SocialAccount, workspaceId: s
     const incoming = filterSelfComments(normalized, account)
     if (incoming.length === 0) return 0
 
-    const created = await prisma.comment.createManyAndReturn({
-      data: incoming.map((c) => ({
-        workspaceId,
-        socialAccountId:   account.id,
-        platformCommentId: c.externalId,
-        platformPostId:    c.postExternalId,
-        authorName:        c.authorName || 'Unknown',
-        authorHandle:      c.authorHandle,
-        content:           c.text,
-        platformCreatedAt: c.createdAt,
-        status:            'PENDING' as const,
-      })),
-      skipDuplicates: true,
-    })
-    return created.length
+    // Wrapped in its own try/catch, same as the fetch above -- otherwise a
+    // persistence failure here would throw uncaught out of this function.
+    // syncWorkspaceComments' loop below has no try/catch around its call to
+    // this function, so an uncaught throw wouldn't just fail this one
+    // account (as the docstring above promises) -- it would abort the entire
+    // workspace sync, skipping every remaining account. Logging + returning 0
+    // instead keeps persistence failures behaving exactly like fetch failures
+    // already do: isolated to this one account.
+    try {
+      const created = await prisma.comment.createManyAndReturn({
+        data: incoming.map((c) => ({
+          workspaceId,
+          socialAccountId:   account.id,
+          platformCommentId: c.externalId,
+          platformPostId:    c.postExternalId,
+          authorName:        c.authorName || 'Unknown',
+          authorHandle:      c.authorHandle,
+          content:           c.text,
+          platformCreatedAt: c.createdAt,
+          status:            'PENDING' as const,
+        })),
+        skipDuplicates: true,
+      })
+      return created.length
+    } catch (err) {
+      console.error(`Failed to persist comments for account ${account.id}:`, err)
+      return 0
+    }
   }
 
   if (!account.accessToken) {
@@ -148,19 +161,29 @@ export async function syncAccountComments(account: SocialAccount, workspaceId: s
 
   if (rawComments.length === 0) return 0
 
-  const created = await prisma.comment.createManyAndReturn({
-    data: rawComments.map((comment) => ({
-      workspaceId,
-      socialAccountId:   account.id,
-      platformCommentId: comment.id,
-      authorName:        comment.from?.name ?? 'Unknown',
-      content:           comment.message,
-      platformCreatedAt: new Date(comment.created_time),
-      status:            'PENDING' as const,
-    })),
-    skipDuplicates: true,
-  })
-  return created.length
+  // Wrapped in its own try/catch, same as the fetch above and the Zernio
+  // branch's persistence call -- otherwise a persistence failure here would
+  // throw uncaught out of this function and (per syncWorkspaceComments' loop
+  // having no try/catch around its call to this function) abort the entire
+  // workspace sync instead of being isolated to this one account.
+  try {
+    const created = await prisma.comment.createManyAndReturn({
+      data: rawComments.map((comment) => ({
+        workspaceId,
+        socialAccountId:   account.id,
+        platformCommentId: comment.id,
+        authorName:        comment.from?.name ?? 'Unknown',
+        content:           comment.message,
+        platformCreatedAt: new Date(comment.created_time),
+        status:            'PENDING' as const,
+      })),
+      skipDuplicates: true,
+    })
+    return created.length
+  } catch (err) {
+    console.error(`Failed to persist comments for account ${account.id}:`, err)
+    return 0
+  }
 }
 
 /**
