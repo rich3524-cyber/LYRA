@@ -89,17 +89,19 @@ export function WorkspacesSection() {
 
       <Subsection title="Changing workspace details later">
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
-          Once a workspace is created, the only workspace-level setting you can change through the
-          UI is <Strong>Timezone</Strong>, in <Strong>Settings</Strong> (it&apos;s used for post
-          scheduling and analytics). Client name, Website URL, and Industry are all set once at
-          creation — there is no &ldquo;General&rdquo; tab or details screen anywhere in Settings, and
-          nothing else in the app lets you edit them afterward.
+          Of the fields set when you create a workspace — Client name, Website URL, and Industry —
+          only <Strong>Timezone</Strong> can later be changed, in <Strong>Settings</Strong> (it
+          affects post scheduling, bulk-import date parsing, and Slack notification timestamps).
+          There is no &ldquo;General&rdquo; tab or details screen anywhere in Settings, and there&apos;s no
+          path to edit Client name, Website URL, or Industry from inside the dashboard. (Settings
+          does let you change several other workspace settings — autonomy mode, Crisis Aware, and
+          approval deadlines — just not these creation-time fields.)
         </p>
         <Note>
           The Brand AI page&apos;s setup checklist shows a <Strong>Go to Settings</Strong> button when
           a workspace has no website URL, which implies you can add one there — Settings has no
           field for it. If a workspace was created without a website URL, there&apos;s currently no
-          UI path to add one.
+          path to add one from inside the dashboard.
         </Note>
       </Subsection>
 
@@ -107,8 +109,8 @@ export function WorkspacesSection() {
         <p className="font-sans text-sm text-text-secondary leading-relaxed">
           Clicking a workspace in the switcher takes you to its overview page. The header shows
           the workspace name, with the Industry shown underneath it as a small subtitle if one was
-          set (this is the only place Industry appears in the app). Below that are three stat
-          cards — <Strong>Scheduled this week</Strong> (posts scheduled in the next 7 days),{' '}
+          set. Below that are three stat cards — <Strong>Scheduled this week</Strong> (posts
+          scheduled in the next 7 days),{' '}
           <Strong>Pending responses</Strong> (comments awaiting a reply, highlighted when above
           zero), and <Strong>Connected accounts</Strong> (highlighted when zero) — each linking to
           the relevant page. Below the stat cards is a list of your 5 most recently created posts
