@@ -140,8 +140,18 @@ Return ONLY valid JSON, no markdown, no explanation, in exactly this shape:
   const text = extractClaudeText(apiResponse)
   const parsed = JSON.parse(text) as { sentiment: Sentiment; response: string | null }
 
+  // parsed.sentiment is untrusted model output -- the bare `as` cast above gives
+  // no runtime guarantee it's actually one of the enum values. In particular, if
+  // Claude ever omits the "sentiment" key, parsed.sentiment is `undefined`, and
+  // Prisma treats `undefined` in a `data` object as "don't update this field" --
+  // a SILENT no-op with no error. Normalizing anything outside the enum to `null`
+  // here means every caller only ever has to handle the same `null` case the two
+  // pre-call early-return paths above already produce.
+  const VALID_SENTIMENTS: Sentiment[] = ['POSITIVE', 'NEUTRAL', 'NEGATIVE', 'URGENT']
+  const sentiment = VALID_SENTIMENTS.includes(parsed.sentiment) ? parsed.sentiment : null
+
   if (parsed.response === null) {
-    return { sentiment: parsed.sentiment, response: null, shouldEscalate: true, escalationReason: 'AI determined escalation required' }
+    return { sentiment, response: null, shouldEscalate: true, escalationReason: 'AI determined escalation required' }
   }
 
   // Re-check the guardrails against the model's OUTPUT, not just the input comment.
@@ -152,8 +162,8 @@ Return ONLY valid JSON, no markdown, no explanation, in exactly this shape:
     const reason = violation.rule === 'NEVER_USE_WORD'
       ? `Generated response contained a forbidden word/phrase: "${violation.value}"`
       : `Generated response touched a forbidden topic: "${violation.value}"`
-    return { sentiment: parsed.sentiment, response: null, shouldEscalate: true, escalationReason: reason }
+    return { sentiment, response: null, shouldEscalate: true, escalationReason: reason }
   }
 
-  return { sentiment: parsed.sentiment, response: parsed.response, shouldEscalate: false }
+  return { sentiment, response: parsed.response, shouldEscalate: false }
 }

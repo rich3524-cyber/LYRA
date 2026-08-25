@@ -113,6 +113,33 @@ describe('generateCommentResponse prompt construction', () => {
     expect(result).toEqual({ sentiment: 'NEUTRAL', response: 'Thanks for your comment!', shouldEscalate: false })
   })
 
+  it('normalizes an out-of-enum sentiment to null rather than passing it through', async () => {
+    // Simulates Claude emitting a value outside the Sentiment enum, e.g. "MIXED".
+    mockClaudeJson({ sentiment: 'MIXED', response: 'Thanks for your comment!' })
+
+    const brandProfile = { voiceSummary: 'Professional', toneAttributes: ['friendly'] } as BrandProfile
+    const comment = { content: 'How does this work?', authorName: 'Bob' } as Comment
+
+    const result = await generateCommentResponse(comment, brandProfile, [])
+
+    expect(result).toEqual({ sentiment: null, response: 'Thanks for your comment!', shouldEscalate: false })
+  })
+
+  it('normalizes a missing sentiment key to null instead of returning undefined -- Prisma treats undefined as "skip this field," which would otherwise be a silent no-op write', async () => {
+    // Simulates Claude's JSON omitting the "sentiment" key entirely.
+    vi.mocked(anthropic.messages.create).mockResolvedValue({
+      content: [{ type: 'text', text: JSON.stringify({ response: 'Thanks for your comment!' }) }],
+    } as never)
+
+    const brandProfile = { voiceSummary: 'Professional', toneAttributes: ['friendly'] } as BrandProfile
+    const comment = { content: 'How does this work?', authorName: 'Bob' } as Comment
+
+    const result = await generateCommentResponse(comment, brandProfile, [])
+
+    expect(result.sentiment).toBeNull()
+    expect(result).toEqual({ sentiment: null, response: 'Thanks for your comment!', shouldEscalate: false })
+  })
+
   it('escalates when Claude sets response to null, while still carrying the classified sentiment', async () => {
     mockClaudeJson({ sentiment: 'URGENT', response: null })
 
