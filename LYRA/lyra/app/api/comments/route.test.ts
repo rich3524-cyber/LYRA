@@ -79,6 +79,23 @@ describe('GET /api/comments', () => {
     const body = await res.json()
 
     expect(body).toHaveLength(100)
+
+    // All 60 reviews are dated Aug 2 (newer than every comment, which is
+    // dated Aug 1), so the 100-cap should keep every review plus only the
+    // 40 newest comments (c20..c59), dropping the 20 oldest comments
+    // (c0..c19). This distinguishes "correctly kept the newest 100" from
+    // "kept some arbitrary 100" -- e.g. it would fail if `.sort()` were
+    // deleted, since concatenation-then-slice with no sort would instead
+    // keep all 60 comments and only the first 40 reviews.
+    const ids = body.map((row: { id: string }) => row.id)
+    const reviewIds = Array.from({ length: 60 }, (_, i) => `r${i}`)
+    const survivingCommentIds = Array.from({ length: 40 }, (_, i) => `c${i + 20}`)
+    const droppedCommentIds = Array.from({ length: 20 }, (_, i) => `c${i}`)
+
+    expect(new Set(ids)).toEqual(new Set([...reviewIds, ...survivingCommentIds]))
+    for (const id of droppedCommentIds) {
+      expect(ids).not.toContain(id)
+    }
   })
 
   // Regression coverage: every workspace today has zero reviews (nothing
@@ -88,6 +105,18 @@ describe('GET /api/comments', () => {
     const comment = baseComment()
     vi.mocked(prisma.comment.findMany).mockResolvedValue([comment] as any)
     vi.mocked(prisma.review.findMany).mockResolvedValue([] as any)
+
+    const res = await GET(req())
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body).toEqual([{ ...comment, createdAt: comment.createdAt.toISOString(), type: 'comment' }])
+  })
+
+  it('degrades gracefully (200 with comments only) when prisma.review.findMany rejects, e.g. because the Review table is not migrated yet', async () => {
+    const comment = baseComment()
+    vi.mocked(prisma.comment.findMany).mockResolvedValue([comment] as any)
+    vi.mocked(prisma.review.findMany).mockRejectedValue(new Error('relation "Review" does not exist'))
 
     const res = await GET(req())
 

@@ -29,6 +29,9 @@ export async function GET(req: Request) {
         include: { socialAccount: { select: { platform: true, name: true } } },
         orderBy: { createdAt: 'desc' },
         take:    100,
+      }).catch((err) => {
+        console.error('Failed to fetch reviews for /api/comments (Review table may not exist yet):', err)
+        return []
       }),
     ])
 
