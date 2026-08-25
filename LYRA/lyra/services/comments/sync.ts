@@ -12,7 +12,7 @@ import { prisma } from '@/lib/prisma'
 import { decrypt } from '@/lib/encrypt'
 import * as linkedin from '@/services/social/linkedin'
 import { getProvider } from '@/services/social/provider'
-import type { NormalizedComment } from '@/services/social/provider/types'
+import type { NormalizedComment, NormalizedReview } from '@/services/social/provider/types'
 
 export interface RawComment {
   id: string
@@ -164,9 +164,62 @@ export async function syncAccountComments(account: SocialAccount, workspaceId: s
 }
 
 /**
- * Loads every active FACEBOOK/INSTAGRAM/LINKEDIN account in the workspace
- * and syncs each in turn, returning the total number of newly created
- * comment rows.
+ * Syncs one connected Google Business account's reviews into the DB and
+ * returns how many new rows were created. Reviews have no native
+ * (non-Zernio) fetch path, unlike comments -- Google Business review sync
+ * only exists through Zernio's fetchReviews, so any account that isn't a
+ * GOOGLE_BUSINESS account on the Zernio path is a cheap no-op. Per-account
+ * failures are swallowed (logged, not thrown), matching syncAccountComments'
+ * resilience above so one bad account can't block sync for the rest of the
+ * workspace.
+ */
+export async function syncAccountReviews(account: SocialAccount, workspaceId: string): Promise<number> {
+  if (account.platform !== 'GOOGLE_BUSINESS' || account.provider !== 'ZERNIO' || account.zernioAccountId == null) {
+    return 0
+  }
+
+  let normalized: NormalizedReview[]
+  try {
+    normalized = await getProvider(account).fetchReviews(account)
+  } catch (err) {
+    console.error(`Zernio review sync failed for account ${account.id}:`, err)
+    return 0
+  }
+  if (normalized.length === 0) return 0
+
+  // Wrapped in its own try/catch, same as the fetch above -- otherwise a
+  // persistence failure here would throw uncaught out of this function.
+  // syncWorkspaceComments' loop below has no try/catch around its call to
+  // this function, so an uncaught throw wouldn't just fail this one
+  // account (as the docstring above promises) -- it would abort the entire
+  // workspace sync, skipping every remaining account. Logging + returning 0
+  // instead keeps persistence failures behaving exactly like fetch failures
+  // already do: isolated to this one account.
+  try {
+    const created = await prisma.review.createManyAndReturn({
+      data: normalized.map((r) => ({
+        workspaceId,
+        socialAccountId:   account.id,
+        zernioReviewId:    r.externalId,
+        rating:            r.rating,
+        authorName:        r.authorName,
+        text:              r.text,
+        platformCreatedAt: r.createdAt,
+        status:            'PENDING' as const,
+      })),
+      skipDuplicates: true,
+    })
+    return created.length
+  } catch (err) {
+    console.error(`Failed to persist reviews for account ${account.id}:`, err)
+    return 0
+  }
+}
+
+/**
+ * Loads every active FACEBOOK/INSTAGRAM/LINKEDIN/GOOGLE_BUSINESS account in
+ * the workspace and syncs each in turn, returning the total number of newly
+ * created comment + review rows.
  */
 export async function syncWorkspaceComments(workspaceId: string): Promise<number> {
   // Fetches the full row (not a narrow select) because getProvider(account).
@@ -174,12 +227,13 @@ export async function syncWorkspaceComments(workspaceId: string): Promise<number
   // every other provider-dispatched call site in the codebase (e.g.
   // post-publisher.worker.ts's include: { socialAccount: true }).
   const accounts = await prisma.socialAccount.findMany({
-    where: { workspaceId, isActive: true, platform: { in: ['FACEBOOK', 'INSTAGRAM', 'LINKEDIN'] } },
+    where: { workspaceId, isActive: true, platform: { in: ['FACEBOOK', 'INSTAGRAM', 'LINKEDIN', 'GOOGLE_BUSINESS'] } },
   })
 
   let newCount = 0
   for (const account of accounts) {
     newCount += await syncAccountComments(account, workspaceId)
+    newCount += await syncAccountReviews(account, workspaceId)
   }
   return newCount
 }

@@ -95,23 +95,24 @@ model Workspace {
   approvalSlaHours            Int @default(4)
   approvalSlaUnscheduledHours Int @default(24)
 
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  access             WorkspaceAccess[]
-  socialAccounts     SocialAccount[]
-  posts              Post[]
-  brandProfile       BrandProfile?
-  guardrails         Guardrail[]
-  mcpAuditLogs       McpAuditLog[]
-  onboardingToken    OnboardingToken?
-  seoConnection      SeoConnection?
-  seoPages           SeoPage[]
-  searchConsoleData  SearchConsoleData[]
-  crisisEvents       CrisisEvent[]
-  competitors        Competitor[]
-  emailIntegrations  EmailIntegration[]
+  access              WorkspaceAccess[]
+  socialAccounts      SocialAccount[]
+  posts               Post[]
+  brandProfile        BrandProfile?
+  guardrails          Guardrail[]
+  mcpAuditLogs        McpAuditLog[]
+  onboardingToken     OnboardingToken?
+  seoConnection       SeoConnection?
+  seoPages            SeoPage[]
+  searchConsoleData   SearchConsoleData[]
+  crisisEvents        CrisisEvent[]
+  competitors         Competitor[]
+  emailIntegrations   EmailIntegration[]
   notificationChannel NotificationChannel?
+  reviews             Review[]
 }
 
 // A Slack (or, later, Teams) channel that LYRA posts event alerts into.
@@ -221,6 +222,7 @@ model SocialAccount {
 
   posts    Post[]
   comments Comment[]
+  reviews  Review[]
 
   @@unique([workspaceId, platform, platformId])
   @@index([zernioAccountId])
@@ -317,7 +319,7 @@ model PostApproval {
   // a resubmitted post can alert again on its new cycle.
   slaAlertedAt DateTime?
 
-  createdAt  DateTime       @default(now())
+  createdAt DateTime @default(now())
 
   // The SLA cron scans for pending approvals that haven't alerted yet.
   @@index([status, slaAlertedAt])
@@ -384,6 +386,46 @@ model CommentResponse {
   aiGenerated Boolean   @default(true)
   publishedAt DateTime?
   createdAt   DateTime  @default(now())
+}
+
+// Google Business review ingestion. Parallel to Comment but deliberately its
+// own model rather than merged with it -- a review has rating/authorName
+// fields Comment doesn't, and lives on its own ingestion path from Zernio.
+// Reuses CommentStatus rather than a separate ReviewStatus enum: a review's
+// status lifecycle (PENDING -> AI_DRAFTED/ESCALATED -> RESPONDED) is
+// functionally the same shape as a comment's.
+model Review {
+  id                String        @id @default(cuid())
+  workspaceId       String
+  // Unlike Comment (which has no FK to Workspace at all), Review cascades on
+  // workspace deletion. Deliberate: the workspace deletion route
+  // (app/api/workspaces/[id]/route.ts) does a full teardown of workspace
+  // data, and cascade is the convenient, correct behavior there.
+  workspace         Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  socialAccountId   String
+  // Deliberately CASCADE, unlike Comment.socialAccount which is ON DELETE
+  // RESTRICT. Comment's RESTRICT forces callers to explicitly deleteMany
+  // comments before removing a SocialAccount; Review doesn't need that
+  // manual choreography since account/workspace deletion routes already do
+  // full teardowns and cascade is the right call here.
+  socialAccount     SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  zernioReviewId    String
+  rating            Int?
+  authorName        String?
+  text              String?
+  sentiment         Sentiment?
+  isEscalated       Boolean       @default(false)
+  escalationReason  String?
+  status            CommentStatus @default(PENDING)
+  aiDraftResponse   String?
+  finalResponse     String?
+  respondedAt       DateTime?
+  platformCreatedAt DateTime
+  createdAt         DateTime      @default(now())
+
+  @@unique([socialAccountId, zernioReviewId])
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, status])
 }
 
 model BrandProfile {
@@ -595,16 +637,16 @@ enum EmailProvider {
 }
 
 model EmailIntegration {
-  id           String        @id @default(cuid())
+  id           String          @id @default(cuid())
   workspaceId  String
-  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace    Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   provider     EmailProvider
   apiKey       String
   serverPrefix String?
   accountName  String?
-  isActive     Boolean       @default(true)
+  isActive     Boolean         @default(true)
   lastSyncAt   DateTime?
-  createdAt    DateTime      @default(now())
+  createdAt    DateTime        @default(now())
   campaigns    EmailCampaign[]
 
   @@unique([workspaceId, provider])

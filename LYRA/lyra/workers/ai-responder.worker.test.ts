@@ -19,9 +19,39 @@ vi.mock('@/lib/prisma', () => ({
 // is fail-open so it would only log against the mocked prisma above, but
 // stubbing it keeps these cases about escalation-claim resolution.
 vi.mock('@/services/notifications/channel-notifier', () => ({ notifyChannel: vi.fn() }))
+// The review-job counterpart to processAiResponseJob, imported (not defined)
+// by ai-responder.worker.ts. Mocking it wholesale is what makes it possible
+// to prove, from outside, which of the two processors the dispatch closure
+// actually routed a given job to -- see the "ai-responding queue wiring"
+// describe block below.
+vi.mock('./ai-review-responder.worker', () => ({ processAiReviewResponseJob: vi.fn() }))
 
+import { Worker } from 'bullmq'
 import { processAiResponseJob } from './ai-responder.worker'
+import { processAiReviewResponseJob } from './ai-review-responder.worker'
 import { notifyChannel } from '@/services/notifications/channel-notifier'
+import { prisma } from '@/lib/prisma'
+
+// Capture the actual arguments ai-responder.worker.ts passed to `new
+// Worker(...)`, and the 'failed' handler it registered on the returned
+// instance, at import time -- before any test's beforeEach can
+// vi.clearAllMocks() away the Worker mock's recorded call/result history.
+// These are plain references to the real closures the module under test
+// built, so later mock-history clearing doesn't affect them; only clears
+// the call counts of whatever mocks *those closures* go on to invoke
+// (processAiReviewResponseJob, the mocked prisma, etc), which is exactly
+// what each test below wants isolated per-run.
+type JobLike = { name?: string; data: unknown }
+const [, dispatch] = vi.mocked(Worker).mock.calls[0] as unknown as [
+  string,
+  (job: JobLike) => Promise<void>,
+  unknown,
+]
+const workerInstance = vi.mocked(Worker).mock.results[0].value as { on: ReturnType<typeof vi.fn> }
+const failedHandlerCall = (workerInstance.on.mock.calls as unknown as [string, unknown][]).find(
+  ([event]) => event === 'failed'
+)
+const failedHandler = failedHandlerCall?.[1] as (job: JobLike | undefined, err: Error) => void
 
 function makeDeps(overrides: {
   comment?: Partial<Record<string, unknown>>
@@ -406,5 +436,80 @@ describe('processAiResponseJob', () => {
     expect(deps.prisma.comment.updateMany).not.toHaveBeenCalled()
     expect(deps.prisma.socialAccount.findUnique).not.toHaveBeenCalled()
     expect(deps.getProvider).not.toHaveBeenCalled()
+  })
+})
+
+// --- ai-responding queue wiring: job-name dispatch + failed-handler branching
+//
+// The single Worker wired up at the bottom of ai-responder.worker.ts routes
+// every job on the shared 'ai-responding' queue by `job.name`: jobs named
+// 'generate-review-response' go to processAiReviewResponseJob, everything
+// else goes to processAiResponseJob. Nothing above exercises that routing
+// closure itself -- every test in the previous describe block calls
+// processAiResponseJob directly. A typo in the `job.name ===
+// 'generate-review-response'` string comparison would silently misroute
+// every review job to the comment processor (or vice versa) with none of
+// those tests ever noticing. Same gap for the `.on('failed')` handler's own
+// job.name branch, which picks whether to log `reviewId` or `commentId`.
+describe('ai-responding queue wiring (job-name dispatch closure and failed handler)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('routes a generate-review-response job to processAiReviewResponseJob, not processAiResponseJob', async () => {
+    const jobData = { reviewId: 'review-1', autoPost: true }
+
+    await dispatch({ name: 'generate-review-response', data: jobData })
+
+    expect(processAiReviewResponseJob).toHaveBeenCalledTimes(1)
+    expect(processAiReviewResponseJob).toHaveBeenCalledWith(jobData)
+    // If this had instead fallen through to processAiResponseJob (e.g. a
+    // typo'd job-name comparison), that function would have called
+    // prisma.comment.findUnique via its own default deps -- so its absence
+    // here is direct evidence the comment processor was never reached.
+    expect(prisma.comment.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('routes a generate-response job (the comment job name) to processAiResponseJob, not processAiReviewResponseJob', async () => {
+    const jobData = { commentId: 'comment-1', autoPost: false }
+
+    await dispatch({ name: 'generate-response', data: jobData })
+
+    expect(processAiReviewResponseJob).not.toHaveBeenCalled()
+    // processAiResponseJob is defined and called from inside the module
+    // under test, so it can't be spied on directly -- its default deps
+    // (real, mocked `prisma`) reaching prisma.comment.findUnique with this
+    // job's commentId is the observable proof the dispatch closure actually
+    // invoked it.
+    expect(prisma.comment.findUnique).toHaveBeenCalledWith({ where: { id: 'comment-1' } })
+  })
+
+  it('falls through to processAiResponseJob for any other/undefined job name, not just the literal comment job name', async () => {
+    const jobData = { commentId: 'comment-2', autoPost: false }
+
+    await dispatch({ name: undefined, data: jobData })
+
+    expect(processAiReviewResponseJob).not.toHaveBeenCalled()
+    expect(prisma.comment.findUnique).toHaveBeenCalledWith({ where: { id: 'comment-2' } })
+  })
+
+  it("logs the review's reviewId, not commentId, when a failed job is a generate-review-response job", () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const err = new Error('review auto-reply blew up')
+
+    failedHandler({ name: 'generate-review-response', data: { reviewId: 'review-42', autoPost: true } }, err)
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith('AI responder failed for review review-42:', err)
+    consoleErrorSpy.mockRestore()
+  })
+
+  it("logs the comment's commentId, not reviewId, when a failed job is a generate-response job", () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const err = new Error('comment auto-reply blew up')
+
+    failedHandler({ name: 'generate-response', data: { commentId: 'comment-42', autoPost: true } }, err)
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith('AI responder failed for comment comment-42:', err)
+    consoleErrorSpy.mockRestore()
   })
 })
