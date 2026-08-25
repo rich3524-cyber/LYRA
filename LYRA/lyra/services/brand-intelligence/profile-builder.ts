@@ -6,10 +6,10 @@ export interface BrandProfileData {
   toneAttributes: string[]
   contentThemes:  string[]
   audienceProfile: {
-    demographics: string
-    interests:    string[]
-    painPoints:   string[]
-    language:     string
+    demographics:  string
+    interests:     string[]
+    painPoints:    string[]
+    languageLevel: string
   }
   postingGuidelines: string
 }
@@ -64,7 +64,7 @@ Produce a JSON object with exactly these fields:
     "demographics": "description of target audience",
     "interests": ["array", "of", "interests"],
     "painPoints": ["array", "of", "pain", "points"],
-    "language": "formal|casual|technical|conversational"
+    "languageLevel": "formal|casual|technical|conversational"
   },
   "postingGuidelines": "Key rules for content creation based on brand guidelines"
 }
@@ -87,7 +87,7 @@ Return ONLY valid JSON. No markdown, no explanation.`
     typeof parsed.audienceProfile?.demographics !== 'string' ||
     !Array.isArray(parsed.audienceProfile?.interests) ||
     !Array.isArray(parsed.audienceProfile?.painPoints) ||
-    typeof parsed.audienceProfile?.language !== 'string' ||
+    typeof parsed.audienceProfile?.languageLevel !== 'string' ||
     typeof parsed.postingGuidelines !== 'string'
   ) {
     throw new Error('Invalid brand profile response shape')
