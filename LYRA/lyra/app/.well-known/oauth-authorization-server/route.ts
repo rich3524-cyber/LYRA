@@ -32,8 +32,17 @@ export async function GET() {
       grant_types_supported:                 ['authorization_code', 'refresh_token'],
       code_challenge_methods_supported:      ['S256'],
       token_endpoint_auth_methods_supported: ['none'],
+      // offline_access is what actually makes Auth0 issue a refresh token
+      // during the authorize call -- grant_types_supported above already
+      // lists 'refresh_token' and the DCR shim (app/api/oauth/register)
+      // provisions clients with rotating refresh tokens, but neither of
+      // those matters unless the client's own authorization request
+      // includes this scope. A connector that builds its consent request
+      // from this exact list (the common case) would otherwise never ask
+      // for one, get only a short-lived access token, and need a full
+      // manual reconnect once it expires instead of a silent refresh.
       scopes_supported: [
-        'openid', 'profile', 'email',
+        'openid', 'profile', 'email', 'offline_access',
         'workspaces:read', 'content:read', 'content:write',
         'inbox:respond', 'settings:write', 'reports:read',
       ],

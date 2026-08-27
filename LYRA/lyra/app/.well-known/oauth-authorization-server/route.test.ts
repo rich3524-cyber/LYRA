@@ -30,7 +30,7 @@ describe('GET /.well-known/oauth-authorization-server', () => {
       code_challenge_methods_supported:      ['S256'],
       token_endpoint_auth_methods_supported: ['none'],
       scopes_supported: [
-        'openid', 'profile', 'email',
+        'openid', 'profile', 'email', 'offline_access',
         'workspaces:read', 'content:read', 'content:write',
         'inbox:respond', 'settings:write', 'reports:read',
       ],
@@ -40,5 +40,16 @@ describe('GET /.well-known/oauth-authorization-server', () => {
   it('sets a cache-control header, since this document changes only on deploy', async () => {
     const res = await GET()
     expect(res.headers.get('cache-control')).toBe('public, max-age=3600')
+  })
+
+  // offline_access is what makes Auth0 actually issue a refresh token during
+  // the authorize call. Without it advertised here, a connector building its
+  // consent request from this document (the common case) never asks for one,
+  // gets only a short-lived access token, and needs a full manual reconnect
+  // once it expires instead of a silent refresh -- this was a real bug.
+  it('advertises offline_access so connectors request a refresh token, not just a short-lived access token', async () => {
+    const res = await GET()
+    const body = await res.json()
+    expect(body.scopes_supported).toContain('offline_access')
   })
 })
