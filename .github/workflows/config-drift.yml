@@ -18,6 +18,13 @@ name: Config Drift Check
 # no repo-side declaration to diff against yet -- see
 # LYRA/lyra/railway-cron-services.json for a scaffold to extend this check
 # once those schedules are confirmed and recorded for real.
+#
+# Note (2026-08-27): Railway's live startCommand reads as empty for a
+# service with no dashboard-level override -- confirmed via the running
+# deployment's own logs that this is the normal, healthy state when a
+# service relies on railway.toml directly (config-as-code), not a sign of
+# misconfiguration. Only a genuine non-empty override that conflicts with
+# railway.toml (the actual 2026-08-13 incident) is treated as drift.
 
 on:
   schedule:
@@ -145,11 +152,23 @@ jobs:
 
           ACTUAL=$(echo "$INSTANCE_RESP" | jq -r '.data.serviceInstance.startCommand // empty')
           if [ -z "$ACTUAL" ]; then
-            echo "::error::Railway returned an empty startCommand for service '$RAILWAY_SERVICE_NAME'."
-            echo "::error::This can mean Railway is relying on an auto-detected start command rather than an explicit one, or the query above no longer matches Railway's schema -- check Settings -> Deploy for this service in the Railway dashboard manually."
-            exit 1
+            # Confirmed live (2026-08-27) via the service's own deploy logs
+            # ("[workers] All 7 workers started", the exact railway.toml
+            # command) that an empty serviceInstance.startCommand does NOT
+            # mean misconfigured or auto-detected -- it means this service
+            # has no separate dashboard-level override and Railway is
+            # reading the start command directly from railway.toml
+            # (config-as-code) at deploy time. There's nothing to diff
+            # against in that case, so this isn't drift -- it's the
+            # no-override-set steady state. Only a genuine, non-empty
+            # dashboard override (the actual 2026-08-13 incident: an
+            # explicit wrong value, not a cleared one) is comparable.
+            echo "empty=true" >> "$GITHUB_OUTPUT"
+            echo "Railway returned an empty startCommand for service '$RAILWAY_SERVICE_NAME' -- treating as 'no dashboard override, reading railway.toml directly' rather than an error. See the comment on this step for how this was confirmed."
+            exit 0
           fi
 
+          echo "empty=false" >> "$GITHUB_OUTPUT"
           echo "value=$ACTUAL" >> "$GITHUB_OUTPUT"
           echo "Actual startCommand (Railway, live): $ACTUAL"
 
@@ -157,6 +176,12 @@ jobs:
         run: |
           DECLARED="${{ steps.declared.outputs.value }}"
           ACTUAL="${{ steps.actual.outputs.value }}"
+          ACTUAL_EMPTY="${{ steps.actual.outputs.empty }}"
+
+          if [ "$ACTUAL_EMPTY" = "true" ]; then
+            echo "No drift check needed: Railway has no dashboard-level startCommand override for this service, so it reads railway.toml directly ($DECLARED) at deploy time. Nothing to compare."
+            exit 0
+          fi
 
           if [ "$DECLARED" != "$ACTUAL" ]; then
             echo "::error::CONFIG DRIFT DETECTED on the main LYRA Railway service's Start Command."
