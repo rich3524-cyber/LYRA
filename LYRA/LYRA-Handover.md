@@ -2,6 +2,25 @@
 
 ---
 
+## ✅ Product bugs fix pass — 6 bugs, 4 batches, 2 follow-ups, all merged and DB-verified (2026-08-25)
+
+**Origin:** 6 real product bugs surfaced as a side effect of the earlier Help-docs accuracy audit (docs claims that turned out to be wrong because the underlying code was actually broken, not just undocumented). Scoped, designed, planned, and executed as 4 independent batches, each its own branch/PR, each fully spec-compliance- and code-quality-reviewed with real fix-and-re-review loops — not a rubber-stamp pass.
+
+| Batch | PR | What it fixed |
+|---|---|---|
+| A | #66 | `brand-sync.worker.ts` was silently dropping pasted brand guidelines on every scheduled refresh (the field was never read back into the upsert). Also renamed `audienceProfile.language` → `.languageLevel` to match what the Settings UI actually reads. |
+| B | #67 | Removed the dead `AWAITING_APPROVAL` `CommentStatus` enum value (unreachable in code, confirmed zero live rows). Gated `Draft + Approve` autonomy mode away from the Starter plan — it was already correctly blocked for Full Automatic, but Draft+Approve had the same billing gap. |
+| C | #68 | Comment sentiment classification folded into the existing AI response call (Claude now returns structured `{sentiment, response}` JSON instead of plain text) rather than a separate API call — cheaper, and the classification is now persisted (`Comment.sentiment`) and shown in the Inbox. |
+| D | #69 | Google Business review ingestion, end to end — new `Review` Prisma model, cron + manual sync ingestion via the already-half-built Zernio provider layer, merged into the same Inbox as comments (star-rating badge, same Pending/Escalated/Done flow), full AI response generation reusing Batch C's fencing/guardrail logic, atomic-claim/rollback-safe worker + routes mirroring the comment pipeline. Largest and most novel of the four. |
+
+**Two follow-ups caught during review, fixed separately (PRs #70, #71):**
+- `syncAccountComments`'s comment-persistence writes had the same unguarded-write bug Batch D's review reviewer caught and fixed for `syncAccountReviews` — a DB error mid-sync could silently abort the whole workspace sync for every remaining account, not just the failing one. Same fix pattern applied.
+- `section-03-social-connections.tsx` / `section-07-inbox.tsx` (the in-app Help docs) updated now that Google Business reviews are actually shipped — they'd been correctly patched to say "not ingested" during the original audit, which was true then and needed re-flipping once Batch D landed.
+
+**🔴 Real incident caught applying the migrations, worth internalising as a pattern:** neither of the two new migrations (Batch B's enum drop, Batch D's `Review` table) could be applied from any dev machine — `DIRECT_URL` has never been reachable from here (same known issue as every other migration this project has hit). Applied both by hand via the Supabase SQL Editor instead. Doing that surfaced something unrelated and more serious: **the migration that was supposed to drop the old, previously-abandoned `Review` model 11 days earlier had *also* never actually been applied** — `CREATE TABLE "Review"` failed with "already exists," and the existing table turned out to be the *old* schema (free-string `status`, `replyText`/`reviewedAt` fields) sitting there stale since whenever it was last touched. Confirmed it held zero rows, dropped it, then created the correct new table — verified column-by-column, index-by-index, constraint-by-constraint afterward. **The lesson: a migration file existing and being committed to the repo is not evidence it was ever applied to the real database** — this project's whole DB-free migration workflow (necessary because of the `DIRECT_URL` connectivity gap) means drift between the migrations directory and reality can sit unnoticed indefinitely. Both migrations are now confirmed genuinely applied and verified against the live schema; Google Business review ingestion should work end-to-end for real going forward.
+
+---
+
 ## ✅ Cron jobs migrated from cron-job.org to Railway (2026-08-13)
 
 **Why:** cron-job.org has silently auto-disabled jobs more than once with no alerting (see 2026-05 entry below) — a failure mode with no visibility since nothing surfaces it except noticing the effect days later. Railway's own deploy history and logs make failures visible instead, and it's infrastructure already paid for and monitored.
