@@ -1,23 +1,25 @@
 name: Deploy LYRA
 
-# Path filter widened from a single 'deploy.yml' entry to the whole
-# '.github/workflows/**' directory (2026-08-14): branch protection requires
-# this workflow's 3 jobs to pass before merge, but a PR that only adds/edits
-# OTHER workflow files (e.g. secret-scan.yml, config-drift.yml) previously
-# never triggered this file at all -- the required checks would simply never
-# appear, permanently blocking merge with no failure to fix. Discovered via
-# PR #24 (adding secret-scan.yml) getting stuck exactly this way.
+# No path filter (2026-08-27): branch protection requires this workflow's 3
+# jobs (Lint & type-check, Test, Build) to pass before merge. A path-filtered
+# trigger means any PR touching a path outside the filter never runs this
+# workflow at all -- the required checks simply never appear, permanently
+# blocking merge with no failure to fix (not a flaky check, an *absent* one).
+# This has now bitten twice: PR #24 (workflow files under .github/workflows/
+# weren't covered) was "fixed" by widening the path list from a single
+# 'deploy.yml' entry to 'LYRA/lyra/**' + '.github/workflows/**' -- which
+# then got stuck again on PR #72 (a root-level doc file, LYRA-Handover.md,
+# matching neither pattern). Widening the list a third time just moves the
+# same bug to the next unanticipated path. Removing the filter entirely is
+# the actual fix: this workflow now always runs, so there is no path left
+# that can trigger this failure mode again. The cost is a few CI minutes on
+# changes that don't touch app code (e.g. docs-only PRs) -- a fine trade for
+# never silently blocking a merge again.
 on:
   push:
     branches: [main]
-    paths:
-      - 'LYRA/lyra/**'
-      - '.github/workflows/**'
   pull_request:
     branches: [main]
-    paths:
-      - 'LYRA/lyra/**'
-      - '.github/workflows/**'
 
 env:
   # Bumped from 20 -> 22 (2026-08-14): several dependencies now declare
