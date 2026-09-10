@@ -1,6 +1,27 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# ===========================================================================
+# This repository's git root sits at the top of a synced OneDrive folder that
+# also holds personal and other-client material. Rather than enumerate what to
+# exclude - a list that goes stale every time a file syncs in - everything at
+# the root is ignored by default and the project paths are allowed back in.
+#
+# Adding a new top-level project? Add an explicit "!/name/" line below.
+# ===========================================================================
 
-# Nested repo duplicate — created by cross-repo merges, should never exist here
+/*
+
+!/.gitignore
+!/.gitleaks.toml
+!/.gitleaksignore
+!/CLAUDE.md
+!/netlify.toml
+!/.github/
+!/LYRA/
+
+# ===========================================================================
+# Everything below applies inside the allowed paths.
+# ===========================================================================
+
+# Nested repo duplicate - created by cross-repo merges, should never exist here
 /LYRA/lyra/LYRA/
 
 # Visual brainstorming companion sessions
@@ -10,7 +31,8 @@
 .worktrees/
 
 # dependencies
-/node_modules
+# Unanchored: the app is nested at LYRA/lyra, so /node_modules would miss it.
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -23,10 +45,12 @@
 /coverage
 
 # next.js
-/.next/
+.next/
 /out/
 
 # production
+# Anchored deliberately. Unanchored "build/" matches source directories -
+# LYRA/lyra/app/api/brand-intelligence/build/ is a real route, already tracked.
 /build
 
 # misc
@@ -41,6 +65,9 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but example files are meant to be committed.
+!.env.example
+!**/.env.example
 
 # vercel
 .vercel
@@ -51,3 +78,16 @@ next-env.d.ts
 
 # Local Netlify folder
 .netlify
+
+# Local editor and tooling state
+.vscode/
+.idea/
+.claude/
+.ui-design/
+
+# Scratch scripts and pulled config
+**/tmp-*
+**/.railway-config-pull-*/
+
+# Known credential file that has appeared in this tree
+/LYRA/PW.docx
