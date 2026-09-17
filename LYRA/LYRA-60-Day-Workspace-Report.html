@@ -1,0 +1,514 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LYRA — 60 Day Workspace Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --ink:#080D1A;
+  --panel:#111A2E;
+  --panel-2:#16203A;
+  --rule:#243352;
+  --vega:#7FD8FF;
+  --vega-dim:#3E7C99;
+  --string:#E4B363;
+  --paper:#EEF2F9;
+  --muted:#8A97B1;
+  --dim:#5E6B85;
+  --neg:#E0736B;
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  background:var(--ink);
+  color:var(--paper);
+  font-family:"IBM Plex Sans",system-ui,sans-serif;
+  font-weight:300;
+  font-size:16px;
+  line-height:1.6;
+  letter-spacing:.005em;
+}
+.wrap{max-width:1000px;margin:0 auto;padding:0 32px 120px}
+
+/* ---------- masthead ---------- */
+.masthead{padding:72px 0 0}
+.mark{display:flex;align-items:baseline;gap:14px}
+.mark .logo{
+  font-family:"IBM Plex Sans",sans-serif;
+  font-weight:600;
+  font-size:26px;
+  letter-spacing:.34em;
+  color:var(--paper);
+}
+.mark .glyph{
+  width:26px;height:26px;flex:0 0 26px;align-self:center;
+}
+.mark .kicker{
+  font-family:"IBM Plex Mono",monospace;
+  font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--vega-dim);
+  border-left:1px solid var(--rule);padding-left:14px;
+}
+h1{
+  font-family:"Newsreader",Georgia,serif;
+  font-weight:500;
+  font-size:clamp(38px,6.2vw,64px);
+  line-height:1.04;
+  letter-spacing:-.02em;
+  margin:44px 0 0;
+  max-width:16ch;
+}
+h1 em{font-style:italic;color:var(--vega)}
+.standfirst{
+  max-width:60ch;margin:22px 0 0;color:var(--muted);font-size:17px;
+}
+.meta-rail{
+  display:flex;flex-wrap:wrap;gap:0;margin:40px 0 0;
+  border-top:1px solid var(--rule);border-bottom:1px solid var(--rule);
+}
+.meta-rail div{
+  flex:1 1 150px;padding:16px 20px 16px 0;
+}
+.meta-rail dt,.meta-rail .lab{
+  font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--dim);display:block;margin-bottom:5px;
+}
+.meta-rail .val{font-size:15px;color:var(--paper);font-weight:400}
+
+/* ---------- signature: the 60-day strip ---------- */
+.strip-block{margin:68px 0 0}
+.strip{
+  display:grid;grid-template-columns:repeat(60,1fr);gap:3px;
+  align-items:end;height:132px;margin-top:26px;
+}
+.strip i{
+  display:block;background:var(--panel);border-radius:1px;min-height:4px;
+  position:relative;
+}
+.strip i.live{background:linear-gradient(180deg,var(--vega) 0%,var(--vega-dim) 100%)}
+.strip i.pub{background:var(--panel-2);box-shadow:inset 0 -2px 0 var(--string)}
+.strip-axis{
+  display:flex;justify-content:space-between;
+  font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.12em;
+  color:var(--dim);margin-top:10px;text-transform:uppercase;
+}
+.legend{display:flex;gap:24px;flex-wrap:wrap;margin-top:18px;
+  font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted)}
+.legend span{display:flex;align-items:center;gap:8px}
+.legend b{width:11px;height:11px;display:inline-block;border-radius:1px}
+
+/* ---------- threaded sections (signature motif) ---------- */
+section{margin:84px 0 0;padding-left:26px;border-left:1px solid var(--rule);position:relative}
+section::before{
+  content:"↳";position:absolute;left:-1px;top:2px;
+  background:var(--ink);color:var(--vega-dim);
+  font-size:14px;line-height:1;padding:0 8px 6px 0;margin-left:-1px;
+}
+h2{
+  font-family:"Newsreader",Georgia,serif;font-weight:500;font-size:30px;
+  letter-spacing:-.015em;margin:0 0 6px;line-height:1.15;
+}
+.sec-note{color:var(--dim);font-family:"IBM Plex Mono",monospace;font-size:11px;
+  letter-spacing:.14em;text-transform:uppercase;margin:0 0 26px}
+h3{font-size:13px;font-weight:600;letter-spacing:.11em;text-transform:uppercase;
+  color:var(--vega);margin:38px 0 12px;font-family:"IBM Plex Sans",sans-serif}
+p{margin:0 0 16px;max-width:70ch}
+strong{font-weight:600;color:#fff}
+
+/* ---------- figures ---------- */
+.figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:1px;
+  background:var(--rule);border:1px solid var(--rule);margin:0 0 34px}
+.fig{background:var(--ink);padding:20px 18px}
+.fig .n{font-family:"Newsreader",Georgia,serif;font-size:36px;line-height:1;font-weight:500;letter-spacing:-.02em}
+.fig .n.accent{color:var(--vega)}
+.fig .n.warn{color:var(--string)}
+.fig .l{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--dim);margin-top:9px;display:block}
+.fig .s{font-size:13px;color:var(--muted);margin-top:4px}
+
+/* ---------- tables ---------- */
+table{width:100%;border-collapse:collapse;margin:8px 0 30px;font-size:14px}
+th{
+  font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--dim);font-weight:400;text-align:left;
+  padding:0 14px 10px 0;border-bottom:1px solid var(--rule);white-space:nowrap;
+}
+td{padding:13px 14px 13px 0;border-bottom:1px solid var(--panel);vertical-align:top;color:var(--paper);font-weight:300}
+td.num,th.num{text-align:right;font-family:"IBM Plex Mono",monospace;padding-right:0}
+tbody tr:last-child td{border-bottom:1px solid var(--rule)}
+td .sub{display:block;color:var(--dim);font-size:12.5px;margin-top:3px}
+.zero{color:var(--dim)}
+.bar{display:block;height:3px;background:var(--vega);margin-top:7px;border-radius:2px;opacity:.8}
+
+/* ---------- flags ---------- */
+.flag{border:1px solid var(--rule);border-left:2px solid var(--string);
+  background:var(--panel);padding:20px 22px;margin:0 0 14px}
+.flag .h{font-weight:600;font-size:15px;margin-bottom:7px;color:#fff}
+.flag .t{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--string);display:block;margin-bottom:9px}
+.flag p{margin:0;font-size:14.5px;color:var(--muted)}
+.flag p+p{margin-top:10px}
+.flag q{color:var(--paper);font-style:italic}
+
+/* ---------- options ---------- */
+.opt{border-top:1px solid var(--rule);padding:24px 0 4px}
+.opt .tag{font-family:"IBM Plex Mono",monospace;font-size:10px;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--vega-dim);display:block;margin-bottom:8px}
+.opt .h{font-family:"Newsreader",Georgia,serif;font-size:21px;font-weight:500;margin-bottom:8px}
+.opt p{font-size:14.5px;color:var(--muted)}
+.tradeoff{font-size:13.5px;color:var(--dim);border-left:1px solid var(--rule);padding-left:14px;margin-top:14px}
+
+ul{margin:0 0 18px;padding-left:0;list-style:none;max-width:70ch}
+ul li{padding-left:20px;position:relative;margin-bottom:10px;color:var(--muted);font-size:14.5px}
+ul li::before{content:"—";position:absolute;left:0;color:var(--vega-dim)}
+ul li b{color:var(--paper);font-weight:500}
+
+footer{margin:96px 0 0;padding-top:26px;border-top:1px solid var(--rule);
+  font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--dim);
+  display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;letter-spacing:.08em}
+
+@media (max-width:640px){
+  .wrap{padding:0 20px 80px}
+  .strip{height:96px;gap:2px}
+  section{padding-left:18px}
+  .figs{grid-template-columns:repeat(2,1fr)}
+  table{font-size:13px}
+}
+@media print{
+  body{background:#fff;color:#111}
+  .strip i{background:#e6eaf2}
+  .strip i.live{background:#2b6f8c}
+  footer,section{page-break-inside:avoid}
+}
+@media (prefers-reduced-motion:no-preference){
+  .strip i{animation:rise .5s cubic-bezier(.2,.7,.3,1) both}
+}
+@keyframes rise{from{transform:scaleY(.2);opacity:0}to{transform:scaleY(1);opacity:1}}
+.strip i{transform-origin:bottom}
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <div class="mark">
+    <svg class="glyph" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M6 20 L9 4 L18 8 L15 21" stroke="#7FD8FF" stroke-width="1" stroke-linejoin="round"/>
+      <circle cx="9" cy="4" r="2" fill="#7FD8FF"/>
+      <circle cx="18" cy="8" r="1.3" fill="#7FD8FF" opacity=".7"/>
+      <circle cx="6" cy="20" r="1.1" fill="#7FD8FF" opacity=".5"/>
+      <circle cx="15" cy="21" r="1.1" fill="#7FD8FF" opacity=".5"/>
+    </svg>
+    <span class="logo">LYRA</span>
+    <span class="kicker">Workspace Report · 60 Days</span>
+  </div>
+
+  <h1>Forty days dark. <em>Twelve days live.</em></h1>
+
+  <p class="standfirst">The LYRA workspace produced no output for the first two-thirds of this
+  reporting period, then published nineteen posts in twenty days. Everything measurable in this
+  report comes from that short window — which makes it a report about a launch cadence, not yet
+  a report about performance.</p>
+
+  <div class="meta-rail">
+    <div><span class="lab">Period</span><span class="val">7 Jun – 6 Aug 2026</span></div>
+    <div><span class="lab">Workspace</span><span class="val">LYRA · Technology</span></div>
+    <div><span class="lab">Plan</span><span class="val">PRO</span></div>
+    <div><span class="lab">Autonomy</span><span class="val">Draft &amp; approve</span></div>
+    <div><span class="lab">Channels</span><span class="val">5 connected</span></div>
+  </div>
+</header>
+
+<div class="strip-block">
+  <div class="sec-note" style="margin:0">Daily activity · 7 Jun → 6 Aug</div>
+  <div class="strip" id="strip" role="img" aria-label="Sixty day activity strip. No activity from 7 June to 16 July. Engagement recorded 17 to 28 July, peaking 21 July. Two posts published in August with no recorded engagement."></div>
+  <div class="strip-axis"><span>7 Jun</span><span>17 Jul · first post</span><span>6 Aug</span></div>
+  <div class="legend">
+    <span><b style="background:linear-gradient(180deg,#7FD8FF,#3E7C99)"></b> Measured engagement</span>
+    <span><b style="background:#16203A;box-shadow:inset 0 -2px 0 #E4B363"></b> Published, nil recorded</span>
+    <span><b style="background:#111A2E"></b> No activity</span>
+  </div>
+</div>
+
+<section>
+  <h2>Where the workspace stands</h2>
+  <p class="sec-note">Sixty days to 6 August 2026</p>
+
+  <div class="figs">
+    <div class="fig"><span class="n accent">19</span><span class="l">Posts published</span><span class="s">Across 5 platforms</span></div>
+    <div class="fig"><span class="n warn">76%</span><span class="l">Publish success</span><span class="s">6 of 25 attempts failed</span></div>
+    <div class="fig"><span class="n">132</span><span class="l">Total reach</span><span class="s">6.9 per post</span></div>
+    <div class="fig"><span class="n">146</span><span class="l">Total views</span><span class="s">7.7 per post</span></div>
+    <div class="fig"><span class="n">14</span><span class="l">Engagements</span><span class="s">9 likes · 5 comments · 0 shares</span></div>
+    <div class="fig"><span class="n accent">100%</span><span class="l">Comment response</span><span class="s">0 pending in inbox</span></div>
+  </div>
+
+  <p>Nothing published between 7 June and 16 July. The first post went out on <strong>17 July</strong>
+  and the account then ran at roughly <strong>6.7 posts a week</strong> through to 5 August. Three
+  posts sit scheduled ahead — 6 August, 7 August and 14 August.</p>
+
+  <p>Operationally the workspace is clean: autonomy is set to <strong>draft &amp; approve</strong>,
+  the approval queue is empty, the inbox is empty, and no crisis state is active. Nothing is
+  stuck waiting on you.</p>
+
+  <p>One caveat that shapes how you should read everything below: <strong>the absolute numbers are
+  tiny</strong>. A total reach of 132 means a single post moving by twenty people swings a
+  percentage figure wildly. Treat the patterns as directional and the percentages as noisy.</p>
+</section>
+
+<section>
+  <h2>Where the reach actually came from</h2>
+  <p class="sec-note">Attributable reach by platform</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Platform</th>
+        <th class="num">Published</th>
+        <th class="num">Reach</th>
+        <th class="num">Views</th>
+        <th class="num">Engagements</th>
+        <th class="num">Share of reach</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Instagram<span class="sub">lyra.online.social</span></td>
+        <td class="num">5</td><td class="num">106</td><td class="num">136</td><td class="num">6</td>
+        <td class="num">80%<span class="bar" style="width:80%"></span></td>
+      </tr>
+      <tr>
+        <td>LinkedIn<span class="sub">Lyra Online Social</span></td>
+        <td class="num">5</td><td class="num">17</td><td class="num">0</td><td class="num">4</td>
+        <td class="num">13%<span class="bar" style="width:13%"></span></td>
+      </tr>
+      <tr>
+        <td>Facebook<span class="sub">LYRA Online</span></td>
+        <td class="num">3</td><td class="num">6</td><td class="num">0</td><td class="num">1</td>
+        <td class="num">5%<span class="bar" style="width:5%"></span></td>
+      </tr>
+      <tr>
+        <td>X / Twitter<span class="sub">LYRAOnlineai</span></td>
+        <td class="num">4</td><td class="num zero">0</td><td class="num zero">0</td><td class="num zero">0</td>
+        <td class="num zero">—</td>
+      </tr>
+      <tr>
+        <td>TikTok<span class="sub">lyrasocialonline</span></td>
+        <td class="num">2</td><td class="num zero">0</td><td class="num zero">0</td><td class="num zero">0</td>
+        <td class="num zero">—</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p><strong>Instagram carried four-fifths of everything.</strong> Two Instagram posts — 21 and
+  24 July — account for 106 of the 132 total reach on their own. LinkedIn produced small reach but
+  the highest engagement-per-impression, and it is where the only substantive comment thread landed.</p>
+
+  <p><strong>X and TikTok returned nothing measurable.</strong> That is six of nineteen posts —
+  roughly a third of the output — with no recorded reach, views or engagement. Before reading that
+  as a channel verdict, confirm whether metrics are actually flowing back from those two
+  connectors, because a reporting gap and a dead channel look identical in this table.</p>
+
+  <h3>Top performing posts</h3>
+  <table>
+    <thead>
+      <tr><th>Date</th><th>Post</th><th>Platform</th><th class="num">Reach</th><th class="num">Views</th><th class="num">Eng.</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>24 Jul</td><td>Category claim — no platform replies automatically<span class="sub">Early access, link in bio</span></td><td>Instagram</td><td class="num">56</td><td class="num">64</td><td class="num">0</td></tr>
+      <tr><td>21 Jul</td><td>847 comments a month, 94 answered<span class="sub">Capacity gap · founding pricing</span></td><td>Instagram</td><td class="num">50</td><td class="num">64</td><td class="num">2</td></tr>
+      <tr><td>21 Jul</td><td>847 comments a month, 94 answered<span class="sub">Same creative, agency framing</span></td><td>LinkedIn</td><td class="num">14</td><td class="num zero">0</td><td class="num">2</td></tr>
+      <tr><td>21 Jul</td><td>847 comments a month, 94 answered</td><td>Facebook</td><td class="num">6</td><td class="num zero">0</td><td class="num">1</td></tr>
+      <tr><td>19 Jul</td><td>Scheduling was solved. Responding never was.</td><td>LinkedIn</td><td class="num">3</td><td class="num zero">0</td><td class="num">2</td></tr>
+    </tbody>
+  </table>
+
+  <p>One idea is doing the heavy lifting. The <strong>"847 comments, 94 answered"</strong> statistic
+  is the only creative that performed on all three channels it ran on, and it is the only post in
+  the period to generate a comment thread. The hard category claim — <em>no platform does this,
+  LYRA is the first</em> — pulled the single highest reach but converted none of it into engagement.</p>
+</section>
+
+<section>
+  <h2>Six failed publishes, three root causes</h2>
+  <p class="sec-note">Delivery reliability</p>
+
+  <p>Twenty-five publish attempts produced nineteen live posts. The six failures are not random —
+  they are the same three problems firing twice each, and all three are fixable before the next batch.</p>
+
+  <table>
+    <thead>
+      <tr><th>Cause</th><th>Channel</th><th class="num">Failures</th><th>Fix</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Unsupported asset format<span class="sub">GIF sent to Instagram</span></td>
+        <td>Instagram</td><td class="num">2</td>
+        <td>Re-export as JPG, PNG or MP4 before scheduling</td>
+      </tr>
+      <tr>
+        <td>Multiple video files on one post<span class="sub">TikTok accepts a single video</span></td>
+        <td>TikTok</td><td class="num">2</td>
+        <td>Split into separate posts, or attach one file</td>
+      </tr>
+      <tr>
+        <td>Connector publish failure<span class="sub">Zernio account 6a5429b4…</span></td>
+        <td>LinkedIn</td><td class="num">2</td>
+        <td>Reauthorise the connection — not a content issue</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <p>The first two are asset-preparation discipline and cost nothing to fix. The third is
+  infrastructure and is the one to check first: <strong>the LinkedIn connector failed on both
+  24 and 28 July</strong> while the same account published successfully on other days, which points
+  at an intermittent connection rather than a permanent break.</p>
+</section>
+
+<section>
+  <h2>Three things worth your attention</h2>
+  <p class="sec-note">Flagged for decision</p>
+
+  <div class="flag">
+    <span class="t">Contradictory claim, both live</span>
+    <div class="h">The same creative went out with two different numbers on the same day</div>
+    <p>On 28 July, LinkedIn and TikTok published <q>2 hours a week. Typing replies your clients
+    don't pay for.</q> Ten minutes earlier, Instagram, X and Facebook published the identical
+    creative reading <q>12 hours a week.</q></p>
+    <p>Both are still live. For a product whose entire pitch is reclaimed hours, publishing two
+    different figures for the same claim in the same hour is a credibility problem, not a typo.
+    Decide which number is defensible and delete or edit the other.</p>
+  </div>
+
+  <div class="flag">
+    <span class="t">Queued with an error</span>
+    <div class="h">A misspelt hashtag is sitting in two scheduled Instagram posts</div>
+    <p>Both the 6 August and 14 August Instagram posts carry <q>#SmaCllBusiness</q>. It reaches no
+    one and reads as carelessness on a founding-member announcement. Fix before the 6 August slot,
+    which is imminent.</p>
+  </div>
+
+  <div class="flag">
+    <span class="t">Positioning risk</span>
+    <div class="h">The "first and only" claim is contestable against a tracked competitor</div>
+    <p>LYRA's highest-reach post of the period asserts that no platform responds to an audience
+    automatically and that LYRA is the first. One of the two competitors tracked in this workspace,
+    Sintra, markets an AI assistant explicitly framed around checking Facebook comments.</p>
+    <p>The distinction LYRA can defend is <strong>per-client brand-voice fidelity at agency scale</strong>,
+    not primacy. Absolute firsts invite a rebuttal in the comments; a sharper claim about voice
+    preservation does not.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Community and competitive position</h2>
+  <p class="sec-note">Inbox, tracking and roadmap gaps</p>
+
+  <h3>Inbox</h3>
+  <p>Three items arrived across the period. Two Instagram comments were responded to — one asking
+  for a launch date, one expressing interest in updates. One LinkedIn comment was marked ignored.
+  Response rate on items requiring a reply is <strong>100%</strong>, with nothing pending.</p>
+  <p>Three inbound comments against nineteen posts is the honest read here: <strong>there isn't
+  yet an audience to respond to.</strong> The response machinery works; the top of the funnel is
+  the constraint.</p>
+
+  <h3>Competitor tracking</h3>
+  <table>
+    <thead><tr><th>Competitor</th><th>Added</th><th>Last snapshot</th><th>Benchmark data</th></tr></thead>
+    <tbody>
+      <tr><td>Blaze AI<span class="sub">blaze.ai</span></td><td>17 Jul</td><td>6 Aug</td><td class="zero">Posts/week and engagement benchmark empty</td></tr>
+      <tr><td>Sintra AI<span class="sub">sintra.ai</span></td><td>21 Jul</td><td>6 Aug</td><td class="zero">Posts/week and engagement benchmark empty</td></tr>
+    </tbody>
+  </table>
+  <p>Both competitors are being snapshotted daily, but the snapshots are capturing website copy
+  only — cadence and engagement benchmarks are returning empty. Until social handles resolve
+  properly, competitor tracking is telling you what they <em>say</em>, not what they <em>do</em>.</p>
+
+  <h3>Not yet available</h3>
+  <p>LYRA Trend is gated to Phase 3, so trend-relevance scoring did not contribute to this period.
+  Two of the five connected platforms produced no measurable data at all. Both are worth resolving
+  before the next reporting cycle, or the next report will have the same blind spots.</p>
+</section>
+
+<section>
+  <h2>Where to point the next sixty days</h2>
+  <p class="sec-note">Options, not a single recommendation</p>
+
+  <div class="opt">
+    <span class="tag">Option A · Fix before you scale</span>
+    <div class="h">Repair the pipeline, hold cadence flat</div>
+    <p>Reauthorise the LinkedIn connector, set an asset-format check before scheduling, and confirm
+    whether X and TikTok metrics are actually reporting. Keep output at current levels for a fortnight
+    and re-measure with a clean pipeline.</p>
+    <div class="tradeoff">Trade-off: two weeks of no growth in volume, but every number after that is
+    trustworthy. Right choice if you intend to report these figures to anyone.</div>
+  </div>
+
+  <div class="opt">
+    <span class="tag">Option B · Concentrate</span>
+    <div class="h">Drop to Instagram and LinkedIn, double the depth</div>
+    <p>Those two channels produced 93% of measurable reach and every meaningful interaction. Redirect
+    the effort currently going into X, TikTok and Facebook into more Instagram frequency and longer-form
+    LinkedIn posts built around the "847 comments" framing that already worked.</p>
+    <div class="tradeoff">Trade-off: you give up presence on channels that may simply be under-measured
+    rather than under-performing. Reversible, but you lose the posting history if you come back later.</div>
+  </div>
+
+  <div class="opt">
+    <span class="tag">Option C · Keep coverage, change the assets</span>
+    <div class="h">Stay on all five, stop cross-posting identical creative</div>
+    <p>Four of the six failures and the contradictory-claim incident all trace back to one creative
+    being pushed to five destinations at once. Build native assets per platform — vertical video for
+    TikTok, text-first for LinkedIn, static for Instagram — and the failure rate falls without cutting
+    reach.</p>
+    <div class="tradeoff">Trade-off: materially more production time per campaign for channels that
+    have so far returned nothing measurable.</div>
+  </div>
+
+  <h3>Regardless of which you pick</h3>
+  <ul>
+    <li><b>Resolve the 2-vs-12 hours claim</b> before any further paid or organic push. It undermines the core proposition.</li>
+    <li><b>Fix the hashtag in the 6 August post</b> — it goes out imminently.</li>
+    <li><b>Reframe the category claim</b> from "first and only" to defensible ground on brand-voice fidelity.</li>
+    <li><b>Only three posts are queued past today.</b> After a nine-day gap in publishing, the pipeline needs refilling now, not after the next planning session.</li>
+  </ul>
+</section>
+
+<footer>
+  <span>LYRA · Workspace activity report</span>
+  <span>7 Jun – 6 Aug 2026 · Generated 6 Aug 2026</span>
+  <span>Prepared for Into The Wild Marketing</span>
+</footer>
+
+</div>
+
+<script>
+// 60 cells, 7 Jun -> 6 Aug 2026. Values are reach+views per day from the workspace analytics.
+var days = new Array(60).fill(0);
+var pubOnly = {};
+// index 0 = 7 Jun. 17 Jul = index 40.
+days[40] = 8;    // 17 Jul  - 8 views, 4 comments
+days[42] = 3;    // 19 Jul  - 3 reach, 2 likes
+days[44] = 134;  // 21 Jul  - 70 reach, 64 views  (peak)
+days[47] = 120;  // 24 Jul  - 56 reach, 64 views
+days[50] = 1;    // 27 Jul  - 1 reach
+days[51] = 12;   // 28 Jul  - 2 reach, 10 views
+// published in Aug but nil engagement recorded
+pubOnly[56] = 1; // 2 Aug   - LinkedIn
+pubOnly[59] = 1; // 5 Aug   - X
+// also 20 Jul published, nil recorded
+pubOnly[43] = 1;
+
+var max = 134;
+var strip = document.getElementById('strip');
+var html = '';
+for (var i = 0; i < 60; i++) {
+  var v = days[i];
+  var cls = v > 0 ? 'live' : (pubOnly[i] ? 'pub' : '');
+  var h = v > 0 ? Math.max(6, Math.round((v / max) * 100)) : (pubOnly[i] ? 8 : 4);
+  html += '<i class="' + cls + '" style="height:' + h + '%;animation-delay:' + (i * 9) + 'ms"></i>';
+}
+strip.innerHTML = html;
+</script>
