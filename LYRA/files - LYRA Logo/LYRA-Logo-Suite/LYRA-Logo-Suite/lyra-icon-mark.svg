@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img">
+  <title>LYRA — Icon mark</title>
+  <desc>LYRA standalone icon mark: framed L letterform in a platinum square border on near-black, for use as favicon, app icon, and social media avatar</desc>
+
+  <!-- Background -->
+  <rect width="64" height="64" rx="0" fill="#080808"/>
+
+  <!-- Framed L mark — fills the canvas with breathing room -->
+  <rect x="10" y="10" width="44" height="44" rx="0" fill="#080808" stroke="#aaaaaa" stroke-width="1.5"/>
+
+  <!-- L letterform — optically centred inside frame -->
+  <line x1="22" y1="20" x2="22" y2="44" stroke="#d8d8d8" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="22" y1="44" x2="42" y2="44" stroke="#d8d8d8" stroke-width="2.5" stroke-linecap="round"/>
+</svg>

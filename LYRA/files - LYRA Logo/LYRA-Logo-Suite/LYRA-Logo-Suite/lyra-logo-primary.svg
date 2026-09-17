@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 100" width="320" height="100" role="img">
+  <title>LYRA — Primary logo mark</title>
+  <desc>LYRA logo: framed L initial mark with platinum border on near-black, followed by YRA wordmark in ultralight DM Sans with wide tracking</desc>
+
+  <!-- Background -->
+  <rect width="320" height="100" rx="6" fill="#080808"/>
+
+  <!-- Framed L mark -->
+  <rect x="32" y="26" width="48" height="48" rx="0" fill="#080808" stroke="#aaaaaa" stroke-width="1.5"/>
+  <!-- L letterform -->
+  <line x1="48" y1="38" x2="48" y2="64" stroke="#d8d8d8" stroke-width="2.2" stroke-linecap="round"/>
+  <line x1="48" y1="64" x2="68" y2="64" stroke="#d8d8d8" stroke-width="2.2" stroke-linecap="round"/>
+
+  <!-- YRA wordmark -->
+  <text x="94" y="58"
+    font-family="'DM Sans', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+    font-size="26"
+    font-weight="200"
+    fill="#d8d8d8"
+    letter-spacing="10">YRA</text>
+</svg>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" width="16" height="16" role="img">
+  <title>LYRA — Favicon</title>
+  <desc>LYRA favicon at 16x16: minimal framed L mark optimised for browser tab display at smallest size</desc>
+
+  <!-- Background -->
+  <rect width="16" height="16" fill="#080808"/>
+
+  <!-- Framed L — pixel-hinted for 16px clarity -->
+  <rect x="2" y="2" width="12" height="12" fill="#080808" stroke="#aaaaaa" stroke-width="0.8"/>
+
+  <!-- L at 16px — thick enough to read -->
+  <line x1="5" y1="4.5" x2="5" y2="11.5" stroke="#d8d8d8" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="5" y1="11.5" x2="11.5" y2="11.5" stroke="#d8d8d8" stroke-width="1.5" stroke-linecap="round"/>
+</svg>
