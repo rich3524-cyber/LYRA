@@ -10,6 +10,20 @@ updates:
       # noise; majors always get their own PR since they need real review.
       minor-and-patch:
         update-types: ["minor", "patch"]
+    ignore:
+      # TypeScript majors are held back deliberately. The 5.9.3 -> 7.0.2 bump
+      # (merged 13 Aug 2026) silently disabled linting for the whole project:
+      # typescript-eslint throws outright on TS >= 7 rather than degrading, so
+      # `npm run lint` crashed before linting a single file. It went unnoticed
+      # for months because the CI lint step is continue-on-error, so the job
+      # still reported green. Nothing caught it; the linter simply stopped.
+      #
+      # As of 3 Nov 2026 even the latest typescript-eslint (8.72.1) still
+      # declares `typescript: ">=4.8.4 <6.1.0"`, so TS 7 remains unsupported.
+      # Remove this ignore once typescript-eslint ships TS 7 support -- see
+      # https://github.com/typescript-eslint/typescript-eslint/issues/10940
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"

@@ -189,7 +189,7 @@ export function SocialConnectionsSection() {
           on the content calendar, with the underlying platform error message attached.
         </p>
         <p className="font-sans text-sm text-text-secondary leading-relaxed mt-3">
-          If you suspect a connection has gone stale (repeated failures on one platform, or it's
+          If you suspect a connection has gone stale (repeated failures on one platform, or it&apos;s
           been several months since you last connected it), click <Strong>Reconnect</Strong> next
           to that account in <Strong>Settings</Strong> and go through the authorisation flow
           again — this works at any time, not just after a detected failure. Reconnect always

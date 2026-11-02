@@ -52,9 +52,27 @@ export function FacebookPagePicker({ workspaceId, pendingKey }: FacebookPagePick
     }
   }, [pendingKey])
 
+  // react-hooks/set-state-in-effect flags this call, but its stated concern
+  // -- "calling setState synchronously within an effect body" -- does not
+  // actually apply: every setState in fetchPages runs after `await fetch(...)`,
+  // so none of them is synchronous and none causes the cascading render the
+  // rule exists to prevent. The rule cannot see across the await boundary.
+  //
+  // Suppressed rather than migrated to useSWR (which is how the competitors
+  // page and the analytics dashboard resolved the same finding) because this
+  // component does more than fetch: a successful load also seeds `selected`
+  // with every returned page, and the fetch's error strings are rendered
+  // through the same `error` state the submit path writes to. Restructuring
+  // both on the Facebook Page-connect path -- which has no test coverage, is
+  // hard to exercise without a live Facebook account, and is the first thing
+  // a new client touches during onboarding -- is not worth it to satisfy a
+  // finding that is incorrect here. Worth revisiting alongside a test for
+  // this component.
+  /* eslint-disable react-hooks/set-state-in-effect -- see the reasoning above */
   useEffect(() => {
     fetchPages()
   }, [fetchPages])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   function togglePage(id: string) {
     setSelected((prev) => {

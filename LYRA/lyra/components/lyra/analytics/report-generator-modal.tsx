@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { FileText } from 'lucide-react'
 import {
   Dialog,
@@ -20,9 +20,17 @@ export function ReportGeneratorModal({ workspaceId, open, onClose }: ReportGener
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  // Clears a stale error from a previous attempt when the modal is reopened.
+  // Done during render via the previous-prop comparison React documents for
+  // "adjusting some state when a prop changes", rather than in an effect:
+  // an effect ran this AFTER paint, so reopening the modal briefly showed the
+  // old error before it disappeared. This also satisfies
+  // react-hooks/set-state-in-effect, which the effect version tripped.
+  const [prevOpen, setPrevOpen] = useState(open)
+  if (open !== prevOpen) {
+    setPrevOpen(open)
     if (open) setError(null)
-  }, [open])
+  }
 
   const handleGenerate = async () => {
     setGenerating(true)

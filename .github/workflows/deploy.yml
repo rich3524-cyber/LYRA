@@ -54,12 +54,19 @@ jobs:
         run: npx tsc --noEmit
 
       - name: Lint
+        # Blocking as of 3 Nov 2026. It was previously continue-on-error for a
+        # cited backlog of 762 errors -- a figure that could not have been
+        # accurate, because linting was broken outright: a TypeScript 5.9 -> 7
+        # bump on 13 Aug 2026 made typescript-eslint throw on startup, so
+        # `npm run lint` crashed without reading a single file and this step
+        # passed by doing nothing for roughly three months.
+        #
+        # With TypeScript pinned back to ^6, `.netlify` build output excluded
+        # from linting, and `no-explicit-any` scoped off for test files, the
+        # real count is 0 errors and 17 warnings. Warnings stay non-blocking
+        # (eslint exits 0 on warnings); a new *error* now fails the build,
+        # which is the point of this step.
         run: npm run lint
-        # Non-blocking for now: 762 pre-existing lint errors across the codebase,
-        # unrelated to any current work, went undetected because tsc always failed
-        # first (see the working-directory fix above) so this step never ran.
-        # Remove continue-on-error once the backlog is paid down.
-        continue-on-error: true
 
   test:
     name: Test
