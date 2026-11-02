@@ -79,6 +79,14 @@ model Workspace {
   stripeCustomerId  String?      @unique
   clientAccessLevel ClientAccess @default(NONE)
   aiResponseMode    Autonomy     @default(OFF)
+  // Ceiling on how many AI replies may be sent into a single customer
+  // conversation before the thread is handed to a human. Counts only
+  // autonomous replies (Comment.aiResponded) -- a human replying through the
+  // Inbox is never capped. 0 means no limit. Default 3 is deliberately a
+  // real cap rather than unlimited: an uncapped AI can be drawn into an
+  // indefinite back-and-forth with one customer in public, which is the
+  // failure mode this exists to prevent.
+  maxAiRepliesPerThread Int      @default(3)
   timezone          String       @default("UTC")
   crisisAware       Boolean      @default(false)
   crisisActive      Boolean      @default(false)
@@ -352,6 +360,20 @@ model Comment {
   aiDraftResponse   String?
   finalResponse     String?
   respondedAt       DateTime?
+  // True once an autonomous path (workers/ai-responder.worker.ts or
+  // app/api/mcp/respond-to-item) has claimed this comment to send an AI
+  // reply. This is what Workspace.maxAiRepliesPerThread counts -- a human
+  // reply through POST /api/comments/[id]/reply deliberately leaves it
+  // false, so manual replies never consume the AI's budget.
+  //
+  // Set inside the same atomic claim as status: 'RESPONDED' rather than
+  // after the send succeeds, so it can never be missed. The consequence is
+  // that a claim which later rolls back (send failed -- see
+  // rollbackCommentClaim) leaves this true even though nothing reached the
+  // platform, which over-counts the thread by one. Deliberate: for a safety
+  // cap, stopping one reply early and escalating to a human is the better
+  // failure than replying one past the limit.
+  aiResponded       Boolean       @default(false)
   platformCreatedAt DateTime
   createdAt         DateTime      @default(now())
 
@@ -360,6 +382,9 @@ model Comment {
   @@unique([socialAccountId, platformCommentId])
   @@index([workspaceId, createdAt])
   @@index([workspaceId, status])
+  // Supports the per-thread AI reply count in lib/comment-thread.ts, which
+  // filters on exactly this pair before narrowing by author.
+  @@index([socialAccountId, platformPostId])
 }
 
 enum Sentiment {

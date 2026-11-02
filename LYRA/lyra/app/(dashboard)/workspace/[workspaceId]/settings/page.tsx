@@ -9,6 +9,7 @@ import { CrisisAwareToggle } from '@/components/lyra/settings/crisis-aware-toggl
 import { CrisisAwareAddonCard } from '@/components/lyra/settings/crisis-aware-addon-card'
 import { TrendAddonCard } from '@/components/lyra/settings/trend-addon-card'
 import { AutonomySelector } from '@/components/lyra/settings/autonomy-selector'
+import { AiReplyLimitSettings } from '@/components/lyra/settings/ai-reply-limit-settings'
 import { FacebookPagePicker } from '@/components/lyra/settings/facebook-page-picker'
 import { TimezoneSelector } from '@/components/lyra/settings/timezone-selector'
 import { EmailMarketingSection } from '@/components/lyra/settings/email-marketing-section'
@@ -86,6 +87,7 @@ export default async function SettingsPage({ params, searchParams }: Props) {
     where: { id: workspaceId, access: { some: { userId: user.id } } },
     select: {
       id: true, name: true, crisisAware: true, plan: true, timezone: true, aiResponseMode: true, trendSubId: true,
+      maxAiRepliesPerThread: true,
       clientAccessLevel: true, approvalSlaHours: true, approvalSlaUnscheduledHours: true,
       agency: { select: { id: true, crisisAwareSubId: true } },
       access: { where: { userId: user.id }, select: { role: true } },
@@ -294,6 +296,15 @@ export default async function SettingsPage({ params, searchParams }: Props) {
           currentMode={workspace.aiResponseMode}
           isPro={workspace.plan === 'PRO' || workspace.plan === 'AGENCY'}
         />
+        {/* Only meaningful once the AI replies at all -- on OFF there is
+            nothing to cap, so showing a limit would just be noise. */}
+        {workspace.aiResponseMode !== 'OFF' && (
+          <AiReplyLimitSettings
+            workspaceId={workspace.id}
+            maxAiRepliesPerThread={workspace.maxAiRepliesPerThread}
+            canManage={canManageChannels}
+          />
+        )}
       </section>
 
       {/* Add-ons */}

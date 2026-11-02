@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('@/lib/auth', () => ({ requireAuth: vi.fn() }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    comment: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
+    comment: { findFirst: vi.fn(), findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn(), count: vi.fn() },
     brandProfile: { findUnique: vi.fn() },
     guardrail: { findMany: vi.fn() },
   },
@@ -45,7 +45,7 @@ function baseComment(overrides: Record<string, unknown> = {}) {
       workspaceId: 'ws-1',
       provider: 'ZERNIO', zernioAccountId: 'z1', accessToken: null,
       platform: 'INSTAGRAM', name: 'My IG Account',
-      workspace: { name: 'Acme Co', aiResponseMode: 'DRAFT_APPROVE' },
+      workspace: { name: 'Acme Co', aiResponseMode: 'DRAFT_APPROVE', maxAiRepliesPerThread: 0 },
     },
     platformCommentId: 'pc1', platformPostId: 'pp1',
     ...overrides,
@@ -56,7 +56,7 @@ const fullSocialAccount = {
   workspaceId: 'ws-1',
   provider: 'ZERNIO', zernioAccountId: 'z1', accessToken: null,
   platform: 'INSTAGRAM', name: 'My IG Account',
-  workspace: { name: 'Acme Co', aiResponseMode: 'FULL' },
+  workspace: { name: 'Acme Co', aiResponseMode: 'FULL', maxAiRepliesPerThread: 0 },
 }
 
 // Echoed back on every response shape (parent spec 6.2) -- derived from the
@@ -140,8 +140,75 @@ describe('POST /api/mcp/respond-to-item', () => {
     })
     expect(prisma.comment.updateMany).toHaveBeenCalledWith({
       where: draftClaimWhere('c1'),
-      data: { status: 'RESPONDED', finalResponse: 'Thanks!', respondedAt: expect.any(Date), sentiment: 'NEGATIVE' },
+      data: { status: 'RESPONDED', finalResponse: 'Thanks!', respondedAt: expect.any(Date), sentiment: 'NEGATIVE', aiResponded: true },
     })
+  })
+
+  // Per-thread AI reply cap (lib/comment-thread.ts). This route is the other
+  // autonomous send path, so the limit has to hold here too -- otherwise an
+  // LLM tool-call is a way straight around it.
+  it('escalates instead of sending once the thread has used its AI reply budget', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.comment.findFirst).mockResolvedValue(
+      baseComment({
+        authorHandle:  '@janedoe',
+        socialAccount: { ...fullSocialAccount, workspace: { ...fullSocialAccount.workspace, maxAiRepliesPerThread: 3 } },
+      }) as any
+    )
+    vi.mocked(prisma.comment.count).mockResolvedValue(3 as any)
+
+    const res = await POST(req({ commentId: 'c1' }))
+
+    expect(res.status).toBe(200)
+    const body = await res.json()
+    expect(body).toEqual({
+      sent: false,
+      shouldEscalate: true,
+      escalationReason: 'AI reply limit reached for this conversation (3 of 3). Handed over for a human reply.',
+      ...echo,
+    })
+    expect(getProvider).not.toHaveBeenCalled()
+    // Checked before generation, so a capped thread costs no Claude tokens.
+    expect(generateCommentResponse).not.toHaveBeenCalled()
+  })
+
+  // Caller-supplied text is still an autonomous reply into that conversation.
+  // If the cap only covered the AI-generated branch, an agent could step
+  // around it simply by passing its own text.
+  it('applies the cap to caller-supplied text too, not just AI-generated replies', async () => {
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.comment.findFirst).mockResolvedValue(
+      baseComment({
+        authorHandle:  '@janedoe',
+        socialAccount: { ...fullSocialAccount, workspace: { ...fullSocialAccount.workspace, maxAiRepliesPerThread: 2 } },
+      }) as any
+    )
+    vi.mocked(prisma.comment.count).mockResolvedValue(2 as any)
+
+    const res = await POST(req({ commentId: 'c1', responseText: 'Our own wording' }))
+
+    const body = await res.json()
+    expect(body.shouldEscalate).toBe(true)
+    expect(getProvider).not.toHaveBeenCalled()
+  })
+
+  it('sends as normal while the thread is still under the limit', async () => {
+    const replyToComment = vi.fn().mockResolvedValue(undefined)
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.comment.findFirst).mockResolvedValue(
+      baseComment({
+        authorHandle:  '@janedoe',
+        socialAccount: { ...fullSocialAccount, workspace: { ...fullSocialAccount.workspace, maxAiRepliesPerThread: 3 } },
+      }) as any
+    )
+    vi.mocked(prisma.comment.count).mockResolvedValue(1 as any)
+    vi.mocked(getProvider).mockReturnValue({ replyToComment } as any)
+    vi.mocked(checkGuardrailViolation).mockReturnValue(null)
+
+    const res = await POST(req({ commentId: 'c1', responseText: 'Our own wording' }))
+
+    expect(res.status).toBe(200)
+    expect(replyToComment).toHaveBeenCalledTimes(1)
   })
 
   it('re-checks guardrails on caller-supplied text before sending under FULL autonomy, and refuses if one fires', async () => {

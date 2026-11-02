@@ -9,7 +9,8 @@ vi.mock('@/lib/redis', () => ({ redis: {} }))
 vi.mock('bullmq', () => ({ Worker: vi.fn().mockImplementation(function MockWorker() { return { on: vi.fn() } }) }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    comment: { findUnique: vi.fn(), updateMany: vi.fn() },
+    comment: { findUnique: vi.fn(), updateMany: vi.fn(), count: vi.fn() },
+    workspace: { findUnique: vi.fn() },
     brandProfile: { findUnique: vi.fn() },
     guardrail: { findMany: vi.fn() },
     socialAccount: { findUnique: vi.fn() },
@@ -55,6 +56,10 @@ const failedHandler = failedHandlerCall?.[1] as (job: JobLike | undefined, err: 
 
 function makeDeps(overrides: {
   comment?: Partial<Record<string, unknown>>
+  /** AI replies already sent in this comment's thread. */
+  aiRepliesInThread?: number
+  /** The workspace's configured cap. 0 means unlimited. */
+  maxAiRepliesPerThread?: number
   account?: Partial<Record<string, unknown>> | null
   claimCount?: number
   generateResult?: { sentiment: string | null; response: string | null; shouldEscalate: boolean; escalationReason?: string }
@@ -96,6 +101,15 @@ function makeDeps(overrides: {
       comment: {
         findUnique: vi.fn().mockResolvedValue(comment),
         updateMany: vi.fn().mockResolvedValue({ count: overrides.claimCount ?? 1 }),
+        // Per-thread AI reply count (lib/comment-thread.ts). Defaults to 0 --
+        // no prior AI replies in this thread -- so every pre-existing case
+        // below behaves exactly as it did before the cap existed.
+        count: vi.fn().mockResolvedValue(overrides.aiRepliesInThread ?? 0),
+      },
+      workspace: {
+        findUnique: vi.fn().mockResolvedValue({
+          maxAiRepliesPerThread: overrides.maxAiRepliesPerThread ?? 3,
+        }),
       },
       brandProfile: {
         findUnique: vi.fn().mockResolvedValue({ id: 'bp-1', workspaceId: 'ws-1', voiceSummary: 'Friendly', toneAttributes: [] }),
@@ -232,7 +246,7 @@ describe('processAiResponseJob', () => {
     expect(callOrder).toEqual(['claim', 'send'])
     expect(deps.prisma.comment.updateMany).toHaveBeenCalledWith({
       where: { id: 'comment-1', status: { notIn: ['RESPONDED', 'ESCALATED'] } },
-      data: { status: 'RESPONDED', finalResponse: 'Thanks so much!', respondedAt: expect.any(Date), sentiment: 'POSITIVE' },
+      data: { status: 'RESPONDED', finalResponse: 'Thanks so much!', respondedAt: expect.any(Date), sentiment: 'POSITIVE', aiResponded: true },
     })
     expect(replyToComment).toHaveBeenCalledWith(
       { id: 'acc-1', provider: 'NATIVE', zernioAccountId: null, platform: 'FACEBOOK', workspace: { name: 'Acme Co' } },
@@ -253,7 +267,7 @@ describe('processAiResponseJob', () => {
 
     expect(deps.prisma.comment.updateMany).toHaveBeenCalledWith({
       where: { id: 'comment-1', status: { notIn: ['RESPONDED', 'ESCALATED'] } },
-      data: { status: 'RESPONDED', finalResponse: 'Sorry to hear that', respondedAt: expect.any(Date), sentiment: 'NEGATIVE' },
+      data: { status: 'RESPONDED', finalResponse: 'Sorry to hear that', respondedAt: expect.any(Date), sentiment: 'NEGATIVE', aiResponded: true },
     })
   })
 
@@ -277,7 +291,7 @@ describe('processAiResponseJob', () => {
     expect(deps.prisma.comment.updateMany).toHaveBeenCalledTimes(2)
     expect(deps.prisma.comment.updateMany).toHaveBeenNthCalledWith(1, {
       where: { id: 'comment-1', status: { notIn: ['RESPONDED', 'ESCALATED'] } },
-      data: { status: 'RESPONDED', finalResponse: 'Thanks so much!', respondedAt: expect.any(Date), sentiment: 'POSITIVE' },
+      data: { status: 'RESPONDED', finalResponse: 'Thanks so much!', respondedAt: expect.any(Date), sentiment: 'POSITIVE', aiResponded: true },
     })
     expect(deps.prisma.comment.updateMany).toHaveBeenNthCalledWith(2, {
       where: { id: 'comment-1', status: 'RESPONDED' },
@@ -423,6 +437,111 @@ describe('processAiResponseJob', () => {
     // Exactly one rollback attempt -- a clean (non-throwing) count: 0 result
     // is not retried.
     expect(deps.prisma.comment.updateMany).toHaveBeenCalledTimes(2)
+  })
+
+  // --- Per-thread AI reply cap (lib/comment-thread.ts) ---
+
+  it('escalates instead of replying once the thread has used its AI reply budget', async () => {
+    const { deps } = makeDeps({ aiRepliesInThread: 3, maxAiRepliesPerThread: 3 })
+
+    await processAiResponseJob({ commentId: 'comment-1', autoPost: true }, deps)
+
+    expect(deps.prisma.comment.updateMany).toHaveBeenCalledWith({
+      where: { id: 'comment-1', status: { notIn: ['RESPONDED', 'ESCALATED'] } },
+      data: {
+        status: 'ESCALATED',
+        isEscalated: true,
+        escalationReason: 'AI reply limit reached for this conversation (3 of 3). Handed over for a human reply.',
+      },
+    })
+    expect(deps.getProvider).not.toHaveBeenCalled()
+  })
+
+  // The whole point of checking the cap before generation rather than after:
+  // a capped thread must not cost a Claude call on every further comment.
+  it('does not call Claude at all when the cap is already reached', async () => {
+    const { deps } = makeDeps({ aiRepliesInThread: 3, maxAiRepliesPerThread: 3 })
+
+    await processAiResponseJob({ commentId: 'comment-1', autoPost: true }, deps)
+
+    expect(deps.generateCommentResponse).not.toHaveBeenCalled()
+  })
+
+  // No sentiment key at all, not `sentiment: null` -- the cap escalates with
+  // no AI result in hand, and writing null would wipe a sentiment an earlier
+  // pass had already classified.
+  it('omits sentiment entirely when escalating on the cap, rather than clobbering it with null', async () => {
+    const { deps } = makeDeps({ aiRepliesInThread: 3, maxAiRepliesPerThread: 3 })
+
+    await processAiResponseJob({ commentId: 'comment-1', autoPost: true }, deps)
+
+    const data = vi.mocked(deps.prisma.comment.updateMany).mock.calls[0][0].data as Record<string, unknown>
+    expect(data).not.toHaveProperty('sentiment')
+  })
+
+  it('alerts the workspace when a thread is handed over, so the conversation is not silently dropped', async () => {
+    const { deps } = makeDeps({ aiRepliesInThread: 3, maxAiRepliesPerThread: 3 })
+
+    await processAiResponseJob({ commentId: 'comment-1', autoPost: true }, deps)
+
+    expect(notifyChannel).toHaveBeenCalledWith(
+      'ws-1',
+      expect.objectContaining({
+        event:            'COMMENT_ESCALATED',
+        escalationReason: 'AI reply limit reached for this conversation (3 of 3). Handed over for a human reply.',
+      }),
+      { dedupeKey: 'escalated-comment-1' }
+    )
+  })
+
+  it('replies as normal while the thread is still under the limit', async () => {
+    const { deps, replyToComment } = makeDeps({ aiRepliesInThread: 2, maxAiRepliesPerThread: 3 })
+
+    await processAiResponseJob({ commentId: 'comment-1', autoPost: true }, deps)
+
+    expect(replyToComment).toHaveBeenCalledTimes(1)
+  })
+
+  it('flags the reply as AI-sent in the same atomic claim, so it counts against the thread next time', async () => {
+    const { deps } = makeDeps()
+
+    await processAiResponseJob({ commentId: 'comment-1', autoPost: true }, deps)
+
+    expect(deps.prisma.comment.updateMany).toHaveBeenCalledWith({
+      where: { id: 'comment-1', status: { notIn: ['RESPONDED', 'ESCALATED'] } },
+      data: expect.objectContaining({ status: 'RESPONDED', aiResponded: true }),
+    })
+  })
+
+  // Draft-only runs put a suggestion in front of a human and send nothing, so
+  // they must not consume the conversation's AI budget.
+  it('does not flag the comment as AI-replied on the draft-only path', async () => {
+    const { deps } = makeDeps()
+
+    await processAiResponseJob({ commentId: 'comment-1', autoPost: false }, deps)
+
+    const data = vi.mocked(deps.prisma.comment.updateMany).mock.calls[0][0].data as Record<string, unknown>
+    expect(data.status).toBe('AI_DRAFTED')
+    expect(data).not.toHaveProperty('aiResponded')
+  })
+
+  it('treats a limit of 0 as unlimited and replies however deep the thread already is', async () => {
+    const { deps, replyToComment } = makeDeps({ aiRepliesInThread: 50, maxAiRepliesPerThread: 0 })
+
+    await processAiResponseJob({ commentId: 'comment-1', autoPost: true }, deps)
+
+    expect(replyToComment).toHaveBeenCalledTimes(1)
+  })
+
+  // A lookup blip must not fail closed: silently stopping AI replies
+  // platform-wide is far worse than letting one extra reply through.
+  it('falls through to unlimited, rather than blocking the reply, when the workspace row cannot be read', async () => {
+    const { deps, replyToComment } = makeDeps({ aiRepliesInThread: 50 })
+    vi.mocked(deps.prisma.workspace.findUnique).mockResolvedValue(null)
+
+    await processAiResponseJob({ commentId: 'comment-1', autoPost: true }, deps)
+
+    expect(replyToComment).toHaveBeenCalledTimes(1)
   })
 
   it('makes no writes at all when generateCommentResponse itself throws, so BullMQ can safely retry the job from scratch', async () => {
