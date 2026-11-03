@@ -6,7 +6,9 @@ import { getProvider } from '@/services/social/provider'
 import { notifyChannel } from '@/services/notifications/channel-notifier'
 import { getPlatformLabel } from '@/lib/platform-labels'
 import { rollbackCommentClaim } from '@/lib/comment-rollback'
+import { checkAiReplyCap, aiReplyCapEscalationReason } from '@/lib/comment-thread'
 import { processAiReviewResponseJob, type AiReviewResponseJobData } from './ai-review-responder.worker'
+import type { Sentiment } from '@prisma/client'
 
 interface AiResponseJobData {
   commentId: string
@@ -18,6 +20,11 @@ interface AiResponseJobDeps {
     comment: {
       findUnique: typeof prisma.comment.findUnique
       updateMany: typeof prisma.comment.updateMany
+      // Used only by the per-thread AI reply cap -- see lib/comment-thread.ts.
+      count: typeof prisma.comment.count
+    }
+    workspace: {
+      findUnique: typeof prisma.workspace.findUnique
     }
     brandProfile: {
       findUnique: typeof prisma.brandProfile.findUnique
@@ -69,6 +76,76 @@ async function rollbackToDraft(deps: AiResponseJobDeps, commentId: string, draft
   await rollbackCommentClaim(deps.prisma.comment, commentId, draftResponse)
 }
 
+/**
+ * Writes the ESCALATED claim and fires the one-per-comment alert. Extracted
+ * from the inline `result.shouldEscalate` branch so the per-thread AI reply
+ * cap can reuse this exact path -- a thread that has run out of AI replies
+ * and a comment a guardrail refused are the same outcome from the operator's
+ * side (a human now owns this), and that should not become two separately
+ * maintained copies of the escalation write plus its notification.
+ *
+ * `sentiment` is optional because the cap path escalates BEFORE any Claude
+ * call, so there is genuinely no sentiment to record -- omitted rather than
+ * written as null, which would clobber a sentiment an earlier pass had set.
+ */
+async function escalateComment(
+  deps: AiResponseJobDeps,
+  comment: { id: string; workspaceId: string; socialAccountId: string; content: string; authorName: string },
+  escalationReason: string | null,
+  sentiment?: Sentiment | null
+): Promise<void> {
+  // Guarded the same way as every other status write in this file: a
+  // concurrent process (a stalled/re-delivered attempt of the same job, or
+  // respond_to_item) could have already claimed RESPONDED/ESCALATED between
+  // the caller's own read of this comment and this write. Without this
+  // predicate, this write would silently clobber that status back to
+  // ESCALATED. No rollback needed here -- losing the race just means "don't
+  // overwrite an already-resolved comment," nothing external has happened yet.
+  const escalated = await deps.prisma.comment.updateMany({
+    where: { id: comment.id, status: { notIn: ['RESPONDED', 'ESCALATED'] } },
+    data: {
+      status:           'ESCALATED',
+      isEscalated:      true,
+      escalationReason: escalationReason,
+      ...(sentiment !== undefined && { sentiment }),
+    },
+  })
+  if (escalated.count === 0) {
+    console.log(`Comment ${comment.id} already resolved by a concurrent process -- skipping escalation write`)
+    return
+  }
+
+  // Best-effort context lookup for the alert -- kept outside the write
+  // above and swallowed on failure so a lookup problem can never undo an
+  // escalation that has already happened. notifyChannel is itself
+  // fail-open (see channel-notifier.ts), so this is belt and braces.
+  try {
+    const account = await deps.prisma.socialAccount.findUnique({
+      where:  { id: comment.socialAccountId },
+      select: { platform: true, workspace: { select: { name: true } } },
+    })
+    if (account) {
+      await notifyChannel(
+        comment.workspaceId,
+        {
+          event:            'COMMENT_ESCALATED',
+          workspaceName:    account.workspace.name,
+          platform:         getPlatformLabel(account.platform),
+          excerpt:          comment.content,
+          authorName:       comment.authorName,
+          escalationReason: escalationReason ?? null,
+        },
+        // One alert per comment reaching ESCALATED, not per attempt -- a
+        // concurrent manual Escalate click racing this worker (or a
+        // stalled/re-delivered job) would otherwise double up.
+        { dedupeKey: `escalated-${comment.id}` }
+      )
+    }
+  } catch (err) {
+    console.error(`Failed to notify channel for escalated comment ${comment.id}:`, err)
+  }
+}
+
 // Exported (rather than left as an anonymous closure passed to `new Worker(...)`)
 // so it's directly unit-testable with mocked deps -- see
 // ai-responder.worker.test.ts. Mirrors the DI shape of
@@ -91,64 +168,50 @@ export async function processAiResponseJob(jobData: AiResponseJobData, deps: AiR
   const comment = await deps.prisma.comment.findUnique({ where: { id: commentId } })
   if (!comment || comment.status === 'ESCALATED' || comment.status === 'RESPONDED') return
 
-  const [brandProfile, guardrails] = await Promise.all([
+  const [brandProfile, guardrails, workspace] = await Promise.all([
     deps.prisma.brandProfile.findUnique({ where: { workspaceId: comment.workspaceId } }),
     deps.prisma.guardrail.findMany({ where: { workspaceId: comment.workspaceId } }),
+    deps.prisma.workspace.findUnique({
+      where:  { id: comment.workspaceId },
+      select: { maxAiRepliesPerThread: true },
+    }),
   ])
+
+  // Per-thread AI reply cap, checked BEFORE generateCommentResponse so a
+  // capped thread costs no Claude tokens. A single comment was already safe
+  // from a double reply (the atomic claims below), but nothing previously
+  // bounded a whole conversation: each new reply from the same customer
+  // arrives as its own PENDING comment and earned its own AI reply, so an AI
+  // could be drawn into an unbounded public back-and-forth with one person.
+  //
+  // Escalating rather than going silent is the deliberate choice. Dropping
+  // the conversation would read to the customer as the brand ghosting them
+  // mid-exchange, and would leave nothing in anyone's queue; routing it
+  // through the same ESCALATED path a guardrail refusal uses puts it in the
+  // Inbox and alerts the workspace, so a human knowingly takes it over.
+  //
+  // A missing workspace row cannot be distinguished here from a workspace
+  // with no limit set, so it falls through to 0 (unlimited) -- the comment
+  // still gets its reply. Failing closed on a lookup blip would silently
+  // stop replies platform-wide, which is far worse than one extra reply.
+  const replyCap = await checkAiReplyCap(
+    deps.prisma.comment,
+    comment,
+    workspace?.maxAiRepliesPerThread ?? 0
+  )
+  if (replyCap.reached) {
+    console.log(
+      `Comment ${commentId} hit the per-thread AI reply cap ` +
+      `(${replyCap.repliesSoFar}/${replyCap.limit}) -- escalating for a human reply`
+    )
+    await escalateComment(deps, comment, aiReplyCapEscalationReason(replyCap))
+    return
+  }
 
   const result = await deps.generateCommentResponse(comment, brandProfile, guardrails)
 
   if (result.shouldEscalate) {
-    // Guarded the same way as every other status write below: a concurrent
-    // process (a stalled/re-delivered attempt of this same job, or
-    // respond_to_item) could have already claimed RESPONDED/ESCALATED
-    // between the findUnique above and this write. Without this predicate,
-    // this write would silently clobber that status back to ESCALATED. No
-    // rollback needed here -- losing the race just means "don't overwrite an
-    // already-resolved comment," nothing external has happened yet.
-    const escalated = await deps.prisma.comment.updateMany({
-      where: { id: commentId, status: { notIn: ['RESPONDED', 'ESCALATED'] } },
-      data: {
-        status:           'ESCALATED',
-        isEscalated:      true,
-        escalationReason: result.escalationReason,
-        sentiment:        result.sentiment,
-      },
-    })
-    if (escalated.count === 0) {
-      console.log(`Comment ${commentId} already resolved by a concurrent process -- skipping escalation write`)
-      return
-    }
-
-    // Best-effort context lookup for the alert -- kept outside the write
-    // above and swallowed on failure so a lookup problem can never undo an
-    // escalation that has already happened. notifyChannel is itself
-    // fail-open (see channel-notifier.ts), so this is belt and braces.
-    try {
-      const account = await deps.prisma.socialAccount.findUnique({
-        where:  { id: comment.socialAccountId },
-        select: { platform: true, workspace: { select: { name: true } } },
-      })
-      if (account) {
-        await notifyChannel(
-          comment.workspaceId,
-          {
-            event:            'COMMENT_ESCALATED',
-            workspaceName:    account.workspace.name,
-            platform:         getPlatformLabel(account.platform),
-            excerpt:          comment.content,
-            authorName:       comment.authorName,
-            escalationReason: result.escalationReason ?? null,
-          },
-          // One alert per comment reaching ESCALATED, not per attempt -- a
-          // concurrent manual Escalate click racing this worker (or a
-          // stalled/re-delivered job) would otherwise double up.
-          { dedupeKey: `escalated-${commentId}` }
-        )
-      }
-    } catch (err) {
-      console.error(`Failed to notify channel for escalated comment ${commentId}:`, err)
-    }
+    await escalateComment(deps, comment, result.escalationReason ?? null, result.sentiment)
     return
   }
 
@@ -173,7 +236,11 @@ export async function processAiResponseJob(jobData: AiResponseJobData, deps: AiR
     // respond-to-item) refuses them; see that route's own comments.
     const claimed = await deps.prisma.comment.updateMany({
       where: { id: commentId, status: { notIn: ['RESPONDED', 'ESCALATED'] } },
-      data:  { status: 'RESPONDED', finalResponse: result.response, respondedAt: new Date(), sentiment: result.sentiment },
+      // aiResponded is what the per-thread cap counts -- set inside this same
+      // atomic claim rather than after the send, so it can never be missed.
+      // See the field's comment in prisma/schema.prisma for why erring toward
+      // over-counting (a rolled-back claim stays flagged) is the right trade.
+      data:  { status: 'RESPONDED', finalResponse: result.response, respondedAt: new Date(), sentiment: result.sentiment, aiResponded: true },
     })
     if (claimed.count === 0) {
       // Someone else -- a stalled/re-delivered attempt of this job, or a

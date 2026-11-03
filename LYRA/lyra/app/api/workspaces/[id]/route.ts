@@ -31,6 +31,7 @@ const patchWorkspaceSchema = z.object({
   timezone:                    z.string().optional(),
   approvalSlaHours:            z.number().optional(),
   approvalSlaUnscheduledHours: z.number().optional(),
+  maxAiRepliesPerThread:       z.number().optional(),
 })
 
 async function getWorkspaceForUser(id: string, userId: string, roles?: UserRole[]) {
@@ -84,7 +85,7 @@ export async function PATCH(
     }
 
     const {
-      name, industry, websiteUrl, clientAccessLevel, aiResponseMode, crisisAware, timezone,
+      name, industry, websiteUrl, clientAccessLevel, aiResponseMode, crisisAware, timezone, maxAiRepliesPerThread,
       approvalSlaHours, approvalSlaUnscheduledHours,
     } = await parseBody(req, patchWorkspaceSchema)
 
@@ -102,6 +103,21 @@ export async function PATCH(
       if (!Number.isInteger(value) || value < min || value > max) {
         return NextResponse.json(
           { error: `${field} must be a whole number of hours between ${min} and ${max}.` },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Bounded like the SLA fields above and for the same reason -- this is a
+    // plain number straight off the wire. 0 means "no limit" (the only reason
+    // the floor is 0 and not 1), and the ceiling is deliberately low: a cap
+    // in the dozens is indistinguishable from unlimited in practice, so a
+    // mistyped 300 should be rejected rather than quietly accepted as a
+    // limit that will never actually fire.
+    if (maxAiRepliesPerThread !== undefined) {
+      if (!Number.isInteger(maxAiRepliesPerThread) || maxAiRepliesPerThread < 0 || maxAiRepliesPerThread > 20) {
+        return NextResponse.json(
+          { error: 'maxAiRepliesPerThread must be a whole number between 0 and 20 (0 means no limit).' },
           { status: 400 }
         )
       }
@@ -134,6 +150,7 @@ export async function PATCH(
         ...(timezone !== undefined && { timezone }),
         ...(approvalSlaHours !== undefined && { approvalSlaHours }),
         ...(approvalSlaUnscheduledHours !== undefined && { approvalSlaUnscheduledHours }),
+        ...(maxAiRepliesPerThread !== undefined && { maxAiRepliesPerThread }),
       },
     })
 

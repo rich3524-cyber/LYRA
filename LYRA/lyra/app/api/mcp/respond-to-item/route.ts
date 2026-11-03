@@ -8,6 +8,7 @@ import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { generateCommentResponse, checkGuardrailViolation, checkAlwaysEscalate } from '@/services/ai/response-generator'
 import { getProvider, ProviderUnsupported } from '@/services/social/provider'
 import { rollbackCommentClaim } from '@/lib/comment-rollback'
+import { checkAiReplyCap, aiReplyCapEscalationReason } from '@/lib/comment-thread'
 
 export const dynamic = 'force-dynamic'
 
@@ -138,6 +139,33 @@ export async function POST(req: Request) {
       return NextResponse.json({ sent: false, shouldEscalate: true, escalationReason, ...echo })
     }
 
+    // Per-thread AI reply cap -- the same guardrail
+    // workers/ai-responder.worker.ts applies, enforced here because this is
+    // this codebase's other autonomous send path. Placed above BOTH branches
+    // below (AI-generated and caller-supplied responseText) deliberately: a
+    // caller handing us finished text is still an autonomous reply into that
+    // conversation and must not be able to step around the limit. Also above
+    // generateCommentResponse, so a capped thread costs no Claude tokens.
+    //
+    // The human-facing POST /api/comments/[id]/reply is deliberately NOT
+    // capped -- the limit bounds what the AI does on its own, not what a
+    // person chooses to say.
+    const replyCap = await checkAiReplyCap(prisma.comment, comment, workspace.maxAiRepliesPerThread ?? 0)
+    if (replyCap.reached) {
+      const escalationReason = aiReplyCapEscalationReason(replyCap)
+      // Same claim-guard shape as the ALWAYS_ESCALATE write above, for the
+      // same reason: a concurrent request may already have reached
+      // RESPONDED, and this must no-op rather than clobber it.
+      const escalated = await prisma.comment.updateMany({
+        where: { id: commentId, status: { notIn: ['RESPONDED'] } },
+        data: { status: 'ESCALATED', isEscalated: true, escalationReason },
+      })
+      if (escalated.count === 0) {
+        return NextResponse.json({ error: 'Already responded.' }, { status: 400 })
+      }
+      return NextResponse.json({ sent: false, shouldEscalate: true, escalationReason, ...echo })
+    }
+
     // A whitespace-only responseText (passes Zod's .min(1) but trims to '')
     // falls through to AI generation below rather than erroring -- accepted
     // as low severity: it never reaches a platform as whitespace, and a
@@ -235,7 +263,10 @@ export async function POST(req: Request) {
     // A losing request (count === 0) treats it as already handled, not a 500.
     const claimed = await prisma.comment.updateMany({
       where: { id: commentId, status: { notIn: ['RESPONDED', 'ESCALATED'] } },
-      data:  { status: 'RESPONDED', finalResponse: finalText, respondedAt: new Date(), sentiment: generatedSentiment },
+      // aiResponded marks this as an autonomous reply so it counts against
+      // the thread's cap (see lib/comment-thread.ts). Set in the same atomic
+      // claim as the status for the reason given in prisma/schema.prisma.
+      data:  { status: 'RESPONDED', finalResponse: finalText, respondedAt: new Date(), sentiment: generatedSentiment, aiResponded: true },
     })
     if (claimed.count === 0) {
       return NextResponse.json({ error: 'Already responded.' }, { status: 400 })
