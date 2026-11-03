@@ -44,6 +44,16 @@ jobs:
           cache: npm
           cache-dependency-path: LYRA/lyra/package-lock.json
 
+      # Makes the npm version match package.json's `packageManager` field
+      # instead of whatever npm the Node image happens to bundle. Without
+      # this, a dev machine on a newer npm writes a lock file this job's npm
+      # rejects as out of sync -- which is exactly how `npm ci` broke on
+      # 3 Nov 2026 (npm 11 locally vs npm 10 here, disagreeing over one
+      # optional peer dependency). setup-node does not enable Corepack
+      # itself, so the field alone would be advisory only.
+      - name: Enable Corepack (pins npm to package.json's packageManager)
+        run: corepack enable npm
+
       - name: Install dependencies
         run: npm ci
 
@@ -83,6 +93,16 @@ jobs:
           cache: npm
           cache-dependency-path: LYRA/lyra/package-lock.json
 
+      # Makes the npm version match package.json's `packageManager` field
+      # instead of whatever npm the Node image happens to bundle. Without
+      # this, a dev machine on a newer npm writes a lock file this job's npm
+      # rejects as out of sync -- which is exactly how `npm ci` broke on
+      # 3 Nov 2026 (npm 11 locally vs npm 10 here, disagreeing over one
+      # optional peer dependency). setup-node does not enable Corepack
+      # itself, so the field alone would be advisory only.
+      - name: Enable Corepack (pins npm to package.json's packageManager)
+        run: corepack enable npm
+
       - name: Install dependencies
         run: npm ci
 
@@ -107,6 +127,16 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: LYRA/lyra/package-lock.json
+
+      # Makes the npm version match package.json's `packageManager` field
+      # instead of whatever npm the Node image happens to bundle. Without
+      # this, a dev machine on a newer npm writes a lock file this job's npm
+      # rejects as out of sync -- which is exactly how `npm ci` broke on
+      # 3 Nov 2026 (npm 11 locally vs npm 10 here, disagreeing over one
+      # optional peer dependency). setup-node does not enable Corepack
+      # itself, so the field alone would be advisory only.
+      - name: Enable Corepack (pins npm to package.json's packageManager)
+        run: corepack enable npm
 
       - name: Install dependencies
         run: npm ci
