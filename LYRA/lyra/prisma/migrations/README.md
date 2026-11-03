@@ -50,6 +50,34 @@ migrations end up actually running.
 
 ## Known drift since the baseline
 
+Two hand-applied changes sit outside this directory. Neither is in Prisma's own
+`_prisma_migrations` table, so `npx prisma migrate status` reports drift even where the live
+schema is correct — read this section before trusting that command's output.
+
+### Applied, not yet folded into a migration file
+
+`prisma/migrations-sql/2026-11-03-ai-reply-thread-cap.sql` — the per-thread AI reply cap
+(`Workspace.maxAiRepliesPerThread`, `Comment.aiResponded`, and the
+`Comment_socialAccountId_platformPostId_idx` index). **Applied to production on 3 Nov 2026**
+through the Supabase MCP connector rather than the SQL Editor, and recorded in Supabase's own
+migration table as version `20261103055346_ai_reply_thread_cap`. Verified afterwards: both
+columns present and `NOT NULL` with their intended defaults, the index present, all 23 existing
+`Comment` rows defaulted to `aiResponded = false` with no nulls, and all 3 `Workspace` rows at
+`maxAiRepliesPerThread = 3`.
+
+Because it went through Supabase's ledger and not Prisma's, this still needs folding into a real
+migration file (and marking applied via `prisma migrate resolve`) from an environment that can
+reach `DIRECT_URL`, exactly as the baseline does.
+
+**Why it was applied by hand, out of order:** the code in PR #89 selects `Comment.aiResponded`, so
+it had to be in the database *before* that code deployed. It wasn't. PR #89 merged to `main`,
+Netlify auto-deployed, and `/api/comments` — which calls `findMany` with an `include` but no
+`select`, so Prisma requests every scalar column — began failing with
+`42703: column "aiResponded" does not exist`. The Inbox was down until the SQL was applied. If a
+future migration adds a column the application reads, apply it before merging, not after.
+
+### Pending
+
 `prisma/migrations-sql/2026-08-05-mcp-audit-log.sql` (the `McpAuditLog` table) is a **pending**
 hand-applied change, to be run via the Supabase SQL Editor (see the Phase 2 plan, Task 16 Step 1)
 after `20260802000000_baseline`, and is not yet folded into a real migration file. Once applied,
