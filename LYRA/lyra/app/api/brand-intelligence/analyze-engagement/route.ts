@@ -5,10 +5,22 @@ import { Prisma } from '@prisma/client'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { analyzeEngagement } from '@/services/ai/engagement-analyzer'
+import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 
 export async function POST(req: NextRequest) {
   try {
     const user = await requireAuth()
+
+    // This route reaches Claude via analyzeEngagement, so without a limit it
+    // was an unmetered, billable AI endpoint -- every sibling route that calls
+    // the model (ai/generate, ai/respond, ai/score-content, ...) already caps
+    // at 20/60s per user, and this one was simply missed. Control 21 of the
+    // ITWM security framework requires per-user rate limits on AI features;
+    // the same limit is used here so the ceiling is consistent across every
+    // model-calling endpoint rather than route-by-route guesswork.
+    const { allowed } = await checkRateLimit(`brand-analyze-engagement:${user.id}`, 20, 60)
+    if (!allowed) return rateLimitResponse()
+
     const { workspaceId } = await req.json() as { workspaceId: string }
 
     if (!workspaceId) {

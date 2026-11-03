@@ -35,6 +35,17 @@ const CSP = [
 ].join('; ')
 
 const nextConfig: NextConfig = {
+  // Control 11 of the ITWM security framework: "Turn off X-Powered-By
+  // (poweredByHeader: false)". Removes the `X-Powered-By: Next.js` response
+  // header, which volunteers the framework (and so the advisory list worth
+  // trying) to anyone enumerating the site.
+  poweredByHeader: false,
+  // Section 4, build and release configuration. Next.js already defaults this
+  // to false, so this is belt-and-braces -- it is set explicitly so that
+  // enabling source maps for a debugging session is a visible, reviewable
+  // diff rather than a silent default flip that ships the client source of
+  // every authenticated page.
+  productionBrowserSourceMaps: false,
   // Stray package-lock.json files elsewhere in this OneDrive folder (at the
   // Windows user profile root and the git root above this project) made
   // Turbopack guess the workspace root two levels too high, which produced a

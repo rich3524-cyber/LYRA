@@ -40,6 +40,25 @@ export function ScheduleReview({ workspaceId, workspaceName }: Props) {
   const fileInputRef    = useRef<HTMLInputElement>(null)
   const attachingPostId = useRef<string | null>(null)
 
+  // An effect is the correct pattern here, despite
+  // react-hooks/set-state-in-effect flagging it, because sessionStorage does
+  // not exist during server rendering. The rule's suggested alternatives
+  // don't hold up for this case:
+  //
+  // - A lazy useState initialiser runs during render, so it would throw on
+  //   the server; guarding it with `typeof window` instead produces a
+  //   hydration mismatch (server renders the not-found state, client renders
+  //   the posts).
+  // - useSyncExternalStore is the sanctioned way to read an external store,
+  //   but its snapshot must be referentially stable and JSON.parse returns a
+  //   fresh object on every call, so it would need a hand-rolled cache to
+  //   avoid an infinite re-render loop -- more moving parts, and more ways to
+  //   get it wrong, than the effect it would replace.
+  //
+  // Reading a client-only store once on mount is exactly what effects are
+  // for, and this one has no dependency on React state, so the cascading
+  // render the rule guards against cannot happen.
+  /* eslint-disable react-hooks/set-state-in-effect -- see the reasoning above */
   useEffect(() => {
     const raw = sessionStorage.getItem(`lyra:schedule-review:${workspaceId}`)
     if (!raw) {
@@ -48,6 +67,7 @@ export function ScheduleReview({ workspaceId, workspaceName }: Props) {
     }
     setPosts(JSON.parse(raw) as PostEntry[])
   }, [workspaceId])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const postsByWeek = posts.reduce<Record<number, PostEntry[]>>((acc, post) => {
     if (!acc[post.weekNum]) acc[post.weekNum] = []

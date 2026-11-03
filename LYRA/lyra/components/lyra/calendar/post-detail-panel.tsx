@@ -190,13 +190,24 @@ export function PostDetailPanel({ post, workspaceId, plan, userRole, clientAcces
   const [reach, setReach]                   = useState<number | null>(null)
   const shouldReduceMotion                  = useReducedMotion()
 
-  useEffect(() => {
+  // Resets the boost form when the panel switches to a different post. Done
+  // during render via the previous-prop comparison React documents for
+  // "adjusting some state when a prop changes", rather than in an effect.
+  // Two reasons: the effect version tripped
+  // react-hooks/set-state-in-effect, and because an effect runs after paint,
+  // clicking from one post to another rendered one frame carrying the
+  // previous post's budget, duration, audience and reach estimate before
+  // snapping back to the defaults. Resetting here means the new post's panel
+  // is never painted with the old post's numbers.
+  const [prevPostId, setPrevPostId] = useState(post?.id)
+  if (post?.id !== prevPostId) {
+    setPrevPostId(post?.id)
     setBoostError(null)
     setSelectedBudget(2500)
     setSelectedDuration(7)
     setSelectedAudience('followers')
     setReach(null)
-  }, [post?.id])
+  }
 
   useEffect(() => {
     if (!post?.boost || post.boost.status !== 'ACTIVE') return
