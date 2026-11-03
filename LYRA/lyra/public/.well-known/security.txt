@@ -1,0 +1,19 @@
+# LYRA vulnerability disclosure contact (RFC 9116).
+#
+# Control 22 of the ITWM Custom Website Security Framework: publish
+# security.txt with a monitored contact and an expiry date, and route reports
+# into the vulnerability workflow.
+#
+# ACTION REQUIRED: the Contact address below must be a real, monitored
+# mailbox. The control's acceptance evidence is "security.txt resolves and
+# the mailbox is monitored" -- an address that bounces or is never read
+# fails the control more visibly than having no file at all, because it
+# advertises a reporting route that does not work.
+#
+# Expires must stay in the future. A lapsed Expires makes this file invalid
+# per RFC 9116, so renew it on or before the date below.
+
+Contact: mailto:security@lyraonline.ai
+Expires: 2027-11-03T00:00:00.000Z
+Preferred-Languages: en
+Canonical: https://lyraonline.ai/.well-known/security.txt

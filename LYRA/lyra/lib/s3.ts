@@ -1,5 +1,4 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3'
-import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 // Uses S3_* names, not the AWS_* equivalents -- Netlify Functions run on AWS Lambda,
 // which auto-injects AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/AWS_REGION for its own
@@ -16,11 +15,13 @@ export const s3 = new S3Client({
 
 const BUCKET = process.env.AWS_S3_BUCKET!
 
-/** Returns a presigned PUT URL valid for 5 minutes. */
-export async function getUploadPresignedUrl(key: string, contentType: string): Promise<string> {
-  const command = new PutObjectCommand({ Bucket: BUCKET, Key: key, ContentType: contentType })
-  return getSignedUrl(s3, command, { expiresIn: 300 })
-}
+// getUploadPresignedUrl (a presigned PUT) was removed once the last caller
+// moved to createPresignedPost. Deliberately not kept "just in case": a
+// presigned PUT cannot carry a content-length-range condition, so every route
+// that used it had no enforceable upload size limit. Leaving it exported
+// invited the next upload route to reintroduce that hole. Use
+// createPresignedPost with Conditions instead -- see
+// app/api/upload/presign/route.ts.
 
 /** Deletes an object from S3. */
 export async function deleteObject(key: string): Promise<void> {

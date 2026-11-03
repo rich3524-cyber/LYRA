@@ -20,17 +20,31 @@ export async function uploadMediaFile(file: File, workspaceId: string): Promise<
     throw new Error(data?.error ?? 'Failed to get upload URL')
   }
 
-  const { presignedUrl, publicUrl } = await presignRes.json() as {
-    presignedUrl: string
+  const { uploadUrl, fields, publicUrl } = await presignRes.json() as {
+    uploadUrl: string
+    fields: Record<string, string>
     publicUrl: string
   }
 
-  const uploadRes = await fetch(presignedUrl, {
-    method:  'PUT',
-    headers: { 'Content-Type': file.type },
-    body:    file,
-  })
-  if (!uploadRes.ok) throw new Error('Upload to storage failed')
+  // Presigned POST, not PUT: the route now issues a POST policy so S3 itself
+  // enforces the 50MB cap (see the content-length-range condition in
+  // app/api/upload/presign/route.ts). The policy fields S3 returns must be
+  // appended before the file, and the Content-Type field must stay exactly as
+  // issued -- it is covered by the policy signature, so changing it here
+  // makes S3 reject the upload. No explicit Content-Type header is set on the
+  // request either: the browser sets the multipart boundary itself.
+  const form = new FormData()
+  for (const [name, value] of Object.entries(fields)) form.append(name, value)
+  form.append('file', file)
+
+  const uploadRes = await fetch(uploadUrl, { method: 'POST', body: form })
+  if (!uploadRes.ok) {
+    // S3 rejects an over-policy upload with 403 and an XML body, which is
+    // what a file larger than the policy allows now looks like. The size is
+    // already checked above, so this is the bypass path (a caller reaching
+    // the route directly) rather than something a normal user hits.
+    throw new Error('Upload to storage failed')
+  }
 
   return publicUrl
 }

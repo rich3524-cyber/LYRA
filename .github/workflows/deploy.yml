@@ -28,6 +28,17 @@ env:
   # and Node 20 was producing npm-install/lockfile inconsistencies as a result.
   NODE_VERSION: '22'
 
+# Control 13 of the ITWM security framework: "read-only default workflow
+# permissions with write scopes granted per job". Without this block the
+# workflow inherits the repository/organisation default for GITHUB_TOKEN,
+# which may be read/write -- so a compromised dependency or action running in
+# any job below would hold a token able to push code or alter releases.
+# None of these three jobs write to the repository: Netlify and Railway both
+# deploy through their own GitHub integrations, not from here. Grant a write
+# scope per job if that ever changes; do not widen this.
+permissions:
+  contents: read
+
 jobs:
   lint-and-typecheck:
     name: Lint & type-check
