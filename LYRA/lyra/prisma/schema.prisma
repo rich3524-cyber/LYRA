@@ -68,17 +68,17 @@ model ProcessedWebhookEvent {
 }
 
 model Workspace {
-  id                String       @id @default(cuid())
-  name              String
-  industry          String?
-  websiteUrl        String?
-  agencyId          String?
-  agency            Agency?      @relation(fields: [agencyId], references: [id])
-  ownerId           String?
-  plan              Plan         @default(STARTER)
-  stripeCustomerId  String?      @unique
-  clientAccessLevel ClientAccess @default(NONE)
-  aiResponseMode    Autonomy     @default(OFF)
+  id                    String       @id @default(cuid())
+  name                  String
+  industry              String?
+  websiteUrl            String?
+  agencyId              String?
+  agency                Agency?      @relation(fields: [agencyId], references: [id])
+  ownerId               String?
+  plan                  Plan         @default(STARTER)
+  stripeCustomerId      String?      @unique
+  clientAccessLevel     ClientAccess @default(NONE)
+  aiResponseMode        Autonomy     @default(OFF)
   // Ceiling on how many AI replies may be sent into a single customer
   // conversation before the thread is handed to a human. Counts only
   // autonomous replies (Comment.aiResponded) -- a human replying through the
@@ -86,13 +86,13 @@ model Workspace {
   // real cap rather than unlimited: an uncapped AI can be drawn into an
   // indefinite back-and-forth with one customer in public, which is the
   // failure mode this exists to prevent.
-  maxAiRepliesPerThread Int      @default(3)
-  timezone          String       @default("UTC")
-  crisisAware       Boolean      @default(false)
-  crisisActive      Boolean      @default(false)
-  crisisTriggeredAt DateTime?
-  trendSubId        String?      @unique
-  zernioProfileId   String?
+  maxAiRepliesPerThread Int          @default(3)
+  timezone              String       @default("UTC")
+  crisisAware           Boolean      @default(false)
+  crisisActive          Boolean      @default(false)
+  crisisTriggeredAt     DateTime?
+  trendSubId            String?      @unique
+  zernioProfileId       String?
 
   // Approval SLA thresholds. Two rules, because a post can reach
   // PENDING_APPROVAL without ever being given a scheduled time:
@@ -208,25 +208,32 @@ model WorkspaceAccess {
 }
 
 model SocialAccount {
-  id                String             @id @default(cuid())
-  workspaceId       String
-  workspace         Workspace          @relation(fields: [workspaceId], references: [id])
-  platform          Platform
-  platformId        String
-  handle            String
-  name              String
-  avatarUrl         String?
-  provider          SocialProviderType @default(ZERNIO)
-  zernioAccountId   String?
-  accessToken       String?
-  refreshToken      String?
-  tokenExpiry       DateTime?
-  webhookId         String?
-  isActive          Boolean            @default(true)
-  lastCommentSyncAt DateTime?
-  adAccountId       String?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
+  id                   String             @id @default(cuid())
+  workspaceId          String
+  workspace            Workspace          @relation(fields: [workspaceId], references: [id])
+  platform             Platform
+  platformId           String
+  handle               String
+  name                 String
+  avatarUrl            String?
+  provider             SocialProviderType @default(ZERNIO)
+  zernioAccountId      String?
+  accessToken          String?
+  refreshToken         String?
+  tokenExpiry          DateTime?
+  webhookId            String?
+  isActive             Boolean            @default(true)
+  // Written by workers/comment-monitor.worker.ts at the end of every sync
+  // attempt, success or failure. Until 2026-11-06 lastCommentSyncAt existed
+  // here but nothing read or wrote it, so a healthy-but-idle fleet and a
+  // fleet consuming nothing at all were indistinguishable without reading
+  // Railway logs -- and the worker only logs failures, so silence meant
+  // both. lastCommentSyncError is null when that attempt succeeded.
+  lastCommentSyncAt    DateTime?
+  lastCommentSyncError String?
+  adAccountId          String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
 
   posts    Post[]
   comments Comment[]
