@@ -25,6 +25,7 @@ interface CommentMonitorJobDeps {
   prisma: {
     socialAccount: {
       findUnique: typeof prisma.socialAccount.findUnique
+      update:     typeof prisma.socialAccount.update
     }
     comment: {
       createManyAndReturn: typeof prisma.comment.createManyAndReturn
@@ -37,6 +38,34 @@ interface CommentMonitorJobDeps {
 }
 
 const defaultDeps: CommentMonitorJobDeps = { prisma, getProvider }
+
+/**
+ * Records the outcome of one sync attempt on the account itself.
+ *
+ * Every terminal path through processCommentMonitorJob calls this, so
+ * lastCommentSyncAt answers "when did we last try" and lastCommentSyncError
+ * answers "did it work". That pair was missing on 2026-11-06: this worker
+ * logs only failures, so a healthy fleet with nothing to collect and a fleet
+ * consuming nothing at all produced identical (empty) logs, and establishing
+ * which it was took a day across four dashboards.
+ *
+ * Never throws. An observability write must not be able to fail a sync that
+ * otherwise succeeded, nor mask the original error on a path that failed.
+ */
+async function recordSyncOutcome(
+  deps: CommentMonitorJobDeps,
+  socialAccountId: string,
+  error: string | null
+): Promise<void> {
+  try {
+    await deps.prisma.socialAccount.update({
+      where: { id: socialAccountId },
+      data:  { lastCommentSyncAt: new Date(), lastCommentSyncError: error },
+    })
+  } catch (err) {
+    console.error(`Comment monitor: failed to record sync outcome for account ${socialAccountId}:`, err)
+  }
+}
 
 /**
  * Enqueues an AI-response job for each newly-created comment. The comments are
@@ -157,9 +186,14 @@ export async function processCommentMonitorJob(
       // failure worth alerting on. Confirmed live 2026-07-21: this was logging
       // as an error on every single run for every TikTok account.
       if (err instanceof ZernioApiError && (err.body as { code?: string } | undefined)?.code === 'PLATFORM_NOT_SUPPORTED') {
+        // Recorded rather than silently returned: "this platform has no
+        // comment API" is the answer to "why does this account never sync",
+        // and it belongs where someone looking at the account can see it.
+        await recordSyncOutcome(deps, socialAccountId, 'Platform does not support comment sync')
         return
       }
       console.error(`Comment monitor: Zernio fetch failed for account ${socialAccountId}:`, err)
+      await recordSyncOutcome(deps, socialAccountId, err instanceof Error ? err.message : String(err))
       return
     }
 
@@ -188,6 +222,7 @@ export async function processCommentMonitorJob(
   } else {
     if (!account.accessToken) {
       console.error(`Comment monitor: account ${socialAccountId} has no access token — skipping`)
+      await recordSyncOutcome(deps, socialAccountId, 'No access token stored for this account')
       return
     }
 
@@ -316,6 +351,11 @@ export async function processCommentMonitorJob(
   if (savedComments.length > 0) {
     await checkAndTriggerCrisis(account.workspaceId, savedComments)
   }
+
+  // The attempt completed, whether or not it found anything. Zero new
+  // comments is the normal case on a quiet account and has to read as a
+  // successful sync, not as the absence of one.
+  await recordSyncOutcome(deps, socialAccountId, null)
 }
 
 const worker = new Worker(
