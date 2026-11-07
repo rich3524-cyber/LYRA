@@ -1,10 +1,45 @@
 import { config } from 'dotenv'
+
+// The production key is supplied through LYRA_ENCRYPTION_KEY_OVERRIDE so it
+// never has to be written to disk. lyra/.env.local points DATABASE_URL at the
+// PRODUCTION database while holding a non-production ENCRYPTION_KEY (see
+// LYRA-Data-Register.md section 5.5), so pasting the real key in there leaves a
+// production credential in a file that is already a footgun.
+//
+// A DISTINCT variable name, not ENCRYPTION_KEY, and that is not cosmetic.
+// ENCRYPTION_KEY is unusable as an override signal here for two compounding
+// reasons:
+//
+//  1. This directory has BOTH .env and .env.local, and both define
+//     ENCRYPTION_KEY (to different values, neither of them production's).
+//  2. ESM hoists every import declaration above all statements, and importing
+//     @prisma/client auto-loads .env. So by the time any statement in this file
+//     runs, process.env.ENCRYPTION_KEY is ALREADY populated from .env.
+//
+// An earlier version read process.env.ENCRYPTION_KEY here intending "did the
+// caller pass one?", got .env's value every time, reported it as coming from
+// the shell, and re-applied it over .env.local's -- silently preferring the
+// older file. Reading a name nothing else sets avoids the whole ordering
+// question rather than trying to reason about it.
+const overrideKey = process.env.LYRA_ENCRYPTION_KEY_OVERRIDE
 config({ path: '.env.local', override: true })
+if (overrideKey) {
+  process.env.ENCRYPTION_KEY = overrideKey
+  console.log('Using ENCRYPTION_KEY from LYRA_ENCRYPTION_KEY_OVERRIDE (not from .env or .env.local).')
+} else {
+  console.log('Using ENCRYPTION_KEY from .env.local (override: true, so it beats .env).')
+}
 
 import { PrismaClient } from '@prisma/client'
-import { encrypt, decrypt } from '../lib/encrypt'
 
 const prisma = new PrismaClient()
+
+// lib/encrypt.ts captures process.env.ENCRYPTION_KEY into a module-level const
+// at load time, so it MUST NOT be imported until the key above is settled.
+// Imported dynamically inside main() for that reason -- a static import here
+// would bind whichever value happened to be present when the module graph
+// loaded, which under some module semantics is before the dotenv call above.
+type Crypto = typeof import('../lib/encrypt')
 
 // One-off migration: encrypt any EmailIntegration.apiKey still stored in
 // plaintext.
@@ -25,12 +60,18 @@ const prisma = new PrismaClient()
 // That is the same reasoning the lazy path relies on; this just applies it to
 // every row at once instead of waiting for traffic.
 //
-// Usage (run from LYRA/lyra, so .env.local and ../lib resolve):
-//   DRY RUN (default, writes nothing):  npx tsx scripts/encrypt-email-integration-keys.ts
-//   APPLY:                              npx tsx scripts/encrypt-email-integration-keys.ts --apply
+// Usage (run from LYRA/lyra, so .env.local and ../lib resolve). The production
+// ENCRYPTION_KEY is supplied for one command rather than written to disk;
+// Read-Host keeps it out of shell history, unlike an inline assignment:
 //
-// Run it with production credentials in .env.local. It never prints key
-// material -- only lengths and a verdict per row.
+//   PowerShell:
+//     $env:LYRA_ENCRYPTION_KEY_OVERRIDE = Read-Host "Paste production ENCRYPTION_KEY"
+//     npx tsx scripts/encrypt-email-integration-keys.ts            # dry run
+//     npx tsx scripts/encrypt-email-integration-keys.ts --apply
+//     Remove-Item Env:\LYRA_ENCRYPTION_KEY_OVERRIDE
+//
+// Everything other than ENCRYPTION_KEY still comes from .env.local. The script
+// never prints key material -- only lengths and a verdict per row.
 
 /**
  * Fail closed if ENCRYPTION_KEY is not the key production actually used.
@@ -82,7 +123,7 @@ function assertKeyWellFormed() {
   console.log('ENCRYPTION_KEY is well-formed (64 hex characters).')
 }
 
-async function assertKeyMatchesProduction() {
+async function assertKeyMatchesProduction(decrypt: Crypto['decrypt']) {
   const candidates = [
     ...(await prisma.seoConnection.findMany({ select: { accessToken: true } })).map((r) => r.accessToken),
     ...(await prisma.socialAccount.findMany({ select: { accessToken: true } })).map((r) => r.accessToken),
@@ -109,21 +150,33 @@ async function assertKeyMatchesProduction() {
 
   throw new Error(
     `ENCRYPTION_KEY does not decrypt ANY of the ${candidates.length} existing encrypted value(s).\n` +
-    'That means the key in .env.local is not the one production used. Encrypting with it\n' +
-    'would make these credentials unreadable to the deployed app AND overwrite the\n' +
-    'plaintext. Refusing to continue.\n\n' +
-    'Fix: copy ENCRYPTION_KEY from the Netlify environment variables for lyra-online-app\n' +
-    '(it must match Railway\'s too), then re-run.'
+    `The key in use (${overrideKey ? 'from LYRA_ENCRYPTION_KEY_OVERRIDE' : 'from .env.local'}) is ` +
+    'not the one production used.\nEncrypting with it would make these credentials unreadable ' +
+    'to the deployed app AND\noverwrite the plaintext. Refusing to continue.\n\n' +
+    'Fix: take ENCRYPTION_KEY from the Netlify environment variables for lyra-online-app\n' +
+    '(it must match Railway\'s too) and pass it for one command, rather than writing it\n' +
+    'into .env.local -- which points at the production database while holding a\n' +
+    'non-production key (LYRA-Data-Register.md section 5.5):\n\n' +
+    '  $env:LYRA_ENCRYPTION_KEY_OVERRIDE = Read-Host "Paste production ENCRYPTION_KEY"\n' +
+    '  npx tsx scripts/encrypt-email-integration-keys.ts\n' +
+    '  npx tsx scripts/encrypt-email-integration-keys.ts --apply\n' +
+    '  Remove-Item Env:\\LYRA_ENCRYPTION_KEY_OVERRIDE\n\n' +
+    'Read-Host keeps the value out of shell history, unlike assigning it inline.'
   )
 }
 
 async function main() {
   const apply = process.argv.includes('--apply')
 
-  // Both run in dry-run mode too, so a key problem is discovered before
-  // --apply rather than during it.
+  // Format first -- a malformed key would otherwise fail the import below with
+  // a less specific error.
   assertKeyWellFormed()
-  await assertKeyMatchesProduction()
+
+  const { encrypt, decrypt } = await import('../lib/encrypt')
+
+  // Runs in dry-run mode too, so a key problem is discovered before --apply
+  // rather than during it.
+  await assertKeyMatchesProduction(decrypt)
 
   const integrations = await prisma.emailIntegration.findMany({
     select: { id: true, provider: true, workspaceId: true, isActive: true, lastSyncAt: true, apiKey: true },
