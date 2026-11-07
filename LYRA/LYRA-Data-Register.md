@@ -224,6 +224,15 @@ project, while its `ENCRYPTION_KEY` is a well-formed 64-hex key that is **not** 
 production used — it fails to decrypt either of the two `SeoConnection` tokens that
 `app/api/seo/callback` itself encrypted.
 
+There are also **two** env files in that directory, `.env` (4 Aug) and `.env.local` (14 Aug),
+and **both define `ENCRYPTION_KEY`, to different values, neither of them production's.**
+Which one a given process sees is not obvious: `@prisma/client` auto-loads `.env` on import,
+and ESM hoists every import above all statements, so `.env` is already applied before any
+`dotenv.config()` call in a script body runs. A script that then calls
+`config({ path: '.env.local', override: true })` ends up on `.env.local`'s key, while one
+that does not ends up on `.env`'s. Two files disagreeing about a decryption key, with
+load-order deciding the winner, is how a wrong-key write becomes easy to do by accident.
+
 Two consequences, the second worse than the first:
 
 1. Local development cannot read any existing production credential; `decrypt()` throws.
@@ -243,9 +252,14 @@ exists yet"* and they would otherwise share production's `DATABASE_URL`, Stripe 
 tenant. The same absence is why a developer's `.env.local` points at production at all.
 
 **Recommended:** stand up a staging Supabase project and give `.env.local` its own database
-and its own `ENCRYPTION_KEY`. Until then, treat any local run against this file as a
-production write, and note that the §5.4 migration cannot be performed from a developer
-machine without temporarily placing the real production key on disk.
+and its own `ENCRYPTION_KEY`, and delete whichever of `.env` / `.env.local` is not wanted so
+one file is authoritative. Until then, treat any local run against these files as a
+production write.
+
+The §5.4 migration does **not** require putting the production key on disk:
+`scripts/encrypt-email-integration-keys.ts` reads it from
+`LYRA_ENCRYPTION_KEY_OVERRIDE`, a name neither env file defines, so it cannot be shadowed by
+either of them or by Prisma's `.env` auto-load.
 
 ### 5.6 Fixed in this review: deletion was failing outright for some customers
 
