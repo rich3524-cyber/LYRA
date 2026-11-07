@@ -6,8 +6,15 @@ import type { NormalizedComment, PublishInput, SocialProvider } from './types'
 
 // Best-effort assumption: Zernio's docs don't precisely specify the shape of items in
 // `listCommentedPosts`'s `posts: unknown[]` array. We only need the post's id to call
-// `getPostComments`. Verify this against a live Zernio account when fetchRecentComments
-// is actually wired up in a later phase — this method isn't called by any route in Phase 1.
+// `getPostComments`.
+//
+// The comment payload itself WAS verified against a live Zernio account on
+// 2026-11-07 (see mappers.ts) -- the original "verify this when
+// fetchRecentComments is actually wired up" note was never acted on, and
+// every field name in that mapper turned out to be wrong, which is what
+// stopped comment ingestion for 75 days. This post shape is still only an
+// assumption, but `id` is the single field read from it and it demonstrably
+// works.
 interface ZernioCommentedPost {
   id: string
 }
@@ -100,7 +107,19 @@ export const zernioProvider: SocialProvider = {
     for (const post of posts as ZernioCommentedPost[]) {
       const { comments: rawComments } = await zernioClient.getPostComments(post.id, zernioAccountId)
       for (const raw of rawComments) {
-        comments.push(toNormalizedComment(raw as Parameters<typeof toNormalizedComment>[0]))
+        // post.id rather than anything on the comment: Zernio's comment
+        // payload carries no post reference, so only this loop knows which
+        // post these belong to. The previous code read a platformPostId
+        // field that does not exist.
+        const normalized = toNormalizedComment(raw as Parameters<typeof toNormalizedComment>[0], post.id)
+        if (!normalized) {
+          // Logged rather than dropped silently: a comment with no usable
+          // timestamp is a payload change worth noticing, and this is the
+          // exact class of problem that previously failed the whole batch.
+          console.error(`Zernio: skipping comment with unparseable createdTime on post ${post.id}`)
+          continue
+        }
+        comments.push(normalized)
       }
     }
     return comments
@@ -122,7 +141,11 @@ export const zernioProvider: SocialProvider = {
   async fetchReviews(account) {
     const zernioAccountId = requireZernioId(account)
     const res = await zernioClient.getGoogleBusinessReviews(zernioAccountId)
-    return res.reviews.map((raw) => toNormalizedReview(raw as Parameters<typeof toNormalizedReview>[0]))
+    // Same null-on-unparseable-timestamp contract as comments: one bad row
+    // must not be able to fail the whole review batch.
+    return res.reviews
+      .map((raw) => toNormalizedReview(raw as Parameters<typeof toNormalizedReview>[0]))
+      .filter((r): r is NonNullable<typeof r> => r !== null)
   },
 
   async replyToReview(account, externalId, text) {
