@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { putObjectBuffer } from '@/lib/s3'
-import { safeFetch } from '@/lib/safe-fetch'
+import { safeFetch, ResponseTooLargeError } from '@/lib/safe-fetch'
 import { randomUUID } from 'crypto'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { canWrite } from '@/lib/authz'
@@ -51,7 +51,21 @@ export async function POST(req: Request) {
 
     let res: Response
     try {
-      res = await safeFetch(sourceUrl, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
+      // MAX_IMAGE_SIZE is passed as safeFetch's hard ceiling, because the
+      // per-type limit below can't be known until the response's own
+      // content-type has been read. The stricter video limit is still applied
+      // after that. What this adds is a bound enforced *as the bytes arrive*:
+      // the byteLength check further down runs only after arrayBuffer() has
+      // already buffered the entire body, so a server that omits or
+      // under-reports content-length could previously make this function
+      // buffer without limit.
+      res = await safeFetch(
+        sourceUrl,
+        { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) },
+        3,                  // safeFetch's own default redirect cap
+        FETCH_TIMEOUT_MS,   // unused here (the caller signal above wins) but must be positional
+        MAX_IMAGE_SIZE,
+      )
     } catch (err) {
       if (err instanceof DOMException && err.name === 'TimeoutError') {
         return NextResponse.json({ error: 'Timed out fetching sourceUrl' }, { status: 504 })
@@ -86,8 +100,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `File too large (max ${maxSize / (1024 * 1024)}MB)` }, { status: 413 })
     }
 
-    const arrayBuffer = await res.arrayBuffer()
-    const buffer = Buffer.from(arrayBuffer)
+    let buffer: Buffer
+    try {
+      buffer = Buffer.from(await res.arrayBuffer())
+    } catch (err) {
+      // safeFetch errors the body stream once its ceiling is crossed, so an
+      // oversized response surfaces here rather than as a successful read.
+      if (err instanceof ResponseTooLargeError) {
+        return NextResponse.json({ error: `File too large (max ${maxSize / (1024 * 1024)}MB)` }, { status: 413 })
+      }
+      throw err
+    }
     // Content-Length can't be trusted alone -- a misconfigured or malicious
     // server could omit it or under-report it, so the actual byte count is
     // checked again after the body is fully read.

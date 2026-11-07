@@ -2,6 +2,51 @@
 
 ---
 
+## ✅ Comment ingestion fixed — five bugs, each one hiding the next (2026-11-07)
+
+**Trigger:** "Can you please check to see if Lyra is working properly?" Everything reported healthy: the app up, cron firing on schedule with zero errors, the worker fleet online, Redis reachable, nothing stuck in Postgres. Comment ingestion had nonetheless been dead since 24 August — 23 comments, newest `2026-08-24 23:05:28`, and not one since. It took two days to establish why, because five separate faults were stacked and each one explained away the next.
+
+**Peeled back in this order. Each was invisible until the one above it was fixed:**
+
+1. **`lib/redis.ts` substituted `localhost:6379` whenever `REDIS_URL` was absent.** On Railway, where no local Redis exists, a missing variable became an endless `ECONNREFUSED 127.0.0.1:6379` loop naming nothing — interleaved in the same log stream as a genuine Upstash rate-limit and indistinguishable from it. Production now refuses to start; `next build` stays exempt so a Netlify deploy cannot break over a variable the build never uses. Reconnect backoff also went from ioredis's 2s default ceiling to 10s, with a throttled error listener: during the outage 7 workers retrying every 2s hit Railway's 500 logs/sec cap and dropped **19,833 messages in a single burst**, burying the one line that mattered. The storm was also hammering Upstash while it was already throttling, holding its own cause open. (PR #92)
+
+2. **`lyra/railway.toml` is shared by every service deployed from this repo**, and its `startCommand` is config-as-code owned, so Railway *locks* the dashboard's Custom Start Command field. There is no per-service override. All five `cron-*` services therefore inherited `npx tsx workers/index.ts` and started worker fleets instead of firing their route — **not one ever made an HTTP request to the app.** That is why Netlify observability showed 100% of cron traffic carrying the cron-job.org user agent and zero from Railway, the discrepancy that cost most of a day. The 2026-08-13 "cron jobs migrated from cron-job.org to Railway" entry below never executed; with one shared config file it was structurally impossible, not a mistake anyone made. `workers/entry.ts` now dispatches on `CRON_ROUTE`, which was already set on exactly those five services and on none of the others. (PR #94)
+
+3. **BullMQ silently no-ops `add()` when the job id already exists in ANY state**, and every queue here retains failures (`removeOnFail: { count: 100 }`). A permanently stable id like `monitor-{accountId}` is therefore a one-way door: the first tick to exhaust its attempts parks that id in the failed set, and every tick afterwards returns the existing job and enqueues nothing — while the route keeps answering `200 { queued: 10 }`, because `add()` itself succeeded. `lib/job-id.ts`'s `tickScopedJobId` suffixes a time window, preserving the de-duplication the stable id was for while guaranteeing the id moves on. Note `workers/competitor-monitor.worker.ts` already used a date suffix — somebody hit this before and fixed it only there. (PR #95)
+
+4. **Every field name in `toNormalizedComment` was wrong except `id`.** Captured from a live `getPostComments` response: Zernio sends `message`, `createdTime` and `from`; the mapper read `text`, `createdAt` and `author`, plus a `platformPostId` that does not exist on the payload at all. So `raw.createdAt` was always `undefined`, `new Date(undefined)` is Invalid Date, Prisma rejects it, and because comments persist via `createManyAndReturn` **one bad row failed the entire batch** and took the job down — which is what parked the job id in fault 3. `zernio.ts` carried the warning the whole time ("verify this against a live Zernio account when fetchRecentComments is actually wired up"); it was wired up without that check, and an explicit `as Parameters<typeof toNormalizedComment>[0]` cast at the call site stopped TypeScript catching it. The pre-existing 23 comments most likely arrived via the `comment.received` webhook, which built the old shape from its own differently-shaped payload and was therefore correct; **the polling path had never once worked.** (PR #96)
+
+5. **Self-comment filtering was scoped to a single account.** Within minutes of ingestion resuming, LYRA publicly replied — twice — to a comment left by the operator's own second brand: "Lyra Online Social" commenting on an Into The Wild Marketing post. A sibling account is genuinely a different account, so Zernio's `isOwner` was correctly `false` and every id/handle/name comparison against the posting account passed it through. Filtering is now scoped to every connected account in the workspace, and three hand-rolled copies of the check (webhook / comment-monitor / sync — which had already drifted once with consequences, see the 2026-07-22 reply-to-itself note) are consolidated into `lib/self-comment.ts`. Multi-brand workspaces are the Agency tier's whole premise, so this is product correctness, not an edge case. (PR #97)
+
+**The observability that made any of this findable (PR #93):** `SocialAccount.lastCommentSyncAt` had existed in `schema.prisma` for months with **no code reading or writing it** — all 10 production accounts NULL. Combined with `comment-monitor.worker.ts` logging only failures, a fleet quietly succeeding with nothing to collect and a fleet consuming nothing at all produced identical empty logs. It is now written on every terminal path, alongside a new `lastCommentSyncError`. On the very first tick after deploy it named two real external blockers that had been invisible for months. **Build this before you need it — it turned a two-day cross-dashboard investigation into one query:**
+
+```sql
+SELECT platform, "lastCommentSyncAt", "lastCommentSyncError"
+FROM "SocialAccount" ORDER BY "lastCommentSyncAt" DESC NULLS LAST;
+```
+
+**Verified working:** all 10 accounts syncing on a 5-minute cycle across repeated ticks; 5 comments recovered (23 to 28); and the full product loop — ingest, AI draft, approve, reply posted live to LinkedIn — confirmed end to end for the first time. The worker fleet self-reports at `https://lyra-production-ef88.up.railway.app/health` (unauthenticated by design, returns `{status, database, redis, workers}`), the app at `https://lyraonline.ai/api/health`. Two curls answer "is Redis up and is the fleet alive" with no dashboard.
+
+**Still outstanding — none of these are code bugs:**
+
+- **Facebook x2** — `(#10) This endpoint requires the 'pages_read_user_content' permission`. Needs Meta App Review; see `docs/meta-app-review-guide.md`.
+- **Instagram x2** — `Unsupported get request. Object with ID ... does not exist`. Zernio's own `listCommentedPosts` returns post ids its own `getPostComments` then rejects; reproduced independently against the Zernio API, so it is their bug, not ours. Worth a support ticket quoting `lastCommentSyncError` verbatim.
+- **Google Business** — legitimately has no comment API; reports `Platform does not support comment sync` by design.
+- **`toNormalizedReview` is UNVERIFIED** and may be wrong in exactly the way the comment mapper was — no live Google Business review payload was reachable to check it against. Flagged in both the mapper and its tests. **Capture one before reviews matter commercially.**
+- **cron-job.org notifications are still off.** This entire episode began with two jobs it silently auto-disabled (sync-comments 24 Oct, brand-refresh 30 Oct) with no alerting. One checkbox per job, and the cheapest insurance in the stack. "LYRA brand refresh" is still Inactive there.
+- **Cron ownership undecided** — both cron-job.org and the Railway services now fire every route. The tick-window job ids de-duplicate them, so running both is harmless; retire one once Railway has a few clean days.
+- **`railway.toml` runs `npx tsx workers/entry.ts`**, downloading tsx from npm on every container boot, contradicting `workers/index.ts`'s own documented `node dist/workers/index.js` path. Works, but a cold start depends on the npm registry being reachable.
+
+**Corrections worth recording, because each cost real time:**
+
+- A "rogue cron job hitting publish-due-posts every minute" was asserted twice and was **wrong** — a measurement artefact of windows straddling a schedule change (cron-job.org displays UTC+10). A clean window showed exactly the `*/5` cadence. Measure after a change, never across it.
+- "Nothing to ingest, the system is simply idle" was concluded from Zernio showing no posts since 30 August, and was **wrong** — there were comments the broken mapper could never persist. A negative inferred from healthy-looking telemetry is not a finding.
+- Whether to delete or fix the five cron services flip-flopped twice before reading `scripts/cron/trigger.mjs` settled it. Read the thing before recommending its removal.
+- `railway run` is blocked by Claude Code's safety classifier as a production read, since it pulls live credentials into a local process. The worker's own `/health` endpoint answered the same question more safely. There is still no direct confirmation of the contents of `bull:comment-monitoring:failed`; the tick-window fix sidesteps an occupied id whatever state occupies it, so it holds regardless of that gap.
+- The deprecated `lyra/LYRA-Handover.md` copy is easy to update by mistake — it is one directory below this file and carries a SUPERSEDED banner. This entry belongs here.
+
+---
+
 ## ✅ Upstash cost spike — root cause found and fixed: two forgotten duplicate Railway projects (2026-09-02)
 
 **Trigger:** Richard flagged a bigger-than-normal Upstash invoice, just wanting a sanity check on what Upstash is even used for (BullMQ job queues + `lib/rate-limit.ts`'s rate limiting, one shared free-tier Redis instance). That check turned into a real find.

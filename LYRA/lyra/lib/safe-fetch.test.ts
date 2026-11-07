@@ -12,7 +12,7 @@ vi.mock('undici', () => ({
 
 import { resolve4, resolve6 } from 'dns/promises'
 import { Agent, fetch as undiciFetch } from 'undici'
-import { assertSafeUrl, safeFetch } from './safe-fetch'
+import { assertSafeUrl, safeFetch, ResponseTooLargeError, DEFAULT_MAX_RESPONSE_BYTES } from './safe-fetch'
 
 describe('assertSafeUrl', () => {
   beforeEach(() => {
@@ -353,5 +353,99 @@ describe('safeFetch', () => {
     const secondHopInit = fetchMock.mock.calls[1][1] as { headers?: Headers }
     const secondHopHeaders = new Headers(secondHopInit.headers)
     expect(secondHopHeaders.get('authorization')).toBe('Bearer real-api-key')
+  })
+})
+
+// Control 12 requires response-size limits on outbound fetches. The threat is
+// not an honest oversized Content-Length -- it is a server that omits or
+// under-reports it and then streams without end into a serverless function,
+// which is exactly what every caller's .json()/.text()/.arrayBuffer() would
+// have swallowed before the cap existed.
+describe('safeFetch response-size cap', () => {
+  beforeEach(() => {
+    vi.mocked(resolve4).mockResolvedValue(['93.184.216.34'])
+    vi.mocked(resolve6).mockResolvedValue([])
+    vi.mocked(Agent).mockClear()
+    vi.mocked(Agent).mockImplementation(function (this: unknown, opts: unknown) {
+      return { __opts: opts } as unknown as InstanceType<typeof Agent>
+    } as unknown as typeof Agent)
+    vi.mocked(undiciFetch).mockReset()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  function streamOf(chunks: Uint8Array[], headers: Record<string, string> = {}) {
+    return new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          for (const c of chunks) controller.enqueue(c)
+          controller.close()
+        },
+      }),
+      { status: 200, headers }
+    )
+  }
+
+  it('rejects an honestly-declared oversized body before transferring it', async () => {
+    vi.mocked(undiciFetch).mockResolvedValue(
+      new Response('small', { status: 200, headers: { 'content-length': String(DEFAULT_MAX_RESPONSE_BYTES + 1) } }) as never
+    )
+
+    await expect(safeFetch('https://example.com/big')).rejects.toThrow(ResponseTooLargeError)
+  })
+
+  it('errors while reading a body that exceeds the cap despite declaring no content-length', async () => {
+    // No content-length at all, so only the byte counting can catch this.
+    vi.mocked(undiciFetch).mockResolvedValue(
+      streamOf([new Uint8Array(6), new Uint8Array(6)]) as never
+    )
+
+    const res = await safeFetch('https://example.com/lying', {}, 3, 15_000, 10)
+
+    await expect(res.arrayBuffer()).rejects.toThrow(ResponseTooLargeError)
+  })
+
+  it('under-reported content-length does not buy extra bytes', async () => {
+    vi.mocked(undiciFetch).mockResolvedValue(
+      streamOf([new Uint8Array(50)], { 'content-length': '1' }) as never
+    )
+
+    const res = await safeFetch('https://example.com/underreported', {}, 3, 15_000, 10)
+
+    await expect(res.text()).rejects.toThrow(ResponseTooLargeError)
+  })
+
+  it('passes a body that fits through unchanged', async () => {
+    vi.mocked(undiciFetch).mockResolvedValue(
+      streamOf([new TextEncoder().encode('hello')]) as never
+    )
+
+    const res = await safeFetch('https://example.com/ok', {}, 3, 15_000, 1024)
+
+    expect(res.status).toBe(200)
+    await expect(res.text()).resolves.toBe('hello')
+  })
+
+  it('leaves a null-body response alone (HEAD, 204) instead of throwing', async () => {
+    // bulk-import validates media URLs with a HEAD request, and the Response
+    // constructor rejects a body on a null-body status -- so re-wrapping one
+    // would break that path rather than protect it.
+    vi.mocked(undiciFetch).mockResolvedValue(new Response(null, { status: 204 }) as never)
+
+    const res = await safeFetch('https://example.com/head', { method: 'HEAD' })
+
+    expect(res.status).toBe(204)
+  })
+
+  it('caps the final response of a redirect chain, not just the first hop', async () => {
+    vi.mocked(undiciFetch)
+      .mockResolvedValueOnce(new Response(null, { status: 302, headers: { location: 'https://example.com/final' } }) as never)
+      .mockResolvedValueOnce(streamOf([new Uint8Array(50)]) as never)
+
+    const res = await safeFetch('https://example.com/start', {}, 3, 15_000, 10)
+
+    await expect(res.arrayBuffer()).rejects.toThrow(ResponseTooLargeError)
   })
 })

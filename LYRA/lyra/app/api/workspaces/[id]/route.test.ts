@@ -3,13 +3,28 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('@/lib/auth', () => ({ requireAuth: vi.fn() }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
-    workspace: { findFirst: vi.fn(), update: vi.fn() },
+    workspace:           { findFirst: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    commentResponse:     { deleteMany: vi.fn() },
+    comment:             { deleteMany: vi.fn() },
+    postMetrics:         { deleteMany: vi.fn() },
+    postApproval:        { deleteMany: vi.fn() },
+    post:                { deleteMany: vi.fn() },
+    socialAccount:       { deleteMany: vi.fn() },
+    brandProfile:        { deleteMany: vi.fn() },
+    guardrail:           { deleteMany: vi.fn() },
+    onboardingToken:     { deleteMany: vi.fn() },
+    seoConnection:       { deleteMany: vi.fn() },
+    seoPage:             { deleteMany: vi.fn() },
+    searchConsoleData:   { deleteMany: vi.fn() },
+    notificationChannel: { deleteMany: vi.fn() },
+    workspaceAccess:     { deleteMany: vi.fn() },
+    $transaction:        vi.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
   },
 }))
 
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { PATCH } from './route'
+import { PATCH, DELETE } from './route'
 
 function req(body: unknown) {
   return new Request('http://localhost/api/workspaces/ws-1', {
@@ -139,5 +154,62 @@ describe('PATCH /api/workspaces/[id]', () => {
     vi.mocked(prisma.workspace.findFirst).mockResolvedValue({ id: 'ws-1', plan: 'STARTER' } as any)
     const res = await PATCH(req({ aiResponseMode: 'OFF' }), ctx('ws-1'))
     expect(res.status).toBe(200)
+  })
+})
+
+describe('DELETE /api/workspaces/[id]', () => {
+  const CHILD_MODELS = [
+    'commentResponse', 'comment', 'postMetrics', 'postApproval', 'post',
+    'socialAccount', 'brandProfile', 'guardrail', 'onboardingToken',
+    'seoConnection', 'seoPage', 'searchConsoleData', 'notificationChannel',
+    'workspaceAccess',
+  ] as const
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(requireAuth).mockResolvedValue({ id: 'user-1' } as any)
+    vi.mocked(prisma.workspace.findFirst).mockResolvedValue({ id: 'ws-1', plan: 'PRO' } as any)
+    vi.mocked(prisma.workspace.delete).mockResolvedValue({} as any)
+    for (const model of CHILD_MODELS) {
+      vi.mocked((prisma as any)[model].deleteMany).mockResolvedValue({ count: 0 })
+    }
+  })
+
+  it('gates deletion on OWNER_ROLES, not mere membership', async () => {
+    await DELETE(new Request('http://localhost'), ctx('ws-1'))
+
+    expect(prisma.workspace.findFirst).toHaveBeenCalledWith({
+      where: { id: 'ws-1', access: { some: { userId: 'user-1', role: { in: ['AGENCY_ADMIN', 'SMB_OWNER'] } } } },
+      select: { id: true, plan: true },
+    })
+  })
+
+  it('returns 404 and deletes nothing when the caller is not an owner', async () => {
+    vi.mocked(prisma.workspace.findFirst).mockResolvedValue(null as any)
+
+    const res = await DELETE(new Request('http://localhost'), ctx('ws-1'))
+
+    expect(res.status).toBe(404)
+    expect(prisma.workspace.delete).not.toHaveBeenCalled()
+    for (const model of CHILD_MODELS) {
+      expect((prisma as any)[model].deleteMany).not.toHaveBeenCalled()
+    }
+  })
+
+  // The schema has no cascade rules for most workspace children, so every one
+  // of them needs an explicit delete here -- miss one and workspace.delete
+  // throws an FK violation and the whole route answers 500. That has now
+  // happened twice: once for the three SEO models, then again for
+  // NotificationChannel, which was added later and skipped the same fix.
+  // Asserting the whole set is what stops a third time.
+  it('deletes every non-cascading child before the workspace row', async () => {
+    const res = await DELETE(new Request('http://localhost'), ctx('ws-1'))
+
+    expect(res.status).toBe(204)
+    for (const model of CHILD_MODELS) {
+      expect((prisma as any)[model].deleteMany, `${model} was not deleted`).toHaveBeenCalled()
+    }
+    expect(prisma.notificationChannel.deleteMany).toHaveBeenCalledWith({ where: { workspaceId: 'ws-1' } })
+    expect(prisma.workspace.delete).toHaveBeenCalledWith({ where: { id: 'ws-1' } })
   })
 })

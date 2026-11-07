@@ -56,7 +56,17 @@ describe('POST /api/upload/from-url', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.url).toMatch(/^https:\/\/lyra-media-test\.s3\.ap-southeast-2\.amazonaws\.com\/media\/ws-1\/.+\.jpg$/)
-    expect(safeFetch).toHaveBeenCalledWith('https://example.com/photo.jpg', expect.objectContaining({ signal: expect.any(AbortSignal) }))
+    // The 5th argument is safeFetch's response-size ceiling (control 12).
+    // Asserted explicitly: without it the body is read unbounded, and the
+    // byteLength check in this route runs only after arrayBuffer() has
+    // already buffered everything the far end chose to send.
+    expect(safeFetch).toHaveBeenCalledWith(
+      'https://example.com/photo.jpg',
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
+      3,
+      15_000,
+      50 * 1024 * 1024,
+    )
     expect(putObjectBuffer).toHaveBeenCalledWith(
       expect.stringMatching(/^media\/ws-1\/.+\.jpg$/),
       expect.any(Buffer),

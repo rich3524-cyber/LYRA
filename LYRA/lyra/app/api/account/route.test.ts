@@ -17,6 +17,7 @@ vi.mock('@/lib/prisma', () => ({
     seoConnection:     { deleteMany: vi.fn() },
     seoPage:           { deleteMany: vi.fn() },
     searchConsoleData: { deleteMany: vi.fn() },
+    notificationChannel: { deleteMany: vi.fn() },
     workspaceAccess:   { deleteMany: vi.fn() },
     workspace:         { deleteMany: vi.fn() },
     $transaction:      vi.fn((ops: Promise<unknown>[]) => Promise.all(ops)),
@@ -65,7 +66,7 @@ describe('DELETE /api/account', () => {
     vi.mocked(prisma.user.delete).mockResolvedValue({} as any)
     vi.mocked(stripe.subscriptions.retrieve).mockResolvedValue({ status: 'active' } as any)
     vi.mocked(stripe.subscriptions.cancel).mockResolvedValue({} as any)
-    for (const model of ['commentResponse', 'comment', 'postMetrics', 'postApproval', 'post', 'socialAccount', 'brandProfile', 'guardrail', 'onboardingToken', 'seoConnection', 'seoPage', 'searchConsoleData', 'workspaceAccess', 'workspace'] as const) {
+    for (const model of ['commentResponse', 'comment', 'postMetrics', 'postApproval', 'post', 'socialAccount', 'brandProfile', 'guardrail', 'onboardingToken', 'seoConnection', 'seoPage', 'searchConsoleData', 'notificationChannel', 'workspaceAccess', 'workspace'] as const) {
       vi.mocked((prisma as any)[model].deleteMany).mockResolvedValue({ count: 0 })
     }
   })
@@ -204,5 +205,22 @@ describe('DELETE /api/account', () => {
     expect(res.status).toBe(500)
     expect(prisma.user.delete).not.toHaveBeenCalled()
     expect(prisma.workspace.deleteMany).not.toHaveBeenCalled()
+  })
+
+  // NotificationChannel has no onDelete rule in the schema and was added after
+  // the SEO models were fixed, so it silently reintroduced the same bug: any
+  // user whose owned workspace had a Slack alert channel connected could not
+  // delete their account at all -- workspace.deleteMany threw an FK violation
+  // and the route answered 500. That makes it an erasure blocker, not just a
+  // broken button, so assert the delete explicitly.
+  it('deletes the workspace notification channel before the workspace itself', async () => {
+    vi.mocked(requireAuth).mockResolvedValue(baseUser() as any)
+
+    const res = await DELETE()
+
+    expect(res.status).toBe(204)
+    expect(prisma.notificationChannel.deleteMany).toHaveBeenCalledWith({
+      where: { workspaceId: { in: ['ws-1'] } },
+    })
   })
 })

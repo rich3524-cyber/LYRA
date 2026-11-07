@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server'
-import type { UserRole } from '@prisma/client'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { OWNER_ROLES } from '@/lib/authz'
 import { ZernioApiError } from '@/services/social/zernio-client'
 import { deliverNotification } from '@/services/notifications/delivery'
 
 export const dynamic = 'force-dynamic'
 
-const OWNER_ROLES: UserRole[] = ['AGENCY_ADMIN', 'SMB_OWNER']
 
 // Sends synchronously rather than queueing, deliberately. The whole value of a
 // test button is telling the user whether the channel actually works right now
@@ -24,7 +23,7 @@ export async function POST(
     const channel = await prisma.notificationChannel.findFirst({
       where: {
         id,
-        workspace: { access: { some: { userId: user.id, role: { in: OWNER_ROLES } } } },
+        workspace: { access: { some: { userId: user.id, role: { in: [...OWNER_ROLES] } } } },
       },
       select: { id: true, workspace: { select: { name: true } } },
     })

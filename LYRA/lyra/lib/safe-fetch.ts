@@ -258,11 +258,68 @@ function stripCredentialsIfCrossOrigin(headers: HeadersInit | undefined, from: U
   return stripped
 }
 
+/**
+ * Default ceiling on how many bytes safeFetch will read from a response body.
+ *
+ * Control 12 of the ITWM security framework requires response-size limits on
+ * outbound fetches, and this file had none: every caller went straight to
+ * .json()/.text()/.arrayBuffer() on whatever the far end sent. A
+ * content-length header is not a limit -- a hostile or broken server can omit
+ * it or lie, and app/api/upload/from-url did check content-length but only
+ * re-checked the real size *after* arrayBuffer() had already buffered the
+ * whole body into a Netlify function. So the cap is enforced as the bytes
+ * arrive, not from a header.
+ *
+ * 10MB is generous for what the other callers fetch: HTML pages, RSS feeds
+ * and JSON from marketing APIs. Media fetching passes its own larger ceiling.
+ */
+export const DEFAULT_MAX_RESPONSE_BYTES = 10 * 1024 * 1024
+
+export class ResponseTooLargeError extends Error {
+  constructor(public readonly maxBytes: number) {
+    super(`Response body exceeded the ${maxBytes}-byte limit`)
+    this.name = 'ResponseTooLargeError'
+  }
+}
+
+/**
+ * Re-wraps a response so reading its body fails once maxBytes is exceeded.
+ *
+ * Counting during the stream is the point -- a header check alone is advisory.
+ * The declared content-length is still honoured first, purely so an honest
+ * oversized response is rejected before a single byte of it is transferred.
+ */
+function capResponseSize(res: Response, maxBytes: number): Response {
+  const declared = Number(res.headers.get('content-length'))
+  if (Number.isFinite(declared) && declared > maxBytes) throw new ResponseTooLargeError(maxBytes)
+
+  // A null body (204, 304, or any HEAD response) has nothing to cap, and
+  // passing one to the Response constructor throws outright.
+  if (!res.body) return res
+
+  let seen = 0
+  const capped = res.body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        seen += chunk.byteLength
+        if (seen > maxBytes) {
+          controller.error(new ResponseTooLargeError(maxBytes))
+          return
+        }
+        controller.enqueue(chunk)
+      },
+    })
+  )
+
+  return new Response(capped, { status: res.status, statusText: res.statusText, headers: res.headers })
+}
+
 export async function safeFetch(
   rawUrl: string,
   init: RequestInit = {},
   maxRedirects = 3,
   timeoutMs = 15_000,
+  maxResponseBytes = DEFAULT_MAX_RESPONSE_BYTES,
 ): Promise<Response> {
   // One timeout spans every hop of the whole call, not a fresh one per
   // redirect -- resetting per-hop would let a chain of N redirects multiply
@@ -291,12 +348,14 @@ export async function safeFetch(
     const res = (await undiciFetch(parsed, fetchInit as Parameters<typeof undiciFetch>[1])) as unknown as Response
     if (res.status >= 300 && res.status < 400) {
       const location = res.headers.get('location')
-      if (!location) return res
+      // A 3xx with no Location is handed back as the final response, so it is
+      // capped like any other body rather than escaping the limit.
+      if (!location) return capResponseSize(res, maxResponseBytes)
       previousOrigin = parsed
       currentUrl = new URL(location, parsed).toString()
       continue
     }
-    return res
+    return capResponseSize(res, maxResponseBytes)
   }
   throw new Error(`Too many redirects fetching ${rawUrl}`)
 }

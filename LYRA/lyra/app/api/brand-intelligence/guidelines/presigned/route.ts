@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { s3 } from '@/lib/s3'
 import { createPresignedPost } from '@aws-sdk/s3-presigned-post'
+import { randomUUID } from 'crypto'
 import { checkRateLimit, rateLimitResponse } from '@/lib/rate-limit'
 import { canWrite } from '@/lib/authz'
 
@@ -53,8 +54,25 @@ export async function POST(req: Request) {
     const access = await prisma.workspaceAccess.findFirst({ where: { workspaceId, userId: user.id } })
     if (!access || !canWrite(access.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+    // randomUUID, not Date.now(), matching the media upload routes. The
+    // media/ prefix of this same bucket is necessarily public-read -- social
+    // platforms fetch post media by plain URL -- so if that read policy is
+    // ever scoped to the bucket rather than to media/*, every object in it is
+    // readable by anyone holding the key. A `${Date.now()}-${filename}` key
+    // is guessable under exactly that condition: workspaceId appears in the
+    // URL of every page a client sees, the filename is often obvious
+    // ("brand-guidelines.pdf"), and a millisecond timestamp inside a known
+    // hour is a 3.6M-candidate search. A UUID removes the guess, so these
+    // documents stop depending on the bucket policy being correctly scoped.
+    //
+    // The sanitised filename is kept as a suffix for legibility in the S3
+    // console; it adds no guessability, since reading an object needs the
+    // exact key and listing the bucket needs ListBucket, which public-read
+    // does not grant. Nothing renders this key -- it is stored in
+    // BrandProfile.guidelineUrls and read back server-side only -- so the
+    // format is free to change.
     const safeFilename = filename.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 100)
-    const key          = `guidelines/${workspaceId}/${Date.now()}-${safeFilename}`
+    const key          = `guidelines/${workspaceId}/${randomUUID()}-${safeFilename}`
 
     // Presigned POST rather than PUT so the policy can carry conditions S3
     // enforces at upload time. The previous presigned PUT had no size limit

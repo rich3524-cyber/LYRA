@@ -1,12 +1,11 @@
 import { NextResponse } from 'next/server'
-import type { UserRole } from '@prisma/client'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { OWNER_ROLES } from '@/lib/authz'
 import { sanitizeEvents } from '@/services/notifications/events'
 
 export const dynamic = 'force-dynamic'
 
-const OWNER_ROLES: UserRole[] = ['AGENCY_ADMIN', 'SMB_OWNER']
 
 /**
  * Loads a channel only if the caller owns its workspace. Every mutating route
@@ -16,7 +15,7 @@ async function getOwnedChannel(channelId: string, userId: string) {
   return prisma.notificationChannel.findFirst({
     where: {
       id:        channelId,
-      workspace: { access: { some: { userId, role: { in: OWNER_ROLES } } } },
+      workspace: { access: { some: { userId, role: { in: [...OWNER_ROLES] } } } },
     },
     select: { id: true, workspaceId: true },
   })

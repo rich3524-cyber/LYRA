@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server'
-import type { UserRole } from '@prisma/client'
 import Stripe from 'stripe'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { OWNER_ROLES } from '@/lib/authz'
 import { stripe } from '@/lib/stripe'
 
-const OWNER_ROLES: readonly UserRole[] = ['AGENCY_ADMIN', 'SMB_OWNER']
 
 // Stripe's signal for "this ID doesn't exist in Stripe at all" (stale DB
 // pointer, a dashboard-side deletion, a restored DB snapshot) -- distinct
@@ -136,6 +135,10 @@ export async function DELETE() {
       prisma.seoConnection.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
       prisma.seoPage.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
       prisma.searchConsoleData.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
+      // Same omission as the SEO models above, for the same reason: no
+      // onDelete rule on NotificationChannel, so a workspace with a Slack
+      // alert channel connected made account deletion fail outright.
+      prisma.notificationChannel.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
       prisma.workspaceAccess.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
       prisma.workspace.deleteMany({ where: { id: { in: ownedWorkspaceIds } } }),
       // Revoke this user's access to any remaining (shared, non-owned) workspaces

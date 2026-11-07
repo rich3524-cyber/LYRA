@@ -4,12 +4,7 @@ import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { ClientAccess, Autonomy, type UserRole } from '@prisma/client'
 import { parseBody, ValidationError } from '@/lib/validate'
-
-// Settings changes and deletion are owner-level actions -- previously gated on
-// mere membership, so any role including a read-only CLIENT_VIEW could delete
-// or reconfigure the whole workspace. GET (viewing) intentionally stays
-// membership-only; only PATCH/DELETE pass `roles`.
-const OWNER_ROLES: UserRole[] = ['AGENCY_ADMIN', 'SMB_OWNER']
+import { OWNER_ROLES } from '@/lib/authz'
 
 // approvalSlaHours/approvalSlaUnscheduledHours keep their existing manual
 // SLA_BOUNDS check below (whole hours, 1-720) with its field-specific error
@@ -34,9 +29,13 @@ const patchWorkspaceSchema = z.object({
   maxAiRepliesPerThread:       z.number().optional(),
 })
 
-async function getWorkspaceForUser(id: string, userId: string, roles?: UserRole[]) {
+// Settings changes and deletion are owner-level actions (OWNER_ROLES) --
+// previously gated on mere membership, so any role including a read-only
+// CLIENT_VIEW could delete or reconfigure the whole workspace. GET (viewing)
+// intentionally stays membership-only; only PATCH/DELETE pass `roles`.
+async function getWorkspaceForUser(id: string, userId: string, roles?: readonly UserRole[]) {
   return prisma.workspace.findFirst({
-    where: { id, access: { some: { userId, ...(roles ? { role: { in: roles } } : {}) } } },
+    where: { id, access: { some: { userId, ...(roles ? { role: { in: [...roles] } } : {}) } } },
     select: { id: true, plan: true },
   })
 }
@@ -207,6 +206,11 @@ export async function DELETE(
       prisma.seoConnection.deleteMany({ where: { workspaceId: id } }),
       prisma.seoPage.deleteMany({ where: { workspaceId: id } }),
       prisma.searchConsoleData.deleteMany({ where: { workspaceId: id } }),
+      // NotificationChannel has no onDelete rule either, and was added after
+      // the SEO models above were fixed -- so it reintroduced exactly the same
+      // FK-violation failure, this time for any workspace with a Slack alert
+      // channel connected.
+      prisma.notificationChannel.deleteMany({ where: { workspaceId: id } }),
       prisma.workspaceAccess.deleteMany({ where: { workspaceId: id } }),
       prisma.workspace.delete({ where: { id } }),
     ])
