@@ -22,6 +22,13 @@ import { filterSelfComments, syncAccountComments, syncAccountReviews, syncWorksp
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // The workspace's own connected accounts, which self-comment filtering is
+  // now checked against. Defaults to the single account these cases use, so
+  // they keep asserting the original single-account behaviour; the
+  // sibling-account case overrides it.
+  vi.mocked(prisma.socialAccount.findMany).mockResolvedValue(
+    [{ platformId: 'pid-1', handle: '@mypage', name: 'My Page' }] as never
+  )
   vi.mocked(prisma.comment.createManyAndReturn).mockImplementation(
     (async ({ data }: { data: unknown[] }) => data.map((d, i) => ({ id: `c${i}`, ...(d as object) }))) as never
   )
@@ -38,23 +45,35 @@ describe('filterSelfComments', () => {
   ]
 
   it('drops comments authored by the account itself (matched by name)', () => {
-    const result = filterSelfComments(comments, { name: 'My Page', handle: null })
+    const result = filterSelfComments(comments, [{ name: 'My Page', handle: null }])
     expect(result.map((c) => c.externalId)).toEqual(['2', '3'])
   })
 
   it('drops comments authored by the account itself (matched by handle)', () => {
-    const result = filterSelfComments(comments, { name: null, handle: '@mypage' })
+    const result = filterSelfComments(comments, [{ name: null, handle: '@mypage' }])
     expect(result.map((c) => c.externalId)).toEqual(['1', '3'])
   })
 
   it('matches case-insensitively', () => {
-    const result = filterSelfComments(comments, { name: 'MY PAGE', handle: null })
+    const result = filterSelfComments(comments, [{ name: 'MY PAGE', handle: null }])
     expect(result.map((c) => c.externalId)).toEqual(['2', '3'])
   })
 
   it('keeps everything when the account has no name or handle to compare', () => {
-    const result = filterSelfComments(comments, { name: null, handle: null })
+    const result = filterSelfComments(comments, [{ name: null, handle: null }])
     expect(result).toHaveLength(3)
+  })
+
+  // The 2026-11-07 case: an operator running two brands from one workspace
+  // had the AI publicly reply to their own other brand, because a sibling
+  // account is not the posting account and so passes every single-account
+  // check, isOwner included.
+  it('drops a comment from a SIBLING account in the same workspace', () => {
+    const result = filterSelfComments(comments, [
+      { name: 'Unrelated Page', handle: '@unrelated' },
+      { name: 'Jane', handle: null },
+    ])
+    expect(result.map((c) => c.externalId)).toEqual(['1', '3'])
   })
 })
 

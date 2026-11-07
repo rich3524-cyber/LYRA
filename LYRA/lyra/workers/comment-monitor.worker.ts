@@ -2,6 +2,7 @@ import { Worker } from 'bullmq'
 import { redis } from '@/lib/redis'
 import { prisma } from '@/lib/prisma'
 import { decrypt } from '@/lib/encrypt'
+import { isSelfComment } from '@/lib/self-comment'
 import { checkAndTriggerCrisis } from '@/services/ai/crisis-detector'
 import * as linkedin from '@/services/social/linkedin'
 import { aiRespondQueue } from '@/lib/queues'
@@ -25,6 +26,7 @@ interface CommentMonitorJobDeps {
   prisma: {
     socialAccount: {
       findUnique: typeof prisma.socialAccount.findUnique
+      findMany:   typeof prisma.socialAccount.findMany
       update:     typeof prisma.socialAccount.update
     }
     comment: {
@@ -166,13 +168,26 @@ export async function processCommentMonitorJob(
       // its own reply. This cron runs automatically and far more often than
       // someone clicking the manual Sync button, so it's the likeliest path
       // for a self-comment to slip through uncaught.
-      const selfName   = account.name?.toLowerCase()
-      const selfHandle = account.handle?.toLowerCase()
-      const incoming   = normalized.filter((c) => {
-        if (selfName   && c.authorName?.toLowerCase()   === selfName)   return false
-        if (selfHandle && c.authorHandle?.toLowerCase() === selfHandle) return false
-        return true
+      // Every connected account in the workspace, not just this one. On
+      // 2026-11-07 "Lyra Online Social" commented on an Into The Wild post
+      // and the AI publicly replied to it twice: a sibling account is
+      // genuinely not the posting account, so isOwner was false and a
+      // single-account name/handle check correctly said "not self". An
+      // operator running several brands from one workspace experiences that
+      // as the product talking to itself.
+      const workspaceAccounts = await deps.prisma.socialAccount.findMany({
+        where:  { workspaceId: account.workspaceId },
+        select: { platformId: true, handle: true, name: true },
       })
+      const incoming = normalized.filter((c) => !isSelfComment(
+        {
+          isOwner:  c.isOwner,
+          id:       c.authorPlatformId,
+          username: c.authorHandle,
+          name:     c.authorName,
+        },
+        workspaceAccounts
+      ))
       normalizedRows = incoming.map((c) => ({
         platformCommentId: c.externalId,
         platformPostId:    c.postExternalId,

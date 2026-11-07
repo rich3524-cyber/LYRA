@@ -8,6 +8,7 @@
 // platform-dispatch logic is testable without an HTTP request, following the
 // services/posts/bulk-import.ts pattern (DB calls stay in this one file).
 import type { SocialAccount } from '@prisma/client'
+import { isSelfComment } from '@/lib/self-comment'
 import { prisma } from '@/lib/prisma'
 import { decrypt } from '@/lib/encrypt'
 import * as linkedin from '@/services/social/linkedin'
@@ -22,22 +23,23 @@ export interface RawComment {
 }
 
 /**
- * Mirrors the webhook's self-comment filter: drops comments posted by the
- * connected account itself (e.g. a Facebook Page commenting on its own
- * post). Only the account's own name/handle is available here to compare
- * against -- the webhook additionally has an isOwner flag.
+ * Drops comments posted by any of the workspace's own connected accounts.
+ *
+ * Delegates to lib/self-comment so this path, the webhook and the
+ * comment-monitor cron cannot drift apart again -- three hand-rolled copies
+ * of this check is how the weakest one came to let the AI reply to its own
+ * reply. Callers pass every account in the workspace: a sibling brand
+ * commenting on another's post is not caught by any single-account check,
+ * isOwner included.
  */
 export function filterSelfComments(
   comments: NormalizedComment[],
-  account: { name: string | null; handle: string | null }
+  accounts: Array<{ platformId?: string | null; name: string | null; handle: string | null }>
 ): NormalizedComment[] {
-  const selfName = account.name?.toLowerCase()
-  const selfHandle = account.handle?.toLowerCase()
-  return comments.filter((c) => {
-    if (selfName && c.authorName?.toLowerCase() === selfName) return false
-    if (selfHandle && c.authorHandle?.toLowerCase() === selfHandle) return false
-    return true
-  })
+  return comments.filter((c) => !isSelfComment(
+    { isOwner: c.isOwner, id: c.authorPlatformId, username: c.authorHandle, name: c.authorName },
+    accounts
+  ))
 }
 
 /**
@@ -109,7 +111,13 @@ export async function syncAccountComments(account: SocialAccount, workspaceId: s
     }
     if (normalized.length === 0) return 0
 
-    const incoming = filterSelfComments(normalized, account)
+    // Every account in the workspace, not just this one: a sibling brand
+    // commenting on another's post is not self by any single-account test.
+    const workspaceAccounts = await prisma.socialAccount.findMany({
+      where:  { workspaceId },
+      select: { platformId: true, handle: true, name: true },
+    })
+    const incoming = filterSelfComments(normalized, workspaceAccounts)
     if (incoming.length === 0) return 0
 
     // Wrapped in its own try/catch, same as the fetch above -- otherwise a

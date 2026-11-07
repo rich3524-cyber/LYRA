@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyZernioSignature } from '@/services/social/webhook-verify'
 import { toNormalizedComment } from '@/services/social/provider/mappers'
+import { isSelfComment } from '@/lib/self-comment'
 import { aiRespondQueue } from '@/lib/queues'
 import { checkAndTriggerCrisis } from '@/services/ai/crisis-detector'
 
@@ -92,12 +93,18 @@ export async function POST(req: Request) {
         // comment, isOwner wasn't set, and neither fallback caught it -- it went
         // on to get AI-drafted a reply to itself. Add the same name-match
         // fallback the sync route and comment-monitor cron already use.
-        const isSelfComment =
-          author?.isOwner === true ||
-          (!!author?.id && author.id === account.platformId) ||
-          (!!author?.username && author.username.toLowerCase() === account.handle.toLowerCase()) ||
-          (!!author?.name && author.name.toLowerCase() === account.name.toLowerCase())
-        if (isSelfComment) break
+        // Checked against every connected account in the workspace, not just
+        // the one this event is for. A sibling brand commenting on another's
+        // post is genuinely a different account, so isOwner is false and the
+        // id/handle/name comparisons against this account alone all pass it
+        // through -- which on 2026-11-07 had the AI publicly reply to the
+        // operator's own other brand. Shared with the cron and sync paths so
+        // the three cannot drift apart again.
+        const workspaceAccounts = await prisma.socialAccount.findMany({
+          where:  { workspaceId: account.workspaceId },
+          select: { platformId: true, handle: true, name: true },
+        })
+        if (isSelfComment(author, workspaceAccounts)) break
 
         // Guard this the same way as the accountId check above: platformPostId is
         // documented as required on this event, but if a real delivery ever omits

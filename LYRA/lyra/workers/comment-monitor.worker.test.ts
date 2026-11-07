@@ -161,6 +161,7 @@ describe('processCommentMonitorJob', () => {
     fetchReviews?: ReturnType<typeof vi.fn>
     createdComments?: Array<Record<string, unknown>>
     createdReviews?: Array<Record<string, unknown>>
+    workspaceAccounts?: Array<Record<string, unknown>>
   } = {}) {
     const account = overrides.account === undefined ? makeAccount() : overrides.account
     const fetchRecentComments = overrides.fetchRecentComments ?? vi.fn().mockResolvedValue([])
@@ -170,6 +171,10 @@ describe('processCommentMonitorJob', () => {
       prisma: {
         socialAccount: {
           findUnique: vi.fn().mockResolvedValue(account),
+          // The workspace's own connected accounts, used to drop comments
+          // posted by any of them. Defaults to just this account so existing
+          // cases keep their original single-account behaviour.
+          findMany:   vi.fn().mockResolvedValue(overrides.workspaceAccounts ?? [account]),
           update:     vi.fn().mockResolvedValue({}),
         },
         comment: {
@@ -371,7 +376,11 @@ describe('processCommentMonitorJob sync outcome recording', () => {
     const update = vi.fn().mockResolvedValue({})
     const deps = {
       prisma: {
-        socialAccount: { findUnique: vi.fn().mockResolvedValue(account), update },
+        socialAccount: {
+          findUnique: vi.fn().mockResolvedValue(account),
+          findMany:   vi.fn().mockResolvedValue(account ? [account] : []),
+          update,
+        },
         comment: { createManyAndReturn: vi.fn().mockResolvedValue([]) },
         review:  { createManyAndReturn: vi.fn().mockResolvedValue([]) },
       },

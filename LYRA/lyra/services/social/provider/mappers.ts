@@ -26,7 +26,7 @@ interface RawZernioComment {
   id: string
   message?: string
   createdTime?: string
-  from?: { name?: string; username?: string; isOwner?: boolean }
+  from?: { id?: string; name?: string; username?: string; isOwner?: boolean }
 }
 
 interface RawZernioReview {
@@ -62,6 +62,8 @@ export function toNormalizedComment(
     postExternalId,
     authorName: raw.from?.name ?? '',
     authorHandle: raw.from?.username,
+    authorPlatformId: raw.from?.id,
+    isOwner: raw.from?.isOwner,
     text: raw.message ?? '',
     createdAt,
   }

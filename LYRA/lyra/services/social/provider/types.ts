@@ -5,6 +5,12 @@ export interface NormalizedComment {
   postExternalId: string  // parent post id on the platform
   authorName: string
   authorHandle?: string
+  // Carried through purely for self-comment detection. The webhook path had
+  // the author's platform id and the provider's isOwner flag available and
+  // the polling path did not, which is why their self-checks drifted and the
+  // weaker one let the AI reply to its own reply. See lib/self-comment.ts.
+  authorPlatformId?: string
+  isOwner?: boolean
   text: string
   createdAt: Date
 }
