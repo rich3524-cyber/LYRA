@@ -202,9 +202,12 @@ three hand-rolled copies of one filter drifted. Centralised into `lib/authz.ts`.
 Two mandatory artefacts are still outstanding. Neither can be derived from the code, which
 is why they are not in this review:
 
-- **STRIDE threat model.** The material now exists — `LYRA-Permissions-Matrix.md` gives the
-  trust boundaries and principals, `LYRA-Data-Register.md` gives the assets and data flows,
-  and this document gives the controls. The modelling session itself is a human exercise.
+- **STRIDE threat model.** A draft now exists at `LYRA-Threat-Model.md`, derived from
+  `LYRA-Permissions-Matrix.md` (boundaries and principals), `LYRA-Data-Register.md` (assets
+  and flows) and this document (controls). **It is not yet an accepted artefact:** the asset
+  list and attack paths are grounded in the code, but the severity ratings and the
+  accept/mitigate decisions are proposals and need an owner's sign-off, particularly the
+  `Autonomy: FULL` human-gate policy and the single-`ENCRYPTION_KEY` risk acceptance.
 - **Vendor security assessment** for the 12 processors inventoried in
   `LYRA-Data-Register.md` §4. Anthropic and Zernio are the priority: Anthropic receives
   brand profiles, guardrails and ingested public comments, and Zernio holds social
