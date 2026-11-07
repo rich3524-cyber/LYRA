@@ -39,7 +39,7 @@ re-running the censuses in each companion document rather than trusting a status
 | 07 | Cross-site scripting defence | **Verified** | Four `dangerouslySetInnerHTML` uses, all in `app/layout.tsx`, all static analytics bootstraps and JSON-LD with no user data interpolated. React auto-escaping elsewhere. CSP set as defence in depth (control 11) |
 | 08 | CSRF and cross-origin | **Verified** | Auth0 session cookies plus Next.js 16's built-in Server Action origin check. No cookie-authenticated state-changing Route Handler relies on CORS for protection |
 | 09 | Session and cookie security | **Verified** | Auth0 sets cookie attributes and handles rotation. Bearer tokens are validated by `getUserFromBearerToken` and additionally confined to a 30-route allowlist in `middleware.ts`, so an MCP token cannot act as a general-purpose API key. No token appears in a URL |
-| 10 | Encryption, secrets and key management | **Partial** | AES-256-GCM (`lib/encrypt.ts`) on every stored third-party credential; verified at each write path in `LYRA-Data-Register.md` §3.1. Secrets in Netlify and Railway environment variables, none in the repository, gitleaks pinned to a commit SHA in CI. No secret carries a `NEXT_PUBLIC_` name. **Missing:** the cryptographic-use inventory the control mandates at Tier B/C (§3.4), and one field self-heals its encryption lazily (§3.5) |
+| 10 | Encryption, secrets and key management | **Partial** | AES-256-GCM (`lib/encrypt.ts`) on every stored third-party credential; verified at each write path in `LYRA-Data-Register.md` §3.1. Secrets in Netlify and Railway environment variables, none in the repository, gitleaks pinned to a commit SHA in CI. No secret carries a `NEXT_PUBLIC_` name. **Missing:** the cryptographic-use inventory the control mandates at Tier B/C (§3.4). Two `EmailIntegration` keys found in plaintext were resolved 2026-11-07 (§3.5); `lyra/.env.local`'s non-production key and the two conflicting env files remain (`LYRA-Data-Register.md` §5.5) |
 | 11 | Browser security headers | **Partial** | `next.config.ts` sets CSP, HSTS, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`, `frame-ancestors 'none'`, and `poweredByHeader: false`. **The CSP is allowlist-based with `script-src 'unsafe-inline'`; the control requires a nonce-based CSP for Tier C and authenticated areas** (§3.6) |
 | 12 | API, integration and outbound requests | **Verified** | Per-route authentication, authorisation, Zod validation and rate limiting. Webhook signatures verified for Stripe and Zernio, with a `ProcessedWebhookEvent` idempotency ledger for Stripe redelivery. SSRF defence in `lib/safe-fetch.ts` is thorough: https-only, both A and AAAA records resolved and blocklisted against private, link-local and cloud-metadata ranges, IPv4-mapped IPv6 and NAT64 forms normalised, the connection pinned to the validated address to defeat DNS rebinding, each redirect hop re-validated and re-pinned, credential headers stripped across an origin change, one timeout spanning the whole chain. Response-size cap added in this review (§4.3) |
 | 13 | Dependencies, CI/CD and supply chain | **Partial** | `.github/workflows/deploy.yml` runs type-check, lint and 911 tests, all blocking, with `permissions: contents: read` and Corepack pinning npm to `packageManager`. No path filter, deliberately, so a required check can never be silently absent. Dependabot weekly with grouped minors and a documented TypeScript-major hold. `CODEOWNERS` on deploy-critical paths. gitleaks pinned to a SHA. **Missing:** SAST and dependency-vulnerability scanning on pull requests (§3.7). **Operator:** confirm branch protection and the Tier C production approval gate |
@@ -107,7 +107,20 @@ and names the environment keys, which is the raw material, but the inventory its
 exist. The rotation question matters most: rotating `ENCRYPTION_KEY` without a re-encryption
 pass makes every stored social and SEO token permanently undecryptable.
 
-### 3.5 CONFIRMED: both production `EmailIntegration` API keys are plaintext (control 10)
+### 3.5 RESOLVED 2026-11-07: both production `EmailIntegration` API keys were plaintext (control 10)
+
+**Fixed** by reconnecting both integrations through the product's own settings UI, which runs
+`encrypt()` on write — so production re-stored each key under its own `ENCRYPTION_KEY`, with
+no script and no opportunity to encrypt under the wrong one. Verified: both rows now hold
+144 hex characters, exactly `encrypt()`'s output for a 44-character input.
+
+Two follow-ups remain: `DELETE /api/email-integrations/[id]` only sets `isActive: false` and
+does not clear the stored credential, and the now-redundant lazy fallback in
+`services/email-marketing/sync.ts` should be removed. See `LYRA-Data-Register.md` §5.4.
+
+The original finding follows, for the record.
+
+#### Original finding
 
 `services/email-marketing/sync.ts:14` re-encrypts a plaintext key on its next sync. An
 earlier draft of this section attributed the gap to `isActive: false`; **that was wrong.**

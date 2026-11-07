@@ -185,7 +185,38 @@ public — this is the register's most material compliance gap after §5.1, and 
 same decision: how long may a third party's comment be retained, and how is it removed on
 request.
 
-### 5.4 CONFIRMED: both production email API keys are stored in plaintext
+### 5.4 RESOLVED 2026-11-07: both production email API keys were stored in plaintext
+
+**Resolved, and worth recording how, because the fix was not the one this section
+originally proposed.** Both rows were reconnected through the product's own settings UI
+(workspace → Settings → Email marketing → Disconnect, then paste the key and reconnect).
+`POST /api/email-integrations` calls `encrypt()` on both its create and update branches, so
+production re-stored each key under its own `ENCRYPTION_KEY` with no script, no key handling
+and no opportunity to encrypt under the wrong key.
+
+Verified after the fact: both rows now hold 144 characters of hex — exactly
+`encrypt()`'s output for a 44-character input (56-char iv+tag prefix plus 88 hex of
+ciphertext) — with `is_encrypted: true`, `isActive: true`, and `accountName` populated, which
+only happens when Klaviyo validates the key. One synced successfully at 07:31.
+
+**The lesson for the next credential found in plaintext:** if the product has a write path
+that encrypts, re-entering the credential through it is strictly safer than a migration
+script. The script route required the production key on a developer machine and nearly
+destroyed the data (§5.5). Reach for the UI first.
+
+Two things from this episode remain open and are *not* resolved by the above:
+
+- `DELETE /api/email-integrations/[id]` only sets `isActive: false`. It does **not** clear
+  or delete the credential, so a user who disconnects an integration keeps a stored API key
+  in the database indefinitely, with no purge job to remove it (§5.1). Both rows above sat
+  disconnected-but-plaintext between the two steps of the fix. A user would reasonably
+  assume disconnecting removed the key.
+- The lazy fallback in `services/email-marketing/sync.ts:14` should now be removed, so a
+  plaintext key becomes an error rather than a self-healing condition.
+
+The original finding follows, for the record.
+
+### 5.4.1 Original finding
 
 `EmailIntegration.apiKey` was stored in plaintext before it was brought in line with the
 other credential fields. `services/email-marketing/sync.ts:14` handles this by attempting
@@ -207,13 +238,13 @@ and the real trigger is broader:** both rows are `isActive: true`. One has never
 The lazy path requires *"has synced since the change"*, which is not the same as *"active"* —
 so an actively-used integration can sit in plaintext indefinitely too.
 
-**Fix available:** `lyra/scripts/encrypt-email-integration-keys.ts`, dry-run by default,
-`--apply` to migrate. It is idempotent (`decrypt()` distinguishes the two states with no
-ambiguity), scopes each write to the value it read so a concurrent lazy migration is never
-clobbered, re-reads to verify rather than trusting the writes, and never prints key material.
-Needs production credentials in `.env.local`, so it has **not** been run from here. Once it
-has, the lazy fallback in `sync.ts` should be removed so a plaintext key becomes an error
-rather than a self-healing condition.
+`lyra/scripts/encrypt-email-integration-keys.ts` was written for this and was **not** used in
+the end — see the resolution above. It is retained for any future row that reaches this state
+and cannot be re-entered through the UI. It is dry-run by default, idempotent (`decrypt()`
+distinguishes the two states with no ambiguity), scopes each write to the value it read so a
+concurrent lazy migration is never clobbered, re-reads to verify rather than trusting the
+writes, never prints key material, and refuses outright unless the key in use decrypts an
+existing production-written value — a guard that proved necessary (§5.5).
 
 ### 5.5 `lyra/.env.local` targets the production database with a non-production key
 
@@ -287,13 +318,18 @@ second.
    ceiling.
 3. **Add S3 deletion to both erasure paths** (§5.2), or an S3 lifecycle rule as a backstop.
    Purely mechanical once someone decides which.
-4. **Run `scripts/encrypt-email-integration-keys.ts --apply`** (§5.4). Both production keys
-   are confirmed plaintext, so this is the one item on this list that is a live exposure
-   rather than a policy decision — do it first. Then delete the lazy fallback in `sync.ts`
-   so a plaintext key becomes an error rather than a self-healing condition. Consider the
-   two Klaviyo keys compromised-at-rest until it has run, and rotate them in Klaviyo
-   afterwards if the risk warrants it.
-5. **Publish a data subject request route** for non-customers (§5.3), even if the first
+4. ~~Encrypt the plaintext email API keys.~~ **Done 2026-11-07** via reconnection through
+   the settings UI (§5.4). Two follow-ups remain from it: make
+   `DELETE /api/email-integrations/[id]` actually clear the stored credential rather than
+   only setting `isActive: false`, and remove the now-redundant lazy fallback in
+   `services/email-marketing/sync.ts`. Note the two Klaviyo keys were readable at rest for
+   some months before this, so rotating them in Klaviyo is still worth considering —
+   encryption protects them from here on, not retroactively.
+5. **Give `lyra/.env.local` its own database and `ENCRYPTION_KEY`, and reduce the two env
+   files to one** (§5.5). This is the remaining live footgun: a local run currently writes
+   to the production database, and which of two disagreeing encryption keys applies depends
+   on module import order.
+6. **Publish a data subject request route** for non-customers (§5.3), even if the first
    version is an email address in the privacy policy plus a documented operator runbook.
 
 ---
