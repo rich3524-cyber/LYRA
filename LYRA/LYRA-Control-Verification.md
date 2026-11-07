@@ -107,12 +107,24 @@ and names the environment keys, which is the raw material, but the inventory its
 exist. The rotation question matters most: rotating `ENCRYPTION_KEY` without a re-encryption
 pass makes every stored social and SEO token permanently undecryptable.
 
-### 3.5 `EmailIntegration.apiKey` encryption is lazy (control 10)
+### 3.5 CONFIRMED: both production `EmailIntegration` API keys are plaintext (control 10)
 
-`services/email-marketing/sync.ts:14` re-encrypts a plaintext key on next sync. An integration
-with `isActive: false` never syncs, so it keeps a plaintext key indefinitely. One migration
-pass over every row would close it; the lazy fallback should then be removed so a plaintext
-key becomes an error rather than a self-healing condition.
+`services/email-marketing/sync.ts:14` re-encrypts a plaintext key on its next sync. An
+earlier draft of this section attributed the gap to `isActive: false`; **that was wrong.**
+Checked against production on 2026-11-07, both rows are plaintext and **both are
+`isActive: true`** — one has never synced, the other last synced 2026-07-20, before the field
+was encrypted. The lazy path requires "has synced since the change", which is not the same as
+"active", so an actively-used integration can sit in plaintext indefinitely too.
+
+`lyra/scripts/encrypt-email-integration-keys.ts` performs the migration. It **cannot be run
+from a developer machine as things stand**: `lyra/.env.local` holds a well-formed but
+non-production `ENCRYPTION_KEY`, and encrypting under it would overwrite the plaintext with
+ciphertext the deployed app cannot read. The script now refuses to proceed unless the key in
+use decrypts an existing production-written value. See `LYRA-Data-Register.md` §5.4 and §5.5
+— the second of which is a separate finding this attempt uncovered.
+
+Once migrated, the lazy fallback should be removed so a plaintext key becomes an error rather
+than a self-healing condition.
 
 ### 3.6 CSP is allowlist-based, not nonce-based (control 11)
 

@@ -215,7 +215,39 @@ Needs production credentials in `.env.local`, so it has **not** been run from he
 has, the lazy fallback in `sync.ts` should be removed so a plaintext key becomes an error
 rather than a self-healing condition.
 
-### 5.5 Fixed in this review: deletion was failing outright for some customers
+### 5.5 `lyra/.env.local` targets the production database with a non-production key
+
+Found on 2026-11-07 while attempting the §5.4 migration, and it is a hazard in its own right.
+
+`lyra/.env.local` has `DATABASE_URL` and `DIRECT_URL` pointing at the **production** Supabase
+project, while its `ENCRYPTION_KEY` is a well-formed 64-hex key that is **not** the one
+production used — it fails to decrypt either of the two `SeoConnection` tokens that
+`app/api/seo/callback` itself encrypted.
+
+Two consequences, the second worse than the first:
+
+1. Local development cannot read any existing production credential; `decrypt()` throws.
+2. **Any local write of an encrypted field goes into the production database under the wrong
+   key.** Running `npm run dev` against this file and connecting a social account, an SEO
+   property or an email integration silently corrupts a production credential — it will
+   store, and read back locally, but the deployed app can never decrypt it.
+
+Nothing here suggests that has happened; `SocialAccount` is entirely on Zernio custody with
+null tokens, and both `SeoConnection` rows decrypt under production's key. It is a loaded
+footgun rather than a realised loss.
+
+This is control 10's "secrets scoped separately for production, preview and development" and
+control 14's environment separation, and the root cause is acknowledged in `netlify.toml`:
+deploy-preview and branch-deploy builds are skipped outright because *"no staging environment
+exists yet"* and they would otherwise share production's `DATABASE_URL`, Stripe key and Auth0
+tenant. The same absence is why a developer's `.env.local` points at production at all.
+
+**Recommended:** stand up a staging Supabase project and give `.env.local` its own database
+and its own `ENCRYPTION_KEY`. Until then, treat any local run against this file as a
+production write, and note that the §5.4 migration cannot be performed from a developer
+machine without temporarily placing the real production key on disk.
+
+### 5.6 Fixed in this review: deletion was failing outright for some customers
 
 `NotificationChannel` references `Workspace` with no `onDelete` rule and was missing from
 **both** deletion transactions. Any workspace with a Slack alert channel connected therefore
