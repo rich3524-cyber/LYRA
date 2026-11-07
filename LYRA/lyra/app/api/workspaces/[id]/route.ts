@@ -206,6 +206,11 @@ export async function DELETE(
       prisma.seoConnection.deleteMany({ where: { workspaceId: id } }),
       prisma.seoPage.deleteMany({ where: { workspaceId: id } }),
       prisma.searchConsoleData.deleteMany({ where: { workspaceId: id } }),
+      // NotificationChannel has no onDelete rule either, and was added after
+      // the SEO models above were fixed -- so it reintroduced exactly the same
+      // FK-violation failure, this time for any workspace with a Slack alert
+      // channel connected.
+      prisma.notificationChannel.deleteMany({ where: { workspaceId: id } }),
       prisma.workspaceAccess.deleteMany({ where: { workspaceId: id } }),
       prisma.workspace.delete({ where: { id } }),
     ])

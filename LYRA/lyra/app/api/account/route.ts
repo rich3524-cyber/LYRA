@@ -135,6 +135,10 @@ export async function DELETE() {
       prisma.seoConnection.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
       prisma.seoPage.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
       prisma.searchConsoleData.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
+      // Same omission as the SEO models above, for the same reason: no
+      // onDelete rule on NotificationChannel, so a workspace with a Slack
+      // alert channel connected made account deletion fail outright.
+      prisma.notificationChannel.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
       prisma.workspaceAccess.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
       prisma.workspace.deleteMany({ where: { id: { in: ownedWorkspaceIds } } }),
       // Revoke this user's access to any remaining (shared, non-owned) workspaces
