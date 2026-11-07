@@ -3,6 +3,7 @@ import { checkCronAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { subDays } from 'date-fns'
 import { brandSyncQueue } from '@/lib/queues'
+import { tickScopedJobId } from '@/lib/job-id'
 
 export async function GET(req: Request) {
   if (!checkCronAuth(req)) {
@@ -29,7 +30,7 @@ export async function GET(req: Request) {
         brandSyncQueue.add(
           'sync-brand',
           { workspaceId: w.id },
-          { jobId: `brand-sync-${w.id}`, removeOnComplete: true }
+          { jobId: tickScopedJobId(`brand-sync-${w.id}`), removeOnComplete: true }
         )
       )
     )
@@ -45,7 +46,7 @@ export async function GET(req: Request) {
         brandSyncQueue.add(
           'analyze-engagement',
           { workspaceId },
-          { jobId: `engagement-${workspaceId}`, removeOnComplete: true }
+          { jobId: tickScopedJobId(`engagement-${workspaceId}`), removeOnComplete: true }
         )
       )
     )
