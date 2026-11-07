@@ -23,6 +23,11 @@ describe('toNormalizedComment', () => {
       postExternalId: '18106518875609763',
       authorName: 'rich.unwin.9',
       authorHandle: 'rich.unwin.9',
+      // Carried through for self-comment detection -- the polling path had
+      // neither of these before, which is why its self-check was weaker than
+      // the webhook's. See lib/self-comment.ts.
+      authorPlatformId: '27820553427572105',
+      isOwner: false,
       text: 'Great info',
       createdAt: new Date('2026-08-24T23:05:20.000Z'),
     })
