@@ -109,13 +109,28 @@ export async function POST(req: Request) {
           break
         }
 
-        const normalized = toNormalizedComment({
-          id: payload.comment.id,
-          platformPostId: payload.comment.platformPostId,
-          author: payload.comment.author,
-          text: payload.comment.text,
-          createdAt: payload.comment.createdAt ?? new Date().toISOString(),
-        })
+        // The comment.received webhook payload and Zernio's getPostComments
+        // response are different shapes -- this one does use author/text/
+        // createdAt -- so the fields are translated into the response shape
+        // toNormalizedComment now expects. Keeping both paths on one
+        // normalizer is deliberate: it is what guarantees a webhook-ingested
+        // comment and a polled one land in the database identically.
+        const normalized = toNormalizedComment(
+          {
+            id: payload.comment.id,
+            message: payload.comment.text,
+            createdTime: payload.comment.createdAt ?? new Date().toISOString(),
+            from: payload.comment.author,
+          },
+          payload.comment.platformPostId
+        )
+
+        // Only reachable if Zernio sends a createdAt it cannot parse, since
+        // the line above substitutes now when the field is absent entirely.
+        if (!normalized) {
+          console.error(`comment.received event ${payload.id} has an unparseable createdAt — skipping`)
+          break
+        }
 
         // Idempotent by construction: @@unique([socialAccountId, platformCommentId])
         // means a retried delivery for the same comment updates the same row rather
