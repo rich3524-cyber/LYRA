@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server'
-import type { UserRole } from '@prisma/client'
 import Stripe from 'stripe'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { OWNER_ROLES } from '@/lib/authz'
 import { stripe } from '@/lib/stripe'
 
-const OWNER_ROLES: readonly UserRole[] = ['AGENCY_ADMIN', 'SMB_OWNER']
 
 // Stripe's signal for "this ID doesn't exist in Stripe at all" (stale DB
 // pointer, a dashboard-side deletion, a restored DB snapshot) -- distinct

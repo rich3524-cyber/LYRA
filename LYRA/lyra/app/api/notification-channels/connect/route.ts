@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import type { UserRole } from '@prisma/client'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { OWNER_ROLES } from '@/lib/authz'
 import { hasNotificationChannelAccess } from '@/lib/plan-access'
 import { zernioClient, ZernioApiError } from '@/services/social/zernio-client'
 import { ensureZernioProfile } from '@/services/social/zernio-connect'
@@ -9,11 +9,6 @@ import { ensureZernioProfile } from '@/services/social/zernio-connect'
 export const dynamic = 'force-dynamic'
 
 const BASE_URL = process.env.APP_BASE_URL!
-
-// Connecting an alerts channel is a workspace settings change, so it matches
-// the OWNER_ROLES policy used by PATCH /api/workspaces/[id] rather than the
-// broader canWrite rule.
-const OWNER_ROLES: UserRole[] = ['AGENCY_ADMIN', 'SMB_OWNER']
 
 // Zernio's platform slug. Deliberately not routed through platform-map.ts:
 // that map is an exhaustive Platform-enum-to-slug table for publishing
@@ -32,7 +27,10 @@ export async function GET(req: Request) {
     }
 
     const workspace = await prisma.workspace.findFirst({
-      where:  { id: workspaceId, access: { some: { userId: user.id, role: { in: OWNER_ROLES } } } },
+      // Connecting an alerts channel is a workspace settings change, so it
+      // matches the OWNER_ROLES policy used by PATCH /api/workspaces/[id]
+      // rather than the broader canWrite rule.
+      where:  { id: workspaceId, access: { some: { userId: user.id, role: { in: [...OWNER_ROLES] } } } },
       select: { id: true, name: true, plan: true, agency: { select: { crisisAwareSubId: true } } },
     })
     if (!workspace) {

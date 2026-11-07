@@ -3,6 +3,7 @@ import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { encrypt } from '@/lib/encrypt'
 import { verifyState } from '@/lib/oauth-state'
+import { canWrite } from '@/lib/authz'
 import { exchangeCode, getSites } from '@/services/seo/gsc-client'
 
 export const dynamic = 'force-dynamic'
@@ -22,11 +23,18 @@ export async function GET(req: Request) {
     }
     const { workspaceId } = state
 
-    // Verify the authenticated user has access to the target workspace
+    // Verify the authenticated user has access to the target workspace, WITH
+    // write access. This callback is directly reachable by URL and GET
+    // /api/seo/connect applies no role check of its own, so there is no
+    // upstream gate -- identical reasoning to the Zernio connect callback and
+    // the notification-channel callback, both of which already check a role
+    // here. Without it a read-only CLIENT_VIEW member could point this
+    // workspace's SEO data at a Search Console property they control and
+    // overwrite the stored Google refresh token for everyone else.
     const workspaceAccess = await prisma.workspaceAccess.findFirst({
       where: { workspaceId, userId: user.id },
     })
-    if (!workspaceAccess) {
+    if (!workspaceAccess || !canWrite(workspaceAccess.role)) {
       return NextResponse.redirect(`${BASE_URL}?error=gsc_oauth_failed`)
     }
 

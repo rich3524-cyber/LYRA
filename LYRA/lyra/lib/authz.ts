@@ -20,3 +20,23 @@ export function canWrite(role: UserRole): boolean {
 // fail-closed-by-default is the property that matters -- collapsing this into
 // canWrite would silently flip it to fail-open the next time UserRole grows.
 export const APPROVER_ROLES: readonly UserRole[] = ['PLATFORM_OWNER', 'AGENCY_ADMIN', 'AGENCY_MEMBER', 'SMB_OWNER', 'CLIENT_APPROVE'] as const
+
+// Workspace ownership: changing workspace settings, deleting a workspace, and
+// connecting or removing workspace-level integrations (notification channels).
+// Strictly narrower than canWrite -- AGENCY_MEMBER creates and publishes
+// content but does not reconfigure the workspace itself.
+//
+// Centralised here after this exact list was hand-declared, identically, as a
+// local const in six separate route files. lib/self-comment.ts exists for the
+// same reason: three divergent copies of one filter, one of which had already
+// drifted, caused a production incident. New owner-gated routes import this --
+// they do not declare a seventh copy.
+//
+// Allow-listed rather than derived from canWrite, matching APPROVER_ROLES
+// above: a role added to UserRole later gets no owner authority until someone
+// puts it here deliberately.
+//
+// PLATFORM_OWNER is absent, which preserves today's behaviour exactly -- it
+// holds no workspace-scoped authority anywhere in the codebase except
+// APPROVER_ROLES above. See LYRA-Permissions-Matrix.md.
+export const OWNER_ROLES: readonly UserRole[] = ['AGENCY_ADMIN', 'SMB_OWNER'] as const

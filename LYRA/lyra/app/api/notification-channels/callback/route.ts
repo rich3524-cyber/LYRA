@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
-import type { UserRole } from '@prisma/client'
 import { requireAuth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { OWNER_ROLES } from '@/lib/authz'
 import { hasNotificationChannelAccess } from '@/lib/plan-access'
 import { findZernioAccount, unwrapProfileId } from '@/services/social/zernio-connect'
 import { defaultEnabledEvents } from '@/services/notifications/events'
@@ -9,7 +9,6 @@ import { defaultEnabledEvents } from '@/services/notifications/events'
 export const dynamic = 'force-dynamic'
 
 const BASE_URL = process.env.APP_BASE_URL!
-const OWNER_ROLES: UserRole[] = ['AGENCY_ADMIN', 'SMB_OWNER']
 const SLACK_SLUG = 'slack'
 
 function fail(workspaceId: string | null, code: string) {
@@ -35,7 +34,7 @@ export async function GET(req: Request) {
     // redirect URL is guessable, so the callback cannot rely on the connect
     // route having already checked.
     const workspace = await prisma.workspace.findFirst({
-      where:  { id: workspaceId, access: { some: { userId: user.id, role: { in: OWNER_ROLES } } } },
+      where:  { id: workspaceId, access: { some: { userId: user.id, role: { in: [...OWNER_ROLES] } } } },
       select: { id: true, plan: true, zernioProfileId: true, agency: { select: { crisisAwareSubId: true } } },
     })
     if (!workspace) return fail(workspaceId, 'oauth_failed')
