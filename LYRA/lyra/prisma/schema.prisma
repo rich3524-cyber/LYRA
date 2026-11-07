@@ -673,7 +673,14 @@ model EmailIntegration {
   workspaceId  String
   workspace    Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   provider     EmailProvider
-  apiKey       String
+  // Nullable so disconnecting can REMOVE the credential rather than just
+  // hide it. DELETE /api/email-integrations/[id] previously only set
+  // isActive: false and left the key in the row indefinitely -- and with no
+  // purge job anywhere (LYRA-Data-Register.md section 5.1), indefinitely meant
+  // forever, after the user had as far as the UI showed them removed the
+  // integration. Null means "disconnected, credential deleted"; a non-null
+  // value is always AES-256-GCM ciphertext from lib/encrypt.ts, never plaintext.
+  apiKey       String?
   serverPrefix String?
   accountName  String?
   isActive     Boolean         @default(true)
