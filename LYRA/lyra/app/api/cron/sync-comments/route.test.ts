@@ -44,12 +44,16 @@ describe('GET /api/cron/sync-comments', () => {
     expect(commentMonitorQueue.add).toHaveBeenCalledWith(
       'monitor-account',
       { socialAccountId: 'sa-1' },
-      { jobId: 'monitor-sa-1', removeOnComplete: true }
+      // Tick-scoped rather than a frozen string: the id must carry the
+      // entity AND change between windows, because a permanently stable id
+      // is what let one failed job silently kill this queue. Matching the
+      // shape asserts both without pinning the test to the clock.
+      { jobId: expect.stringMatching(/^monitor-sa-1-\d+$/), removeOnComplete: true }
     )
     expect(commentMonitorQueue.add).toHaveBeenCalledWith(
       'monitor-account',
       { socialAccountId: 'sa-2' },
-      { jobId: 'monitor-sa-2', removeOnComplete: true }
+      { jobId: expect.stringMatching(/^monitor-sa-2-\d+$/), removeOnComplete: true }
     )
   })
 

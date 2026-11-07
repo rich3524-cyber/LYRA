@@ -48,17 +48,21 @@ describe('GET /api/cron/brand-refresh', () => {
     expect(brandSyncQueue.add).toHaveBeenCalledWith(
       'sync-brand',
       { workspaceId: 'ws-1' },
-      { jobId: 'brand-sync-ws-1', removeOnComplete: true }
+      // Tick-scoped rather than a frozen string: the id must carry the
+      // entity AND change between windows, because a permanently stable id
+      // is what let one failed job silently kill this queue. Matching the
+      // shape asserts both without pinning the test to the clock.
+      { jobId: expect.stringMatching(/^brand-sync-ws-1-\d+$/), removeOnComplete: true }
     )
     expect(brandSyncQueue.add).toHaveBeenCalledWith(
       'sync-brand',
       { workspaceId: 'ws-2' },
-      { jobId: 'brand-sync-ws-2', removeOnComplete: true }
+      { jobId: expect.stringMatching(/^brand-sync-ws-2-\d+$/), removeOnComplete: true }
     )
     expect(brandSyncQueue.add).toHaveBeenCalledWith(
       'analyze-engagement',
       { workspaceId: 'ws-3' },
-      { jobId: 'engagement-ws-3', removeOnComplete: true }
+      { jobId: expect.stringMatching(/^engagement-ws-3-\d+$/), removeOnComplete: true }
     )
   })
 
