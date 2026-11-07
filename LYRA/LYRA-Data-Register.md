@@ -185,7 +185,7 @@ public — this is the register's most material compliance gap after §5.1, and 
 same decision: how long may a third party's comment be retained, and how is it removed on
 request.
 
-### 5.4 One field self-heals its encryption, and only when active
+### 5.4 CONFIRMED: both production email API keys are stored in plaintext
 
 `EmailIntegration.apiKey` was stored in plaintext before it was brought in line with the
 other credential fields. `services/email-marketing/sync.ts:14` handles this by attempting
@@ -193,10 +193,27 @@ other credential fields. `services/email-marketing/sync.ts:14` handles this by a
 the row. The reasoning is sound: `decrypt()` throws on any value it did not itself produce,
 so there is no ambiguous case.
 
-The limitation is that the migration is **lazy**. A row only self-heals on its next sync, so
-an integration with `isActive: false` keeps a plaintext API key indefinitely. A one-off
-migration pass over every row, active or not, would close it. Until then, assume at least one
-plaintext third-party API key may exist in the table.
+The limitation is that the migration is **lazy** — a row only self-heals on its next sync.
+
+**Checked against production on 2026-11-07: both `EmailIntegration` rows are plaintext.**
+`encrypt()` emits all-lowercase hex with a 56-character iv+tag prefix, so a stored key is at
+minimum 56 characters of hex. Both rows hold 44 characters that are not hex at all, so
+`decrypt()` would throw on both. No key material was read to establish this — only length
+and a hex-shape test.
+
+An earlier draft of this section attributed the gap to `isActive: false`. **That was wrong,
+and the real trigger is broader:** both rows are `isActive: true`. One has never synced
+(`lastSyncAt` null) and the other last synced 2026-07-20, before the field was encrypted.
+The lazy path requires *"has synced since the change"*, which is not the same as *"active"* —
+so an actively-used integration can sit in plaintext indefinitely too.
+
+**Fix available:** `lyra/scripts/encrypt-email-integration-keys.ts`, dry-run by default,
+`--apply` to migrate. It is idempotent (`decrypt()` distinguishes the two states with no
+ambiguity), scopes each write to the value it read so a concurrent lazy migration is never
+clobbered, re-reads to verify rather than trusting the writes, and never prints key material.
+Needs production credentials in `.env.local`, so it has **not** been run from here. Once it
+has, the lazy fallback in `sync.ts` should be removed so a plaintext key becomes an error
+rather than a self-healing condition.
 
 ### 5.5 Fixed in this review: deletion was failing outright for some customers
 
@@ -224,8 +241,12 @@ second.
    ceiling.
 3. **Add S3 deletion to both erasure paths** (§5.2), or an S3 lifecycle rule as a backstop.
    Purely mechanical once someone decides which.
-4. **Run the one-off `EmailIntegration.apiKey` encryption pass** (§5.4), then delete the lazy
-   fallback so a plaintext key becomes an error rather than a self-healing condition.
+4. **Run `scripts/encrypt-email-integration-keys.ts --apply`** (§5.4). Both production keys
+   are confirmed plaintext, so this is the one item on this list that is a live exposure
+   rather than a policy decision — do it first. Then delete the lazy fallback in `sync.ts`
+   so a plaintext key becomes an error rather than a self-healing condition. Consider the
+   two Klaviyo keys compromised-at-rest until it has run, and rotate them in Klaviyo
+   afterwards if the risk warrants it.
 5. **Publish a data subject request route** for non-customers (§5.3), even if the first
    version is an email address in the privacy policy plus a documented operator runbook.
 
