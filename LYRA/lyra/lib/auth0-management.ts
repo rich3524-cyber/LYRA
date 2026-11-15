@@ -142,12 +142,103 @@ async function createAuth0ClientWithToken(token: string, params: CreateAuth0Clie
   return await res.json() as Auth0ClientResult
 }
 
+interface Auth0ConnectionListEntry {
+  id: string
+  name?: string
+  enabled_clients?: string[]
+}
+
+export class Auth0ConnectionEnableError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'Auth0ConnectionEnableError'
+  }
+}
+
+// Enables, for a newly-provisioned Application, the same login connections the
+// main LYRA Application already uses.
+//
+// Creating a client through the Management API does NOT attach any connection
+// to it -- only the dashboard's own "create application" flow does that. A
+// client with no connections cannot be logged into at all: Auth0 fails the
+// authorize request with `invalid_request: no connections enabled for the
+// client`, which is what every MCP client registering through this shim hit
+// until this existed. The ones that worked had been toggled on by hand in the
+// dashboard, which hid the gap.
+//
+// Mirroring AUTH0_CLIENT_ID's connections rather than taking a configured list
+// keeps this self-maintaining: an MCP client is reachable by exactly the users
+// who can already sign in to LYRA, and adding a new login method later (say
+// Google) needs no change here.
+async function enableConnectionsForClient(token: string, clientId: string): Promise<void> {
+  const domain = process.env.AUTH0_DOMAIN!
+  const mainClientId = process.env.AUTH0_CLIENT_ID
+  if (!mainClientId) {
+    throw new Auth0ConnectionEnableError(
+      'AUTH0_CLIENT_ID is not set, so there is no reference Application whose connections to mirror.'
+    )
+  }
+
+  const listRes = await fetch(
+    `https://${domain}/api/v2/connections?fields=id,name,enabled_clients&include_fields=true&per_page=100`,
+    { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(TIMEOUT_MS) }
+  )
+  if (!listRes.ok) {
+    const body = await listRes.text()
+    // 403 here is almost always the Management API application missing the
+    // read:connections scope -- name that, because the raw Auth0 body does not.
+    throw new Auth0ConnectionEnableError(
+      `Could not list Auth0 connections (${listRes.status}): ${body}. ` +
+      'The Management API application needs the read:connections and update:connections scopes.'
+    )
+  }
+  const connections = (await listRes.json()) as Auth0ConnectionListEntry[]
+
+  // Only the connections the main app uses. A connection whose enabled_clients
+  // is absent is skipped rather than assumed empty -- PATCHing from a list we
+  // are not sure is complete could disable other Applications, since
+  // enabled_clients replaces wholesale rather than merging.
+  const targets = connections.filter(
+    (c) => Array.isArray(c.enabled_clients) && c.enabled_clients.includes(mainClientId)
+  )
+  if (targets.length === 0) {
+    throw new Auth0ConnectionEnableError(
+      `No Auth0 connection lists AUTH0_CLIENT_ID (${mainClientId}) in enabled_clients, so there is ` +
+      'nothing to mirror. Check that value matches the main LYRA Application in this tenant.'
+    )
+  }
+
+  for (const connection of targets) {
+    const current = connection.enabled_clients!
+    if (current.includes(clientId)) continue
+
+    const patchRes = await fetch(`https://${domain}/api/v2/connections/${connection.id}`, {
+      method:  'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      // Strictly additive. enabled_clients is a whole-array replacement, so
+      // this spreads the list just read and appends -- it never removes an
+      // Application that was already there.
+      body:    JSON.stringify({ enabled_clients: [...current, clientId] }),
+      signal:  AbortSignal.timeout(TIMEOUT_MS),
+    })
+    if (!patchRes.ok) {
+      throw new Auth0ConnectionEnableError(
+        `Could not enable connection "${connection.name ?? connection.id}" for client ${clientId} ` +
+        `(${patchRes.status}): ${await patchRes.text()}. ` +
+        'The Management API application needs the update:connections scope.'
+      )
+    }
+  }
+}
+
 // Always provisions a fresh Application. Kept as its own export for callers
 // that genuinely want a new client every time; getOrCreateAuth0Client below
 // is what the DCR route uses.
 export async function createAuth0Client(params: CreateAuth0ClientParams): Promise<Auth0ClientResult> {
   const token = await getManagementApiToken()
-  return createAuth0ClientWithToken(token, params)
+  const client = await createAuth0ClientWithToken(token, params)
+  await enableConnectionsForClient(token, client.client_id)
+  return client
 }
 
 // RFC 7591 registration identifies a piece of client software, not an
@@ -165,7 +256,35 @@ export async function createAuth0Client(params: CreateAuth0ClientParams): Promis
 // means in this context.
 export async function getOrCreateAuth0Client(params: CreateAuth0ClientParams): Promise<Auth0ClientResult> {
   const token = await getManagementApiToken()
+
   const existing = await findExistingAuth0Client(token, params)
-  if (existing) return existing
-  return createAuth0ClientWithToken(token, params)
+  if (existing) {
+    // Best-effort on the reuse path, deliberately. A client being reused has
+    // very likely logged in before, so its connections are already enabled and
+    // this is a no-op -- and clients that predate enableConnectionsForClient
+    // get retro-fixed here for free. But if the call fails (most plausibly the
+    // Management API application not yet having read:connections), a client
+    // that already worked must not stop working because of it. Log and carry
+    // on; a genuinely unreachable client still surfaces as Auth0's own
+    // "no connections enabled" error at authorize time.
+    try {
+      await enableConnectionsForClient(token, existing.client_id)
+    } catch (err) {
+      console.error(`Auth0 connection enable failed for existing client ${existing.client_id}:`, err)
+    }
+    return existing
+  }
+
+  const client = await createAuth0ClientWithToken(token, params)
+
+  // NOT best-effort on the create path. A brand-new Application with no
+  // connections cannot be logged into at all, so returning its client_id to
+  // the caller would hand back credentials that are guaranteed to fail later,
+  // at authorize time, with an error that points nowhere near this code.
+  // Failing registration here names the real cause while the caller is still
+  // looking. Retrying is cheap and does not burn another slot against the
+  // tenant's Application cap: the reuse path above finds this same client by
+  // (name, redirect_uris) and tries again.
+  await enableConnectionsForClient(token, client.client_id)
+  return client
 }
