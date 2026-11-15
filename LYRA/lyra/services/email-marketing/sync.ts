@@ -1,27 +1,8 @@
 import { prisma } from '@/lib/prisma'
-import { encrypt, decrypt } from '@/lib/encrypt'
+import { decrypt } from '@/lib/encrypt'
 import { fetchKlaviyoCampaigns } from './klaviyo-campaigns'
 import { fetchMailchimpCampaigns } from './mailchimp-campaigns'
 import { fetchCustomerioCampaigns } from './customerio-campaigns'
-
-// EmailIntegration.apiKey was stored in plaintext before this field was brought
-// in line with SocialAccount/SeoConnection's encrypted tokens. decrypt() throws
-// on any value it didn't itself produce (undersized/malformed iv+tag prefix, or
-// GCM auth-tag verification failure) -- there is no ambiguous case, so any
-// failure here means "never encrypted." Fall back to the raw value and
-// lazily re-encrypt it so the row self-heals on its next sync.
-async function decryptApiKey(integration: { id: string; apiKey: string }): Promise<string> {
-  try {
-    return decrypt(integration.apiKey)
-  } catch {
-    console.warn(`[email-integration] ${integration.id} apiKey was not encrypted -- migrating to encrypted storage`)
-    await prisma.emailIntegration.update({
-      where: { id: integration.id },
-      data: { apiKey: encrypt(integration.apiKey) },
-    })
-    return integration.apiKey
-  }
-}
 
 export async function syncEmailIntegration(integrationId: string): Promise<{ synced: number }> {
   const integration = await prisma.emailIntegration.findUnique({
@@ -29,7 +10,40 @@ export async function syncEmailIntegration(integrationId: string): Promise<{ syn
   })
   if (!integration?.isActive) return { synced: 0 }
 
-  const apiKey = await decryptApiKey(integration)
+  // Null once the integration has been disconnected -- the credential is
+  // deleted rather than retained, so there is nothing to sync with. Not an
+  // error: an inactive row is already skipped above, and this is the narrow
+  // race where a disconnect lands between the two.
+  if (!integration.apiKey) {
+    console.warn(`[email-integration] ${integration.id} has no stored credential -- skipping sync`)
+    return { synced: 0 }
+  }
+
+  // This used to catch decrypt()'s failure, treat it as "never encrypted",
+  // use the raw value and lazily re-encrypt the row. That self-healing path is
+  // deliberately gone. It only ever fired for rows predating encryption of
+  // this field, and it fired on *sync*, so a row that never synced stayed
+  // plaintext indefinitely -- which is exactly how both production keys were
+  // still readable in November 2026, months after the field was encrypted and
+  // while both were isActive: true. Masking a plaintext credential as a
+  // warning let it persist unnoticed; now a value this key cannot decrypt is
+  // an error, which is what control 05's fail-closed requirement asks for.
+  //
+  // decrypt() throws on anything it did not itself produce -- a malformed
+  // iv+tag prefix, or GCM auth-tag verification failure -- so this also
+  // surfaces an ENCRYPTION_KEY mismatch rather than silently re-encrypting
+  // under the wrong key.
+  let apiKey: string
+  try {
+    apiKey = decrypt(integration.apiKey)
+  } catch {
+    throw new Error(
+      `EmailIntegration ${integration.id} (${integration.provider}) has a credential this ` +
+      'ENCRYPTION_KEY cannot decrypt. It is either plaintext from before this field was ' +
+      'encrypted, or encrypted under a different key. Reconnect the integration to re-store ' +
+      'it; see LYRA-Data-Register.md section 5.4.'
+    )
+  }
 
   let campaigns: Awaited<ReturnType<typeof fetchKlaviyoCampaigns>> = []
 

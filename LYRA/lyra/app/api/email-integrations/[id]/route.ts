@@ -26,9 +26,18 @@ export async function DELETE(
       return NextResponse.json({ error: exists ? 'Forbidden' : 'Not found' }, { status: exists ? 403 : 404 })
     }
 
+    // Clear the credential, don't just deactivate. This used to set only
+    // isActive: false, which left the stored API key in the row forever --
+    // there is no purge job anywhere in the codebase to collect it later
+    // (LYRA-Data-Register.md section 5.1). "Disconnect" in the UI reads as
+    // "my key is gone", and now it is.
+    //
+    // The row itself is still kept rather than deleted, so reconnecting the
+    // same provider restores history: EmailCampaign cascades from this row, so
+    // a hard delete would discard every synced campaign along with it.
     await prisma.emailIntegration.update({
       where: { id },
-      data: { isActive: false },
+      data: { isActive: false, apiKey: null },
     })
 
     return NextResponse.json({ ok: true })

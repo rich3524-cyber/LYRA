@@ -185,9 +185,21 @@ async function main() {
   console.log(`${integrations.length} EmailIntegration row(s).`)
   console.log(apply ? 'Mode: APPLY (will write)\n' : 'Mode: DRY RUN (no writes -- pass --apply to migrate)\n')
 
-  const plaintext: typeof integrations = []
+  // apiKey is nullable: null means the integration was disconnected and its
+  // credential deleted, which is the desired end state, not something to
+  // migrate. Narrowed to a non-null apiKey so the write below type-checks
+  // without a cast.
+  const plaintext: (Omit<(typeof integrations)[number], 'apiKey'> & { apiKey: string })[] = []
 
   for (const row of integrations) {
+    if (row.apiKey === null) {
+      console.log(
+        `  ${row.id}  ${row.provider.padEnd(10)} active=${String(row.isActive).padEnd(5)} ` +
+        'no stored credential (disconnected)'
+      )
+      continue
+    }
+
     let encrypted: boolean
     try {
       decrypt(row.apiKey)
@@ -203,7 +215,7 @@ async function main() {
       `len=${String(row.apiKey.length).padStart(4)}  ${encrypted ? 'encrypted' : 'PLAINTEXT'}`
     )
 
-    if (!encrypted) plaintext.push(row)
+    if (!encrypted) plaintext.push({ ...row, apiKey: row.apiKey })
   }
 
   console.log(`\n${plaintext.length} row(s) need encrypting.`)
@@ -236,6 +248,8 @@ async function main() {
   // here leaves a credential in plaintext while reporting success.
   const after = await prisma.emailIntegration.findMany({ select: { id: true, apiKey: true } })
   const stillPlaintext = after.filter((row) => {
+    // A null apiKey is a deleted credential, not an unencrypted one.
+    if (row.apiKey === null) return false
     try {
       decrypt(row.apiKey)
       return false
