@@ -102,7 +102,14 @@ export const zernioProvider: SocialProvider = {
 
   async fetchRecentComments(account) {
     const zernioAccountId = requireZernioId(account)
-    const { data: posts } = await zernioClient.listCommentedPosts(account.platform.toLowerCase())
+    // Scoped to THIS account. Omitting the id makes Zernio aggregate across every
+    // account the master API key can see -- every tenant's, not just this
+    // workspace's -- and the getPostComments loop below would then ask Meta for
+    // posts this account does not own. See listCommentedPosts in zernio-client.ts.
+    const { data: posts } = await zernioClient.listCommentedPosts(
+      account.platform.toLowerCase(),
+      zernioAccountId
+    )
     const comments: NormalizedComment[] = []
     for (const post of posts as ZernioCommentedPost[]) {
       const { comments: rawComments } = await zernioClient.getPostComments(post.id, zernioAccountId)
