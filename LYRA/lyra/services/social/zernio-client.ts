@@ -180,14 +180,40 @@ export const zernioClient = {
     ),
 
   // There is no single endpoint that returns a flat list of comments for one account.
-  // The real API is two-step: list POSTS that have comments (across all connected
-  // accounts), then fetch the comments for one specific post (accountId required).
+  // The real API is two-step: list POSTS that have comments, then fetch the comments
+  // for one specific post (accountId required).
   // Response's array field is `data`, not `posts` -- confirmed live 2026-07-21 (this
   // had never actually been exercised in production until the comment-sync provider
   // routing fix two days earlier started calling it for real; the wrong assumed field
   // name meant every call threw "posts is not iterable").
-  listCommentedPosts: (platform?: string) =>
-    req<{ data: unknown[] }>('GET', `/inbox/comments${platform ? `?platform=${encodeURIComponent(platform)}` : ''}`),
+  //
+  // accountId is NOT optional in practice, despite the signature. Without it this
+  // endpoint "aggregates data across multiple accounts" (Zernio's own wording) -- and
+  // since ZERNIO_API_KEY is one master key spanning every LYRA workspace, "all
+  // connected accounts" means every account of every tenant, not just this one's.
+  // The caller then loops those post ids into getPostComments with ITS accountId, and
+  // Meta refuses a post the account does not own:
+  //
+  //   Unsupported get request. Object with ID '...' does not exist, cannot be loaded
+  //   due to missing permissions, or does not support this operation
+  //
+  // Confirmed live 2026-11-19: an unscoped instagram call returned 8 posts, all
+  // belonging to the LYRA workspace's account, while syncing a brand-new account in
+  // the Tenmore workspace. Whichever account happens to own the returned page syncs
+  // cleanly and every other account fails -- which is why this read as an intermittent
+  // Zernio fault for months and was recorded in the handover as their bug. It was ours.
+  //
+  // Scoping also closes a latent cross-workspace ingestion path: the caller attributes
+  // every comment it fetches to the account it is syncing, so any post id that DID
+  // resolve would file another workspace's comments under this one. Meta's permission
+  // check is the only thing preventing that today, which is not a control LYRA owns.
+  listCommentedPosts: (platform?: string, accountId?: string) => {
+    const query = new URLSearchParams()
+    if (platform) query.set('platform', platform)
+    if (accountId) query.set('accountId', accountId)
+    const suffix = query.size > 0 ? `?${query}` : ''
+    return req<{ data: unknown[] }>('GET', `/inbox/comments${suffix}`)
+  },
 
   getPostComments: (postId: string, accountId: string) =>
     req<{ comments: unknown[] }>(
